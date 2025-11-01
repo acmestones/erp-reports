@@ -1,0 +1,186 @@
+{
+    "Current Operation": {
+        "doctype": "Work Order",
+        "title_field": "work_order_id",
+        "card_fields": [
+            "customer",
+            "production_item",
+            "quantity_to_manufacture",
+            "completed_qty",
+            "workstation"
+        ],
+        "image_fields": [
+            "item_description"
+        ],
+        "group_by": [
+            "current_operation",
+            "workstation"
+        ],
+        "group_sort": {
+            "current_operation": [
+                "P O",
+                "Procurement",
+                "Selection \/ Marking",
+                "Size Cutting",
+                "CNC",
+                "Laying \/ Quality Checking",
+                "Polishing \/ Brushing",
+                "Hand Finishing",
+                "Packing",
+                "Shotblast"
+            ],
+            "workstation": [
+                "CNC Router 1",
+                "Bablu Ji",
+                "Bridgesaw",
+                "Packing",
+                "Polish Machine",
+                "Satish Sir",
+                "Selection",
+                "Shotblasting Machine",
+                "Surjaram"
+            ]
+        },
+        "sort_by": "wo_date",
+        "sort_order": "desc",
+        "collapsed": true,
+        "field_order": [
+            "work_order_id",
+            "wo_date",
+            "customer",
+            "production_item",
+            "item_description",
+            "quantity_to_manufacture",
+            "completed_qty",
+            "workstation",
+            "current_operation",
+            "operation_status",
+            "job_card",
+            "custom_production_notes",
+            "sales_order_id",
+            "sales_order_date"
+        ],
+        "user_permissions": {
+            "marblehouse@gmail.com": {
+                "editable_fields": [
+                    "production_notes"
+                ],
+                "hidden_fields": [
+                    "wo_date",
+                    "completed_qty",
+                    "current_operation",
+                    "operation_status",
+                    "sales_order_date"
+                ]
+            }
+        }
+    },
+    "CNC Report Current": {
+        "doctype": "Work Order",
+        "title_field": "job_card",
+        "card_fields": [
+            "customer",
+            "required_qty"
+        ],
+        "image_fields": [
+            "description_cleaned"
+        ],
+        "group_by": [
+            "workstation"
+        ],
+        "collapsed": true,
+        "sort_by": "",
+        "sort_order": "asc",
+        "field_order": [
+            "job_card",
+            "work_order",
+            "select",
+            "tags",
+            "customer",
+            "workstation",
+            "plant",
+            "operation",
+            "description_cleaned",
+            "custom_production_notes",
+            "required_qty",
+            "completed_qty",
+            "estimated_time_(mins)",
+            "actual_time_(mins)",
+            "time_required_for_remaining_qty_(mins)",
+            "current"
+        ],
+        "group_sort": {
+            "workstation": [
+                "CNC Router 1",
+                "Arun Ji"
+            ]
+        },
+        "user_permissions": {
+            "marblehouse@gmail.com": {
+                "editable_fields": [],
+                "hidden_fields": []
+            }
+        }
+    },
+    "Find Sample": {
+        "doctype": "",
+        "title_field": "work_order_id",
+        "card_fields": [
+            "customer",
+            "quantity_to_manufacture",
+            "production_notes"
+        ],
+        "image_fields": [],
+        "group_by": [
+            "customer"
+        ],
+        "sort_by": "",
+        "sort_order": "asc",
+        "collapsed": true,
+        "field_order": [
+            "work_order_id",
+            "wo_date",
+            "customer",
+            "production_item",
+            "item_description",
+            "quantity_to_manufacture",
+            "completed_qty",
+            "workstation",
+            "current_operation",
+            "operation_status",
+            "job_card",
+            "production_notes",
+            "sales_order_id",
+            "sales_order_date"
+        ],
+        "group_sort": {
+            "customer": [
+                "Amit Marble Story",
+                "Bagno Stiles",
+                "Bansal Tiles and Granite (Kunal Bansal Ji)",
+                "Diamond Marbles (Manish Ji)",
+                "M\/S Ebt Marmo (Saurabh Ji)",
+                "M\/S Mangalam Marble and Granites (Gaurav Ji Hyderabad)",
+                "Natural Stones Scape Private Limited (Jatin Inani)",
+                "Shrsthi Jain Ekaara",
+                "Sunrise Marbles Hyderabad (Sandeep Ji)",
+                "V Stone Studio"
+            ]
+        },
+        "user_permissions": {
+            "marblehouse@gmail.com": {
+                "editable_fields": [],
+                "hidden_fields": [
+                    "wo_date",
+                    "production_item",
+                    "completed_qty",
+                    "workstation",
+                    "current_operation",
+                    "operation_status",
+                    "sales_order_id",
+                    "sales_order_date"
+                ]
+            }
+        }
+    }
+}
