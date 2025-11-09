@@ -1110,17 +1110,13 @@ function createSaveButton(inputElement, reportName, modal) {
         const docname = inputElement.dataset.docname;
         const fieldname = inputElement.dataset.fieldname;
         
-        // FIXED: Handle both input.value and div.innerHTML
         let value;
         if (inputElement.classList.contains('editable-richtext')) {
-            // For contenteditable divs, get innerHTML
             value = inputElement.innerHTML || '';
         } else {
-            // For regular inputs/selects
             value = inputElement.value || '';
         }
         
-        // FIXED: Check if value is a string before calling .includes()
         if (typeof value === 'string' && !value.includes('<') && !value.includes('>')) {
             value = value.trim();
         }
@@ -1132,9 +1128,7 @@ function createSaveButton(inputElement, reportName, modal) {
             return;
         }
         
-        // Wrap in Quill format only if it's a rich text field
         if (inputElement.classList.contains('editable-richtext')) {
-            // Already has HTML content - just wrap in ql-editor if not already wrapped
             if (!value.includes('ql-editor')) {
                 value = `<div class="ql-editor read-mode">${value}</div>`;
             }
@@ -1148,6 +1142,33 @@ function createSaveButton(inputElement, reportName, modal) {
             
             if (result.error || result.exc) {
                 throw new Error(result.error || result.exc || "Update failed");
+            }
+            
+            // NEW: Make any uploaded images public
+            if (inputElement.classList.contains('editable-richtext')) {
+                saveBtn.textContent = "Making images public...";
+                
+                const tempDiv = document.createElement('div');
+                tempDiv.innerHTML = value;
+                const images = tempDiv.querySelectorAll('img');
+                
+                for (const img of images) {
+                    const src = img.getAttribute('src');
+                    // Check if it's an ERPNext file URL (not Base64)
+                    if (src && src.includes('/files/') && !src.startsWith('data:')) {
+                        try {
+                            const response = await fetch(API_BASE + '?action=make_file_public', {
+                                method: 'POST',
+                                headers: {'Content-Type': 'application/json'},
+                                body: JSON.stringify({ file_url: src })
+                            });
+                            const publicResult = await response.json();
+                            console.log('Made file public:', src, publicResult);
+                        } catch (err) {
+                            console.warn('Could not make file public:', src, err);
+                        }
+                    }
+                }
             }
             
             saveBtn.textContent = "✓ Saved";
