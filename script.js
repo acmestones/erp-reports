@@ -1946,7 +1946,7 @@ newUserCards.forEach(cardEl => {
         method: "POST",
         headers: {"Content-Type": "application/json"},
         body: JSON.stringify({
-            adminemail: userEmail,
+            admin_email: userEmail,
             data: updatedUsers
         })
     });
