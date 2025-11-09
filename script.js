@@ -1184,51 +1184,7 @@ function preserveUserData() {
 async function openAdminSettings() {
 
 
-// (Place at the beginning of openAdminSettings)
-const addUserBtn = document.getElementById('addUserBtn');
-if (addUserBtn) {
-    addUserBtn.onclick = function () {
-        const usersList = document.getElementById('usersList');
-        if (!usersList) return;
-        const newCard = document.createElement('div');
-        newCard.className = 'card mb-3 border-success';
-        newCard.innerHTML = `
-            <div class="card-body">
-                <div class="mb-2">
-                    <label class="form-label small fw-bold">Email</label>
-                    <input type="email" class="form-control form-control-sm new-user-email" placeholder="Enter email">
-                </div>
-                <div class="mb-2">
-                    <label class="form-label small fw-bold">Role</label>
-                    <select class="form-select form-select-sm user-role" data-idx="new">
-                        <option value="user">User</option>
-                        <option value="admin">Admin</option>
-                    </select>
-                </div>
-                <div class="mb-2">
-                    <label class="form-label small fw-bold">Can Edit Records</label>
-                    <input type="checkbox" class="form-check-input user-edit" data-idx="new">
-                </div>
-                <div class="mb-2">
-                    <label class="form-label small fw-bold">Allowed Reports</label>
-                    <div class="border rounded p-2" style="max-height: 150px; overflow-y: auto;">
-                        ${(window.allReports || []).map(r => `
-                            <div class="form-check">
-                                <input class="form-check-input user-report-check" type="checkbox" value="${r}" data-idx="new" id="newreport-${r}">
-                                <label class="form-check-label" for="newreport-${r}">${r}</label>
-                            </div>
-                        `).join('')}
-                    </div>
-                </div>
-            </div>
-        `;
-        usersList.prepend(newCard);
-    };
-}
-
-
-
-    
+   
     const modal = new bootstrap.Modal(document.getElementById("adminModal"));
     
     const userData = await getUsers();
