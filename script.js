@@ -1086,64 +1086,96 @@ async function showDetailModal(row, columns, reportName, config) {
                     valueDiv.appendChild(saveBtn);
                 }
                 
-            } else if (hasValue) {
-                // Non-editable field with value - display only
-                if (typeof value === 'string' && (value.includes('<') || value.includes('href'))) {
-                    const tempDiv = document.createElement("div");
-                    tempDiv.innerHTML = value;
-                    
-                    tempDiv.querySelectorAll('img').forEach(img => {
-                        const originalSrc = img.getAttribute('src');
-                        const fixedUrl = fixImageUrl(originalSrc);
-                        
-                        img.setAttribute('src', fixedUrl);
-                        img.style.cursor = 'pointer';
-                        img.style.maxWidth = '100%';
-                        
-                        const imageUrl = fixedUrl;
-                        
-                        img.onclick = function(e) {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            window.open(imageUrl, '_blank', 'noopener,noreferrer');
-                        };
-                        
-                        img.onerror = function() {
-                            console.error("Failed to load image:", imageUrl);
-                            this.style.border = '1px solid #ddd';
-                            this.style.padding = '5px';
-                            this.style.backgroundColor = '#f8f9fa';
-                            this.alt = 'Image not available';
-                        };
-                    });
-                    
-                    tempDiv.querySelectorAll('a').forEach(link => {
-                        const href = link.getAttribute('href');
-                        if (href) {
-                            link.href = fixImageUrl(href);
-                            link.target = '_blank';
-                            link.rel = 'noopener noreferrer';
-                            link.onclick = function(e) {
-                                e.stopPropagation();
-                            };
-                        }
-                    });
-                    
-                    valueDiv.appendChild(tempDiv);
-                    
-                } else if (col.fieldtype === 'Link' && col.options) {
-                    const link = document.createElement("a");
-                    const doctypeSlug = col.options.toLowerCase().replace(/\s+/g, '-');
-                    link.href = `https://acmestones.erpnext.com/app/${doctypeSlug}/${encodeURIComponent(value)}`;
-                    link.target = '_blank';
-                    link.rel = 'noopener noreferrer';
-                    link.className = 'link-field';
-                    link.textContent = value;
-                    valueDiv.appendChild(link);
-                } else {
-                    valueDiv.textContent = value;
-                }
+            } 
+            
+            
+            
+    else if (hasValue) {
+    // Check if this is a Text Editor type field
+    const isTextEditorField = col.fieldtype === "Text Editor" || 
+                               col.fieldtype === "Text" || 
+                               col.fieldtype === "Small Text" || 
+                               col.fieldtype === "Long Text";
+    
+    // Non-editable Text Editor fields - display formatted HTML (read-only)
+    if (isTextEditorField) {
+        const displayDiv = document.createElement("div");
+        displayDiv.className = "richtext-display";
+        displayDiv.style.padding = "0.5rem";
+        displayDiv.style.border = "1px solid #dee2e6";
+        displayDiv.style.borderRadius = "0.25rem";
+        displayDiv.style.backgroundColor = "#f8f9fa";
+        displayDiv.style.minHeight = "50px";
+        
+        let htmlValue = value;
+        if (typeof htmlValue === 'string' && htmlValue.includes('ql-editor')) {
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = htmlValue;
+            const qlEditor = tempDiv.querySelector('.ql-editor');
+            htmlValue = qlEditor ? qlEditor.innerHTML : htmlValue;
+        }
+        
+        displayDiv.innerHTML = htmlValue;
+        
+        // Fix image URLs
+        displayDiv.querySelectorAll('img').forEach(img => {
+            const originalSrc = img.getAttribute('src');
+            const fixedUrl = fixImageUrl(originalSrc);
+            img.setAttribute('src', fixedUrl);
+            img.style.maxWidth = '100%';
+            img.style.height = 'auto';
+        });
+        
+        valueDiv.appendChild(displayDiv);
+    }
+    // Non-Text Editor fields with images/links - use special handling
+    else if (typeof value === "string" && (value.includes("<img") || value.includes("href"))) {
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = value;
+        
+        tempDiv.querySelectorAll('img').forEach(img => {
+            const originalSrc = img.getAttribute('src');
+            const fixedUrl = fixImageUrl(originalSrc);
+            img.setAttribute('src', fixedUrl);
+            img.style.cursor = "pointer";
+            img.style.maxWidth = "100%";
+            
+            const imageUrl = fixedUrl;
+            img.onclick = function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                window.open(imageUrl, '_blank', 'noopener,noreferrer');
+            };
+            
+            img.onerror = function() {
+                console.error("Failed to load image:", imageUrl);
+                this.style.border = "1px solid #ddd";
+                this.style.padding = "5px";
+                this.style.backgroundColor = "#f8f9fa";
+                this.alt = "Image not available";
+            };
+        });
+        
+        tempDiv.querySelectorAll('a').forEach(link => {
+            const href = link.getAttribute('href');
+            if (href) {
+                link.href = fixImageUrl(href);
+                link.target = "_blank";
+                link.rel = "noopener noreferrer";
+                link.onclick = function(e) {
+                    e.stopPropagation();
+                };
             }
+        });
+        
+        valueDiv.appendChild(tempDiv);
+    }
+
+
+
+
+
+
             
             fieldDiv.appendChild(labelDiv);
             fieldDiv.appendChild(valueDiv);
