@@ -140,35 +140,45 @@ if(isset($_GET['action']) && $_GET['action']==='get_link_options'){
 }
 
 // Save users
-if(isset($_GET['action']) && $_GET['action']==='save_users'){
+if (isset($_GET['action']) && $_GET['action'] === 'save_users') {
     $input = json_decode(file_get_contents("php://input"), true);
-    
-    if(json_last_error() !== JSON_ERROR_NONE) {
+
+    if (json_last_error() !== JSON_ERROR_NONE) {
         echo json_encode(["error" => "Invalid JSON"]);
         exit;
     }
-    
+
     $admin_email = $input['admin_email'] ?? '';
-    $data = $input['data'] ?? '';
-    
-    $users = json_decode(file_get_contents("users.json"), true);
+    $data = $input['data'] ?? [];
+
+    $usersFile = "users.json";
+    $users = json_decode(file_get_contents($usersFile), true);
+
     $adminFound = false;
-    foreach($users['users'] as $u){
-        if($u['email']===$admin_email && $u['role']==='admin') {
+    foreach ($users['users'] as $u) {
+        if ($u['email'] === $admin_email && $u['role'] === 'admin') {
             $adminFound = true;
             break;
         }
     }
-    
-    if(!$adminFound){
-        echo json_encode(["error"=>"Not authorized"]);
+
+    if (!$adminFound) {
+        echo json_encode(["error" => "Not authorized"]);
         exit;
     }
-    
-    file_put_contents("users.json", json_encode($data, JSON_PRETTY_PRINT));
-    echo json_encode(["message"=>"User list updated"]);
+
+    // Wrap data in the 'users' key to maintain structure
+    $newUsersData = ['users' => $data];
+
+    if (file_put_contents($usersFile, json_encode($newUsersData, JSON_PRETTY_PRINT)) === false) {
+        echo json_encode(["error" => "Failed to save users"]);
+        exit;
+    }
+
+    echo json_encode(["message" => "User list updated successfully"]);
     exit;
 }
+
 
 // Save report configuration
 if(isset($_GET['action']) && $_GET['action']==='save_report_config'){
