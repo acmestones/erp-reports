@@ -1942,7 +1942,7 @@ newUserCards.forEach(cardEl => {
 
     console.log("Final users to save:", updatedUsers);
 
-    const res = await fetch(`${API_BASE}?action=saveusers`, {
+    const res = await fetch(`${API_BASE}?action=save_users`, {
         method: "POST",
         headers: {"Content-Type": "application/json"},
         body: JSON.stringify({
