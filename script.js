@@ -878,35 +878,26 @@ async function showDetailModal(row, columns, reportName, config) {
                 
                 
                 
-                else if (col.fieldtype === "Text" || col.fieldtype === "Small Text" || 
+               else if (col.fieldtype === "Text" || col.fieldtype === "Small Text" || 
          col.fieldtype === "Long Text" || col.fieldtype === "Text Editor") {
     
-    // Create container for editor and controls
-    const editorContainer = document.createElement("div");
-    editorContainer.className = "richtext-editor-container";
+    // Create container for display and edit modes
+    const richTextContainer = document.createElement("div");
+    richTextContainer.className = "richtext-container";
     
-    // Create toolbar with image upload button
-    const toolbar = document.createElement("div");
-    toolbar.className = "richtext-toolbar mb-2";
-    toolbar.innerHTML = `
-        <button type="button" class="btn btn-sm btn-outline-secondary" id="insertImageBtn">
-            <i class="bi bi-image"></i> Insert Image
-        </button>
-        <input type="file" accept="image/*" style="display: none;" id="imageUploadInput" />
-    `;
+    // Create display mode (read-only view)
+    const displayDiv = document.createElement("div");
+    displayDiv.className = "richtext-display";
+    displayDiv.style.padding = "0.5rem";
+    displayDiv.style.border = "1px solid #dee2e6";
+    displayDiv.style.borderRadius = "0.25rem";
+    displayDiv.style.backgroundColor = "#f8f9fa";
+    displayDiv.style.minHeight = "50px";
+    displayDiv.style.maxHeight = "300px";
+    displayDiv.style.overflowY = "auto";
     
-    // Create contenteditable div
-    const editableDiv = document.createElement("div");
-    editableDiv.className = "form-control form-control-sm editable-richtext";
-    editableDiv.contentEditable = "true";
-    editableDiv.style.minHeight = "150px";
-    editableDiv.style.maxHeight = "400px";
-    editableDiv.style.overflowY = "auto";
-    editableDiv.style.whiteSpace = "pre-wrap";
-    
-    // Extract and set HTML content
-    let htmlValue = value || "";
-    
+    // Extract and set display HTML
+    let htmlValue = value || "<p class='text-muted'>No content</p>";
     if (typeof htmlValue === 'string' && htmlValue.includes('ql-editor')) {
         const tempDiv = document.createElement('div');
         tempDiv.innerHTML = htmlValue;
@@ -914,9 +905,43 @@ async function showDetailModal(row, columns, reportName, config) {
         htmlValue = qlEditor ? qlEditor.innerHTML : htmlValue;
     }
     
+    displayDiv.innerHTML = htmlValue;
+    
+    // Fix image URLs in display
+    displayDiv.querySelectorAll('img').forEach(img => {
+        const originalSrc = img.getAttribute('src');
+        const fixedUrl = fixImageUrl(originalSrc);
+        img.setAttribute('src', fixedUrl);
+        img.style.maxWidth = '100%';
+        img.style.height = 'auto';
+    });
+    
+    // Create edit mode (contenteditable)
+    const editorContainer = document.createElement("div");
+    editorContainer.className = "richtext-editor-container";
+    editorContainer.style.display = "none"; // Hidden by default
+    
+    // Toolbar
+    const toolbar = document.createElement("div");
+    toolbar.className = "richtext-toolbar mb-2";
+    toolbar.innerHTML = `
+        <button type="button" class="btn btn-sm btn-outline-secondary" id="insertImageBtn">
+            📷 Insert Image
+        </button>
+        <input type="file" accept="image/*" style="display: none;" id="imageUploadInput" />
+    `;
+    
+    // Editable div
+    const editableDiv = document.createElement("div");
+    editableDiv.className = "form-control form-control-sm editable-richtext";
+    editableDiv.contentEditable = "true";
+    editableDiv.style.minHeight = "150px";
+    editableDiv.style.maxHeight = "400px";
+    editableDiv.style.overflowY = "auto";
+    editableDiv.style.whiteSpace = "pre-wrap";
     editableDiv.innerHTML = htmlValue;
     
-    // Fix existing image URLs
+    // Fix image URLs in editor
     editableDiv.querySelectorAll('img').forEach(img => {
         const originalSrc = img.getAttribute('src');
         const fixedUrl = fixImageUrl(originalSrc);
@@ -929,7 +954,7 @@ async function showDetailModal(row, columns, reportName, config) {
     editableDiv.dataset.docname = docName;
     editableDiv.dataset.doctype = config.doctype || "Work Order";
     
-    // Assemble the editor
+    // Assemble editor
     editorContainer.appendChild(toolbar);
     editorContainer.appendChild(editableDiv);
     
@@ -946,27 +971,21 @@ async function showDetailModal(row, columns, reportName, config) {
         const file = event.target.files[0];
         if (!file) return;
         
-        // Validate file type
         if (!file.type.startsWith('image/')) {
             alert('Please select an image file');
             return;
         }
         
-        // Validate file size (max 5MB)
-        if (file.size > 5 * 1024 * 1024) {
-            alert('Image size should be less than 5MB');
+        if (file.size > 2 * 1024 * 1024) {
+            alert('Image size should be less than 2MB');
             return;
         }
         
-        // Convert to Base64
         const reader = new FileReader();
         reader.onload = function(e) {
             const base64Image = e.target.result;
-            
-            // Focus the editable div
             editableDiv.focus();
             
-            // Insert image at cursor position
             const img = document.createElement('img');
             img.src = base64Image;
             img.style.maxWidth = '100%';
@@ -974,14 +993,11 @@ async function showDetailModal(row, columns, reportName, config) {
             img.style.display = 'block';
             img.style.margin = '10px 0';
             
-            // Insert at cursor or at the end
             const selection = window.getSelection();
             if (selection.rangeCount > 0) {
                 const range = selection.getRangeAt(0);
                 range.deleteContents();
                 range.insertNode(img);
-                
-                // Move cursor after image
                 range.setStartAfter(img);
                 range.setEndAfter(img);
                 selection.removeAllRanges();
@@ -992,15 +1008,53 @@ async function showDetailModal(row, columns, reportName, config) {
         };
         
         reader.readAsDataURL(file);
-        
-        // Reset input
         event.target.value = '';
     });
     
+    // Create Edit/Cancel/Save buttons
+    const buttonContainer = document.createElement("div");
+    buttonContainer.className = "mt-2";
+    
+    const editBtn = document.createElement("button");
+    editBtn.className = "btn btn-sm btn-primary";
+    editBtn.textContent = "✏️ Edit";
+    editBtn.onclick = () => {
+        displayDiv.style.display = "none";
+        editorContainer.style.display = "block";
+        editBtn.style.display = "none";
+        cancelBtn.style.display = "inline-block";
+        saveBtn.style.display = "inline-block";
+    };
+    
+    const cancelBtn = document.createElement("button");
+    cancelBtn.className = "btn btn-sm btn-secondary me-2";
+    cancelBtn.textContent = "Cancel";
+    cancelBtn.style.display = "none";
+    cancelBtn.onclick = () => {
+        displayDiv.style.display = "block";
+        editorContainer.style.display = "none";
+        editBtn.style.display = "inline-block";
+        cancelBtn.style.display = "none";
+        saveBtn.style.display = "none";
+        // Reset editor content
+        editableDiv.innerHTML = htmlValue;
+    };
+    
     const saveBtn = createSaveButton(editableDiv, reportName, modal);
-    valueDiv.appendChild(editorContainer);
-    valueDiv.appendChild(saveBtn);
+    saveBtn.style.display = "none";
+    
+    buttonContainer.appendChild(editBtn);
+    buttonContainer.appendChild(cancelBtn);
+    buttonContainer.appendChild(saveBtn);
+    
+    // Assemble everything
+    richTextContainer.appendChild(displayDiv);
+    richTextContainer.appendChild(editorContainer);
+    
+    valueDiv.appendChild(richTextContainer);
+    valueDiv.appendChild(buttonContainer);
 }
+
 
                 
                 
