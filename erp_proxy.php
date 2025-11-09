@@ -200,5 +200,88 @@ if(isset($_GET['action']) && $_GET['action']==='get_report_config'){
     exit;
 }
 
+
+
+// NEW: Make file public by updating File document
+if (isset($_GET['action']) && $_GET['action'] == 'make_file_public') {
+    $input = json_decode(file_get_contents('php://input'), true);
+    
+    if (json_last_error() != JSON_ERROR_NONE) {
+        echo json_encode(['error' => 'Invalid JSON input']);
+        exit;
+    }
+    
+    $file_url = $input['file_url'] ?? '';
+    
+    if (empty($file_url)) {
+        echo json_encode(['error' => 'No file URL provided']);
+        exit;
+    }
+    
+    // Extract file path from URL (e.g., /files/image.png -> /files/image.png)
+    $parsed = parse_url($file_url);
+    $file_path = $parsed['path'] ?? $file_url;
+    
+    logError("Making file public: " . $file_path);
+    
+    // First, get the File document by file_url
+    $ch = curl_init();
+    $search_url = ERP_BASE . '/api/resource/File?filters=[["file_url","=","' . $file_path . '"]]&fields=["name","is_private"]';
+    
+    curl_setopt_array($ch, [
+        CURLOPT_URL => $search_url,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HTTPHEADER => [
+            "Authorization: token " . API_KEY . ":" . API_SECRET
+        ],
+        CURLOPT_SSL_VERIFYPEER => false
+    ]);
+    
+    $search_result = curl_exec($ch);
+    curl_close($ch);
+    
+    $search_data = json_decode($search_result, true);
+    
+    if (isset($search_data['data']) && count($search_data['data']) > 0) {
+        $file_doc = $search_data['data'][0];
+        $file_name = $file_doc['name'];
+        
+        // Update the File document to make it public
+        $ch = curl_init();
+        $update_url = ERP_BASE . '/api/resource/File/' . urlencode($file_name);
+        
+        $update_data = json_encode([
+            'is_private' => 0
+        ]);
+        
+        curl_setopt_array($ch, [
+            CURLOPT_URL => $update_url,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_CUSTOMREQUEST => 'PUT',
+            CURLOPT_POSTFIELDS => $update_data,
+            CURLOPT_HTTPHEADER => [
+                "Authorization: token " . API_KEY . ":" . API_SECRET,
+                "Content-Type: application/json"
+            ],
+            CURLOPT_SSL_VERIFYPEER => false
+        ]);
+        
+        $update_result = curl_exec($ch);
+        $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+        
+        logError("Make public response (HTTP $http_code): " . $update_result);
+        
+        echo $update_result;
+    } else {
+        echo json_encode(['error' => 'File document not found']);
+    }
+    
+    exit;
+}
+
+
+
+
 echo json_encode(["error"=>"Invalid request"]);
 ?>
