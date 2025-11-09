@@ -238,44 +238,33 @@ function extractImageUrl(htmlContent) {
 // Replace the existing fixImageUrl function with this enhanced version
 function fixImageUrl(url) {
     if (!url) return null;
-    
-    // Remove any whitespace
     url = url.trim();
-    
-    console.log("Fixing URL:", url);
     
     // Already absolute URL
     if (url.startsWith("http") || url.startsWith("https")) {
-        console.log("Already absolute:", url);
         return url;
     }
     
     // Protocol-relative URL
     if (url.startsWith("//")) {
-        console.log("Protocol-relative:", "https:" + url);
         return "https:" + url;
     }
     
-    // NEW: Handle ONLY private files specifically
+    // Handle private files by proxying through PHP
     if (url.includes('/private/files/')) {
-        // This is a private file - use ERPNext's authenticated file download endpoint
-        const fixed = `https://acmestones.erpnext.com/api/method/frappe.utils.file_manager.get_file?file_url=${encodeURIComponent(url)}`;
-        console.log("Private file converted:", fixed);
-        return fixed;
+        // Proxy through PHP to add authentication
+        return `${API_BASE}?action=proxy_image&file_url=${encodeURIComponent(url)}`;
     }
     
     // Root-relative URL (including public /files/)
     if (url.startsWith("/")) {
-        const fixed = `https://acmestones.erpnext.com${url}`;
-        console.log("Root-relative:", fixed);
-        return fixed;
+        return `https://acmestones.erpnext.com${url}`;
     }
     
-    // Relative URL (no leading slash)
-    const fixed = `https://acmestones.erpnext.com/${url}`;
-    console.log("Relative:", fixed);
-    return fixed;
+    // Relative URL
+    return `https://acmestones.erpnext.com/${url}`;
 }
+
 
 
 
