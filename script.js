@@ -1109,40 +1109,38 @@ function createSaveButton(inputElement, reportName, modal) {
         const doctype = inputElement.dataset.doctype;
         const docname = inputElement.dataset.docname;
         const fieldname = inputElement.dataset.fieldname;
-        let value = inputElement.value;
         
-        // Don't trim if it contains HTML tags
-        if (!value.includes('<') && !value.includes('>')) {
+        // FIXED: Handle both input.value and div.innerHTML
+        let value;
+        if (inputElement.classList.contains('editable-richtext')) {
+            // For contenteditable divs, get innerHTML
+            value = inputElement.innerHTML || '';
+        } else {
+            // For regular inputs/selects
+            value = inputElement.value || '';
+        }
+        
+        // FIXED: Check if value is a string before calling .includes()
+        if (typeof value === 'string' && !value.includes('<') && !value.includes('>')) {
             value = value.trim();
         }
         
-        if (!value) {
+        if (!value || value.trim() === '') {
             alert("Please enter a value before saving.");
             saveBtn.disabled = false;
             saveBtn.textContent = "Save";
             return;
         }
         
-        // CHANGE: Only wrap in Quill format if it's plain text
-        // If it already has HTML tags (including images), preserve them
-        if (inputElement.tagName === "TEXTAREA" && inputElement.rows === 3) {
-            // Check if value already has HTML content
-            const hasHTML = /<[^>]+>/.test(value);
-            
-            if (!hasHTML) {
-                // Only for plain text: convert to HTML format
-                const lines = value.split('\n').filter(line => line.trim() !== '');
-                const htmlLines = lines.map(line => `<p>${line}</p>`).join('');
-                value = `<div class="ql-editor read-mode">${htmlLines}</div>`;
-            } else {
-                // Already has HTML - just wrap in ql-editor if not already wrapped
-                if (!value.includes('ql-editor')) {
-                    value = `<div class="ql-editor read-mode">${value}</div>`;
-                }
+        // Wrap in Quill format only if it's a rich text field
+        if (inputElement.classList.contains('editable-richtext')) {
+            // Already has HTML content - just wrap in ql-editor if not already wrapped
+            if (!value.includes('ql-editor')) {
+                value = `<div class="ql-editor read-mode">${value}</div>`;
             }
         }
         
-        console.log("Saving field:", {doctype, docname, fieldname, originalValue: inputElement.value, processedValue: value});
+        console.log("Saving field:", {doctype, docname, fieldname, processedValue: value});
         
         try {
             const result = await updateField(doctype, docname, fieldname, value);
