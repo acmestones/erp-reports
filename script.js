@@ -893,21 +893,25 @@ async function showDetailModal(row, columns, reportName, config) {
     displayDiv.style.borderRadius = "0.25rem";
     displayDiv.style.backgroundColor = "#f8f9fa";
     displayDiv.style.minHeight = "50px";
-    displayDiv.style.maxHeight = "300px";
+    // FIXED: Remove maxHeight so content auto-expands
+    // displayDiv.style.maxHeight = "300px";
     displayDiv.style.overflowY = "auto";
     
     // Extract and set display HTML
     let htmlValue = value || "<p class='text-muted'>No content</p>";
+    let originalHtmlValue = htmlValue; // Store original for comparison
+    
     if (typeof htmlValue === 'string' && htmlValue.includes('ql-editor')) {
         const tempDiv = document.createElement('div');
         tempDiv.innerHTML = htmlValue;
         const qlEditor = tempDiv.querySelector('.ql-editor');
         htmlValue = qlEditor ? qlEditor.innerHTML : htmlValue;
+        originalHtmlValue = htmlValue;
     }
     
     displayDiv.innerHTML = htmlValue;
     
-    // Fix image URLs in display
+    // Fix image URLs in display (for viewing)
     displayDiv.querySelectorAll('img').forEach(img => {
         const originalSrc = img.getAttribute('src');
         const fixedUrl = fixImageUrl(originalSrc);
@@ -939,16 +943,12 @@ async function showDetailModal(row, columns, reportName, config) {
     editableDiv.style.maxHeight = "400px";
     editableDiv.style.overflowY = "auto";
     editableDiv.style.whiteSpace = "pre-wrap";
-    editableDiv.innerHTML = htmlValue;
     
-    // Fix image URLs in editor
-    editableDiv.querySelectorAll('img').forEach(img => {
-        const originalSrc = img.getAttribute('src');
-        const fixedUrl = fixImageUrl(originalSrc);
-        img.setAttribute('src', fixedUrl);
-        img.style.maxWidth = '100%';
-        img.style.height = 'auto';
-    });
+    // FIXED: Keep original ERPNext URLs in edit mode (not proxied URLs)
+    editableDiv.innerHTML = originalHtmlValue;
+    
+    // DON'T fix image URLs in edit mode - keep them as ERPNext URLs
+    // This prevents the proxied URLs from being saved back
     
     editableDiv.dataset.fieldname = actualFieldname;
     editableDiv.dataset.docname = docName;
@@ -1019,6 +1019,9 @@ async function showDetailModal(row, columns, reportName, config) {
     editBtn.className = "btn btn-sm btn-primary";
     editBtn.textContent = "✏️ Edit";
     editBtn.onclick = () => {
+        // FIXED: Reset editor with original HTML (not display HTML with proxied URLs)
+        editableDiv.innerHTML = originalHtmlValue;
+        
         displayDiv.style.display = "none";
         editorContainer.style.display = "block";
         editBtn.style.display = "none";
@@ -1037,7 +1040,7 @@ async function showDetailModal(row, columns, reportName, config) {
         cancelBtn.style.display = "none";
         saveBtn.style.display = "none";
         // Reset editor content
-        editableDiv.innerHTML = htmlValue;
+        editableDiv.innerHTML = originalHtmlValue;
     };
     
     const saveBtn = createSaveButton(editableDiv, reportName, modal);
@@ -1054,6 +1057,7 @@ async function showDetailModal(row, columns, reportName, config) {
     valueDiv.appendChild(richTextContainer);
     valueDiv.appendChild(buttonContainer);
 }
+
 
 
                 
