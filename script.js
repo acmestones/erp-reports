@@ -1900,8 +1900,8 @@ async function saveUserSettings() {
         updatedUsers.push({
             email,
             role: roleSelect ? roleSelect.value : "user",
-            canedit: editCheck ? editCheck.checked : false,
-            allowedreports: allowedReports
+            can_edit: editCheck ? editCheck.checked : false,
+            allowed_reports: allowedReports
         });
     });
 
@@ -1929,8 +1929,8 @@ newUserCards.forEach(cardEl => {
     updatedUsers.push({
         email,
         role: roleSelect ? roleSelect.value : "user",
-        canedit: editCheck ? editCheck.checked : false,
-        allowedreports: allowedReports
+        can_edit: editCheck ? editCheck.checked : false,
+        allowed_reports: allowedReports
     });
 });
 
