@@ -1867,82 +1867,77 @@ function setupDragDrop(listId) {
 }
 
 async function saveUserSettings() {
-    // DON'T call preserveUserData here - it's already been called
-    
-    const users = await getUsers();
+    const users = await getUsers(); 
     const updatedUsers = [];
     
-    console.log("Using preserved data:", tempUserData);
-    
-    // Update existing users with preserved data
-    users.users.forEach((user) => {
-        if (tempUserData[user.email]) {
-            updatedUsers.push({
-                email: user.email,
-                role: tempUserData[user.email].role,
-                can_edit: tempUserData[user.email].can_edit,
-                allowed_reports: tempUserData[user.email].allowed_reports
-            });
-            console.log(`Updated ${user.email}:`, tempUserData[user.email]);
-        } else {
-            // Fallback to original data
-            updatedUsers.push({
-                email: user.email,
-                role: user.role,
-                can_edit: user.can_edit || false,
-                allowed_reports: user.allowed_reports || []
-            });
-            console.log(`Kept original for ${user.email}`);
-        }
-    });
-    
-    // Process NEW users
-    const newUserCards = document.querySelectorAll('#usersList .card.border-success');
-    newUserCards.forEach((cardEl) => {
+    // Collect all user cards currently visible
+    const userCards = document.querySelectorAll('#usersList .card:not(.border-success)'); // exclude new unsaved cards if needed
+    userCards.forEach(cardEl => {
         const cardBody = cardEl.querySelector('.card-body');
-        const emailInput = cardBody.querySelector('.new-user-email');
-        if (!emailInput) return;
-        
-        const email = emailInput.value;
-        const idx = cardBody.querySelector('.user-role').dataset.idx;
-        
+        if (!cardBody) return;
+        const emailEl = cardBody.querySelector('h6'); // or input for new users
+        if (!emailEl) return;
+        const email = emailEl.textContent.trim();
+
+        const idxElement = cardBody.querySelector('[data-idx]');
+        const idx = idxElement ? idxElement.dataset.idx : null;
+
         const roleSelect = cardBody.querySelector(`.user-role[data-idx="${idx}"]`);
         const editCheck = cardBody.querySelector(`.user-edit[data-idx="${idx}"]`);
         const reportChecks = cardBody.querySelectorAll(`.user-report-check[data-idx="${idx}"]:checked`);
-        
+        const allowedReports = Array.from(reportChecks).map(cb => cb.value);
+
         updatedUsers.push({
             email,
-            role: roleSelect ? roleSelect.value : 'user',
-            can_edit: editCheck ? editCheck.checked : false,
-            allowed_reports: Array.from(reportChecks).map(cb => cb.value)
+            role: roleSelect ? roleSelect.value : "user",
+            canedit: editCheck ? editCheck.checked : false,
+            allowedreports: allowedReports
         });
     });
-    
+
+    // Also add new user cards (border-success class)
+    const newUserCards = document.querySelectorAll('#usersList .card.border-success');
+    newUserCards.forEach(cardEl => {
+        const cardBody = cardEl.querySelector('.card-body');
+        const emailInput = cardBody.querySelector('.new-user-email');
+        if (!emailInput) return;
+        const email = emailInput.value.trim();
+        if (!email) return; // Skip empty
+
+        const roleSelect = cardBody.querySelector('.user-role');
+        const editCheck = cardBody.querySelector('.user-edit');
+        const reportChecks = cardBody.querySelectorAll('.user-report-check:checked');
+        const allowedReports = Array.from(reportChecks).map(cb => cb.value);
+
+        updatedUsers.push({
+            email,
+            role: roleSelect ? roleSelect.value : "user",
+            canedit: editCheck ? editCheck.checked : false,
+            allowedreports: allowedReports
+        });
+    });
+
     if (updatedUsers.length === 0) {
         alert("No users to save!");
         return;
     }
-    
+
     console.log("Final users to save:", updatedUsers);
-    
-    const res = await fetch(`${API_BASE}?action=save_users`, {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
+
+    const res = await fetch(`${APIBASE}?action=saveusers`, {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
         body: JSON.stringify({
-            admin_email: userEmail,
-            data: {users: updatedUsers}
+            adminemail: userEmail,
+            data: updatedUsers
         })
     });
-    
-    if (!res.ok) {
-        throw new Error("Failed to save users");
-    }
-    
+    if (!res.ok) throw new Error("Failed to save users");
+
     const result = await res.json();
-    tempUserData = {};
-    
     return result;
 }
+
 
 
 
