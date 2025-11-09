@@ -1134,9 +1134,10 @@ function createSaveButton(inputElement, reportName, modal) {
             }
         }
         
-        console.log("Saving field:", {doctype, docname, fieldname, processedValue: value});
+        console.log("Saving field:", {doctype, docname, fieldname});
         
         try {
+            // Step 1: Save the field
             const result = await updateField(doctype, docname, fieldname, value);
             console.log("Update result:", result);
             
@@ -1144,28 +1145,45 @@ function createSaveButton(inputElement, reportName, modal) {
                 throw new Error(result.error || result.exc || "Update failed");
             }
             
-            // NEW: Make any uploaded images public
+            // Step 2: Wait for ERPNext to convert Base64 images to files
             if (inputElement.classList.contains('editable-richtext')) {
-                saveBtn.textContent = "Making images public...";
+                saveBtn.textContent = "Processing images...";
                 
-                const tempDiv = document.createElement('div');
-                tempDiv.innerHTML = value;
-                const images = tempDiv.querySelectorAll('img');
+                // Wait 2 seconds for ERPNext to process Base64 images
+                await new Promise(resolve => setTimeout(resolve, 2000));
                 
-                for (const img of images) {
-                    const src = img.getAttribute('src');
-                    // Check if it's an ERPNext file URL (not Base64)
-                    if (src && src.includes('/files/') && !src.startsWith('data:')) {
-                        try {
-                            const response = await fetch(API_BASE + '?action=make_file_public', {
-                                method: 'POST',
-                                headers: {'Content-Type': 'application/json'},
-                                body: JSON.stringify({ file_url: src })
-                            });
-                            const publicResult = await response.json();
-                            console.log('Made file public:', src, publicResult);
-                        } catch (err) {
-                            console.warn('Could not make file public:', src, err);
+                // Step 3: Fetch the updated document to get the converted file URLs
+                const docResponse = await fetch(`${API_BASE}?action=get_doc&doctype=${encodeURIComponent(doctype)}&docname=${encodeURIComponent(docname)}`);
+                const docData = await docResponse.json();
+                
+                if (docData && docData.data) {
+                    const updatedFieldValue = docData.data[fieldname];
+                    console.log("Updated field value from server:", updatedFieldValue);
+                    
+                    if (updatedFieldValue && typeof updatedFieldValue === 'string') {
+                        const tempDiv = document.createElement('div');
+                        tempDiv.innerHTML = updatedFieldValue;
+                        const images = tempDiv.querySelectorAll('img');
+                        
+                        console.log(`Found ${images.length} images to make public`);
+                        
+                        for (const img of images) {
+                            const src = img.getAttribute('src');
+                            // Check if it's an ERPNext file URL (not Base64)
+                            if (src && src.includes('/files/') && !src.startsWith('data:')) {
+                                console.log('Making file public:', src);
+                                try {
+                                    const response = await fetch(API_BASE + '?action=make_file_public', {
+                                        method: 'POST',
+                                        headers: {'Content-Type': 'application/json'},
+                                        body: JSON.stringify({ file_url: src })
+                                    });
+                                    const publicResult = await response.json();
+                                    console.log('Made file public result:', publicResult);
+                                } catch (err) {
+                                    console.error('Could not make file public:', src, err);
+                                }
+                            }
                         }
                     }
                 }
