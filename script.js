@@ -34,17 +34,25 @@ document.getElementById("userEmail").textContent = userEmail;
 
 
 
-        // Add User Button Handler: creates a new user card in admin modal
-document.getElementById('addUserBtn').onclick = function () {
+        document.getElementById('addUserBtn').onclick = function () {
     const usersList = document.getElementById('usersList');
     if (!usersList) return;
+
+    // Check if a blank new user email input already exists - prevent multiple empties
+    const existingEmpty = usersList.querySelector('.card.border-success .new-user-email[value=""], .card.border-success .new-user-email:not([value])');
+    if (existingEmpty) {
+        alert("Please enter an email for the existing new user before adding another.");
+        existingEmpty.focus();
+        return;
+    }
+
     const newCard = document.createElement('div');
     newCard.className = 'card mb-3 border-success';
     newCard.innerHTML = `
         <div class="card-body">
             <div class="mb-2">
                 <label class="form-label small fw-bold">Email</label>
-                <input type="email" class="form-control form-control-sm new-user-email" placeholder="Enter email">
+                <input type="email" class="form-control form-control-sm new-user-email" placeholder="Enter email" required>
             </div>
             <div class="mb-2">
                 <label class="form-label small fw-bold">Role</label>
@@ -71,7 +79,9 @@ document.getElementById('addUserBtn').onclick = function () {
         </div>
     `;
     usersList.prepend(newCard);
+    newCard.querySelector('.new-user-email').focus();
 };
+
 
 
         
@@ -1897,25 +1907,33 @@ async function saveUserSettings() {
 
     // Also add new user cards (border-success class)
     const newUserCards = document.querySelectorAll('#usersList .card.border-success');
-    newUserCards.forEach(cardEl => {
-        const cardBody = cardEl.querySelector('.card-body');
-        const emailInput = cardBody.querySelector('.new-user-email');
-        if (!emailInput) return;
-        const email = emailInput.value.trim();
-        if (!email) return; // Skip empty
+newUserCards.forEach(cardEl => {
+    const cardBody = cardEl.querySelector('.card-body');
+    if (!cardBody) return;
 
-        const roleSelect = cardBody.querySelector('.user-role');
-        const editCheck = cardBody.querySelector('.user-edit');
-        const reportChecks = cardBody.querySelectorAll('.user-report-check:checked');
-        const allowedReports = Array.from(reportChecks).map(cb => cb.value);
+    const emailInput = cardBody.querySelector('.new-user-email');
+    if (!emailInput) return;
 
-        updatedUsers.push({
-            email,
-            role: roleSelect ? roleSelect.value : "user",
-            canedit: editCheck ? editCheck.checked : false,
-            allowedreports: allowedReports
-        });
+    const email = emailInput.value.trim();
+    if (!email) {
+        alert("Please provide a valid email for all new users before saving.");
+        emailInput.focus();
+        throw new Error("User email is required");
+    }
+
+    const roleSelect = cardBody.querySelector('.user-role');
+    const editCheck = cardBody.querySelector('.user-edit');
+    const reportChecks = cardBody.querySelectorAll('.user-report-check:checked');
+    const allowedReports = Array.from(reportChecks).map(cb => cb.value);
+
+    updatedUsers.push({
+        email,
+        role: roleSelect ? roleSelect.value : "user",
+        canedit: editCheck ? editCheck.checked : false,
+        allowedreports: allowedReports
     });
+});
+
 
     if (updatedUsers.length === 0) {
         alert("No users to save!");
