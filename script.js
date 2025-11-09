@@ -1086,64 +1086,7 @@ async function showDetailModal(row, columns, reportName, config) {
                     valueDiv.appendChild(saveBtn);
                 }
                 
-            } else if (hasValue) {
-                // Non-editable field with value - display only
-                if (typeof value === 'string' && (value.includes('<') || value.includes('href'))) {
-                    const tempDiv = document.createElement("div");
-                    tempDiv.innerHTML = value;
-                    
-                    tempDiv.querySelectorAll('img').forEach(img => {
-                        const originalSrc = img.getAttribute('src');
-                        const fixedUrl = fixImageUrl(originalSrc);
-                        
-                        img.setAttribute('src', fixedUrl);
-                        img.style.cursor = 'pointer';
-                        img.style.maxWidth = '100%';
-                        
-                        const imageUrl = fixedUrl;
-                        
-                        img.onclick = function(e) {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            window.open(imageUrl, '_blank', 'noopener,noreferrer');
-                        };
-                        
-                        img.onerror = function() {
-                            console.error("Failed to load image:", imageUrl);
-                            this.style.border = '1px solid #ddd';
-                            this.style.padding = '5px';
-                            this.style.backgroundColor = '#f8f9fa';
-                            this.alt = 'Image not available';
-                        };
-                    });
-                    
-                    tempDiv.querySelectorAll('a').forEach(link => {
-                        const href = link.getAttribute('href');
-                        if (href) {
-                            link.href = fixImageUrl(href);
-                            link.target = '_blank';
-                            link.rel = 'noopener noreferrer';
-                            link.onclick = function(e) {
-                                e.stopPropagation();
-                            };
-                        }
-                    });
-                    
-                    valueDiv.appendChild(tempDiv);
-                    
-                } else if (col.fieldtype === 'Link' && col.options) {
-                    const link = document.createElement("a");
-                    const doctypeSlug = col.options.toLowerCase().replace(/\s+/g, '-');
-                    link.href = `https://acmestones.erpnext.com/app/${doctypeSlug}/${encodeURIComponent(value)}`;
-                    link.target = '_blank';
-                    link.rel = 'noopener noreferrer';
-                    link.className = 'link-field';
-                    link.textContent = value;
-                    valueDiv.appendChild(link);
-                } else {
-                    valueDiv.textContent = value;
-                }
-            }
+            } 
             
             fieldDiv.appendChild(labelDiv);
             fieldDiv.appendChild(valueDiv);
