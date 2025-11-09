@@ -283,5 +283,41 @@ if (isset($_GET['action']) && $_GET['action'] == 'make_file_public') {
 
 
 
+// Get a single document
+if (isset($_GET['action']) && $_GET['action'] == 'get_doc') {
+    $doctype = $_GET['doctype'] ?? '';
+    $docname = $_GET['docname'] ?? '';
+    
+    if (empty($doctype) || empty($docname)) {
+        echo json_encode(['error' => 'Missing doctype or docname']);
+        exit;
+    }
+    
+    $ch = curl_init();
+    $url = ERP_BASE . '/api/resource/' . urlencode($doctype) . '/' . urlencode($docname);
+    
+    curl_setopt_array($ch, [
+        CURLOPT_URL => $url,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HTTPHEADER => [
+            "Authorization: token " . API_KEY . ":" . API_SECRET
+        ],
+        CURLOPT_SSL_VERIFYPEER => false
+    ]);
+    
+    $response = curl_exec($ch);
+    curl_close($ch);
+    
+    echo $response;
+    exit;
+}
+
+
+
+
+
+
+
+
 echo json_encode(["error"=>"Invalid request"]);
 ?>
