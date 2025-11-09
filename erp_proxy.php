@@ -12,6 +12,59 @@ function logError($message) {
     error_log(date('Y-m-d H:i:s') . " - " . $message . "\n", 3, "erp_debug.log");
 }
 
+
+
+// Add this near the top of erp_proxy.php, BEFORE any other action checks
+
+// Proxy private images with authentication
+if (isset($_GET['action']) && $_GET['action'] == 'proxy_image') {
+    $file_url = $_GET['file_url'] ?? '';
+    
+    if (empty($file_url)) {
+        header('HTTP/1.1 400 Bad Request');
+        echo 'No file URL provided';
+        exit;
+    }
+    
+    // Build full ERPNext URL
+    if (!str_starts_with($file_url, 'http')) {
+        $file_url = ERP_BASE . $file_url;
+    }
+    
+    $ch = curl_init();
+    curl_setopt_array($ch, [
+        CURLOPT_URL => $file_url,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HTTPHEADER => [
+            "Authorization: token " . API_KEY . ":" . API_SECRET
+        ],
+        CURLOPT_SSL_VERIFYPEER => false,
+        CURLOPT_FOLLOWLOCATION => true
+    ]);
+    
+    $image_data = curl_exec($ch);
+    $content_type = curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
+    $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    
+    if ($http_code == 200 && $image_data) {
+        // Return the image with proper content type
+        header("Content-Type: " . $content_type);
+        header("Cache-Control: public, max-age=86400"); // Cache for 1 day
+        echo $image_data;
+    } else {
+        header('HTTP/1.1 404 Not Found');
+        echo 'Image not found';
+    }
+    exit;
+}
+
+
+
+
+
+
+
 // Get users.json
 if (isset($_GET['action']) && $_GET['action'] == 'get_users') {
     if (file_exists("users.json")) {
