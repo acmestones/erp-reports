@@ -876,29 +876,33 @@ async function showDetailModal(row, columns, reportName, config) {
                     valueDiv.appendChild(select);
                     valueDiv.appendChild(saveBtn);
                     
-                } else if (col.fieldtype === 'Text' || col.fieldtype === 'Small Text' || col.fieldtype === 'Long Text' || col.fieldtype === 'Text Editor') {
-                    const textarea = document.createElement("textarea");
-                    textarea.className = "form-control form-control-sm";
-                    textarea.rows = 3;
-                    
-                    let plainValue = value || '';
-                    if (typeof plainValue === 'string' && plainValue.includes('ql-editor')) {
-                        const tempDiv = document.createElement('div');
-                        tempDiv.innerHTML = plainValue;
-                        plainValue = tempDiv.textContent || tempDiv.innerText || '';
-                    }
-                    
-                    textarea.value = plainValue;
-                    textarea.placeholder = `Enter ${label}...`;
-                    textarea.dataset.fieldname = actualFieldname;  // Use real database field name
-                    textarea.dataset.docname = docName;
-                    textarea.dataset.doctype = config.doctype || 'Work Order';
-                    
-                    const saveBtn = createSaveButton(textarea, reportName, modal);
-                    valueDiv.appendChild(textarea);
-                    valueDiv.appendChild(saveBtn);
-                    
-                } else {
+                } else if (col.fieldtype === "Text" || col.fieldtype === "Small Text" || 
+         col.fieldtype === "Long Text" || col.fieldtype === "Text Editor") {
+    const textarea = document.createElement("textarea");
+    textarea.className = "form-control form-control-sm";
+    textarea.rows = 3;
+    
+    // CHANGE: Keep HTML content as-is instead of converting to plain text
+    let htmlValue = value || "";
+    
+    // Only strip if it's wrapped in ql-editor div (Quill format)
+    if (typeof htmlValue === 'string' && htmlValue.includes('ql-editor')) {
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = htmlValue;
+        const qlEditor = tempDiv.querySelector('.ql-editor');
+        htmlValue = qlEditor ? qlEditor.innerHTML : htmlValue;
+    }
+    
+    textarea.value = htmlValue;
+    textarea.placeholder = `Enter ${label}...`;
+    textarea.dataset.fieldname = actualFieldname;
+    textarea.dataset.docname = docName;
+    textarea.dataset.doctype = config.doctype || "Work Order";
+    
+    const saveBtn = createSaveButton(textarea, reportName, modal);
+    valueDiv.appendChild(textarea);
+    valueDiv.appendChild(saveBtn);
+} else {
                     const input = document.createElement("input");
                     input.type = "text";
                     input.className = "form-control form-control-sm";
