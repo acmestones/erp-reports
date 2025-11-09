@@ -876,16 +876,39 @@ async function showDetailModal(row, columns, reportName, config) {
                     valueDiv.appendChild(select);
                     valueDiv.appendChild(saveBtn);
                     
-                } else if (col.fieldtype === "Text" || col.fieldtype === "Small Text" || 
+                } 
+                
+                
+                
+                else if (col.fieldtype === "Text" || col.fieldtype === "Small Text" || 
          col.fieldtype === "Long Text" || col.fieldtype === "Text Editor") {
-    const textarea = document.createElement("textarea");
-    textarea.className = "form-control form-control-sm";
-    textarea.rows = 3;
     
-    // CHANGE: Keep HTML content as-is instead of converting to plain text
+    // Create container for editor and controls
+    const editorContainer = document.createElement("div");
+    editorContainer.className = "richtext-editor-container";
+    
+    // Create toolbar with image upload button
+    const toolbar = document.createElement("div");
+    toolbar.className = "richtext-toolbar mb-2";
+    toolbar.innerHTML = `
+        <button type="button" class="btn btn-sm btn-outline-secondary" id="insertImageBtn">
+            <i class="bi bi-image"></i> Insert Image
+        </button>
+        <input type="file" accept="image/*" style="display: none;" id="imageUploadInput" />
+    `;
+    
+    // Create contenteditable div
+    const editableDiv = document.createElement("div");
+    editableDiv.className = "form-control form-control-sm editable-richtext";
+    editableDiv.contentEditable = "true";
+    editableDiv.style.minHeight = "150px";
+    editableDiv.style.maxHeight = "400px";
+    editableDiv.style.overflowY = "auto";
+    editableDiv.style.whiteSpace = "pre-wrap";
+    
+    // Extract and set HTML content
     let htmlValue = value || "";
     
-    // Only strip if it's wrapped in ql-editor div (Quill format)
     if (typeof htmlValue === 'string' && htmlValue.includes('ql-editor')) {
         const tempDiv = document.createElement('div');
         tempDiv.innerHTML = htmlValue;
@@ -893,16 +916,102 @@ async function showDetailModal(row, columns, reportName, config) {
         htmlValue = qlEditor ? qlEditor.innerHTML : htmlValue;
     }
     
-    textarea.value = htmlValue;
-    textarea.placeholder = `Enter ${label}...`;
-    textarea.dataset.fieldname = actualFieldname;
-    textarea.dataset.docname = docName;
-    textarea.dataset.doctype = config.doctype || "Work Order";
+    editableDiv.innerHTML = htmlValue;
     
-    const saveBtn = createSaveButton(textarea, reportName, modal);
-    valueDiv.appendChild(textarea);
+    // Fix existing image URLs
+    editableDiv.querySelectorAll('img').forEach(img => {
+        const originalSrc = img.getAttribute('src');
+        const fixedUrl = fixImageUrl(originalSrc);
+        img.setAttribute('src', fixedUrl);
+        img.style.maxWidth = '100%';
+        img.style.height = 'auto';
+    });
+    
+    editableDiv.dataset.fieldname = actualFieldname;
+    editableDiv.dataset.docname = docName;
+    editableDiv.dataset.doctype = config.doctype || "Work Order";
+    
+    // Assemble the editor
+    editorContainer.appendChild(toolbar);
+    editorContainer.appendChild(editableDiv);
+    
+    // Add image upload functionality
+    const insertImageBtn = toolbar.querySelector('#insertImageBtn');
+    const imageUploadInput = toolbar.querySelector('#imageUploadInput');
+    
+    insertImageBtn.onclick = (e) => {
+        e.preventDefault();
+        imageUploadInput.click();
+    };
+    
+    imageUploadInput.addEventListener('change', async function(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+        
+        // Validate file type
+        if (!file.type.startsWith('image/')) {
+            alert('Please select an image file');
+            return;
+        }
+        
+        // Validate file size (max 5MB)
+        if (file.size > 5 * 1024 * 1024) {
+            alert('Image size should be less than 5MB');
+            return;
+        }
+        
+        // Convert to Base64
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const base64Image = e.target.result;
+            
+            // Focus the editable div
+            editableDiv.focus();
+            
+            // Insert image at cursor position
+            const img = document.createElement('img');
+            img.src = base64Image;
+            img.style.maxWidth = '100%';
+            img.style.height = 'auto';
+            img.style.display = 'block';
+            img.style.margin = '10px 0';
+            
+            // Insert at cursor or at the end
+            const selection = window.getSelection();
+            if (selection.rangeCount > 0) {
+                const range = selection.getRangeAt(0);
+                range.deleteContents();
+                range.insertNode(img);
+                
+                // Move cursor after image
+                range.setStartAfter(img);
+                range.setEndAfter(img);
+                selection.removeAllRanges();
+                selection.addRange(range);
+            } else {
+                editableDiv.appendChild(img);
+            }
+        };
+        
+        reader.readAsDataURL(file);
+        
+        // Reset input
+        event.target.value = '';
+    });
+    
+    const saveBtn = createSaveButton(editableDiv, reportName, modal);
+    valueDiv.appendChild(editorContainer);
     valueDiv.appendChild(saveBtn);
-} else {
+}
+
+                
+                
+                
+                
+                
+                
+                
+                else {
                     const input = document.createElement("input");
                     input.type = "text";
                     input.className = "form-control form-control-sm";
