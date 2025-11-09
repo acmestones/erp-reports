@@ -245,7 +245,7 @@ function fixImageUrl(url) {
     console.log("Fixing URL:", url);
     
     // Already absolute URL
-    if (url.startsWith("http://") || url.startsWith("https://")) {
+    if (url.startsWith("http") || url.startsWith("https")) {
         console.log("Already absolute:", url);
         return url;
     }
@@ -256,7 +256,15 @@ function fixImageUrl(url) {
         return "https:" + url;
     }
     
-    // Root-relative URL
+    // NEW: Handle ONLY private files specifically
+    if (url.includes('/private/files/')) {
+        // This is a private file - use ERPNext's authenticated file download endpoint
+        const fixed = `https://acmestones.erpnext.com/api/method/frappe.utils.file_manager.get_file?file_url=${encodeURIComponent(url)}`;
+        console.log("Private file converted:", fixed);
+        return fixed;
+    }
+    
+    // Root-relative URL (including public /files/)
     if (url.startsWith("/")) {
         const fixed = `https://acmestones.erpnext.com${url}`;
         console.log("Root-relative:", fixed);
@@ -268,6 +276,7 @@ function fixImageUrl(url) {
     console.log("Relative:", fixed);
     return fixed;
 }
+
 
 
 function renderReportsList(reports) {
