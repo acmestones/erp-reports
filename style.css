@@ -269,3 +269,33 @@ body {
     outline-offset: 2px;
 }
 
+
+
+.time-logs-table {
+    font-size: 0.9rem;
+}
+
+.time-log-row:hover {
+    background-color: #f8f9fa;
+}
+
+.btn-outline-info {
+    color: #0dcaf0;
+    border-color: #0dcaf0;
+}
+
+.btn-outline-info:hover {
+    background-color: #0dcaf0;
+    color: white;
+}
+
+#timeLogsModal .modal-body {
+    max-height: 60vh;
+    overflow-y: auto;
+}
+
+.time-log-form-card {
+    border: 1px solid #dee2e6;
+    border-radius: 0.25rem;
+}
+
