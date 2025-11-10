@@ -1757,6 +1757,14 @@ async function openReportConfigModal(userEmail) {
     configModal.show();
 }
 
+
+
+
+
+
+
+
+
 async function openGlobalReportConfigModal(reportName) {
     const configModalHtml = `
         <div class="modal fade" id="globalReportConfigModal" tabindex="-1">
@@ -1830,6 +1838,9 @@ async function openGlobalReportConfigModal(reportName) {
             group2Values.sort();
         }
     }
+    
+    // Get list of users for permissions table
+    const users = await getUsers();
     
     const contentHtml = `
         <div class="row">
@@ -1921,6 +1932,70 @@ async function openGlobalReportConfigModal(reportName) {
                         Start with groups collapsed
                     </label>
                 </div>
+                
+                <hr>
+                
+                <h6 class="mt-3">Time Logs Settings</h6>
+                <div class="form-check mb-3">
+                    <input class="form-check-input" type="checkbox" id="configShowTimeLogs" 
+                        ${config.show_time_logs_button ? 'checked' : ''}>
+                    <label class="form-check-label" for="configShowTimeLogs">
+                        Show Time Logs Button
+                    </label>
+                </div>
+                
+                <div id="timeLogsPermissionsSection" style="display: ${config.show_time_logs_button ? 'block' : 'none'}">
+                    <label class="small fw-bold">User Permissions for Time Logs</label>
+                    <div class="table-responsive" style="max-height: 250px; overflow-y: auto;">
+                        <table class="table table-sm table-bordered">
+                            <thead class="table-light sticky-top">
+                                <tr>
+                                    <th style="min-width: 150px;">User</th>
+                                    <th class="text-center" style="width: 60px;">View</th>
+                                    <th class="text-center" style="width: 60px;">Add</th>
+                                    <th class="text-center" style="width: 60px;">Edit</th>
+                                    <th class="text-center" style="width: 60px;">Delete</th>
+                                </tr>
+                            </thead>
+                            <tbody id="timeLogsPermissionsTable">
+                                ${users.users.map(user => {
+                                    const perms = config.time_logs_permissions?.[user.email] || {
+                                        can_view: false,
+                                        can_add: false,
+                                        can_edit: false,
+                                        can_delete: false
+                                    };
+                                    
+                                    return `
+                                        <tr>
+                                            <td class="small">${user.email}</td>
+                                            <td class="text-center">
+                                                <input type="checkbox" class="form-check-input time-log-perm" 
+                                                    data-user="${user.email}" data-perm="can_view" 
+                                                    ${perms.can_view ? 'checked' : ''}>
+                                            </td>
+                                            <td class="text-center">
+                                                <input type="checkbox" class="form-check-input time-log-perm" 
+                                                    data-user="${user.email}" data-perm="can_add" 
+                                                    ${perms.can_add ? 'checked' : ''}>
+                                            </td>
+                                            <td class="text-center">
+                                                <input type="checkbox" class="form-check-input time-log-perm" 
+                                                    data-user="${user.email}" data-perm="can_edit" 
+                                                    ${perms.can_edit ? 'checked' : ''}>
+                                            </td>
+                                            <td class="text-center">
+                                                <input type="checkbox" class="form-check-input time-log-perm" 
+                                                    data-user="${user.email}" data-perm="can_delete" 
+                                                    ${perms.can_delete ? 'checked' : ''}>
+                                            </td>
+                                        </tr>
+                                    `;
+                                }).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
             
             <div class="col-md-6">
@@ -1972,6 +2047,12 @@ async function openGlobalReportConfigModal(reportName) {
     setupDragDrop('group1SortList');
     setupDragDrop('group2SortList');
     
+    // Add event listener for show time logs checkbox
+    document.getElementById('configShowTimeLogs').addEventListener('change', (e) => {
+        document.getElementById('timeLogsPermissionsSection').style.display = 
+            e.target.checked ? 'block' : 'none';
+    });
+    
     document.getElementById('saveGlobalConfigBtn').onclick = () => {
         if (!reportConfig[reportName]) {
             reportConfig[reportName] = {};
@@ -2014,12 +2095,52 @@ async function openGlobalReportConfigModal(reportName) {
             reportConfig[reportName].group_sort[group2] = group2Order;
         }
         
+        // Save Time Logs configuration
+        reportConfig[reportName].show_time_logs_button = 
+            document.getElementById('configShowTimeLogs').checked;
+        
+        if (reportConfig[reportName].show_time_logs_button) {
+            const permissions = {};
+            document.querySelectorAll('.time-log-perm').forEach(checkbox => {
+                const user = checkbox.dataset.user;
+                const perm = checkbox.dataset.perm;
+                
+                if (!permissions[user]) {
+                    permissions[user] = {
+                        can_view: false,
+                        can_add: false,
+                        can_edit: false,
+                        can_delete: false
+                    };
+                }
+                
+                permissions[user][perm] = checkbox.checked;
+            });
+            
+            reportConfig[reportName].time_logs_permissions = permissions;
+        } else {
+            // Remove time logs permissions if feature is disabled
+            delete reportConfig[reportName].time_logs_permissions;
+        }
+        
         alert("Configuration saved! Click 'Save Changes' in main settings to persist.");
         configModal.hide();
     };
     
     configModal.show();
 }
+
+
+
+
+
+
+
+
+
+
+
+
 
 function setupDragDrop(listId) {
     const list = document.getElementById(listId);
