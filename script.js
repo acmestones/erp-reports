@@ -2540,3 +2540,336 @@ function applyCurrentCollapseState(level1Content, level2Contents) {
         });
     }
 }
+
+
+
+
+
+
+
+
+
+
+
+
+// API Functions
+async function getTimeLogs(jobCard) {
+    const res = await fetch(`${API_BASE}?action=get_time_logs&job_card=${encodeURIComponent(jobCard)}`);
+    if (!res.ok) throw new Error("Failed to fetch time logs");
+    return res.json();
+}
+
+async function addTimeLog(data) {
+    const res = await fetch(`${API_BASE}?action=add_time_log`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(data)
+    });
+    if (!res.ok) throw new Error("Failed to add time log");
+    return res.json();
+}
+
+async function updateTimeLog(name, data) {
+    const res = await fetch(`${API_BASE}?action=update_time_log`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({name, ...data})
+    });
+    if (!res.ok) throw new Error("Failed to update time log");
+    return res.json();
+}
+
+async function deleteTimeLog(timeLogName) {
+    const res = await fetch(`${API_BASE}?action=delete_time_log&time_log=${encodeURIComponent(timeLogName)}`, {
+        method: 'DELETE'
+    });
+    if (!res.ok) throw new Error("Failed to delete time log");
+    return res.json();
+}
+
+// Update createCard function to add Time Logs button
+function createCard(row, columns, reportName, config) {
+    // ... existing code ...
+    
+    const cardBody = document.createElement("div");
+    cardBody.className = "card-body";
+    
+    // ... existing card body content ...
+    
+    // Add buttons container
+    const buttonsContainer = document.createElement("div");
+    buttonsContainer.className = "d-flex gap-2 mt-2";
+    
+    const detailsBtn = document.createElement("button");
+    detailsBtn.className = "btn btn-sm btn-outline-primary flex-grow-1";
+    detailsBtn.textContent = "View Details";
+    detailsBtn.addEventListener("click", () => {
+        showDetailModal(row, columns, reportName, config);
+    });
+    buttonsContainer.appendChild(detailsBtn);
+    
+    // Add Time Logs button if configured
+    if (config.show_time_logs_button && row['job_card']) {
+        const timeLogsPerms = config.time_logs_permissions?.[userEmail] || {};
+        
+        if (timeLogsPerms.can_view) {
+            const timeLogsBtn = document.createElement("button");
+            timeLogsBtn.className = "btn btn-sm btn-outline-info flex-grow-1";
+            timeLogsBtn.innerHTML = '<i class="bi bi-clock-history"></i> Time Logs';
+            timeLogsBtn.addEventListener("click", () => {
+                showTimeLogsModal(row['job_card'], reportName, config);
+            });
+            buttonsContainer.appendChild(timeLogsBtn);
+        }
+    }
+    
+    cardBody.appendChild(buttonsContainer);
+    card.appendChild(cardBody);
+    
+    return card;
+}
+
+// Time Logs Modal Function
+async function showTimeLogsModal(jobCard, reportName, config) {
+    const timeLogsPerms = config.time_logs_permissions?.[userEmail] || {};
+    
+    // Create modal if it doesn't exist
+    let modalEl = document.getElementById('timeLogsModal');
+    if (!modalEl) {
+        const modalHtml = `
+            <div class="modal fade" id="timeLogsModal" tabindex="-1">
+                <div class="modal-dialog modal-lg">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Time Logs - <span id="timeLogsJobCard"></span></h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body" id="timeLogsBody">
+                            <div class="text-center">
+                                <div class="spinner-border" role="status">
+                                    <span class="visually-hidden">Loading...</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+        modalEl = document.getElementById('timeLogsModal');
+    }
+    
+    const modal = new bootstrap.Modal(modalEl);
+    document.getElementById('timeLogsJobCard').textContent = jobCard;
+    
+    modal.show();
+    
+    try {
+        const response = await getTimeLogs(jobCard);
+        const timeLogs = response.data || [];
+        
+        renderTimeLogs(timeLogs, jobCard, timeLogsPerms, reportName, config);
+    } catch (err) {
+        console.error("Error loading time logs:", err);
+        document.getElementById('timeLogsBody').innerHTML = 
+            `<div class="alert alert-danger">Error loading time logs: ${err.message}</div>`;
+    }
+}
+
+function renderTimeLogs(timeLogs, jobCard, permissions, reportName, config) {
+    const bodyEl = document.getElementById('timeLogsBody');
+    
+    let html = '';
+    
+    // Add button if user has permission
+    if (permissions.can_add) {
+        html += `
+            <div class="mb-3">
+                <button class="btn btn-primary btn-sm" id="addTimeLogBtn">
+                    <i class="bi bi-plus-circle"></i> Add Time Log
+                </button>
+            </div>
+        `;
+    }
+    
+    if (timeLogs.length === 0) {
+        html += '<div class="alert alert-info">No time logs found for this job card.</div>';
+    } else {
+        html += `
+            <div class="table-responsive">
+                <table class="table table-sm table-hover">
+                    <thead>
+                        <tr>
+                            <th>Employee</th>
+                            <th>From Time</th>
+                            <th>To Time</th>
+                            <th>Hours</th>
+                            <th>Activity</th>
+                            <th>Completed Qty</th>
+                            ${permissions.can_edit || permissions.can_delete ? '<th>Actions</th>' : ''}
+                        </tr>
+                    </thead>
+                    <tbody>
+        `;
+        
+        timeLogs.forEach(log => {
+            const fromTime = log.from_time ? new Date(log.from_time).toLocaleString() : '-';
+            const toTime = log.to_time ? new Date(log.to_time).toLocaleString() : '-';
+            const hours = log.hours || 0;
+            const completedQty = log.completed_qty || 0;
+            
+            html += `
+                <tr data-log-id="${log.name}">
+                    <td>${log.employee || '-'}</td>
+                    <td>${fromTime}</td>
+                    <td>${toTime}</td>
+                    <td>${hours.toFixed(2)}</td>
+                    <td>${log.activity_type || '-'}</td>
+                    <td>${completedQty}</td>
+            `;
+            
+            if (permissions.can_edit || permissions.can_delete) {
+                html += '<td>';
+                if (permissions.can_edit) {
+                    html += `<button class="btn btn-sm btn-outline-primary me-1 edit-time-log" data-log='${JSON.stringify(log).replace(/'/g, "&apos;")}'>
+                        <i class="bi bi-pencil"></i>
+                    </button>`;
+                }
+                if (permissions.can_delete) {
+                    html += `<button class="btn btn-sm btn-outline-danger delete-time-log" data-log-name="${log.name}">
+                        <i class="bi bi-trash"></i>
+                    </button>`;
+                }
+                html += '</td>';
+            }
+            
+            html += '</tr>';
+        });
+        
+        html += `
+                    </tbody>
+                </table>
+            </div>
+        `;
+    }
+    
+    bodyEl.innerHTML = html;
+    
+    // Attach event listeners
+    if (permissions.can_add) {
+        document.getElementById('addTimeLogBtn')?.addEventListener('click', () => {
+            showTimeLogForm(null, jobCard, reportName, config);
+        });
+    }
+    
+    if (permissions.can_edit) {
+        bodyEl.querySelectorAll('.edit-time-log').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const logData = JSON.parse(e.currentTarget.dataset.log);
+                showTimeLogForm(logData, jobCard, reportName, config);
+            });
+        });
+    }
+    
+    if (permissions.can_delete) {
+        bodyEl.querySelectorAll('.delete-time-log').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                const logName = e.currentTarget.dataset.logName;
+                if (confirm('Are you sure you want to delete this time log?')) {
+                    try {
+                        await deleteTimeLog(logName);
+                        alert('Time log deleted successfully');
+                        showTimeLogsModal(jobCard, reportName, config);
+                    } catch (err) {
+                        alert('Error deleting time log: ' + err.message);
+                    }
+                }
+            });
+        });
+    }
+}
+
+function showTimeLogForm(existingLog, jobCard, reportName, config) {
+    const isEdit = !!existingLog;
+    const bodyEl = document.getElementById('timeLogsBody');
+    
+    const formHtml = `
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0">${isEdit ? 'Edit' : 'Add'} Time Log</h6>
+            </div>
+            <div class="card-body">
+                <form id="timeLogForm">
+                    <div class="mb-3">
+                        <label class="form-label">From Time</label>
+                        <input type="datetime-local" class="form-control" name="from_time" 
+                            value="${existingLog?.from_time ? new Date(existingLog.from_time).toISOString().slice(0, 16) : ''}" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">To Time</label>
+                        <input type="datetime-local" class="form-control" name="to_time" 
+                            value="${existingLog?.to_time ? new Date(existingLog.to_time).toISOString().slice(0, 16) : ''}">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Hours</label>
+                        <input type="number" step="0.01" class="form-control" name="hours" 
+                            value="${existingLog?.hours || ''}" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Activity Type</label>
+                        <input type="text" class="form-control" name="activity_type" 
+                            value="${existingLog?.activity_type || ''}">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Completed Qty</label>
+                        <input type="number" step="0.01" class="form-control" name="completed_qty" 
+                            value="${existingLog?.completed_qty || 0}">
+                    </div>
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-success">
+                            <i class="bi bi-check-circle"></i> ${isEdit ? 'Update' : 'Save'}
+                        </button>
+                        <button type="button" class="btn btn-secondary" id="cancelTimeLogForm">Cancel</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    `;
+    
+    bodyEl.innerHTML = formHtml;
+    
+    document.getElementById('timeLogForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const formData = new FormData(e.target);
+        
+        const data = {
+            from_time: formData.get('from_time'),
+            to_time: formData.get('to_time') || null,
+            hours: parseFloat(formData.get('hours')),
+            activity_type: formData.get('activity_type'),
+            completed_qty: parseFloat(formData.get('completed_qty')),
+            time_log_from: 'Job Card',
+            time_log: jobCard
+        };
+        
+        try {
+            if (isEdit) {
+                await updateTimeLog(existingLog.name, data);
+                alert('Time log updated successfully');
+            } else {
+                await addTimeLog(data);
+                alert('Time log added successfully');
+            }
+            showTimeLogsModal(jobCard, reportName, config);
+        } catch (err) {
+            alert('Error saving time log: ' + err.message);
+        }
+    });
+    
+    document.getElementById('cancelTimeLogForm').addEventListener('click', () => {
+        showTimeLogsModal(jobCard, reportName, config);
+    });
+}
