@@ -341,5 +341,128 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_report_config') {
     exit;
 }
 
+
+
+
+
+
+// Get time logs for a job card
+if (isset($_GET['action']) && $_GET['action'] == 'get_time_logs') {
+    $job_card = $_GET['job_card'] ?? '';
+    
+    if (empty($job_card)) {
+        echo json_encode(['error' => 'Job card not specified']);
+        exit;
+    }
+    
+    $ch = curl_init();
+    $url = ERP_BASE . '/api/resource/Time Log?filters=[["time_log","from_time","Job Card","=","' . urlencode($job_card) . '"]]&fields=["*"]&limit_page_length=500';
+    
+    curl_setopt_array($ch, [
+        CURLOPT_URL => $url,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HTTPHEADER => ['Authorization: token ' . API_KEY . ':' . API_SECRET],
+        CURLOPT_SSL_VERIFYPEER => false
+    ]);
+    
+    $res = curl_exec($ch);
+    curl_close($ch);
+    echo $res;
+    exit;
+}
+
+// Add new time log
+if (isset($_GET['action']) && $_GET['action'] == 'add_time_log') {
+    $input = json_decode(file_get_contents('php://input'), true);
+    
+    $ch = curl_init();
+    $url = ERP_BASE . '/api/resource/Time Log';
+    
+    curl_setopt_array($ch, [
+        CURLOPT_URL => $url,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_POST => true,
+        CURLOPT_POSTFIELDS => json_encode($input),
+        CURLOPT_HTTPHEADER => [
+            'Authorization: token ' . API_KEY . ':' . API_SECRET,
+            'Content-Type: application/json'
+        ],
+        CURLOPT_SSL_VERIFYPEER => false
+    ]);
+    
+    $res = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    
+    echo $res;
+    exit;
+}
+
+// Update time log
+if (isset($_GET['action']) && $_GET['action'] == 'update_time_log') {
+    $input = json_decode(file_get_contents('php://input'), true);
+    $time_log_name = $input['name'] ?? '';
+    
+    if (empty($time_log_name)) {
+        echo json_encode(['error' => 'Time log name not specified']);
+        exit;
+    }
+    
+    unset($input['name']);
+    
+    $ch = curl_init();
+    $url = ERP_BASE . '/api/resource/Time Log/' . urlencode($time_log_name);
+    
+    curl_setopt_array($ch, [
+        CURLOPT_URL => $url,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_CUSTOMREQUEST => 'PUT',
+        CURLOPT_POSTFIELDS => json_encode($input),
+        CURLOPT_HTTPHEADER => [
+            'Authorization: token ' . API_KEY . ':' . API_SECRET,
+            'Content-Type: application/json'
+        ],
+        CURLOPT_SSL_VERIFYPEER => false
+    ]);
+    
+    $res = curl_exec($ch);
+    curl_close($ch);
+    echo $res;
+    exit;
+}
+
+// Delete time log
+if (isset($_GET['action']) && $_GET['action'] == 'delete_time_log') {
+    $time_log_name = $_GET['time_log'] ?? '';
+    
+    if (empty($time_log_name)) {
+        echo json_encode(['error' => 'Time log not specified']);
+        exit;
+    }
+    
+    $ch = curl_init();
+    $url = ERP_BASE . '/api/resource/Time Log/' . urlencode($time_log_name);
+    
+    curl_setopt_array($ch, [
+        CURLOPT_URL => $url,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_CUSTOMREQUEST => 'DELETE',
+        CURLOPT_HTTPHEADER => [
+            'Authorization: token ' . API_KEY . ':' . API_SECRET
+        ],
+        CURLOPT_SSL_VERIFYPEER => false
+    ]);
+    
+    $res = curl_exec($ch);
+    curl_close($ch);
+    echo $res;
+    exit;
+}
+
+
+
+
+
+
 echo json_encode(["error" => "Invalid request"]);
 ?>
