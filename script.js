@@ -691,17 +691,16 @@ function createCard(row, columns, reportName, config) {
     const card = document.createElement("div");
     card.className = "card card-report h-100";
     
-    const userPerms = config.user_permissions?.[userEmail] || {};
-    const hiddenFields = userPerms.hidden_fields || [];
-    
-    const titleField = config.title_field || 'work_order_id';
-    const cardFields = config.card_fields || ['customer', 'production_item', 'quantity_to_manufacture', 'completed_qty', 'workstation'];
+    const userPerms = config.user_permissions?.[userEmail];
+    const hiddenFields = userPerms?.hidden_fields || [];
+    const titleField = config.title_field || "work_order_id";
+    const cardFields = config.card_fields || ["customer", "production_item", "quantity_to_manufacture", "completed_qty", "workstation"];
     const imageFields = config.image_fields || [];
     
-    const name = row[titleField] || row.name || row.work_order_id || row.item_code || "Record";
+    const name = row[titleField] || row.name || row["work_order_id"] || row["item_code"] || "Record";
     
-    const statusFields = ['status', 'operation_status', 'work_order_status'];
-    let status = "";
+    const statusFields = ["status", "operation_status", "work_order_status"];
+    let status;
     for (const sf of statusFields) {
         if (row[sf]) {
             status = row[sf];
@@ -710,7 +709,6 @@ function createCard(row, columns, reportName, config) {
     }
     
     const imgUrl = extractImageFromRow(row, columns, imageFields);
-    
     if (imgUrl) {
         const img = document.createElement("img");
         img.className = "card-img-top";
@@ -720,7 +718,7 @@ function createCard(row, columns, reportName, config) {
         img.style.objectFit = "cover";
         img.onerror = function() {
             console.error("Failed to load image:", imgUrl);
-            this.style.display = 'none';
+            this.style.display = "none";
         };
         card.appendChild(img);
     }
@@ -746,8 +744,7 @@ function createCard(row, columns, reportName, config) {
     cardFields.forEach(fieldKey => {
         if (count >= 5) return;
         if (hiddenFields.includes(fieldKey)) return;
-        
-        if (row[fieldKey] !== null && row[fieldKey] !== undefined && row[fieldKey] !== '') {
+        if (row[fieldKey] !== null && row[fieldKey] !== undefined && row[fieldKey] !== "") {
             const col = columns.find(c => c.fieldname === fieldKey);
             const label = col ? (fieldLabels[fieldKey] || col.label || fieldKey) : fieldKey;
             
@@ -755,8 +752,8 @@ function createCard(row, columns, reportName, config) {
             p.className = "mb-1 small";
             
             let value = row[fieldKey];
-            if (typeof value === 'string' && value.length > 40) {
-                value = value.substring(0, 40) + '...';
+            if (typeof value === "string" && value.length > 40) {
+                value = value.substring(0, 40) + "...";
             }
             
             p.innerHTML = `<strong>${label}:</strong> ${value}`;
@@ -765,15 +762,46 @@ function createCard(row, columns, reportName, config) {
         }
     });
     
-    const btn = document.createElement("button");
-    btn.className = "btn btn-sm btn-outline-primary mt-2 w-100";
-    btn.textContent = "View Details";
-    btn.addEventListener("click", () => showDetailModal(row, columns, reportName, config));
-    cardBody.appendChild(btn);
+    // Create buttons container
+    const buttonsContainer = document.createElement("div");
+    buttonsContainer.className = "d-flex gap-2 mt-2";
     
+    // View Details button (always present)
+    const detailsBtn = document.createElement("button");
+    detailsBtn.className = "btn btn-sm btn-outline-primary flex-grow-1";
+    detailsBtn.textContent = "View Details";
+    detailsBtn.addEventListener("click", () => {
+        showDetailModal(row, columns, reportName, config);
+    });
+    buttonsContainer.appendChild(detailsBtn);
+    
+    // Add Time Logs button if configured
+    if (config.show_time_logs_button && row['job_card']) {
+        const timeLogsPerms = config.time_logs_permissions?.[userEmail] || {};
+        
+        if (timeLogsPerms.can_view) {
+            const timeLogsBtn = document.createElement("button");
+            timeLogsBtn.className = "btn btn-sm btn-outline-info flex-grow-1";
+            timeLogsBtn.innerHTML = '<i class="bi bi-clock-history"></i> Time Logs';
+            timeLogsBtn.addEventListener("click", () => {
+                showTimeLogsModal(row['job_card'], reportName, config);
+            });
+            buttonsContainer.appendChild(timeLogsBtn);
+        }
+    }
+    
+    cardBody.appendChild(buttonsContainer);
     card.appendChild(cardBody);
+    
     return card;
 }
+
+
+
+
+
+
+
 
 async function showDetailModal(row, columns, reportName, config) {
     const modal = new bootstrap.Modal(document.getElementById("detailModal"));
