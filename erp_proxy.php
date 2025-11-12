@@ -356,7 +356,9 @@ if (isset($_GET['action']) && $_GET['action'] == 'get_time_logs') {
     }
     
     $ch = curl_init();
-    $url = ERP_BASE . '/api/resource/Time Log?filters=[["time_log","from_time","Job Card","=","' . urlencode($job_card) . '"]]&fields=["*"]&limit_page_length=500';
+    // Correct the filter format for ERPNext
+    $filters = json_encode([["job_card", "=", $job_card]]);
+    $url = ERP_BASE . '/api/resource/Time Log?filters=' . urlencode($filters) . '&fields=["*"]&limit_page_length=500';
     
     curl_setopt_array($ch, [
         CURLOPT_URL => $url,
@@ -366,10 +368,19 @@ if (isset($_GET['action']) && $_GET['action'] == 'get_time_logs') {
     ]);
     
     $res = curl_exec($ch);
+    $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
-    echo $res;
+    
+    // Log error for debugging
+    if ($http_code !== 200) {
+        error_log("Time Logs API Error - HTTP $http_code: $res");
+        echo json_encode(['error' => 'Failed to fetch time logs', 'details' => $res, 'http_code' => $http_code]);
+    } else {
+        echo $res;
+    }
     exit;
 }
+
 
 // Add new time log
 if (isset($_GET['action']) && $_GET['action'] == 'add_time_log') {
