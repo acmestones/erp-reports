@@ -2751,42 +2751,49 @@ async function showTimeLogsModal(jobCard, reportName, config) {
     
     // Create modal if it doesn't exist
     let modalEl = document.getElementById('timeLogsModal');
-if (!modalEl) {
-    const modalHtml = `
-        <div class="modal fade" id="timeLogsModal" tabindex="-1">
-            <div class="modal-dialog modal-xl">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title" id="timeLogsModalTitle">Time Logs</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                    </div>
-                    <div class="modal-body" id="timeLogsBody">
-                        <div class="text-center">
-                            <div class="spinner-border" role="status">
-                                <span class="visually-hidden">Loading...</span>
+    if (!modalEl) {
+        const modalHtml = `
+            <div class="modal fade" id="timeLogsModal" tabindex="-1">
+                <div class="modal-dialog modal-xl">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="timeLogsModalTitle">Time Logs</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body" id="timeLogsBody">
+                            <div class="text-center">
+                                <div class="spinner-border" role="status">
+                                    <span class="visually-hidden">Loading...</span>
+                                </div>
                             </div>
                         </div>
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                        </div>
                     </div>
                 </div>
             </div>
-        </div>
-    `;
-    document.body.insertAdjacentHTML('beforeend', modalHtml);
-    modalEl = document.getElementById('timeLogsModal');
-}
-
-const modal = new bootstrap.Modal(modalEl);
-document.getElementById('timeLogsModalTitle').textContent = `Time Logs - ${jobCard}`;
+        `;
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+        modalEl = document.getElementById('timeLogsModal');
+    }
+    
+    const modal = new bootstrap.Modal(modalEl);
+    
+    // Fix the title to show just the job card name without HTML
+    document.getElementById('timeLogsModalTitle').textContent = `Time Logs - ${jobCard}`;
     
     modal.show();
     
     try {
+        console.log('Fetching time logs for:', jobCard); // DEBUG
         const response = await getTimeLogs(jobCard);
+        console.log('API Response:', response); // DEBUG
+        
         const timeLogs = response.data || [];
         const jobCardInfo = response.job_card_info || {};
+        
+        console.log('Calling renderTimeLogs with:', {timeLogs, jobCardInfo, timeLogsPerms}); // DEBUG
         
         renderTimeLogs(timeLogs, jobCard, jobCardInfo, timeLogsPerms, reportName, config);
     } catch (err) {
@@ -2795,6 +2802,7 @@ document.getElementById('timeLogsModalTitle').textContent = `Time Logs - ${jobCa
             `<div class="alert alert-danger">Error loading time logs: ${err.message}</div>`;
     }
 }
+
 
 function renderTimeLogs(timeLogs, jobCard, jobCardInfo, permissions, reportName, config) {
     const bodyEl = document.getElementById('timeLogsBody');
