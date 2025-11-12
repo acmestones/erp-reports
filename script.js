@@ -2949,7 +2949,7 @@ function renderTimeLogs(timeLogs, jobCard, jobCardInfo, permissions, reportName,
 
 
 
-function showTimeLogForm(existingLog, jobCard, reportName, config) {
+function showTimeLogForm(existingLog, jobCard, jobCardInfo, reportName, config) {
     const isEdit = !!existingLog;
     const bodyEl = document.getElementById('timeLogsBody');
     
@@ -2959,26 +2959,32 @@ function showTimeLogForm(existingLog, jobCard, reportName, config) {
                 <h6 class="mb-0">${isEdit ? 'Edit' : 'Add'} Time Log</h6>
             </div>
             <div class="card-body">
+                <div class="alert alert-info mb-3">
+                    <strong>Required Qty:</strong> ${jobCardInfo.for_quantity || 0} | 
+                    <strong>Completed Qty:</strong> ${jobCardInfo.total_completed_qty || 0}
+                </div>
                 <form id="timeLogForm">
                     <div class="mb-3">
-                        <label class="form-label">From Time</label>
-                        <input type="datetime-local" class="form-control" name="from_time" 
+                        <label class="form-label">Employee (Optional)</label>
+                        <input type="text" class="form-control" name="employee" 
+                            value="${existingLog?.employee || ''}" placeholder="Employee name">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">From Time *</label>
+                        <input type="datetime-local" class="form-control" name="from_time" id="fromTime"
                             value="${existingLog?.from_time ? new Date(existingLog.from_time).toISOString().slice(0, 16) : ''}" required>
                     </div>
                     <div class="mb-3">
                         <label class="form-label">To Time</label>
-                        <input type="datetime-local" class="form-control" name="to_time" 
+                        <input type="datetime-local" class="form-control" name="to_time" id="toTime"
                             value="${existingLog?.to_time ? new Date(existingLog.to_time).toISOString().slice(0, 16) : ''}">
+                        <small class="text-muted">Leave empty if work is ongoing</small>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Hours</label>
-                        <input type="number" step="0.01" class="form-control" name="hours" 
-                            value="${existingLog?.hours || ''}" required>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Activity Type</label>
-                        <input type="text" class="form-control" name="activity_type" 
-                            value="${existingLog?.activity_type || ''}">
+                        <label class="form-label">Time (in minutes) *</label>
+                        <input type="number" step="1" class="form-control" name="time_in_mins" id="timeInMins"
+                            value="${existingLog?.time_in_mins || ''}" required>
+                        <small class="text-muted">Will auto-calculate when both From and To times are entered</small>
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Completed Qty</label>
@@ -2998,6 +3004,30 @@ function showTimeLogForm(existingLog, jobCard, reportName, config) {
     
     bodyEl.innerHTML = formHtml;
     
+    // Auto-calculate time in minutes when from_time and to_time change
+    const fromTimeInput = document.getElementById('fromTime');
+    const toTimeInput = document.getElementById('toTime');
+    const timeInMinsInput = document.getElementById('timeInMins');
+    
+    function calculateMinutes() {
+        const fromTime = fromTimeInput.value;
+        const toTime = toTimeInput.value;
+        
+        if (fromTime && toTime) {
+            const from = new Date(fromTime);
+            const to = new Date(toTime);
+            const diffMs = to - from;
+            const diffMins = Math.round(diffMs / 60000);
+            
+            if (diffMins >= 0) {
+                timeInMinsInput.value = diffMins;
+            }
+        }
+    }
+    
+    fromTimeInput.addEventListener('change', calculateMinutes);
+    toTimeInput.addEventListener('change', calculateMinutes);
+    
     document.getElementById('timeLogForm').addEventListener('submit', async (e) => {
         e.preventDefault();
         const formData = new FormData(e.target);
@@ -3005,19 +3035,17 @@ function showTimeLogForm(existingLog, jobCard, reportName, config) {
         const data = {
             from_time: formData.get('from_time'),
             to_time: formData.get('to_time') || null,
-            hours: parseFloat(formData.get('hours')),
-            activity_type: formData.get('activity_type'),
-            completed_qty: parseFloat(formData.get('completed_qty')),
-            time_log_from: 'Job Card',
-            time_log: jobCard
+            time_in_mins: parseInt(formData.get('time_in_mins')),
+            completed_qty: parseFloat(formData.get('completed_qty')) || 0,
+            employee: formData.get('employee') || null
         };
         
         try {
             if (isEdit) {
-                await updateTimeLog(existingLog.name, data);
+                await updateTimeLog(jobCard, existingLog.logIndex, data);
                 alert('Time log updated successfully');
             } else {
-                await addTimeLog(data);
+                await addTimeLog(jobCard, data);
                 alert('Time log added successfully');
             }
             showTimeLogsModal(jobCard, reportName, config);
@@ -3030,3 +3058,4 @@ function showTimeLogForm(existingLog, jobCard, reportName, config) {
         showTimeLogsModal(jobCard, reportName, config);
     });
 }
+
