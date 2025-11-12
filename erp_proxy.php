@@ -355,7 +355,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'get_time_logs') {
         exit;
     }
     
-    // Fetch the Job Card document to get its time logs and other details
+    // Fetch the Job Card document
     $ch = curl_init();
     $url = ERP_BASE . '/api/resource/Job Card/' . urlencode($job_card);
     
@@ -372,14 +372,28 @@ if (isset($_GET['action']) && $_GET['action'] == 'get_time_logs') {
     
     if ($http_code !== 200) {
         error_log("Job Card API Error - HTTP $http_code: $res");
-        echo json_encode(['error' => 'Failed to fetch job card', 'details' => $res, 'http_code' => $http_code]);
+        echo json_encode([
+            'error' => 'Failed to fetch job card', 
+            'details' => $res, 
+            'http_code' => $http_code
+        ]);
     } else {
-        $job_card_data = json_decode($res, true);
+        $response = json_decode($res, true);
+        
+        // ERPNext wraps the data in a 'data' key
+        $job_card_doc = $response['data'] ?? $response;
         
         // Extract time logs from the time_logs child table
-        $time_logs = $job_card_data['data']['time_logs'] ?? [];
-        $for_quantity = $job_card_data['data']['for_quantity'] ?? 0;
-        $total_completed_qty = $job_card_data['data']['total_completed_qty'] ?? 0;
+        $time_logs = $job_card_doc['time_logs'] ?? [];
+        $for_quantity = $job_card_doc['for_quantity'] ?? 0;
+        $total_completed_qty = $job_card_doc['total_completed_qty'] ?? 0;
+        
+        // Debug log
+        error_log("Job Card Data: " . json_encode([
+            'for_quantity' => $for_quantity,
+            'total_completed_qty' => $total_completed_qty,
+            'time_logs_count' => count($time_logs)
+        ]));
         
         echo json_encode([
             'data' => $time_logs,
@@ -392,6 +406,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'get_time_logs') {
     }
     exit;
 }
+
 
 // Add new time log to Job Card
 if (isset($_GET['action']) && $_GET['action'] == 'add_time_log') {
@@ -417,24 +432,36 @@ if (isset($_GET['action']) && $_GET['action'] == 'add_time_log') {
     $res = curl_exec($ch);
     curl_close($ch);
     
-    $job_card_data = json_decode($res, true);
-    if (!$job_card_data || !isset($job_card_data['data'])) {
+    $response = json_decode($res, true);
+    $job_card_doc = $response['data'] ?? $response;
+    
+    if (!$job_card_doc || !isset($job_card_doc['name'])) {
         echo json_encode(['error' => 'Job card not found']);
         exit;
     }
     
-    // Add new time log to the time_logs array
-    $time_logs = $job_card_data['data']['time_logs'] ?? [];
-    $time_logs[] = [
+    // Get existing time logs
+    $time_logs = $job_card_doc['time_logs'] ?? [];
+    
+    // Add new time log entry
+    $new_log = [
         'from_time' => $input['from_time'],
         'to_time' => $input['to_time'] ?? null,
-        'time_in_mins' => $input['time_in_mins'],
-        'completed_qty' => $input['completed_qty'] ?? 0,
-        'employee' => $input['employee'] ?? null
+        'time_in_mins' => floatval($input['time_in_mins']),
+        'completed_qty' => floatval($input['completed_qty'] ?? 0)
     ];
     
-    // Update the job card
-    $update_data = ['time_logs' => $time_logs];
+    // Add employee if provided
+    if (!empty($input['employee'])) {
+        $new_log['employee'] = $input['employee'];
+    }
+    
+    $time_logs[] = $new_log;
+    
+    // Update the job card with new time logs
+    $update_data = [
+        'time_logs' => $time_logs
+    ];
     
     $ch = curl_init();
     $url = ERP_BASE . '/api/resource/Job Card/' . urlencode($job_card);
@@ -455,7 +482,14 @@ if (isset($_GET['action']) && $_GET['action'] == 'add_time_log') {
     $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
     
-    echo $res;
+    // Log for debugging
+    error_log("Add Time Log Response - HTTP $http_code: $res");
+    
+    if ($http_code >= 200 && $http_code < 300) {
+        echo json_encode(['success' => true, 'message' => 'Time log added successfully']);
+    } else {
+        echo json_encode(['error' => 'Failed to add time log', 'details' => $res]);
+    }
     exit;
 }
 
