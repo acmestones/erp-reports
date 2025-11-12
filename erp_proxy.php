@@ -417,6 +417,12 @@ if (isset($_GET['action']) && $_GET['action'] == 'get_time_logs') {
 }
 
 
+
+
+
+
+
+
 // Add time log
 if (isset($_GET['action']) && $_GET['action'] == 'add_time_log') {
     $input = json_decode(file_get_contents('php://input'), true);
@@ -427,9 +433,11 @@ if (isset($_GET['action']) && $_GET['action'] == 'add_time_log') {
         exit;
     }
     
+    logError("Adding time log to: $job_card");
+    
     // Get current job card
     $ch = curl_init();
-    $url = ERP_BASE . '/api/resource/Job Card/' . rawurlencode($job_card);
+    $url = ERP_BASE . '/api/resource/Job%20Card/' . rawurlencode($job_card);
     
     curl_setopt($ch, CURLOPT_URL, $url);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
@@ -445,23 +453,38 @@ if (isset($_GET['action']) && $_GET['action'] == 'add_time_log') {
     $job_card_doc = $data['data'] ?? [];
     $time_logs = $job_card_doc['time_logs'] ?? [];
     
-    // Add new log
-    $time_logs[] = [
+    // Add new log with proper structure for ERPNext child table
+    $new_log = [
+        'doctype' => 'Job Card Time Log',  // Child table doctype
         'from_time' => $input['from_time'],
         'to_time' => $input['to_time'] ?? null,
         'time_in_mins' => floatval($input['time_in_mins']),
         'completed_qty' => floatval($input['completed_qty'] ?? 0),
-        'employee' => $input['employee'] ?? null
+        'parent' => $job_card,
+        'parentfield' => 'time_logs',
+        'parenttype' => 'Job Card'
     ];
     
-    // Update job card
+    // Add employee if provided
+    if (!empty($input['employee'])) {
+        $new_log['employee'] = $input['employee'];
+    }
+    
+    $time_logs[] = $new_log;
+    
+    logError("Time logs array: " . json_encode($time_logs));
+    
+    // Update job card with new time logs
     $ch = curl_init();
-    $url = ERP_BASE . '/api/resource/Job Card/' . rawurlencode($job_card);
+    $url = ERP_BASE . '/api/resource/Job%20Card/' . rawurlencode($job_card);
+    
+    $update_data = json_encode(['time_logs' => $time_logs]);
+    logError("Update data: $update_data");
     
     curl_setopt($ch, CURLOPT_URL, $url);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'PUT');
-    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode(['time_logs' => $time_logs]));
+    curl_setopt($ch, CURLOPT_POSTFIELDS, $update_data);
     curl_setopt($ch, CURLOPT_HTTPHEADER, [
         'Authorization: token ' . API_KEY . ':' . API_SECRET,
         'Content-Type: application/json'
@@ -475,12 +498,17 @@ if (isset($_GET['action']) && $_GET['action'] == 'add_time_log') {
     logError("Add time log response - HTTP $http_code: $response");
     
     if ($http_code >= 200 && $http_code < 300) {
-        echo json_encode(['success' => true]);
+        echo json_encode(['success' => true, 'message' => 'Time log added successfully']);
     } else {
-        echo json_encode(['error' => 'Failed to update', 'details' => $response]);
+        echo json_encode(['error' => 'Failed to update', 'http_code' => $http_code, 'details' => json_decode($response, true)]);
     }
     exit;
 }
+
+
+
+
+
 
 // Update time log
 if (isset($_GET['action']) && $_GET['action'] == 'update_time_log') {
