@@ -616,6 +616,38 @@ if (isset($_GET['action']) && $_GET['action'] == 'delete_time_log') {
 
 
 
+// Test endpoint - add this at the top after the headers
+if (isset($_GET['action']) && $_GET['action'] == 'test_connection') {
+    $ch = curl_init();
+    $url = ERP_BASE . '/api/method/ping';
+    
+    curl_setopt_array($ch, [
+        CURLOPT_URL => $url,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HTTPHEADER => ['Authorization: token ' . API_KEY . ':' . API_SECRET],
+        CURLOPT_SSL_VERIFYPEER => false,
+        CURLOPT_TIMEOUT => 30,
+        CURLOPT_VERBOSE => true
+    ]);
+    
+    $res = curl_exec($ch);
+    $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curl_error = curl_error($ch);
+    $curl_info = curl_getinfo($ch);
+    curl_close($ch);
+    
+    echo json_encode([
+        'http_code' => $http_code,
+        'response' => $res,
+        'curl_error' => $curl_error,
+        'curl_info' => $curl_info,
+        'erp_base' => ERP_BASE
+    ]);
+    exit;
+}
+
+
+
 
 
 echo json_encode(["error" => "Invalid request"]);
