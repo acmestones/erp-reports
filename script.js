@@ -763,38 +763,39 @@ function createCard(row, columns, reportName, config) {
     });
     
     // Create buttons container
-    const buttonsContainer = document.createElement("div");
-    buttonsContainer.className = "d-flex gap-2 mt-2";
+const buttonsContainer = document.createElement("div");
+buttonsContainer.className = "d-flex gap-2 mt-2";
+
+// View Details button (always present)
+const detailsBtn = document.createElement("button");
+detailsBtn.className = "btn btn-sm btn-outline-primary flex-grow-1";
+detailsBtn.textContent = "View Details";
+detailsBtn.addEventListener("click", () => {
+    showDetailModal(row, columns, reportName, config);
+});
+buttonsContainer.appendChild(detailsBtn);
+
+// Add Time Logs button if configured
+if (config.show_time_logs_button && row['job_card']) {
+    const timeLogsPerms = config.time_logs_permissions?.[userEmail] || {};
     
-    // View Details button (always present)
-    const detailsBtn = document.createElement("button");
-    detailsBtn.className = "btn btn-sm btn-outline-primary flex-grow-1";
-    detailsBtn.textContent = "View Details";
-    detailsBtn.addEventListener("click", () => {
-        showDetailModal(row, columns, reportName, config);
-    });
-    buttonsContainer.appendChild(detailsBtn);
-    
-    // Add Time Logs button if configured
-    if (config.show_time_logs_button && row['job_card']) {
-        const timeLogsPerms = config.time_logs_permissions?.[userEmail] || {};
-        
-        if (timeLogsPerms.can_view) {
-            const timeLogsBtn = document.createElement("button");
-            timeLogsBtn.className = "btn btn-sm btn-outline-info flex-grow-1";
-            timeLogsBtn.innerHTML = '<i class="bi bi-clock-history"></i> Time Logs';
-            timeLogsBtn.addEventListener("click", () => {
-                showTimeLogsModal(row['job_card'], reportName, config);
-            });
-            buttonsContainer.appendChild(timeLogsBtn);
-        }
+    if (timeLogsPerms.can_view) {
+        const timeLogsBtn = document.createElement("button");
+        timeLogsBtn.className = "btn btn-sm btn-outline-info flex-grow-1";
+        timeLogsBtn.innerHTML = '<i class="bi bi-clock-history"></i> Time Logs';
+        timeLogsBtn.addEventListener("click", () => {
+            showTimeLogsModal(row['job_card'], reportName, config);
+        });
+        buttonsContainer.appendChild(timeLogsBtn);
     }
-    
-    cardBody.appendChild(buttonsContainer);
-    card.appendChild(cardBody);
-    
-    return card;
 }
+
+// Append everything together
+cardBody.appendChild(buttonsContainer);
+card.appendChild(cardBody);
+
+return card;
+
 
 
 
