@@ -783,9 +783,20 @@ function createCard(row, columns, reportName, config) {
             const timeLogsBtn = document.createElement("button");
             timeLogsBtn.className = "btn btn-sm btn-outline-info flex-grow-1";
             timeLogsBtn.innerHTML = '<i class="bi bi-clock-history"></i> Time Logs';
-            timeLogsBtn.addEventListener("click", () => {
-                showTimeLogsModal(row['job_card'], reportName, config);
-            });
+timeLogsBtn.addEventListener("click", () => {
+    // Extract plain text from HTML link if it exists
+    let jobCardName = row['job_card'];
+    
+    // If it's an HTML string, extract the text content
+    if (typeof jobCardName === 'string' && jobCardName.includes('<a')) {
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = jobCardName;
+        jobCardName = tempDiv.textContent || tempDiv.innerText || jobCardName;
+    }
+    
+    showTimeLogsModal(jobCardName, reportName, config);
+});
+
             buttonsContainer.appendChild(timeLogsBtn);
         }
     }
