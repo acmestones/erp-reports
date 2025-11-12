@@ -346,7 +346,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_report_config') {
 
 
 
-// Get time logs for a job card
+// Get time logs from Job Card (child table)
 if (isset($_GET['action']) && $_GET['action'] == 'get_time_logs') {
     $job_card = $_GET['job_card'] ?? '';
     
@@ -355,10 +355,9 @@ if (isset($_GET['action']) && $_GET['action'] == 'get_time_logs') {
         exit;
     }
     
+    // Fetch the Job Card document to get its time logs and other details
     $ch = curl_init();
-    // Correct the filter format for ERPNext
-    $filters = json_encode([["job_card", "=", $job_card]]);
-    $url = ERP_BASE . '/api/resource/Time Log?filters=' . urlencode($filters) . '&fields=["*"]&limit_page_length=500';
+    $url = ERP_BASE . '/api/resource/Job Card/' . urlencode($job_card);
     
     curl_setopt_array($ch, [
         CURLOPT_URL => $url,
@@ -371,64 +370,201 @@ if (isset($_GET['action']) && $_GET['action'] == 'get_time_logs') {
     $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
     
-    // Log error for debugging
     if ($http_code !== 200) {
-        error_log("Time Logs API Error - HTTP $http_code: $res");
-        echo json_encode(['error' => 'Failed to fetch time logs', 'details' => $res, 'http_code' => $http_code]);
+        error_log("Job Card API Error - HTTP $http_code: $res");
+        echo json_encode(['error' => 'Failed to fetch job card', 'details' => $res, 'http_code' => $http_code]);
     } else {
-        echo $res;
+        $job_card_data = json_decode($res, true);
+        
+        // Extract time logs from the time_logs child table
+        $time_logs = $job_card_data['data']['time_logs'] ?? [];
+        $for_quantity = $job_card_data['data']['for_quantity'] ?? 0;
+        $total_completed_qty = $job_card_data['data']['total_completed_qty'] ?? 0;
+        
+        echo json_encode([
+            'data' => $time_logs,
+            'job_card_info' => [
+                'for_quantity' => $for_quantity,
+                'total_completed_qty' => $total_completed_qty,
+                'name' => $job_card
+            ]
+        ]);
     }
     exit;
 }
 
-
-// Add new time log
+// Add new time log to Job Card
 if (isset($_GET['action']) && $_GET['action'] == 'add_time_log') {
     $input = json_decode(file_get_contents('php://input'), true);
+    $job_card = $input['job_card'] ?? '';
     
+    if (empty($job_card)) {
+        echo json_encode(['error' => 'Job card not specified']);
+        exit;
+    }
+    
+    // First, fetch the current job card
     $ch = curl_init();
-    $url = ERP_BASE . '/api/resource/Time Log';
+    $url = ERP_BASE . '/api/resource/Job Card/' . urlencode($job_card);
     
     curl_setopt_array($ch, [
         CURLOPT_URL => $url,
         CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_POST => true,
-        CURLOPT_POSTFIELDS => json_encode($input),
-        CURLOPT_HTTPHEADER => [
-            'Authorization: token ' . API_KEY . ':' . API_SECRET,
-            'Content-Type: application/json'
-        ],
+        CURLOPT_HTTPHEADER => ['Authorization: token ' . API_KEY . ':' . API_SECRET],
         CURLOPT_SSL_VERIFYPEER => false
     ]);
     
     $res = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
     
-    echo $res;
-    exit;
-}
-
-// Update time log
-if (isset($_GET['action']) && $_GET['action'] == 'update_time_log') {
-    $input = json_decode(file_get_contents('php://input'), true);
-    $time_log_name = $input['name'] ?? '';
-    
-    if (empty($time_log_name)) {
-        echo json_encode(['error' => 'Time log name not specified']);
+    $job_card_data = json_decode($res, true);
+    if (!$job_card_data || !isset($job_card_data['data'])) {
+        echo json_encode(['error' => 'Job card not found']);
         exit;
     }
     
-    unset($input['name']);
+    // Add new time log to the time_logs array
+    $time_logs = $job_card_data['data']['time_logs'] ?? [];
+    $time_logs[] = [
+        'from_time' => $input['from_time'],
+        'to_time' => $input['to_time'] ?? null,
+        'time_in_mins' => $input['time_in_mins'],
+        'completed_qty' => $input['completed_qty'] ?? 0,
+        'employee' => $input['employee'] ?? null
+    ];
+    
+    // Update the job card
+    $update_data = ['time_logs' => $time_logs];
     
     $ch = curl_init();
-    $url = ERP_BASE . '/api/resource/Time Log/' . urlencode($time_log_name);
+    $url = ERP_BASE . '/api/resource/Job Card/' . urlencode($job_card);
     
     curl_setopt_array($ch, [
         CURLOPT_URL => $url,
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_CUSTOMREQUEST => 'PUT',
-        CURLOPT_POSTFIELDS => json_encode($input),
+        CURLOPT_POSTFIELDS => json_encode($update_data),
+        CURLOPT_HTTPHEADER => [
+            'Authorization: token ' . API_KEY . ':' . API_SECRET,
+            'Content-Type: application/json'
+        ],
+        CURLOPT_SSL_VERIFYPEER => false
+    ]);
+    
+    $res = curl_exec($ch);
+    $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    
+    echo $res;
+    exit;
+}
+
+// Update time log in Job Card
+if (isset($_GET['action']) && $_GET['action'] == 'update_time_log') {
+    $input = json_decode(file_get_contents('php://input'), true);
+    $job_card = $input['job_card'] ?? '';
+    $log_index = $input['log_index'] ?? -1;
+    
+    if (empty($job_card) || $log_index < 0) {
+        echo json_encode(['error' => 'Invalid parameters']);
+        exit;
+    }
+    
+    // Fetch current job card
+    $ch = curl_init();
+    $url = ERP_BASE . '/api/resource/Job Card/' . urlencode($job_card);
+    
+    curl_setopt_array($ch, [
+        CURLOPT_URL => $url,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HTTPHEADER => ['Authorization: token ' . API_KEY . ':' . API_SECRET],
+        CURLOPT_SSL_VERIFYPEER => false
+    ]);
+    
+    $res = curl_exec($ch);
+    curl_close($ch);
+    
+    $job_card_data = json_decode($res, true);
+    $time_logs = $job_card_data['data']['time_logs'] ?? [];
+    
+    // Update the specific time log
+    if (isset($time_logs[$log_index])) {
+        $time_logs[$log_index] = array_merge($time_logs[$log_index], [
+            'from_time' => $input['from_time'],
+            'to_time' => $input['to_time'] ?? null,
+            'time_in_mins' => $input['time_in_mins'],
+            'completed_qty' => $input['completed_qty'] ?? 0,
+            'employee' => $input['employee'] ?? null
+        ]);
+        
+        // Update job card
+        $update_data = ['time_logs' => $time_logs];
+        
+        $ch = curl_init();
+        $url = ERP_BASE . '/api/resource/Job Card/' . urlencode($job_card);
+        
+        curl_setopt_array($ch, [
+            CURLOPT_URL => $url,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_CUSTOMREQUEST => 'PUT',
+            CURLOPT_POSTFIELDS => json_encode($update_data),
+            CURLOPT_HTTPHEADER => [
+                'Authorization: token ' . API_KEY . ':' . API_SECRET,
+                'Content-Type: application/json'
+            ],
+            CURLOPT_SSL_VERIFYPEER => false
+        ]);
+        
+        $res = curl_exec($ch);
+        curl_close($ch);
+        echo $res;
+    } else {
+        echo json_encode(['error' => 'Time log not found']);
+    }
+    exit;
+}
+
+// Delete time log from Job Card
+if (isset($_GET['action']) && $_GET['action'] == 'delete_time_log') {
+    $job_card = $_GET['job_card'] ?? '';
+    $log_index = $_GET['log_index'] ?? -1;
+    
+    if (empty($job_card) || $log_index < 0) {
+        echo json_encode(['error' => 'Invalid parameters']);
+        exit;
+    }
+    
+    // Fetch current job card
+    $ch = curl_init();
+    $url = ERP_BASE . '/api/resource/Job Card/' . urlencode($job_card);
+    
+    curl_setopt_array($ch, [
+        CURLOPT_URL => $url,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HTTPHEADER => ['Authorization: token ' . API_KEY . ':' . API_SECRET],
+        CURLOPT_SSL_VERIFYPEER => false
+    ]);
+    
+    $res = curl_exec($ch);
+    curl_close($ch);
+    
+    $job_card_data = json_decode($res, true);
+    $time_logs = $job_card_data['data']['time_logs'] ?? [];
+    
+    // Remove the time log
+    array_splice($time_logs, $log_index, 1);
+    
+    // Update job card
+    $update_data = ['time_logs' => $time_logs];
+    
+    $ch = curl_init();
+    $url = ERP_BASE . '/api/resource/Job Card/' . urlencode($job_card);
+    
+    curl_setopt_array($ch, [
+        CURLOPT_URL => $url,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_CUSTOMREQUEST => 'PUT',
+        CURLOPT_POSTFIELDS => json_encode($update_data),
         CURLOPT_HTTPHEADER => [
             'Authorization: token ' . API_KEY . ':' . API_SECRET,
             'Content-Type: application/json'
@@ -442,33 +578,6 @@ if (isset($_GET['action']) && $_GET['action'] == 'update_time_log') {
     exit;
 }
 
-// Delete time log
-if (isset($_GET['action']) && $_GET['action'] == 'delete_time_log') {
-    $time_log_name = $_GET['time_log'] ?? '';
-    
-    if (empty($time_log_name)) {
-        echo json_encode(['error' => 'Time log not specified']);
-        exit;
-    }
-    
-    $ch = curl_init();
-    $url = ERP_BASE . '/api/resource/Time Log/' . urlencode($time_log_name);
-    
-    curl_setopt_array($ch, [
-        CURLOPT_URL => $url,
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_CUSTOMREQUEST => 'DELETE',
-        CURLOPT_HTTPHEADER => [
-            'Authorization: token ' . API_KEY . ':' . API_SECRET
-        ],
-        CURLOPT_SSL_VERIFYPEER => false
-    ]);
-    
-    $res = curl_exec($ch);
-    curl_close($ch);
-    echo $res;
-    exit;
-}
 
 
 
