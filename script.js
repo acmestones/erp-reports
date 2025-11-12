@@ -2754,7 +2754,7 @@ async function showTimeLogsModal(jobCard, reportName, config) {
     if (!modalEl) {
         const modalHtml = `
             <div class="modal fade" id="timeLogsModal" tabindex="-1">
-                <div class="modal-dialog modal-lg">
+                <div class="modal-dialog modal-xl">
                     <div class="modal-content">
                         <div class="modal-header">
                             <h5 class="modal-title">Time Logs - <span id="timeLogsJobCard"></span></h5>
@@ -2786,8 +2786,9 @@ async function showTimeLogsModal(jobCard, reportName, config) {
     try {
         const response = await getTimeLogs(jobCard);
         const timeLogs = response.data || [];
+        const jobCardInfo = response.job_card_info || {};
         
-        renderTimeLogs(timeLogs, jobCard, timeLogsPerms, reportName, config);
+        renderTimeLogs(timeLogs, jobCard, jobCardInfo, timeLogsPerms, reportName, config);
     } catch (err) {
         console.error("Error loading time logs:", err);
         document.getElementById('timeLogsBody').innerHTML = 
@@ -2795,10 +2796,24 @@ async function showTimeLogsModal(jobCard, reportName, config) {
     }
 }
 
-function renderTimeLogs(timeLogs, jobCard, permissions, reportName, config) {
+function renderTimeLogs(timeLogs, jobCard, jobCardInfo, permissions, reportName, config) {
     const bodyEl = document.getElementById('timeLogsBody');
     
     let html = '';
+    
+    // Show Job Card Info
+    html += `
+        <div class="alert alert-info mb-3">
+            <div class="row">
+                <div class="col-md-6">
+                    <strong>Required Qty:</strong> ${jobCardInfo.for_quantity || 0}
+                </div>
+                <div class="col-md-6">
+                    <strong>Completed Qty:</strong> ${jobCardInfo.total_completed_qty || 0}
+                </div>
+            </div>
+        </div>
+    `;
     
     // Add button if user has permission
     if (permissions.can_add) {
@@ -2813,17 +2828,39 @@ function renderTimeLogs(timeLogs, jobCard, permissions, reportName, config) {
     
     if (timeLogs.length === 0) {
         html += '<div class="alert alert-info">No time logs found for this job card.</div>';
-    } else {
         html += `
             <div class="table-responsive">
-                <table class="table table-sm table-hover">
-                    <thead>
+                <table class="table table-sm table-hover table-bordered">
+                    <thead class="table-light">
                         <tr>
                             <th>Employee</th>
                             <th>From Time</th>
                             <th>To Time</th>
-                            <th>Hours</th>
-                            <th>Activity</th>
+                            <th>Time (mins)</th>
+                            <th>Completed Qty</th>
+                            ${permissions.can_edit || permissions.can_delete ? '<th>Actions</th>' : ''}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td colspan="${permissions.can_edit || permissions.can_delete ? 6 : 5}" class="text-center text-muted">
+                                No entries
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        `;
+    } else {
+        html += `
+            <div class="table-responsive">
+                <table class="table table-sm table-hover table-bordered">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Employee</th>
+                            <th>From Time</th>
+                            <th>To Time</th>
+                            <th>Time (mins)</th>
                             <th>Completed Qty</th>
                             ${permissions.can_edit || permissions.can_delete ? '<th>Actions</th>' : ''}
                         </tr>
@@ -2831,31 +2868,31 @@ function renderTimeLogs(timeLogs, jobCard, permissions, reportName, config) {
                     <tbody>
         `;
         
-        timeLogs.forEach(log => {
+        timeLogs.forEach((log, index) => {
             const fromTime = log.from_time ? new Date(log.from_time).toLocaleString() : '-';
             const toTime = log.to_time ? new Date(log.to_time).toLocaleString() : '-';
-            const hours = log.hours || 0;
+            const timeInMins = log.time_in_mins || 0;
             const completedQty = log.completed_qty || 0;
+            const employee = log.employee || '-';
             
             html += `
-                <tr data-log-id="${log.name}">
-                    <td>${log.employee || '-'}</td>
+                <tr data-log-index="${index}">
+                    <td>${employee}</td>
                     <td>${fromTime}</td>
                     <td>${toTime}</td>
-                    <td>${hours.toFixed(2)}</td>
-                    <td>${log.activity_type || '-'}</td>
+                    <td>${timeInMins}</td>
                     <td>${completedQty}</td>
             `;
             
             if (permissions.can_edit || permissions.can_delete) {
                 html += '<td>';
                 if (permissions.can_edit) {
-                    html += `<button class="btn btn-sm btn-outline-primary me-1 edit-time-log" data-log='${JSON.stringify(log).replace(/'/g, "&apos;")}'>
+                    html += `<button class="btn btn-sm btn-outline-primary me-1 edit-time-log" data-log-index="${index}" data-log='${JSON.stringify(log).replace(/'/g, "&apos;")}'>
                         <i class="bi bi-pencil"></i>
                     </button>`;
                 }
                 if (permissions.can_delete) {
-                    html += `<button class="btn btn-sm btn-outline-danger delete-time-log" data-log-name="${log.name}">
+                    html += `<button class="btn btn-sm btn-outline-danger delete-time-log" data-log-index="${index}">
                         <i class="bi bi-trash"></i>
                     </button>`;
                 }
@@ -2877,15 +2914,16 @@ function renderTimeLogs(timeLogs, jobCard, permissions, reportName, config) {
     // Attach event listeners
     if (permissions.can_add) {
         document.getElementById('addTimeLogBtn')?.addEventListener('click', () => {
-            showTimeLogForm(null, jobCard, reportName, config);
+            showTimeLogForm(null, jobCard, jobCardInfo, reportName, config);
         });
     }
     
     if (permissions.can_edit) {
         bodyEl.querySelectorAll('.edit-time-log').forEach(btn => {
             btn.addEventListener('click', (e) => {
+                const logIndex = parseInt(e.currentTarget.dataset.logIndex);
                 const logData = JSON.parse(e.currentTarget.dataset.log);
-                showTimeLogForm(logData, jobCard, reportName, config);
+                showTimeLogForm({...logData, logIndex}, jobCard, jobCardInfo, reportName, config);
             });
         });
     }
@@ -2893,10 +2931,10 @@ function renderTimeLogs(timeLogs, jobCard, permissions, reportName, config) {
     if (permissions.can_delete) {
         bodyEl.querySelectorAll('.delete-time-log').forEach(btn => {
             btn.addEventListener('click', async (e) => {
-                const logName = e.currentTarget.dataset.logName;
+                const logIndex = parseInt(e.currentTarget.dataset.logIndex);
                 if (confirm('Are you sure you want to delete this time log?')) {
                     try {
-                        await deleteTimeLog(logName);
+                        await deleteTimeLog(jobCard, logIndex);
                         alert('Time log deleted successfully');
                         showTimeLogsModal(jobCard, reportName, config);
                     } catch (err) {
@@ -2907,6 +2945,9 @@ function renderTimeLogs(timeLogs, jobCard, permissions, reportName, config) {
         });
     }
 }
+
+
+
 
 function showTimeLogForm(existingLog, jobCard, reportName, config) {
     const isEdit = !!existingLog;
