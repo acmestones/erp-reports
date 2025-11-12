@@ -379,7 +379,8 @@ if (isset($_GET['action']) && $_GET['action'] == 'get_time_logs') {
     }
     
     $ch = curl_init();
-    $url = ERP_BASE . '/api/resource/Job Card/' . urlencode($job_card);
+    // Use the exact format that worked in the browser test
+    $url = ERP_BASE . '/api/resource/Job%20Card/' . rawurlencode($job_card);
     
     curl_setopt($ch, CURLOPT_URL, $url);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
@@ -390,35 +391,19 @@ if (isset($_GET['action']) && $_GET['action'] == 'get_time_logs') {
     
     $response = curl_exec($ch);
     $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $curl_error = curl_error($ch);
     curl_close($ch);
     
-    if ($curl_error) {
-        logError("cURL Error in get_time_logs: $curl_error");
-        echo json_encode(['error' => 'Connection failed', 'details' => $curl_error]);
-        exit;
-    }
-    
     if ($http_code !== 200) {
-        logError("get_time_logs HTTP Error $http_code: $response");
-        echo json_encode(['error' => 'Failed to fetch job card', 'http_code' => $http_code, 'details' => $response]);
+        echo json_encode(['error' => 'Failed to fetch job card', 'http_code' => $http_code]);
         exit;
     }
     
     $data = json_decode($response, true);
-    
-    if (!$data || !isset($data['data'])) {
-        echo json_encode(['error' => 'Invalid response', 'raw' => $response]);
-        exit;
-    }
-    
     $job_card_doc = $data['data'];
     
     $time_logs = $job_card_doc['time_logs'] ?? [];
     $for_quantity = $job_card_doc['for_quantity'] ?? 0;
     $total_completed_qty = $job_card_doc['total_completed_qty'] ?? 0;
-    
-    logError("Job Card fetched: " . count($time_logs) . " time logs, qty: $for_quantity/$total_completed_qty");
     
     echo json_encode([
         'data' => $time_logs,
@@ -430,6 +415,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'get_time_logs') {
     ]);
     exit;
 }
+
 
 // Add time log
 if (isset($_GET['action']) && $_GET['action'] == 'add_time_log') {
@@ -443,7 +429,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'add_time_log') {
     
     // Get current job card
     $ch = curl_init();
-    $url = ERP_BASE . '/api/resource/Job Card/' . urlencode($job_card);
+    $url = ERP_BASE . '/api/resource/Job Card/' . rawurlencode($job_card);
     
     curl_setopt($ch, CURLOPT_URL, $url);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
@@ -470,7 +456,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'add_time_log') {
     
     // Update job card
     $ch = curl_init();
-    $url = ERP_BASE . '/api/resource/Job Card/' . urlencode($job_card);
+    $url = ERP_BASE . '/api/resource/Job Card/' . rawurlencode($job_card);
     
     curl_setopt($ch, CURLOPT_URL, $url);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
@@ -509,7 +495,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'update_time_log') {
     
     // Get current job card
     $ch = curl_init();
-    $url = ERP_BASE . '/api/resource/Job Card/' . urlencode($job_card);
+    $url = ERP_BASE . '/api/resource/Job Card/' . rawurlencode($job_card);
     
     curl_setopt($ch, CURLOPT_URL, $url);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
@@ -535,7 +521,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'update_time_log') {
         
         // Update
         $ch = curl_init();
-        $url = ERP_BASE . '/api/resource/Job Card/' . urlencode($job_card);
+        $url = ERP_BASE . '/api/resource/Job Card/' . rawurlencode($job_card);
         
         curl_setopt($ch, CURLOPT_URL, $url);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
@@ -568,7 +554,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'delete_time_log') {
     
     // Get current job card
     $ch = curl_init();
-    $url = ERP_BASE . '/api/resource/Job Card/' . urlencode($job_card);
+    $url = ERP_BASE . '/api/resource/Job Card/' . rawurlencode($job_card);
     
     curl_setopt($ch, CURLOPT_URL, $url);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
@@ -588,7 +574,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'delete_time_log') {
     
     // Update
     $ch = curl_init();
-    $url = ERP_BASE . '/api/resource/Job Card/' . urlencode($job_card);
+    $url = ERP_BASE . '/api/resource/Job Card/' . rawurlencode($job_card);
     
     curl_setopt($ch, CURLOPT_URL, $url);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
