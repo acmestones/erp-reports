@@ -2153,7 +2153,15 @@ async function openGlobalReportConfigModal(reportName) {
         configModal.hide();
     };
     
+    // Blur any focused element to prevent aria-hidden focus conflict
+if (document.activeElement && document.activeElement.blur) {
+    document.activeElement.blur();
+}
+
+// Show modal after a small delay to ensure focus is cleared
+setTimeout(() => {
     configModal.show();
+}, 50);
 }
 
 
