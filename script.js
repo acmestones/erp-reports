@@ -2707,40 +2707,41 @@ function applyCurrentCollapseState(level1Content, level2Contents) {
 
 
 
-// API Functions
+// API Functions for Job Card Time Logs
 async function getTimeLogs(jobCard) {
     const res = await fetch(`${API_BASE}?action=get_time_logs&job_card=${encodeURIComponent(jobCard)}`);
     if (!res.ok) throw new Error("Failed to fetch time logs");
     return res.json();
 }
 
-async function addTimeLog(data) {
+async function addTimeLog(jobCard, data) {
     const res = await fetch(`${API_BASE}?action=add_time_log`, {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify(data)
+        body: JSON.stringify({...data, job_card: jobCard})
     });
     if (!res.ok) throw new Error("Failed to add time log");
     return res.json();
 }
 
-async function updateTimeLog(name, data) {
+async function updateTimeLog(jobCard, logIndex, data) {
     const res = await fetch(`${API_BASE}?action=update_time_log`, {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({name, ...data})
+        body: JSON.stringify({...data, job_card: jobCard, log_index: logIndex})
     });
     if (!res.ok) throw new Error("Failed to update time log");
     return res.json();
 }
 
-async function deleteTimeLog(timeLogName) {
-    const res = await fetch(`${API_BASE}?action=delete_time_log&time_log=${encodeURIComponent(timeLogName)}`, {
+async function deleteTimeLog(jobCard, logIndex) {
+    const res = await fetch(`${API_BASE}?action=delete_time_log&job_card=${encodeURIComponent(jobCard)}&log_index=${logIndex}`, {
         method: 'DELETE'
     });
     if (!res.ok) throw new Error("Failed to delete time log");
     return res.json();
 }
+
 
 
 
