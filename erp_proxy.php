@@ -884,6 +884,119 @@ if (isset($_GET['action']) && $_GET['action'] == 'upload_time_log_image') {
 
 
 
+
+
+// Update Time Required in Work Order Operations
+if (isset($_GET['action']) && $_GET['action'] == 'update_time_required') {
+    $input = json_decode(file_get_contents('php://input'), true);
+    $job_card = $input['job_card'] ?? '';
+    $time_required = floatval($input['time_required'] ?? 0);
+    
+    if (empty($job_card)) {
+        echo json_encode(['error' => 'Job card not specified']);
+        exit;
+    }
+    
+    logError("Updating time required for Job Card: $job_card to $time_required");
+    
+    // Get the Job Card to find linked Work Order and Operation
+    $ch = curl_init();
+    $url = ERP_BASE . '/api/resource/Job%20Card/' . rawurlencode($job_card);
+    
+    curl_setopt($ch, CURLOPT_URL, $url);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+        'Authorization: token ' . API_KEY . ':' . API_SECRET
+    ]);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+    
+    $response = curl_exec($ch);
+    curl_close($ch);
+    
+    $job_card_data = json_decode($response, true);
+    if (!isset($job_card_data['data'])) {
+        echo json_encode(['error' => 'Failed to fetch job card']);
+        exit;
+    }
+    
+    $work_order = $job_card_data['data']['work_order'] ?? '';
+    $operation = $job_card_data['data']['operation'] ?? '';
+    
+    if (!$work_order || !$operation) {
+        echo json_encode(['error' => 'No linked Work Order or Operation found']);
+        exit;
+    }
+    
+    // Get the Work Order
+    $ch = curl_init();
+    $url = ERP_BASE . '/api/resource/Work%20Order/' . rawurlencode($work_order);
+    
+    curl_setopt($ch, CURLOPT_URL, $url);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+        'Authorization: token ' . API_KEY . ':' . API_SECRET
+    ]);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+    
+    $response = curl_exec($ch);
+    curl_close($ch);
+    
+    $wo_data = json_decode($response, true);
+    if (!isset($wo_data['data']['operations'])) {
+        echo json_encode(['error' => 'No operations found in Work Order']);
+        exit;
+    }
+    
+    $operations = $wo_data['data']['operations'];
+    
+    // Find and update the matching operation
+    $found = false;
+    foreach ($operations as &$op) {
+        if ($op['operation'] === $operation) {
+            $op['time_in_mins'] = $time_required;
+            $found = true;
+            logError("Updated operation time_in_mins to $time_required");
+            break;
+        }
+    }
+    
+    if (!$found) {
+        echo json_encode(['error' => 'Operation not found in Work Order']);
+        exit;
+    }
+    
+    // Update the Work Order
+    $ch = curl_init();
+    $url = ERP_BASE . '/api/resource/Work%20Order/' . rawurlencode($work_order);
+    
+    curl_setopt($ch, CURLOPT_URL, $url);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'PUT');
+    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode(['operations' => $operations]));
+    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+        'Authorization: token ' . API_KEY . ':' . API_SECRET,
+        'Content-Type: application/json'
+    ]);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+    
+    $response = curl_exec($ch);
+    $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    
+    if ($http_code >= 200 && $http_code < 300) {
+        echo json_encode(['success' => true, 'message' => 'Time required updated in Work Order Operations']);
+    } else {
+        echo json_encode(['error' => 'Failed to update Work Order', 'details' => $response]);
+    }
+    exit;
+}
+
+
+
+
+
+
+
 // ==================== END TIME LOGS ENDPOINTS ====================
 
 echo json_encode(["error" => "Invalid request"]);
