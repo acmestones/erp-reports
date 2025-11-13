@@ -2897,9 +2897,9 @@ async function showTimeLogsModal(jobCard, reportName, config) {
 }
 
 
-function renderTimeLogs(timeLogs, jobCard, jobCardInfo, permissions, reportName, config) {
-    // Ensure permissions has a default empty object
-    permissions = permissions || {};
+function renderTimeLogs(timeLogs, jobCard, jobCardInfo, timeLogsPerms, reportName, config) {
+    const permissions = timeLogsPerms || {};
+
     
     const bodyEl = document.getElementById('timeLogsBody');
     
