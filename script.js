@@ -2900,55 +2900,65 @@ html += `
             </div>
         `;
     } else {
-        html += `
-            <div class="table-responsive">
-                <table class="table table-sm table-hover table-bordered">
-                    <thead class="table-light">
-                        <tr>
-                            <th>Employee</th>
-                            <th>From Time</th>
-                            <th>To Time</th>
-                            <th>Time (mins)</th>
-                            <th>Completed Qty</th>
-                            ${permissions.can_edit || permissions.can_delete ? '<th>Actions</th>' : ''}
-                        </tr>
-                    </thead>
-                    <tbody>
-        `;
-        
-        timeLogs.forEach((log, index) => {
-            const fromTime = log.from_time ? new Date(log.from_time).toLocaleString() : '-';
-            const toTime = log.to_time ? new Date(log.to_time).toLocaleString() : '-';
-            const timeInMins = log.time_in_mins || 0;
-            const completedQty = log.completed_qty || 0;
-            const employee = log.employee || '-';
-            
-            html += `
-                <tr data-log-index="${index}">
-                    <td>${employee}</td>
-                    <td>${fromTime}</td>
-                    <td>${toTime}</td>
-                    <td>${timeInMins}</td>
-                    <td>${completedQty}</td>
-            `;
-            
-            if (permissions.can_edit || permissions.can_delete) {
-                html += '<td>';
-                if (permissions.can_edit) {
-                    html += `<button class="btn btn-sm btn-outline-primary me-1 edit-time-log" data-log-index="${index}" data-log='${JSON.stringify(log).replace(/'/g, "&apos;")}'>
-                        <i class="bi bi-pencil"></i>
-                    </button>`;
-                }
-                if (permissions.can_delete) {
-                    html += `<button class="btn btn-sm btn-outline-danger delete-time-log" data-log-index="${index}">
-                        <i class="bi bi-trash"></i>
-                    </button>`;
-                }
-                html += '</td>';
-            }
-            
-            html += '</tr>';
-        });
+html += `
+    <div class="table-responsive">
+        <table class="table table-sm table-hover table-bordered">
+            <thead class="table-light">
+                <tr>
+                    <th>Employee</th>
+                    <th>From Time</th>
+                    <th>To Time</th>
+                    <th>Time (mins)</th>
+                    <th>Completed Qty</th>
+                    <th>Job Detail</th>
+                    <th>Job Image</th>
+                    ${permissions.can_edit || permissions.can_delete ? '<th>Actions</th>' : ''}
+                </tr>
+            </thead>
+            <tbody>
+`;
+
+timeLogs.forEach((log, index) => {
+    const fromTime = log.from_time ? new Date(log.from_time).toLocaleString() : '-';
+    const toTime = log.to_time ? new Date(log.to_time).toLocaleString() : '-';
+    const timeInMins = log.time_in_mins || 0;
+    const completedQty = log.completed_qty || 0;
+    const employee = log.employee || '-';
+    const jobDetail = log.custom_job_detail || '-';
+    const jobImage = log.custom_job_image_view || log.custom_job_image;
+    
+    html += `
+        <tr data-log-index="${index}">
+            <td>${employee}</td>
+            <td>${fromTime}</td>
+            <td>${toTime}</td>
+            <td>${timeInMins}</td>
+            <td>${completedQty}</td>
+            <td>${jobDetail}</td>
+            <td>
+                ${jobImage ? `<img src="${ERP_BASE}${jobImage}" style="max-width: 100px; max-height: 60px; cursor: pointer;" 
+                    onclick="window.open('${ERP_BASE}${jobImage}', '_blank')">` : '-'}
+            </td>
+    `;
+    
+    if (permissions.can_edit || permissions.can_delete) {
+        html += '<td>';
+        if (permissions.can_edit) {
+            html += `<button class="btn btn-sm btn-outline-primary me-1 edit-time-log" data-log-index="${index}" data-log='${JSON.stringify(log).replace(/'/g, "&apos;")}'>
+                <i class="bi bi-pencil"></i>
+            </button>`;
+        }
+        if (permissions.can_delete) {
+            html += `<button class="btn btn-sm btn-outline-danger delete-time-log" data-log-index="${index}">
+                <i class="bi bi-trash"></i>
+            </button>`;
+        }
+        html += '</td>';
+    }
+    
+    html += '</tr>';
+});
+
         
         html += `
                     </tbody>
