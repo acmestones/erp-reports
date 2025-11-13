@@ -3301,16 +3301,31 @@ async function loadWorkstationDropdown(currentWorkstation, jobCard) {
             dropdown.appendChild(option);
         });
         
-        // Save workstation button handler
-        document.getElementById('saveWorkstationBtn').addEventListener('click', async () => {
-            const newWorkstation = dropdown.value;
-            try {
-                await updateJobCardWorkstation(jobCard, newWorkstation);
-                alert('Workstation updated successfully');
-            } catch (err) {
-                alert('Failed to update workstation: ' + err.message);
-            }
-        });
+            // Save workstation button handler
+            document.getElementById('saveWorkstationBtn').addEventListener('click', async () => {
+                const newWorkstation = dropdown.value;
+                const saveBtn = document.getElementById('saveWorkstationBtn');
+                
+                // Disable button and show loading
+                saveBtn.disabled = true;
+                saveBtn.innerHTML = '<i class="bi bi-hourglass-split"></i>';
+                
+                try {
+                    await updateJobCardWorkstation(jobCard, newWorkstation);
+                    alert('Workstation updated successfully in both Job Card and Work Order!\n\nPlease refresh the report to see the updated grouping.');
+                    
+                    // Optionally auto-refresh the report
+                    if (confirm('Would you like to refresh the report now?')) {
+                        location.reload();
+                    }
+                } catch (err) {
+                    alert('Failed to update workstation: ' + err.message);
+                } finally {
+                    saveBtn.disabled = false;
+                    saveBtn.innerHTML = '<i class="bi bi-check"></i>';
+                }
+            });
+
     } catch (err) {
         console.error('Error loading workstations:', err);
     }
