@@ -3168,11 +3168,12 @@ async function showTimeLogForm(existingLog, jobCard, jobCardInfo, reportName, co
                         <small class="text-muted">Upload an image for this time log entry</small>
                         ${existingLog?.custom_job_image_view ? `
                             <div class="mt-2">
-                                <img src="${ERP_BASE}${existingLog.custom_job_image_view}" 
+                                <img src="${fixImageUrl(existingLog.custom_job_image_view)}" 
                                     style="max-width: 200px; max-height: 150px; cursor: pointer;"
-                                    onclick="window.open('${ERP_BASE}${existingLog.custom_job_image_view}', '_blank')">
+                                    onclick="window.open('${fixImageUrl(existingLog.custom_job_image_view)}', '_blank')">
                             </div>
                         ` : ''}
+
                     </div>
                     
                     <div class="d-flex gap-2">
