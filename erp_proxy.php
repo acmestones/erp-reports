@@ -668,6 +668,44 @@ if (isset($_GET['action']) && $_GET['action'] == 'get_workstations') {
 
 
 
+// Update Job Card Workstation
+if (isset($_GET['action']) && $_GET['action'] == 'update_job_card_workstation') {
+    $input = json_decode(file_get_contents('php://input'), true);
+    $job_card = $input['job_card'] ?? '';
+    $workstation = $input['workstation'] ?? '';
+    
+    if (empty($job_card)) {
+        echo json_encode(['error' => 'Job card not specified']);
+        exit;
+    }
+    
+    $ch = curl_init();
+    $url = ERP_BASE . '/api/resource/Job%20Card/' . rawurlencode($job_card);
+    
+    curl_setopt($ch, CURLOPT_URL, $url);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'PUT');
+    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode(['workstation' => $workstation]));
+    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+        'Authorization: token ' . API_KEY . ':' . API_SECRET,
+        'Content-Type: application/json'
+    ]);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+    
+    $response = curl_exec($ch);
+    $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    
+    if ($http_code >= 200 && $http_code < 300) {
+        echo json_encode(['success' => true]);
+    } else {
+        echo json_encode(['error' => 'Failed to update', 'details' => $response]);
+    }
+    exit;
+}
+
+
+
 
 
 
