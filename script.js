@@ -3054,13 +3054,9 @@ timeLogs.forEach((log, index) => {
     
     // Attach event listeners
 
-        if (permissions.can_edit_workstation) {
-            loadWorkstationDropdown(jobCardInfo.workstation, jobCard, jobCardInfo);
-        }
-
-            // Only add time required handler if permission exists
-            if (permissions.can_edit_time_required && document.getElementById('saveTimeRequiredBtn')) {
-            // Already set up in loadWorkstationDropdown
+        // Load workstation and time required handlers if user has permission
+        if (permissions.can_edit_workstation || permissions.can_edit_time_required) {
+            loadWorkstationDropdown(jobCardInfo.workstation, jobCard, jobCardInfo, permissions);
         }
     
     if (permissions.can_add) {
