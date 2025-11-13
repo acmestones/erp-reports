@@ -3007,9 +3007,24 @@ timeLogs.forEach((log, index) => {
 
 
 
-function showTimeLogForm(existingLog, jobCard, jobCardInfo, reportName, config) {
+async function showTimeLogForm(existingLog, jobCard, jobCardInfo, reportName, config) {
     const isEdit = !!existingLog;
     const bodyEl = document.getElementById('timeLogsBody');
+    const timeLogsPerms = config.time_logs_permissions?.[userEmail] || {};
+    
+    // Fetch employees and workstations
+    let employees = [];
+    let workstations = [];
+    
+    try {
+        const empData = await getEmployees();
+        employees = empData.data || [];
+        
+        const wsData = await getWorkstations();
+        workstations = wsData.data || [];
+    } catch (err) {
+        console.error('Error loading dropdowns:', err);
+    }
     
     const formHtml = `
         <div class="card">
@@ -3018,37 +3033,95 @@ function showTimeLogForm(existingLog, jobCard, jobCardInfo, reportName, config) 
             </div>
             <div class="card-body">
                 <div class="alert alert-info mb-3">
-                    <strong>Required Qty:</strong> ${jobCardInfo.for_quantity || 0} | 
-                    <strong>Completed Qty:</strong> ${jobCardInfo.total_completed_qty || 0}
+                    <div class="row">
+                        <div class="col-md-4">
+                            <strong>Required Qty:</strong> ${jobCardInfo.for_quantity || 0}
+                        </div>
+                        <div class="col-md-4">
+                            <strong>Completed Qty:</strong> ${jobCardInfo.total_completed_qty || 0}
+                        </div>
+                        <div class="col-md-4">
+                            <strong>Time Required:</strong> ${jobCardInfo.time_required || 0} mins
+                        </div>
+                    </div>
                 </div>
                 <form id="timeLogForm">
-                    <div class="mb-3">
-                        <label class="form-label">Employee (Optional)</label>
-                        <input type="text" class="form-control" name="employee" 
-                            value="${existingLog?.employee || ''}" placeholder="Employee name">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Employee</label>
+                            <select class="form-select" name="employee">
+                                <option value="">-- Select Employee --</option>
+                                ${employees.map(emp => `
+                                    <option value="${emp.name}" ${existingLog?.employee === emp.name ? 'selected' : ''}>
+                                        ${emp.employee_name || emp.name}
+                                    </option>
+                                `).join('')}
+                            </select>
+                        </div>
+                        
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Workstation ${timeLogsPerms.can_edit_workstation ? '' : '(Read-only)'}</label>
+                            <select class="form-select" name="workstation" ${timeLogsPerms.can_edit_workstation ? '' : 'disabled'}>
+                                <option value="">-- Select Workstation --</option>
+                                ${workstations.map(ws => `
+                                    <option value="${ws.name}" ${(existingLog?.workstation || jobCardInfo.workstation) === ws.name ? 'selected' : ''}>
+                                        ${ws.name}
+                                    </option>
+                                `).join('')}
+                            </select>
+                            ${!timeLogsPerms.can_edit_workstation ? '<small class="text-muted">You don\'t have permission to edit workstation</small>' : ''}
+                        </div>
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label">From Time *</label>
-                        <input type="datetime-local" class="form-control" name="from_time" id="fromTime"
-                            value="${existingLog?.from_time ? new Date(existingLog.from_time).toISOString().slice(0, 16) : ''}" required>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">From Time *</label>
+                            <input type="datetime-local" class="form-control" name="from_time" id="fromTime"
+                                value="${existingLog?.from_time ? new Date(existingLog.from_time).toISOString().slice(0, 16) : ''}" required>
+                        </div>
+                        
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">To Time</label>
+                            <input type="datetime-local" class="form-control" name="to_time" id="toTime"
+                                value="${existingLog?.to_time ? new Date(existingLog.to_time).toISOString().slice(0, 16) : ''}">
+                            <small class="text-muted">Leave empty if work is ongoing</small>
+                        </div>
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label">To Time</label>
-                        <input type="datetime-local" class="form-control" name="to_time" id="toTime"
-                            value="${existingLog?.to_time ? new Date(existingLog.to_time).toISOString().slice(0, 16) : ''}">
-                        <small class="text-muted">Leave empty if work is ongoing</small>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Time (in minutes) *</label>
+                            <input type="number" step="1" class="form-control" name="time_in_mins" id="timeInMins"
+                                value="${existingLog?.time_in_mins || ''}" required>
+                            <small class="text-muted">Auto-calculated from From/To times</small>
+                        </div>
+                        
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Completed Qty</label>
+                            <input type="number" step="0.01" class="form-control" name="completed_qty" 
+                                value="${existingLog?.completed_qty || 0}">
+                        </div>
                     </div>
+                    
                     <div class="mb-3">
-                        <label class="form-label">Time (in minutes) *</label>
-                        <input type="number" step="1" class="form-control" name="time_in_mins" id="timeInMins"
-                            value="${existingLog?.time_in_mins || ''}" required>
-                        <small class="text-muted">Will auto-calculate when both From and To times are entered</small>
+                        <label class="form-label">Job Detail</label>
+                        <textarea class="form-control" name="custom_job_detail" rows="3" 
+                            placeholder="Enter job details...">${existingLog?.custom_job_detail || ''}</textarea>
                     </div>
+                    
                     <div class="mb-3">
-                        <label class="form-label">Completed Qty</label>
-                        <input type="number" step="0.01" class="form-control" name="completed_qty" 
-                            value="${existingLog?.completed_qty || 0}">
+                        <label class="form-label">Job Image</label>
+                        <input type="file" class="form-control" id="jobImageFile" accept="image/*">
+                        <small class="text-muted">Upload an image for this time log entry</small>
+                        ${existingLog?.custom_job_image_view ? `
+                            <div class="mt-2">
+                                <img src="${ERP_BASE}${existingLog.custom_job_image_view}" 
+                                    style="max-width: 200px; max-height: 150px; cursor: pointer;"
+                                    onclick="window.open('${ERP_BASE}${existingLog.custom_job_image_view}', '_blank')">
+                            </div>
+                        ` : ''}
                     </div>
+                    
                     <div class="d-flex gap-2">
                         <button type="submit" class="btn btn-success">
                             <i class="bi bi-check-circle"></i> ${isEdit ? 'Update' : 'Save'}
@@ -3062,7 +3135,7 @@ function showTimeLogForm(existingLog, jobCard, jobCardInfo, reportName, config) 
     
     bodyEl.innerHTML = formHtml;
     
-    // Auto-calculate time in minutes when from_time and to_time change
+    // Auto-calculate time in minutes
     const fromTimeInput = document.getElementById('fromTime');
     const toTimeInput = document.getElementById('toTime');
     const timeInMinsInput = document.getElementById('timeInMins');
@@ -3095,8 +3168,41 @@ function showTimeLogForm(existingLog, jobCard, jobCardInfo, reportName, config) 
             to_time: formData.get('to_time') || null,
             time_in_mins: parseInt(formData.get('time_in_mins')),
             completed_qty: parseFloat(formData.get('completed_qty')) || 0,
-            employee: formData.get('employee') || null
+            employee: formData.get('employee') || null,
+            custom_job_detail: formData.get('custom_job_detail') || null
         };
+        
+        // Handle workstation if user has permission
+        if (timeLogsPerms.can_edit_workstation) {
+            data.workstation = formData.get('workstation') || null;
+        }
+        
+        // Handle image upload
+        const imageFile = document.getElementById('jobImageFile').files[0];
+        if (imageFile) {
+            try {
+                // Upload image to ERPNext
+                const uploadFormData = new FormData();
+                uploadFormData.append('file', imageFile);
+                uploadFormData.append('is_private', 0);
+                
+                const uploadRes = await fetch(`${ERP_BASE}/api/method/upload_file`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': 'token ' + API_KEY + ':' + API_SECRET
+                    },
+                    body: uploadFormData
+                });
+                
+                const uploadData = await uploadRes.json();
+                if (uploadData.message && uploadData.message.file_url) {
+                    data.custom_job_image = uploadData.message.file_url;
+                }
+            } catch (err) {
+                console.error('Error uploading image:', err);
+                alert('Failed to upload image, but time log will be saved without it.');
+            }
+        }
         
         try {
             if (isEdit) {
@@ -3116,4 +3222,5 @@ function showTimeLogForm(existingLog, jobCard, jobCardInfo, reportName, config) 
         showTimeLogsModal(jobCard, reportName, config);
     });
 }
+
 
