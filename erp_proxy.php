@@ -886,7 +886,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'upload_time_log_image') {
 
 
 
-// Update Time Required in Work Order Operations
+// Update Time Required - Update Work Order Operations time_in_mins
 if (isset($_GET['action']) && $_GET['action'] == 'update_time_required') {
     $input = json_decode(file_get_contents('php://input'), true);
     $job_card = $input['job_card'] ?? '';
@@ -897,11 +897,9 @@ if (isset($_GET['action']) && $_GET['action'] == 'update_time_required') {
         exit;
     }
     
-    logError("Updating time required for Job Card: $job_card to $time_required");
-    
-    // Get the Job Card to find linked Work Order and Operation
+    // Get Job Card to find Work Order and Operation
     $ch = curl_init();
-    $url = ERP_BASE . '/api/resource/Job%20Card/' . rawurlencode($job_card);
+    $url = ERP_BASE . '/api/resource/Job%20Card/' . rawurlencode($job_card) . '?fields=["work_order","operation"]';
     
     curl_setopt($ch, CURLOPT_URL, $url);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
@@ -923,11 +921,11 @@ if (isset($_GET['action']) && $_GET['action'] == 'update_time_required') {
     $operation = $job_card_data['data']['operation'] ?? '';
     
     if (!$work_order || !$operation) {
-        echo json_encode(['error' => 'No linked Work Order or Operation found']);
+        echo json_encode(['error' => 'Job card has no linked Work Order or Operation']);
         exit;
     }
     
-    // Get the Work Order
+    // Get Work Order operations
     $ch = curl_init();
     $url = ERP_BASE . '/api/resource/Work%20Order/' . rawurlencode($work_order);
     
@@ -943,19 +941,17 @@ if (isset($_GET['action']) && $_GET['action'] == 'update_time_required') {
     
     $wo_data = json_decode($response, true);
     if (!isset($wo_data['data']['operations'])) {
-        echo json_encode(['error' => 'No operations found in Work Order']);
+        echo json_encode(['error' => 'Work Order has no operations']);
         exit;
     }
     
+    // Update the matching operation's time_in_mins
     $operations = $wo_data['data']['operations'];
-    
-    // Find and update the matching operation
     $found = false;
     foreach ($operations as &$op) {
         if ($op['operation'] === $operation) {
             $op['time_in_mins'] = $time_required;
             $found = true;
-            logError("Updated operation time_in_mins to $time_required");
             break;
         }
     }
@@ -965,7 +961,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'update_time_required') {
         exit;
     }
     
-    // Update the Work Order
+    // Save Work Order
     $ch = curl_init();
     $url = ERP_BASE . '/api/resource/Work%20Order/' . rawurlencode($work_order);
     
@@ -984,12 +980,16 @@ if (isset($_GET['action']) && $_GET['action'] == 'update_time_required') {
     curl_close($ch);
     
     if ($http_code >= 200 && $http_code < 300) {
-        echo json_encode(['success' => true, 'message' => 'Time required updated in Work Order Operations']);
+        echo json_encode([
+            'success' => true,
+            'message' => 'Time required updated successfully!'
+        ]);
     } else {
         echo json_encode(['error' => 'Failed to update Work Order', 'details' => $response]);
     }
     exit;
 }
+
 
 
 
