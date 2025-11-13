@@ -3059,9 +3059,10 @@ timeLogs.forEach((log, index) => {
 
            
             // Load workstation and time required handlers if user has permission
-            if (permissions.caneditworkstation || permissions.canedittimerequired) {
-                loadWorkstationDropdown(jobCardInfo.workstation, jobCard, jobCardInfo, permissions);
-            }
+                if (permissions && (permissions.caneditworkstation || permissions.canedittimerequired)) {
+                    loadWorkstationDropdown(jobCardInfo.workstation, jobCard, jobCardInfo, permissions);
+                }
+
 
 
 
