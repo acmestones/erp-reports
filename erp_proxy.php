@@ -681,7 +681,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'get_workstations') {
 
 
 
-// Update Job Card Workstation
+// Update Job Card Workstation (and sync with Work Order Operation)
 if (isset($_GET['action']) && $_GET['action'] == 'update_job_card_workstation') {
     $input = json_decode(file_get_contents('php://input'), true);
     $job_card = $input['job_card'] ?? '';
@@ -692,6 +692,34 @@ if (isset($_GET['action']) && $_GET['action'] == 'update_job_card_workstation') 
         exit;
     }
     
+    logError("Updating workstation for Job Card: $job_card to $workstation");
+    
+    // Step 1: Get the Job Card to find the linked Work Order and Operation
+    $ch = curl_init();
+    $url = ERP_BASE . '/api/resource/Job%20Card/' . rawurlencode($job_card);
+    
+    curl_setopt($ch, CURLOPT_URL, $url);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+        'Authorization: token ' . API_KEY . ':' . API_SECRET
+    ]);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+    
+    $response = curl_exec($ch);
+    curl_close($ch);
+    
+    $job_card_data = json_decode($response, true);
+    if (!isset($job_card_data['data'])) {
+        echo json_encode(['error' => 'Failed to fetch job card']);
+        exit;
+    }
+    
+    $work_order = $job_card_data['data']['work_order'] ?? '';
+    $operation = $job_card_data['data']['operation'] ?? '';
+    
+    logError("Found Work Order: $work_order, Operation: $operation");
+    
+    // Step 2: Update the Job Card workstation
     $ch = curl_init();
     $url = ERP_BASE . '/api/resource/Job%20Card/' . rawurlencode($job_card);
     
@@ -709,13 +737,76 @@ if (isset($_GET['action']) && $_GET['action'] == 'update_job_card_workstation') 
     $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
     
-    if ($http_code >= 200 && $http_code < 300) {
-        echo json_encode(['success' => true]);
+    if ($http_code < 200 || $http_code >= 300) {
+        echo json_encode(['error' => 'Failed to update job card', 'details' => $response]);
+        exit;
+    }
+    
+    logError("Job Card updated successfully");
+    
+    // Step 3: Update the Work Order Operations table
+    if ($work_order && $operation) {
+        // Get the Work Order
+        $ch = curl_init();
+        $url = ERP_BASE . '/api/resource/Work%20Order/' . rawurlencode($work_order);
+        
+        curl_setopt($ch, CURLOPT_URL, $url);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+            'Authorization: token ' . API_KEY . ':' . API_SECRET
+        ]);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        
+        $response = curl_exec($ch);
+        curl_close($ch);
+        
+        $wo_data = json_decode($response, true);
+        if (isset($wo_data['data']['operations'])) {
+            $operations = $wo_data['data']['operations'];
+            
+            // Find and update the matching operation
+            foreach ($operations as &$op) {
+                if ($op['operation'] === $operation) {
+                    $op['workstation'] = $workstation;
+                    logError("Found matching operation, updating workstation");
+                    break;
+                }
+            }
+            
+            // Update the Work Order with modified operations
+            $ch = curl_init();
+            $url = ERP_BASE . '/api/resource/Work%20Order/' . rawurlencode($work_order);
+            
+            curl_setopt($ch, CURLOPT_URL, $url);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'PUT');
+            curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode(['operations' => $operations]));
+            curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                'Authorization: token ' . API_KEY . ':' . API_SECRET,
+                'Content-Type: application/json'
+            ]);
+            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+            
+            $response = curl_exec($ch);
+            $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            curl_close($ch);
+            
+            logError("Work Order update response - HTTP $http_code");
+            
+            if ($http_code >= 200 && $http_code < 300) {
+                echo json_encode(['success' => true, 'message' => 'Workstation updated in both Job Card and Work Order']);
+            } else {
+                echo json_encode(['success' => true, 'message' => 'Job Card updated but Work Order update failed', 'wo_error' => $response]);
+            }
+        } else {
+            echo json_encode(['success' => true, 'message' => 'Job Card updated (no operations found in Work Order)']);
+        }
     } else {
-        echo json_encode(['error' => 'Failed to update', 'details' => $response]);
+        echo json_encode(['success' => true, 'message' => 'Job Card updated (no linked Work Order)']);
     }
     exit;
 }
+
 
 
 
