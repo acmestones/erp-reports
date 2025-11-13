@@ -399,12 +399,49 @@ if (isset($_GET['action']) && $_GET['action'] == 'get_time_logs') {
     
     $data = json_decode($response, true);
     $job_card_doc = $data['data'];
+
+
+
     
-    $time_logs = $job_card_doc['time_logs'] ?? [];
-    $for_quantity = $job_card_doc['for_quantity'] ?? 0;
-    $total_completed_qty = $job_card_doc['total_completed_qty'] ?? 0;
-    $time_required = $job_card_doc['time_required'] ?? 0;
-    $workstation = $job_card_doc['workstation'] ?? '';
+$jobcarddoc = $data['data'];
+$timelogs = $jobcarddoc['timelogs'] ?? [];
+$forquantity = $jobcarddoc['forquantity'] ?? 0;
+$totalcompletedqty = $jobcarddoc['totalcompletedqty'] ?? 0;
+$workstation = $jobcarddoc['workstation'] ?? '';
+
+// Get time_in_mins from Work Order Operations instead of Job Card time_required
+$timerequired = 0;
+$workorder = $jobcarddoc['work_order'] ?? '';
+$operation_name = $jobcarddoc['operation'] ?? '';
+
+if ($workorder && $operation_name) {
+    $ch = curl_init();
+    $url = ERP_BASE . '/api/resource/Work%20Order/' . rawurlencode($workorder) . '?fields=["operations"]';
+    
+    curl_setopt($ch, CURLOPT_URL, $url);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+        'Authorization: token ' . API_KEY . ':' . API_SECRET
+    ]);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+    
+    $wo_response = curl_exec($ch);
+    curl_close($ch);
+    
+    $wo_data = json_decode($wo_response, true);
+    if (isset($wo_data['data']['operations'])) {
+        foreach ($wo_data['data']['operations'] as $op) {
+            if ($op['operation'] === $operation_name) {
+                $timerequired = floatval($op['time_in_mins'] ?? 0);
+                break;
+            }
+        }
+    }
+}
+
+
+
+    
     
     echo json_encode([
         'data' => $time_logs,
