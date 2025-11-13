@@ -2838,6 +2838,18 @@ async function showTimeLogsModal(jobCard, reportName, config) {
     
     // Fix the title to show just the job card name without HTML
     document.getElementById('timeLogsModalTitle').textContent = `Time Logs - ${jobCard}`;
+
+    // Add proper cleanup on modal close
+    modalEl.addEventListener('hidden.bs.modal', function () {
+    // Remove backdrop manually if it's stuck
+    const backdrops = document.querySelectorAll('.modal-backdrop');
+    backdrops.forEach(backdrop => backdrop.remove());
+    document.body.classList.remove('modal-open');
+    document.body.style.overflow = '';
+    document.body.style.paddingRight = '';
+    }, { once: true });
+
+
     
     modal.show();
     
