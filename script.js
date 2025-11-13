@@ -3233,28 +3233,29 @@ async function showTimeLogForm(existingLog, jobCard, jobCardInfo, reportName, co
         const imageFile = document.getElementById('jobImageFile').files[0];
         if (imageFile) {
             try {
-                // Upload image to ERPNext
+                // Upload via our proxy instead of directly to ERPNext
                 const uploadFormData = new FormData();
                 uploadFormData.append('file', imageFile);
-                uploadFormData.append('is_private', 0);
+                uploadFormData.append('job_card', jobCard);
                 
-                const uploadRes = await fetch(`${ERP_BASE}/api/method/upload_file`, {
+                const uploadRes = await fetch(`${API_BASE}?action=upload_time_log_image`, {
                     method: 'POST',
-                    headers: {
-                        'Authorization': 'token ' + API_KEY + ':' + API_SECRET
-                    },
                     body: uploadFormData
                 });
                 
                 const uploadData = await uploadRes.json();
-                if (uploadData.message && uploadData.message.file_url) {
-                    data.custom_job_image = uploadData.message.file_url;
+                if (uploadData.file_url) {
+                    data.custom_job_image = uploadData.file_url;
+                } else {
+                    throw new Error(uploadData.error || 'Upload failed');
                 }
             } catch (err) {
                 console.error('Error uploading image:', err);
-                alert('Failed to upload image, but time log will be saved without it.');
+                alert('Failed to upload image: ' + err.message);
+                return; // Don't save time log if image upload fails
             }
         }
+
         
         try {
             if (isEdit) {
