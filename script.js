@@ -2754,6 +2754,27 @@ async function deleteTimeLog(jobCard, logIndex) {
 }
 
 
+// Get Employee list
+async function getEmployees() {
+    const res = await fetch(`${API_BASE}?action=get_employees`);
+    if (!res.ok) throw new Error("Failed to fetch employees");
+    return res.json();
+}
+
+// Get Workstation list
+async function getWorkstations() {
+    const res = await fetch(`${API_BASE}?action=get_workstations`);
+    if (!res.ok) throw new Error("Failed to fetch workstations");
+    return res.json();
+}
+
+
+
+
+
+
+
+
 
 
 // Time Logs Modal Function
