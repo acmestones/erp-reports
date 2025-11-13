@@ -2898,6 +2898,9 @@ async function showTimeLogsModal(jobCard, reportName, config) {
 
 
 function renderTimeLogs(timeLogs, jobCard, jobCardInfo, permissions, reportName, config) {
+    // Ensure permissions has a default empty object
+    permissions = permissions || {};
+    
     const bodyEl = document.getElementById('timeLogsBody');
     
     let html = '';
@@ -3054,10 +3057,13 @@ timeLogs.forEach((log, index) => {
     
     // Attach event listeners
 
-            // Load workstation and time required handlers if user has permission  
+           
+            // Load workstation and time required handlers if user has permission
             if (permissions.caneditworkstation || permissions.canedittimerequired) {
                 loadWorkstationDropdown(jobCardInfo.workstation, jobCard, jobCardInfo, permissions);
             }
+
+
 
     
     if (permissions.can_add) {
