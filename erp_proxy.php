@@ -552,13 +552,16 @@ if (isset($_GET['action']) && $_GET['action'] == 'update_time_log') {
     $time_logs = $data['data']['time_logs'] ?? [];
     
     if (isset($time_logs[$log_index])) {
-        $time_logs[$log_index] = [
-            'from_time' => $input['from_time'],
-            'to_time' => $input['to_time'] ?? null,
-            'time_in_mins' => floatval($input['time_in_mins']),
-            'completed_qty' => floatval($input['completed_qty'] ?? 0),
-            'employee' => $input['employee'] ?? null
-        ];
+            $time_logs[$log_index] = array_merge($time_logs[$log_index], [
+                'from_time' => $input['from_time'],
+                'to_time' => $input['to_time'] ?? null,
+                'time_in_mins' => floatval($input['time_in_mins']),
+                'completed_qty' => floatval($input['completed_qty'] ?? 0),
+                'employee' => $input['employee'] ?? null,
+                'custom_job_detail' => $input['custom_job_detail'] ?? null,
+                'custom_job_image' => $input['custom_job_image'] ?? null
+            ]);
+
         
         // Update
         $ch = curl_init();
