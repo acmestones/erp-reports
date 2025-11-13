@@ -3331,77 +3331,70 @@ async function showTimeLogForm(existingLog, jobCard, jobCardInfo, reportName, co
 
 async function loadWorkstationDropdown(currentWorkstation, jobCard, jobCardInfo, permissions) {
     try {
-        // Handle workstation dropdown ONLY if user has permission
-        if (permissions && permissions.caneditworkstation) {
+        // Handle WORKSTATION dropdown
+        const dropdown = document.getElementById('jobCardWorkstation');
+        if (dropdown && permissions && permissions.caneditworkstation) {
             const wsData = await getWorkstations();
             const workstations = wsData.data || [];
             
-            const dropdown = document.getElementById('jobCardWorkstation');
-            if (dropdown) {
-                // Clear existing options first
-                dropdown.innerHTML = '<option value="">-- Select --</option>';
-                
-                // Populate dropdown options
-                workstations.forEach(ws => {
-                    const option = document.createElement('option');
-                    option.value = ws.name;
-                    option.textContent = ws.name;
-                    if (ws.name === currentWorkstation) {
-                        option.selected = true;
-                    }
-                    dropdown.appendChild(option);
-                });
-                
-                // Attach save button handler
-                const saveBtn = document.getElementById('saveWorkstationBtn');
-                if (saveBtn) {
-                    saveBtn.addEventListener('click', async () => {
-                        const newWorkstation = dropdown.value;
-                        saveBtn.disabled = true;
-                        saveBtn.innerHTML = '<i class="bi bi-hourglass-split"></i>';
-                        
-                        try {
-                            await updateJobCardWorkstation(jobCard, newWorkstation);
-                            alert('Workstation updated successfully!');
-                            if (confirm('Would you like to refresh the report now?')) {
-                                location.reload();
-                            }
-                        } catch (err) {
-                            alert('Failed to update workstation: ' + err.message);
-                        } finally {
-                            saveBtn.disabled = false;
-                            saveBtn.innerHTML = '<i class="bi bi-check"></i>';
-                        }
-                    });
+            // Clear and populate dropdown
+            dropdown.innerHTML = '<option value="">-- Select --</option>';
+            workstations.forEach(ws => {
+                const option = document.createElement('option');
+                option.value = ws.name;
+                option.textContent = ws.name;
+                if (ws.name === currentWorkstation) {
+                    option.selected = true;
                 }
+                dropdown.appendChild(option);
+            });
+            
+            // Attach workstation save handler
+            const saveBtn = document.getElementById('saveWorkstationBtn');
+            if (saveBtn) {
+                saveBtn.addEventListener('click', async () => {
+                    const newWorkstation = dropdown.value;
+                    saveBtn.disabled = true;
+                    saveBtn.innerHTML = '<i class="bi bi-hourglass-split"></i>';
+                    
+                    try {
+                        await updateJobCardWorkstation(jobCard, newWorkstation);
+                        alert('Workstation updated successfully!');
+                        if (confirm('Refresh report?')) location.reload();
+                    } catch (err) {
+                        alert('Failed: ' + err.message);
+                    } finally {
+                        saveBtn.disabled = false;
+                        saveBtn.innerHTML = '<i class="bi bi-check"></i>';
+                    }
+                });
             }
         }
         
-        // Handle time required INDEPENDENTLY
-        if (permissions && permissions.canedittimerequired) {
-            const timeReqBtn = document.getElementById('saveTimeRequiredBtn');
-            if (timeReqBtn) {
-                timeReqBtn.addEventListener('click', async () => {
-                    const newTimeRequired = document.getElementById('jobCardTimeRequired').value;
-                    timeReqBtn.disabled = true;
-                    timeReqBtn.innerHTML = '<i class="bi bi-hourglass-split"></i>';
-                    
-                    try {
-                        await updateJobCardTimeRequired(jobCard, parseFloat(newTimeRequired));
-                        alert('Time required updated successfully in both Job Card and Work Order!');
-                    } catch (err) {
-                        alert('Failed to update time required: ' + err.message);
-                    } finally {
-                        timeReqBtn.disabled = false;
-                        timeReqBtn.innerHTML = '<i class="bi bi-check"></i>';
-                    }
-                });
-            }
+        // Handle TIME REQUIRED field (separate from workstation)
+        const timeReqBtn = document.getElementById('saveTimeRequiredBtn');
+        if (timeReqBtn && permissions && permissions.canedittimerequired) {
+            timeReqBtn.addEventListener('click', async () => {
+                const newTimeRequired = document.getElementById('jobCardTimeRequired').value;
+                timeReqBtn.disabled = true;
+                timeReqBtn.innerHTML = '<i class="bi bi-hourglass-split"></i>';
+                
+                try {
+                    await updateJobCardTimeRequired(jobCard, parseFloat(newTimeRequired));
+                    alert('Time required updated successfully!');
+                } catch (err) {
+                    alert('Failed: ' + err.message);
+                } finally {
+                    timeReqBtn.disabled = false;
+                    timeReqBtn.innerHTML = '<i class="bi bi-check"></i>';
+                }
+            });
         }
     } catch (err) {
-        console.error('Error setting up handlers:', err);
+        console.error('Error in loadWorkstationDropdown:', err);
     }
 }
+
 
 
 
