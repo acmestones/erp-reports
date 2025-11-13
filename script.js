@@ -2972,19 +2972,20 @@ timeLogs.forEach((log, index) => {
     const employee = log.employee || '-';
     const jobDetail = log.custom_job_detail || '-';
     const jobImage = log.custom_job_image_view || log.custom_job_image;
-    
-    html += `
-        <tr data-log-index="${index}">
-            <td>${employee}</td>
-            <td>${fromTime}</td>
-            <td>${toTime}</td>
-            <td>${timeInMins}</td>
-            <td>${completedQty}</td>
-            <td>${jobDetail}</td>
-            <td>
-                ${jobImage ? `<img src="${ERP_BASE}${jobImage}" style="max-width: 100px; max-height: 60px; cursor: pointer;" 
-                    onclick="window.open('${ERP_BASE}${jobImage}', '_blank')">` : '-'}
-            </td>
+
+        html += `
+            <tr data-log-index="${index}">
+                <td>${employee}</td>
+                <td>${fromTime}</td>
+                <td>${toTime}</td>
+                <td>${timeInMins}</td>
+                <td>${completedQty}</td>
+                <td>${jobDetail}</td>
+                <td>
+                    ${jobImage ? `<img src="${fixImageUrl(jobImage)}" style="max-width: 100px; max-height: 60px; cursor: pointer;" 
+                        onclick="window.open('${fixImageUrl(jobImage)}', '_blank')">` : '-'}
+                </td>
+
     `;
     
     if (permissions.can_edit || permissions.can_delete) {
