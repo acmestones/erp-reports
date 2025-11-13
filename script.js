@@ -2791,6 +2791,22 @@ async function updateJobCardWorkstation(jobCard, workstation) {
 }
 
 
+// Update Job Card Time Required
+async function updateJobCardTimeRequired(jobCard, timeRequired) {
+    const res = await fetch(`${API_BASE}?action=update_time_required`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            job_card: jobCard,
+            time_required: timeRequired
+        })
+    });
+    if (!res.ok) throw new Error("Failed to update time required");
+    return res.json();
+}
+
+
+
 
 
 
