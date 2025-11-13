@@ -3331,13 +3331,14 @@ async function showTimeLogForm(existingLog, jobCard, jobCardInfo, reportName, co
 
 async function loadWorkstationDropdown(currentWorkstation, jobCard, jobCardInfo, permissions) {
     try {
-        // Handle workstation dropdown if user has permission
+        // Handle workstation dropdown ONLY if user has permission
         if (permissions.caneditworkstation) {
             const wsData = await getWorkstations();
             const workstations = wsData.data;
             const dropdown = document.getElementById('jobCardWorkstation');
             
             if (dropdown) {
+                // Populate dropdown options
                 workstations.forEach(ws => {
                     const option = document.createElement('option');
                     option.value = ws.name;
@@ -3348,6 +3349,7 @@ async function loadWorkstationDropdown(currentWorkstation, jobCard, jobCardInfo,
                     dropdown.appendChild(option);
                 });
 
+                // Attach save button event listener
                 document.getElementById('saveWorkstationBtn').addEventListener('click', async () => {
                     const newWorkstation = dropdown.value;
                     const saveBtn = document.getElementById('saveWorkstationBtn');
@@ -3370,7 +3372,7 @@ async function loadWorkstationDropdown(currentWorkstation, jobCard, jobCardInfo,
             }
         }
 
-        // Handle time required SEPARATELY - moved outside workstation permission check
+        // Handle time required INDEPENDENTLY - moved outside workstation permission check
         if (permissions.canedittimerequired) {
             const timeReqBtn = document.getElementById('saveTimeRequiredBtn');
             if (timeReqBtn) {
@@ -3395,6 +3397,7 @@ async function loadWorkstationDropdown(currentWorkstation, jobCard, jobCardInfo,
         console.error('Error setting up handlers:', err);
     }
 }
+
 
 
 
