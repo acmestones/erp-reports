@@ -468,14 +468,24 @@ if (isset($_GET['action']) && $_GET['action'] == 'add_time_log') {
         'parenttype' => 'Job Card'
     ];
     
-    // Add employee if provided
-    if (!empty($input['employee'])) {
-        $new_log['employee'] = $input['employee'];
-    }
+        // Add optional fields
+        if (!empty($input['employee'])) {
+            $new_log['employee'] = $input['employee'];
+        }
+        if (isset($input['custom_job_detail'])) {
+            $new_log['custom_job_detail'] = $input['custom_job_detail'];
+        }
+        if (isset($input['custom_job_image'])) {
+            $new_log['custom_job_image'] = $input['custom_job_image'];
+        }
     
     $time_logs[] = $new_log;
     
     logError("Time logs array: " . json_encode($time_logs));
+
+
+
+
     
     // Update job card with new time logs
     $ch = curl_init();
