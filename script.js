@@ -3328,14 +3328,15 @@ async function showTimeLogForm(existingLog, jobCard, jobCardInfo, reportName, co
 
 
 // New function to load and handle workstation
+
 async function loadWorkstationDropdown(currentWorkstation, jobCard, jobCardInfo, permissions) {
     try {
-        // Only load workstation dropdown if user has permission
+        // Handle workstation dropdown if user has permission
         if (permissions.caneditworkstation) {
             const wsData = await getWorkstations();
-            const workstations = wsData.data || [];
-            
+            const workstations = wsData.data;
             const dropdown = document.getElementById('jobCardWorkstation');
+            
             if (dropdown) {
                 workstations.forEach(ws => {
                     const option = document.createElement('option');
@@ -3346,11 +3347,10 @@ async function loadWorkstationDropdown(currentWorkstation, jobCard, jobCardInfo,
                     }
                     dropdown.appendChild(option);
                 });
-                
+
                 document.getElementById('saveWorkstationBtn').addEventListener('click', async () => {
                     const newWorkstation = dropdown.value;
                     const saveBtn = document.getElementById('saveWorkstationBtn');
-                    
                     saveBtn.disabled = true;
                     saveBtn.innerHTML = '<i class="bi bi-hourglass-split"></i>';
                     
@@ -3369,14 +3369,13 @@ async function loadWorkstationDropdown(currentWorkstation, jobCard, jobCardInfo,
                 });
             }
         }
-        
-        // Handle time required if user has permission
+
+        // Handle time required SEPARATELY - moved outside workstation permission check
         if (permissions.canedittimerequired) {
             const timeReqBtn = document.getElementById('saveTimeRequiredBtn');
             if (timeReqBtn) {
                 timeReqBtn.addEventListener('click', async () => {
                     const newTimeRequired = document.getElementById('jobCardTimeRequired').value;
-                    
                     timeReqBtn.disabled = true;
                     timeReqBtn.innerHTML = '<i class="bi bi-hourglass-split"></i>';
                     
@@ -3396,5 +3395,6 @@ async function loadWorkstationDropdown(currentWorkstation, jobCard, jobCardInfo,
         console.error('Error setting up handlers:', err);
     }
 }
+
 
 
