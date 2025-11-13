@@ -3054,10 +3054,11 @@ timeLogs.forEach((log, index) => {
     
     // Attach event listeners
 
-        // Load workstation and time required handlers if user has permission
-        if (permissions.can_edit_workstation || permissions.can_edit_time_required) {
-            loadWorkstationDropdown(jobCardInfo.workstation, jobCard, jobCardInfo, permissions);
-        }
+            // Load workstation and time required handlers if user has permission  
+            if (permissions.caneditworkstation || permissions.canedittimerequired) {
+                loadWorkstationDropdown(jobCardInfo.workstation, jobCard, jobCardInfo, permissions);
+            }
+
     
     if (permissions.can_add) {
         document.getElementById('addTimeLogBtn')?.addEventListener('click', () => {
@@ -3324,7 +3325,7 @@ async function showTimeLogForm(existingLog, jobCard, jobCardInfo, reportName, co
 async function loadWorkstationDropdown(currentWorkstation, jobCard, jobCardInfo, permissions) {
     try {
         // Only load workstation dropdown if user has permission
-        if (permissions.can_edit_workstation) {
+        if (permissions.caneditworkstation) {
             const wsData = await getWorkstations();
             const workstations = wsData.data || [];
             
@@ -3364,7 +3365,7 @@ async function loadWorkstationDropdown(currentWorkstation, jobCard, jobCardInfo,
         }
         
         // Handle time required if user has permission
-        if (permissions.can_edit_time_required) {
+        if (permissions.canedittimerequired) {
             const timeReqBtn = document.getElementById('saveTimeRequiredBtn');
             if (timeReqBtn) {
                 timeReqBtn.addEventListener('click', async () => {
