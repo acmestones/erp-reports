@@ -721,6 +721,75 @@ if (isset($_GET['action']) && $_GET['action'] == 'update_job_card_workstation') 
 
 
 
+// Upload image for time log
+if (isset($_GET['action']) && $_GET['action'] == 'upload_time_log_image') {
+    if (!isset($_FILES['file'])) {
+        echo json_encode(['error' => 'No file uploaded']);
+        exit;
+    }
+    
+    $file = $_FILES['file'];
+    $job_card = $_POST['job_card'] ?? 'unknown';
+    
+    // Create a unique filename
+    $ext = pathinfo($file['name'], PATHINFO_EXTENSION);
+    $filename = 'timelog_' . $job_card . '_' . time() . '.' . $ext;
+    
+    // Prepare multipart form data for ERPNext
+    $boundary = '----WebKitFormBoundary' . uniqid();
+    $fileContent = file_get_contents($file['tmp_name']);
+    
+    $postData = "--$boundary\r\n";
+    $postData .= "Content-Disposition: form-data; name=\"file\"; filename=\"$filename\"\r\n";
+    $postData .= "Content-Type: " . $file['type'] . "\r\n\r\n";
+    $postData .= $fileContent . "\r\n";
+    $postData .= "--$boundary\r\n";
+    $postData .= "Content-Disposition: form-data; name=\"is_private\"\r\n\r\n";
+    $postData .= "0\r\n";
+    $postData .= "--$boundary\r\n";
+    $postData .= "Content-Disposition: form-data; name=\"doctype\"\r\n\r\n";
+    $postData .= "Job Card\r\n";
+    $postData .= "--$boundary\r\n";
+    $postData .= "Content-Disposition: form-data; name=\"docname\"\r\n\r\n";
+    $postData .= "$job_card\r\n";
+    $postData .= "--$boundary--\r\n";
+    
+    $ch = curl_init();
+    $url = ERP_BASE . '/api/method/upload_file';
+    
+    curl_setopt_array($ch, [
+        CURLOPT_URL => $url,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_POST => true,
+        CURLOPT_POSTFIELDS => $postData,
+        CURLOPT_HTTPHEADER => [
+            'Authorization: token ' . API_KEY . ':' . API_SECRET,
+            'Content-Type: multipart/form-data; boundary=' . $boundary
+        ],
+        CURLOPT_SSL_VERIFYPEER => false
+    ]);
+    
+    $response = curl_exec($ch);
+    $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    
+    logError("Upload response - HTTP $http_code: $response");
+    
+    if ($http_code === 200) {
+        $result = json_decode($response, true);
+        if (isset($result['message']['file_url'])) {
+            echo json_encode(['file_url' => $result['message']['file_url']]);
+        } else {
+            echo json_encode(['error' => 'Upload succeeded but no file URL returned', 'response' => $result]);
+        }
+    } else {
+        echo json_encode(['error' => 'Upload failed', 'http_code' => $http_code, 'response' => $response]);
+    }
+    exit;
+}
+
+
+
 
 
 
