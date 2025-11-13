@@ -379,7 +379,6 @@ if (isset($_GET['action']) && $_GET['action'] == 'get_time_logs') {
     }
     
     $ch = curl_init();
-    // Use the exact format that worked in the browser test
     $url = ERP_BASE . '/api/resource/Job%20Card/' . rawurlencode($job_card);
     
     curl_setopt($ch, CURLOPT_URL, $url);
@@ -404,12 +403,16 @@ if (isset($_GET['action']) && $_GET['action'] == 'get_time_logs') {
     $time_logs = $job_card_doc['time_logs'] ?? [];
     $for_quantity = $job_card_doc['for_quantity'] ?? 0;
     $total_completed_qty = $job_card_doc['total_completed_qty'] ?? 0;
+    $time_required = $job_card_doc['time_required'] ?? 0;
+    $workstation = $job_card_doc['workstation'] ?? '';
     
     echo json_encode([
         'data' => $time_logs,
         'job_card_info' => [
             'for_quantity' => $for_quantity,
             'total_completed_qty' => $total_completed_qty,
+            'time_required' => $time_required,
+            'workstation' => $workstation,
             'name' => $job_card
         ]
     ]);
