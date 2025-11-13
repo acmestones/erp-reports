@@ -1993,6 +1993,8 @@ async function openGlobalReportConfigModal(reportName) {
                                     <th class="text-center" style="width: 60px;">Edit</th>
                                     <th class="text-center" style="width: 60px;">Delete</th>
                                     <th class="text-center" style="width: 80px;">Edit WS</th>
+                                    <th class="text-center" style="width: 80px;">Edit Time</th>
+
                                 </tr>
                             </thead>
                             <tbody id="timeLogsPermissionsTable">
@@ -2032,6 +2034,12 @@ async function openGlobalReportConfigModal(reportName) {
                                                     data-user="${user.email}" data-perm="can_edit_workstation" 
                                                     ${perms.can_edit_workstation ? 'checked' : ''}>
                                             </td>
+                                            <td class="text-center">
+                                                <input type="checkbox" class="form-check-input time-log-perm" 
+                                                    data-user="${user.email}" data-perm="can_edit_time_required" 
+                                                    ${perms.can_edit_time_required ? 'checked' : ''}>
+                                            </td>
+ 
 
                                         </tr>
                                     `;
@@ -2155,7 +2163,8 @@ async function openGlobalReportConfigModal(reportName) {
                         can_add: false,
                         can_edit: false,
                         can_delete: false,
-                        can_edit_workstation: false
+                        can_edit_workstation: false,
+                        can_edit_time_required: false
                     };
                 }
                 
@@ -2904,8 +2913,9 @@ function renderTimeLogs(timeLogs, jobCard, jobCardInfo, permissions, reportName,
                         <strong>Completed Qty:</strong> ${jobCardInfo.total_completed_qty || 0}
                     </div>
                     <div class="col-md-3">
-                        <strong>Time Required (mins):</strong>
-                        ${permissions.can_edit_workstation ? `
+                            <strong>Time Required (mins):</strong>
+                            ${permissions.can_edit_time_required ? `
+
                             <input type="number" class="form-control form-control-sm" id="jobCardTimeRequired" 
                                 value="${jobCardInfo.time_required || 0}" style="display: inline-block; width: 80px;">
                             <button class="btn btn-sm btn-success" id="saveTimeRequiredBtn" style="padding: 2px 8px;">
@@ -3048,7 +3058,10 @@ timeLogs.forEach((log, index) => {
             loadWorkstationDropdown(jobCardInfo.workstation, jobCard, jobCardInfo);
         }
 
-
+            // Only add time required handler if permission exists
+            if (permissions.can_edit_time_required && document.getElementById('saveTimeRequiredBtn')) {
+            // Already set up in loadWorkstationDropdown
+        }
     
     if (permissions.can_add) {
         document.getElementById('addTimeLogBtn')?.addEventListener('click', () => {
@@ -3312,65 +3325,73 @@ async function showTimeLogForm(existingLog, jobCard, jobCardInfo, reportName, co
 
 
 // New function to load and handle workstation
-async function loadWorkstationDropdown(currentWorkstation, jobCard, jobCardInfo) {
+async function loadWorkstationDropdown(currentWorkstation, jobCard, jobCardInfo, permissions) {
     try {
-        const wsData = await getWorkstations();
-        const workstations = wsData.data || [];
-        
-        const dropdown = document.getElementById('jobCardWorkstation');
-        workstations.forEach(ws => {
-            const option = document.createElement('option');
-            option.value = ws.name;
-            option.textContent = ws.name;
-            if (ws.name === currentWorkstation) {
-                option.selected = true;
-            }
-            dropdown.appendChild(option);
-        });
-        
-        // Save workstation button handler
-        document.getElementById('saveWorkstationBtn').addEventListener('click', async () => {
-            const newWorkstation = dropdown.value;
-            const saveBtn = document.getElementById('saveWorkstationBtn');
+        // Only load workstation dropdown if user has permission
+        if (permissions.can_edit_workstation) {
+            const wsData = await getWorkstations();
+            const workstations = wsData.data || [];
             
-            saveBtn.disabled = true;
-            saveBtn.innerHTML = '<i class="bi bi-hourglass-split"></i>';
-            
-            try {
-                await updateJobCardWorkstation(jobCard, newWorkstation);
-                alert('Workstation updated successfully in both Job Card and Work Order!\n\nPlease refresh the report to see the updated grouping.');
+            const dropdown = document.getElementById('jobCardWorkstation');
+            if (dropdown) {
+                workstations.forEach(ws => {
+                    const option = document.createElement('option');
+                    option.value = ws.name;
+                    option.textContent = ws.name;
+                    if (ws.name === currentWorkstation) {
+                        option.selected = true;
+                    }
+                    dropdown.appendChild(option);
+                });
                 
-                if (confirm('Would you like to refresh the report now?')) {
-                    location.reload();
-                }
-            } catch (err) {
-                alert('Failed to update workstation: ' + err.message);
-            } finally {
-                saveBtn.disabled = false;
-                saveBtn.innerHTML = '<i class="bi bi-check"></i>';
+                document.getElementById('saveWorkstationBtn').addEventListener('click', async () => {
+                    const newWorkstation = dropdown.value;
+                    const saveBtn = document.getElementById('saveWorkstationBtn');
+                    
+                    saveBtn.disabled = true;
+                    saveBtn.innerHTML = '<i class="bi bi-hourglass-split"></i>';
+                    
+                    try {
+                        await updateJobCardWorkstation(jobCard, newWorkstation);
+                        alert('Workstation updated successfully!');
+                        if (confirm('Would you like to refresh the report now?')) {
+                            location.reload();
+                        }
+                    } catch (err) {
+                        alert('Failed to update workstation: ' + err.message);
+                    } finally {
+                        saveBtn.disabled = false;
+                        saveBtn.innerHTML = '<i class="bi bi-check"></i>';
+                    }
+                });
             }
-        });
+        }
         
-        // Save time required button handler
-        document.getElementById('saveTimeRequiredBtn').addEventListener('click', async () => {
-            const newTimeRequired = document.getElementById('jobCardTimeRequired').value;
-            const saveBtn = document.getElementById('saveTimeRequiredBtn');
-            
-            saveBtn.disabled = true;
-            saveBtn.innerHTML = '<i class="bi bi-hourglass-split"></i>';
-            
-            try {
-                await updateJobCardTimeRequired(jobCard, parseFloat(newTimeRequired));
-                alert('Time required updated successfully in Work Order Operations!');
-            } catch (err) {
-                alert('Failed to update time required: ' + err.message);
-            } finally {
-                saveBtn.disabled = false;
-                saveBtn.innerHTML = '<i class="bi bi-check"></i>';
+        // Handle time required if user has permission
+        if (permissions.can_edit_time_required) {
+            const timeReqBtn = document.getElementById('saveTimeRequiredBtn');
+            if (timeReqBtn) {
+                timeReqBtn.addEventListener('click', async () => {
+                    const newTimeRequired = document.getElementById('jobCardTimeRequired').value;
+                    
+                    timeReqBtn.disabled = true;
+                    timeReqBtn.innerHTML = '<i class="bi bi-hourglass-split"></i>';
+                    
+                    try {
+                        await updateJobCardTimeRequired(jobCard, parseFloat(newTimeRequired));
+                        alert('Time required updated successfully in both Job Card and Work Order!');
+                    } catch (err) {
+                        alert('Failed to update time required: ' + err.message);
+                    } finally {
+                        timeReqBtn.disabled = false;
+                        timeReqBtn.innerHTML = '<i class="bi bi-check"></i>';
+                    }
+                });
             }
-        });
+        }
     } catch (err) {
-        console.error('Error loading workstations:', err);
+        console.error('Error setting up handlers:', err);
     }
 }
+
 
