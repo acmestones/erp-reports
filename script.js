@@ -2776,6 +2776,22 @@ async function getWorkstations() {
     return res.json();
 }
 
+// New API function to update Job Card workstation
+async function updateJobCardWorkstation(jobCard, workstation) {
+    const res = await fetch(`${API_BASE}?action=update_job_card_workstation`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            job_card: jobCard,
+            workstation: workstation
+        })
+    });
+    if (!res.ok) throw new Error("Failed to update workstation");
+    return res.json();
+}
+
+
+
 
 
 
@@ -2988,6 +3004,12 @@ timeLogs.forEach((log, index) => {
     bodyEl.innerHTML = html;
     
     // Attach event listeners
+
+    if (permissions.can_edit_workstation) {
+        loadWorkstationDropdown(jobCardInfo.workstation, jobCard);
+    }
+
+    
     if (permissions.can_add) {
         document.getElementById('addTimeLogBtn')?.addEventListener('click', () => {
             showTimeLogForm(null, jobCard, jobCardInfo, reportName, config);
@@ -3242,3 +3264,39 @@ async function showTimeLogForm(existingLog, jobCard, jobCardInfo, reportName, co
 }
 
 
+
+
+
+
+
+// New function to load and handle workstation
+async function loadWorkstationDropdown(currentWorkstation, jobCard) {
+    try {
+        const wsData = await getWorkstations();
+        const workstations = wsData.data || [];
+        
+        const dropdown = document.getElementById('jobCardWorkstation');
+        workstations.forEach(ws => {
+            const option = document.createElement('option');
+            option.value = ws.name;
+            option.textContent = ws.name;
+            if (ws.name === currentWorkstation) {
+                option.selected = true;
+            }
+            dropdown.appendChild(option);
+        });
+        
+        // Save workstation button handler
+        document.getElementById('saveWorkstationBtn').addEventListener('click', async () => {
+            const newWorkstation = dropdown.value;
+            try {
+                await updateJobCardWorkstation(jobCard, newWorkstation);
+                alert('Workstation updated successfully');
+            } catch (err) {
+                alert('Failed to update workstation: ' + err.message);
+            }
+        });
+    } catch (err) {
+        console.error('Error loading workstations:', err);
+    }
+}
