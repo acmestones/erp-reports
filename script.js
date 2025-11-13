@@ -3057,6 +3057,16 @@ timeLogs.forEach((log, index) => {
     
     // Attach event listeners
 
+
+console.log('🎯 About to call loadWorkstationDropdown, permissions check:', {
+    permissions,
+    caneditworkstation: permissions?.caneditworkstation,
+    canedittimerequired: permissions?.canedittimerequired,
+    conditionPasses: permissions && (permissions.caneditworkstation || permissions.canedittimerequired)
+});
+
+
+    
            
             // Load workstation and time required handlers if user has permission
                 if (permissions && (permissions.caneditworkstation || permissions.canedittimerequired)) {
@@ -3331,6 +3341,20 @@ async function showTimeLogForm(existingLog, jobCard, jobCardInfo, reportName, co
 // New function to load and handle workstation
 
 async function loadWorkstationDropdown(currentWorkstation, jobCard, jobCardInfo, permissions) {
+    
+    
+    
+        console.log('🔧 loadWorkstationDropdown called with:', {
+        currentWorkstation,
+        jobCard,
+        jobCardInfo,
+        permissions,
+        dropdownExists: !!document.getElementById('jobCardWorkstation'),
+        buttonExists: !!document.getElementById('saveWorkstationBtn')
+    });
+    
+    
+    
     try {
         // Handle WORKSTATION dropdown
         const dropdown = document.getElementById('jobCardWorkstation');
