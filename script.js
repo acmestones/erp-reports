@@ -3062,14 +3062,14 @@ console.log('🎯 About to call loadWorkstationDropdown, permissions check:', {
     permissions,
     caneditworkstation: permissions?.caneditworkstation,
     canedittimerequired: permissions?.canedittimerequired,
-    conditionPasses: permissions && (permissions.caneditworkstation || permissions.canedittimerequired)
+    conditionPasses: permissions && (permissions.can_edit_workstation || permissions.can_edit_time_required)
 });
 
 
     
            
             // Load workstation and time required handlers if user has permission
-                if (permissions && (permissions.caneditworkstation || permissions.canedittimerequired)) {
+                if (permissions && (permissions.can_edit_workstation || permissions.can_edit_time_required)) {
                     loadWorkstationDropdown(jobCardInfo.workstation, jobCard, jobCardInfo, permissions);
                 }
 
@@ -3358,7 +3358,7 @@ async function loadWorkstationDropdown(currentWorkstation, jobCard, jobCardInfo,
     try {
         // Handle WORKSTATION dropdown
         const dropdown = document.getElementById('jobCardWorkstation');
-        if (dropdown && permissions && permissions.caneditworkstation) {
+        if (dropdown && permissions && permissions.can_edit_workstation) {
             const wsData = await getWorkstations();
             const workstations = wsData.data || [];
             
@@ -3398,7 +3398,7 @@ async function loadWorkstationDropdown(currentWorkstation, jobCard, jobCardInfo,
         
         // Handle TIME REQUIRED field (separate from workstation)
         const timeReqBtn = document.getElementById('saveTimeRequiredBtn');
-        if (timeReqBtn && permissions && permissions.canedittimerequired) {
+        if (timeReqBtn && permissions && permissions.can_edit_time_required) {
             timeReqBtn.addEventListener('click', async () => {
                 const newTimeRequired = document.getElementById('jobCardTimeRequired').value;
                 timeReqBtn.disabled = true;
