@@ -2841,19 +2841,27 @@ function renderTimeLogs(timeLogs, jobCard, jobCardInfo, permissions, reportName,
     
     let html = '';
     
-    // Show Job Card Info
-    html += `
-        <div class="alert alert-info mb-3">
-            <div class="row">
-                <div class="col-md-6">
-                    <strong>Required Qty:</strong> ${jobCardInfo.for_quantity || 0}
-                </div>
-                <div class="col-md-6">
-                    <strong>Completed Qty:</strong> ${jobCardInfo.total_completed_qty || 0}
-                </div>
+// Show Job Card Info
+html += `
+    <div class="alert alert-info mb-3">
+        <div class="row">
+            <div class="col-md-3">
+                <strong>Required Qty:</strong> ${jobCardInfo.for_quantity || 0}
+            </div>
+            <div class="col-md-3">
+                <strong>Completed Qty:</strong> ${jobCardInfo.total_completed_qty || 0}
+            </div>
+            <div class="col-md-3">
+                <strong>Time Required:</strong> ${jobCardInfo.time_required || 0} mins
+            </div>
+            <div class="col-md-3">
+                <strong>Workstation:</strong> ${jobCardInfo.workstation || '-'}
             </div>
         </div>
-    `;
+    </div>
+`;
+
+    
     
     // Add button if user has permission
     if (permissions.can_add) {
