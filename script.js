@@ -1992,6 +1992,7 @@ async function openGlobalReportConfigModal(reportName) {
                                     <th class="text-center" style="width: 60px;">Add</th>
                                     <th class="text-center" style="width: 60px;">Edit</th>
                                     <th class="text-center" style="width: 60px;">Delete</th>
+                                    <th class="text-center" style="width: 80px;">Edit WS</th>
                                 </tr>
                             </thead>
                             <tbody id="timeLogsPermissionsTable">
@@ -2026,6 +2027,12 @@ async function openGlobalReportConfigModal(reportName) {
                                                     data-user="${user.email}" data-perm="can_delete" 
                                                     ${perms.can_delete ? 'checked' : ''}>
                                             </td>
+                                            <td class="text-center">
+                                                <input type="checkbox" class="form-check-input time-log-perm" 
+                                                    data-user="${user.email}" data-perm="can_edit_workstation" 
+                                                    ${perms.can_edit_workstation ? 'checked' : ''}>
+                                            </td>
+
                                         </tr>
                                     `;
                                 }).join('')}
@@ -2147,7 +2154,8 @@ async function openGlobalReportConfigModal(reportName) {
                         can_view: false,
                         can_add: false,
                         can_edit: false,
-                        can_delete: false
+                        can_delete: false,
+                        can_edit_workstation: false
                     };
                 }
                 
