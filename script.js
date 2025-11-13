@@ -2878,34 +2878,44 @@ function renderTimeLogs(timeLogs, jobCard, jobCardInfo, permissions, reportName,
     let html = '';
     
     // Show Job Card Info with editable workstation
-    html += `
-        <div class="alert alert-info mb-3">
-            <div class="row align-items-center">
-                <div class="col-md-3">
-                    <strong>Required Qty:</strong> ${jobCardInfo.for_quantity || 0}
-                </div>
-                <div class="col-md-3">
-                    <strong>Completed Qty:</strong> ${jobCardInfo.total_completed_qty || 0}
-                </div>
-                <div class="col-md-3">
-                    <strong>Time Required:</strong> ${jobCardInfo.time_required || 0} mins
-                </div>
-                <div class="col-md-3">
-                    <strong>Workstation:</strong>
-                    ${permissions.can_edit_workstation ? `
-                        <select class="form-select form-select-sm" id="jobCardWorkstation" style="display: inline-block; width: auto;">
-                            <option value="">-- Select --</option>
-                        </select>
-                        <button class="btn btn-sm btn-success" id="saveWorkstationBtn" style="padding: 2px 8px;">
-                            <i class="bi bi-check"></i>
-                        </button>
-                    ` : `
-                        <span>${jobCardInfo.workstation || '-'}</span>
-                    `}
+        html += `
+            <div class="alert alert-info mb-3">
+                <div class="row align-items-center mb-2">
+                    <div class="col-md-3">
+                        <strong>Required Qty:</strong> ${jobCardInfo.for_quantity || 0}
+                    </div>
+                    <div class="col-md-3">
+                        <strong>Completed Qty:</strong> ${jobCardInfo.total_completed_qty || 0}
+                    </div>
+                    <div class="col-md-3">
+                        <strong>Time Required (mins):</strong>
+                        ${permissions.can_edit_workstation ? `
+                            <input type="number" class="form-control form-control-sm" id="jobCardTimeRequired" 
+                                value="${jobCardInfo.time_required || 0}" style="display: inline-block; width: 80px;">
+                            <button class="btn btn-sm btn-success" id="saveTimeRequiredBtn" style="padding: 2px 8px;">
+                                <i class="bi bi-check"></i>
+                            </button>
+                        ` : `
+                            <span>${jobCardInfo.time_required || 0}</span>
+                        `}
+                    </div>
+                    <div class="col-md-3">
+                        <strong>Workstation:</strong>
+                        ${permissions.can_edit_workstation ? `
+                            <select class="form-select form-select-sm" id="jobCardWorkstation" style="display: inline-block; width: auto;">
+                                <option value="">-- Select --</option>
+                            </select>
+                            <button class="btn btn-sm btn-success" id="saveWorkstationBtn" style="padding: 2px 8px;">
+                                <i class="bi bi-check"></i>
+                            </button>
+                        ` : `
+                            <span>${jobCardInfo.workstation || '-'}</span>
+                        `}
+                    </div>
                 </div>
             </div>
-        </div>
-    `;
+        `;
+
 
     
     
