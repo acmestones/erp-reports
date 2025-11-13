@@ -3295,7 +3295,7 @@ async function showTimeLogForm(existingLog, jobCard, jobCardInfo, reportName, co
 
 
 // New function to load and handle workstation
-async function loadWorkstationDropdown(currentWorkstation, jobCard) {
+async function loadWorkstationDropdown(currentWorkstation, jobCard, jobCardInfo) {
     try {
         const wsData = await getWorkstations();
         const workstations = wsData.data || [];
@@ -3311,32 +3311,49 @@ async function loadWorkstationDropdown(currentWorkstation, jobCard) {
             dropdown.appendChild(option);
         });
         
-            // Save workstation button handler
-            document.getElementById('saveWorkstationBtn').addEventListener('click', async () => {
-                const newWorkstation = dropdown.value;
-                const saveBtn = document.getElementById('saveWorkstationBtn');
+        // Save workstation button handler
+        document.getElementById('saveWorkstationBtn').addEventListener('click', async () => {
+            const newWorkstation = dropdown.value;
+            const saveBtn = document.getElementById('saveWorkstationBtn');
+            
+            saveBtn.disabled = true;
+            saveBtn.innerHTML = '<i class="bi bi-hourglass-split"></i>';
+            
+            try {
+                await updateJobCardWorkstation(jobCard, newWorkstation);
+                alert('Workstation updated successfully in both Job Card and Work Order!\n\nPlease refresh the report to see the updated grouping.');
                 
-                // Disable button and show loading
-                saveBtn.disabled = true;
-                saveBtn.innerHTML = '<i class="bi bi-hourglass-split"></i>';
-                
-                try {
-                    await updateJobCardWorkstation(jobCard, newWorkstation);
-                    alert('Workstation updated successfully in both Job Card and Work Order!\n\nPlease refresh the report to see the updated grouping.');
-                    
-                    // Optionally auto-refresh the report
-                    if (confirm('Would you like to refresh the report now?')) {
-                        location.reload();
-                    }
-                } catch (err) {
-                    alert('Failed to update workstation: ' + err.message);
-                } finally {
-                    saveBtn.disabled = false;
-                    saveBtn.innerHTML = '<i class="bi bi-check"></i>';
+                if (confirm('Would you like to refresh the report now?')) {
+                    location.reload();
                 }
-            });
-
+            } catch (err) {
+                alert('Failed to update workstation: ' + err.message);
+            } finally {
+                saveBtn.disabled = false;
+                saveBtn.innerHTML = '<i class="bi bi-check"></i>';
+            }
+        });
+        
+        // Save time required button handler
+        document.getElementById('saveTimeRequiredBtn').addEventListener('click', async () => {
+            const newTimeRequired = document.getElementById('jobCardTimeRequired').value;
+            const saveBtn = document.getElementById('saveTimeRequiredBtn');
+            
+            saveBtn.disabled = true;
+            saveBtn.innerHTML = '<i class="bi bi-hourglass-split"></i>';
+            
+            try {
+                await updateJobCardTimeRequired(jobCard, parseFloat(newTimeRequired));
+                alert('Time required updated successfully in Work Order Operations!');
+            } catch (err) {
+                alert('Failed to update time required: ' + err.message);
+            } finally {
+                saveBtn.disabled = false;
+                saveBtn.innerHTML = '<i class="bi bi-check"></i>';
+            }
+        });
     } catch (err) {
         console.error('Error loading workstations:', err);
     }
 }
+
