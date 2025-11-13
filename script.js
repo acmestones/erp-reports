@@ -3044,9 +3044,10 @@ timeLogs.forEach((log, index) => {
     
     // Attach event listeners
 
-    if (permissions.can_edit_workstation) {
-        loadWorkstationDropdown(jobCardInfo.workstation, jobCard);
-    }
+        if (permissions.can_edit_workstation) {
+            loadWorkstationDropdown(jobCardInfo.workstation, jobCard, jobCardInfo);
+        }
+
 
     
     if (permissions.can_add) {
