@@ -3332,12 +3332,15 @@ async function showTimeLogForm(existingLog, jobCard, jobCardInfo, reportName, co
 async function loadWorkstationDropdown(currentWorkstation, jobCard, jobCardInfo, permissions) {
     try {
         // Handle workstation dropdown ONLY if user has permission
-        if (permissions.caneditworkstation) {
+        if (permissions && permissions.caneditworkstation) {
             const wsData = await getWorkstations();
-            const workstations = wsData.data;
-            const dropdown = document.getElementById('jobCardWorkstation');
+            const workstations = wsData.data || [];
             
+            const dropdown = document.getElementById('jobCardWorkstation');
             if (dropdown) {
+                // Clear existing options first
+                dropdown.innerHTML = '<option value="">-- Select --</option>';
+                
                 // Populate dropdown options
                 workstations.forEach(ws => {
                     const option = document.createElement('option');
@@ -3348,32 +3351,34 @@ async function loadWorkstationDropdown(currentWorkstation, jobCard, jobCardInfo,
                     }
                     dropdown.appendChild(option);
                 });
-
-                // Attach save button event listener
-                document.getElementById('saveWorkstationBtn').addEventListener('click', async () => {
-                    const newWorkstation = dropdown.value;
-                    const saveBtn = document.getElementById('saveWorkstationBtn');
-                    saveBtn.disabled = true;
-                    saveBtn.innerHTML = '<i class="bi bi-hourglass-split"></i>';
-                    
-                    try {
-                        await updateJobCardWorkstation(jobCard, newWorkstation);
-                        alert('Workstation updated successfully!');
-                        if (confirm('Would you like to refresh the report now?')) {
-                            location.reload();
+                
+                // Attach save button handler
+                const saveBtn = document.getElementById('saveWorkstationBtn');
+                if (saveBtn) {
+                    saveBtn.addEventListener('click', async () => {
+                        const newWorkstation = dropdown.value;
+                        saveBtn.disabled = true;
+                        saveBtn.innerHTML = '<i class="bi bi-hourglass-split"></i>';
+                        
+                        try {
+                            await updateJobCardWorkstation(jobCard, newWorkstation);
+                            alert('Workstation updated successfully!');
+                            if (confirm('Would you like to refresh the report now?')) {
+                                location.reload();
+                            }
+                        } catch (err) {
+                            alert('Failed to update workstation: ' + err.message);
+                        } finally {
+                            saveBtn.disabled = false;
+                            saveBtn.innerHTML = '<i class="bi bi-check"></i>';
                         }
-                    } catch (err) {
-                        alert('Failed to update workstation: ' + err.message);
-                    } finally {
-                        saveBtn.disabled = false;
-                        saveBtn.innerHTML = '<i class="bi bi-check"></i>';
-                    }
-                });
+                    });
+                }
             }
         }
-
-        // Handle time required INDEPENDENTLY - moved outside workstation permission check
-        if (permissions.canedittimerequired) {
+        
+        // Handle time required INDEPENDENTLY
+        if (permissions && permissions.canedittimerequired) {
             const timeReqBtn = document.getElementById('saveTimeRequiredBtn');
             if (timeReqBtn) {
                 timeReqBtn.addEventListener('click', async () => {
@@ -3397,6 +3402,7 @@ async function loadWorkstationDropdown(currentWorkstation, jobCard, jobCardInfo,
         console.error('Error setting up handlers:', err);
     }
 }
+
 
 
 
