@@ -397,27 +397,54 @@ if (isset($_GET['action']) && $_GET['action'] == 'get_time_logs') {
         exit;
     }
     
-    $data = json_decode($response, true);
-    $job_card_doc = $data['data'];
+$data = json_decode($response, true);
+$job_card_doc = $data['data'];
+$time_logs = $job_card_doc['time_logs'] ?? [];
+$for_quantity = $job_card_doc['for_quantity'] ?? 0;
+$total_completed_qty = $job_card_doc['total_completed_qty'] ?? 0;
+$workstation = $job_card_doc['workstation'] ?? '';
+
+// Get time_in_mins from Work Order Operations instead of Job Card time_required
+$time_required = 0;
+$work_order = $job_card_doc['work_order'] ?? '';
+$operation = $job_card_doc['operation'] ?? '';
+
+if ($work_order && $operation) {
+    $ch2 = curl_init();
+    $wo_url = ERP_BASE . '/api/resource/Work%20Order/' . rawurlencode($work_order) . '?fields=["operations"]';
     
-    $time_logs = $job_card_doc['time_logs'] ?? [];
-    $for_quantity = $job_card_doc['for_quantity'] ?? 0;
-    $total_completed_qty = $job_card_doc['total_completed_qty'] ?? 0;
-    $time_required = $job_card_doc['time_required'] ?? 0;
-    $workstation = $job_card_doc['workstation'] ?? '';
-    
-    echo json_encode([
-        'data' => $time_logs,
-        'job_card_info' => [
-            'for_quantity' => $for_quantity,
-            'total_completed_qty' => $total_completed_qty,
-            'time_required' => $time_required,
-            'workstation' => $workstation,
-            'name' => $job_card
-        ]
+    curl_setopt($ch2, CURLOPT_URL, $wo_url);
+    curl_setopt($ch2, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch2, CURLOPT_HTTPHEADER, [
+        'Authorization: token ' . API_KEY . ':' . API_SECRET
     ]);
-    exit;
+    curl_setopt($ch2, CURLOPT_SSL_VERIFYPEER, false);
+    
+    $wo_response = curl_exec($ch2);
+    curl_close($ch2);
+    
+    $wo_data = json_decode($wo_response, true);
+    if (isset($wo_data['data']['operations'])) {
+        foreach ($wo_data['data']['operations'] as $op) {
+            if ($op['operation'] === $operation) {
+                $time_required = floatval($op['time_in_mins'] ?? 0);
+                break;
+            }
+        }
+    }
 }
+
+echo json_encode([
+    'data' => $time_logs,
+    'job_card_info' => [
+        'for_quantity' => $for_quantity,
+        'total_completed_qty' => $total_completed_qty,
+        'time_required' => $time_required,  // Now from Work Order Operations
+        'workstation' => $workstation,
+        'name' => $job_card
+    ]
+]);
+exit;
 
 
 
