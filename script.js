@@ -31,6 +31,63 @@ document.getElementById("userEmail").textContent = userEmail;
             document.getElementById("adminControls").style.display = 'block';
             document.getElementById("settingsBtn").addEventListener("click", openAdminSettings);
         }
+
+
+
+        document.getElementById('addUserBtn').onclick = function () {
+    const usersList = document.getElementById('usersList');
+    if (!usersList) return;
+
+    // Check if a blank new user email input already exists - prevent multiple empties
+    const existingEmpty = usersList.querySelector('.card.border-success .new-user-email[value=""], .card.border-success .new-user-email:not([value])');
+    if (existingEmpty) {
+        alert("Please enter an email for the existing new user before adding another.");
+        existingEmpty.focus();
+        return;
+    }
+
+    const newCard = document.createElement('div');
+    newCard.className = 'card mb-3 border-success';
+    newCard.innerHTML = `
+        <div class="card-body">
+            <div class="mb-2">
+                <label class="form-label small fw-bold">Email</label>
+                <input type="email" class="form-control form-control-sm new-user-email" placeholder="Enter email" required>
+            </div>
+            <div class="mb-2">
+                <label class="form-label small fw-bold">Role</label>
+                <select class="form-select form-select-sm user-role" data-idx="new">
+                    <option value="user">User</option>
+                    <option value="admin">Admin</option>
+                </select>
+            </div>
+            <div class="mb-2">
+                <label class="form-label small fw-bold">Can Edit Records</label>
+                <input type="checkbox" class="form-check-input user-edit" data-idx="new">
+            </div>
+            <div class="mb-2">
+                <label class="form-label small fw-bold">Allowed Reports</label>
+                <div class="border rounded p-2" style="max-height: 150px; overflow-y: auto;">
+                    ${(window.allReports || []).map(r => `
+                        <div class="form-check">
+                            <input class="form-check-input user-report-check" type="checkbox" value="${r}" data-idx="new" id="newreport-${r}">
+                            <label class="form-check-label" for="newreport-${r}">${r}</label>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        </div>
+    `;
+    usersList.prepend(newCard);
+    newCard.querySelector('.new-user-email').focus();
+};
+
+
+
+        
+
+
+
         
         reportConfig = await getReportConfig();
         
@@ -181,36 +238,34 @@ function extractImageUrl(htmlContent) {
 // Replace the existing fixImageUrl function with this enhanced version
 function fixImageUrl(url) {
     if (!url) return null;
-    
-    // Remove any whitespace
     url = url.trim();
     
-    console.log("Fixing URL:", url);
-    
     // Already absolute URL
-    if (url.startsWith("http://") || url.startsWith("https://")) {
-        console.log("Already absolute:", url);
+    if (url.startsWith("http") || url.startsWith("https")) {
         return url;
     }
     
     // Protocol-relative URL
     if (url.startsWith("//")) {
-        console.log("Protocol-relative:", "https:" + url);
         return "https:" + url;
     }
     
-    // Root-relative URL
-    if (url.startsWith("/")) {
-        const fixed = `https://acmestones.erpnext.com${url}`;
-        console.log("Root-relative:", fixed);
-        return fixed;
+    // Handle private files by proxying through PHP
+    if (url.includes('/private/files/')) {
+        // Proxy through PHP to add authentication
+        return `${API_BASE}?action=proxy_image&file_url=${encodeURIComponent(url)}`;
     }
     
-    // Relative URL (no leading slash)
-    const fixed = `https://acmestones.erpnext.com/${url}`;
-    console.log("Relative:", fixed);
-    return fixed;
+    // Root-relative URL (including public /files/)
+    if (url.startsWith("/")) {
+        return `https://acmestones.erpnext.com${url}`;
+    }
+    
+    // Relative URL
+    return `https://acmestones.erpnext.com/${url}`;
 }
+
+
 
 
 function renderReportsList(reports) {
@@ -636,17 +691,16 @@ function createCard(row, columns, reportName, config) {
     const card = document.createElement("div");
     card.className = "card card-report h-100";
     
-    const userPerms = config.user_permissions?.[userEmail] || {};
-    const hiddenFields = userPerms.hidden_fields || [];
-    
-    const titleField = config.title_field || 'work_order_id';
-    const cardFields = config.card_fields || ['customer', 'production_item', 'quantity_to_manufacture', 'completed_qty', 'workstation'];
+    const userPerms = config.user_permissions?.[userEmail];
+    const hiddenFields = userPerms?.hidden_fields || [];
+    const titleField = config.title_field || "work_order_id";
+    const cardFields = config.card_fields || ["customer", "production_item", "quantity_to_manufacture", "completed_qty", "workstation"];
     const imageFields = config.image_fields || [];
     
-    const name = row[titleField] || row.name || row.work_order_id || row.item_code || "Record";
+    const name = row[titleField] || row.name || row["work_order_id"] || row["item_code"] || "Record";
     
-    const statusFields = ['status', 'operation_status', 'work_order_status'];
-    let status = "";
+    const statusFields = ["status", "operation_status", "work_order_status"];
+    let status;
     for (const sf of statusFields) {
         if (row[sf]) {
             status = row[sf];
@@ -655,7 +709,6 @@ function createCard(row, columns, reportName, config) {
     }
     
     const imgUrl = extractImageFromRow(row, columns, imageFields);
-    
     if (imgUrl) {
         const img = document.createElement("img");
         img.className = "card-img-top";
@@ -665,7 +718,7 @@ function createCard(row, columns, reportName, config) {
         img.style.objectFit = "cover";
         img.onerror = function() {
             console.error("Failed to load image:", imgUrl);
-            this.style.display = 'none';
+            this.style.display = "none";
         };
         card.appendChild(img);
     }
@@ -691,8 +744,7 @@ function createCard(row, columns, reportName, config) {
     cardFields.forEach(fieldKey => {
         if (count >= 5) return;
         if (hiddenFields.includes(fieldKey)) return;
-        
-        if (row[fieldKey] !== null && row[fieldKey] !== undefined && row[fieldKey] !== '') {
+        if (row[fieldKey] !== null && row[fieldKey] !== undefined && row[fieldKey] !== "") {
             const col = columns.find(c => c.fieldname === fieldKey);
             const label = col ? (fieldLabels[fieldKey] || col.label || fieldKey) : fieldKey;
             
@@ -700,8 +752,8 @@ function createCard(row, columns, reportName, config) {
             p.className = "mb-1 small";
             
             let value = row[fieldKey];
-            if (typeof value === 'string' && value.length > 40) {
-                value = value.substring(0, 40) + '...';
+            if (typeof value === "string" && value.length > 40) {
+                value = value.substring(0, 40) + "...";
             }
             
             p.innerHTML = `<strong>${label}:</strong> ${value}`;
@@ -710,15 +762,55 @@ function createCard(row, columns, reportName, config) {
         }
     });
     
-    const btn = document.createElement("button");
-    btn.className = "btn btn-sm btn-outline-primary mt-2 w-100";
-    btn.textContent = "View Details";
-    btn.addEventListener("click", () => showDetailModal(row, columns, reportName, config));
-    cardBody.appendChild(btn);
+    // Create buttons container
+    const buttonsContainer = document.createElement("div");
+    buttonsContainer.className = "d-flex gap-2 mt-2";
     
+    // View Details button (always present)
+    const detailsBtn = document.createElement("button");
+    detailsBtn.className = "btn btn-sm btn-outline-primary flex-grow-1";
+    detailsBtn.textContent = "View Details";
+    detailsBtn.addEventListener("click", () => {
+        showDetailModal(row, columns, reportName, config);
+    });
+    buttonsContainer.appendChild(detailsBtn);
+    
+    // Add Time Logs button if configured
+    if (config.show_time_logs_button && row['job_card']) {
+        const timeLogsPerms = config.time_logs_permissions?.[userEmail] || {};
+        
+        if (timeLogsPerms.can_view) {
+            const timeLogsBtn = document.createElement("button");
+            timeLogsBtn.className = "btn btn-sm btn-outline-info flex-grow-1";
+            timeLogsBtn.innerHTML = '<i class="bi bi-clock-history"></i> Time Logs';
+timeLogsBtn.addEventListener("click", () => {
+    // Extract plain text from HTML link if it exists
+    let jobCardName = row['job_card'];
+    
+    // If it's an HTML string, extract the text content
+    if (typeof jobCardName === 'string' && jobCardName.includes('<a')) {
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = jobCardName;
+        jobCardName = tempDiv.textContent || tempDiv.innerText || jobCardName;
+    }
+    
+    showTimeLogsModal(jobCardName, reportName, config);
+});
+
+            buttonsContainer.appendChild(timeLogsBtn);
+        }
+    }
+    
+    cardBody.appendChild(buttonsContainer);
     card.appendChild(cardBody);
+    
     return card;
 }
+
+
+
+
+
 
 async function showDetailModal(row, columns, reportName, config) {
     const modal = new bootstrap.Modal(document.getElementById("detailModal"));
@@ -819,29 +911,204 @@ async function showDetailModal(row, columns, reportName, config) {
                     valueDiv.appendChild(select);
                     valueDiv.appendChild(saveBtn);
                     
-                } else if (col.fieldtype === 'Text' || col.fieldtype === 'Small Text' || col.fieldtype === 'Long Text' || col.fieldtype === 'Text Editor') {
-                    const textarea = document.createElement("textarea");
-                    textarea.className = "form-control form-control-sm";
-                    textarea.rows = 3;
-                    
-                    let plainValue = value || '';
-                    if (typeof plainValue === 'string' && plainValue.includes('ql-editor')) {
-                        const tempDiv = document.createElement('div');
-                        tempDiv.innerHTML = plainValue;
-                        plainValue = tempDiv.textContent || tempDiv.innerText || '';
-                    }
-                    
-                    textarea.value = plainValue;
-                    textarea.placeholder = `Enter ${label}...`;
-                    textarea.dataset.fieldname = actualFieldname;  // Use real database field name
-                    textarea.dataset.docname = docName;
-                    textarea.dataset.doctype = config.doctype || 'Work Order';
-                    
-                    const saveBtn = createSaveButton(textarea, reportName, modal);
-                    valueDiv.appendChild(textarea);
-                    valueDiv.appendChild(saveBtn);
-                    
-                } else {
+                } 
+                
+                
+                
+               else if (col.fieldtype === "Text" || col.fieldtype === "Small Text" || 
+         col.fieldtype === "Long Text" || col.fieldtype === "Text Editor") {
+    
+    // Create container for display and edit modes
+    const richTextContainer = document.createElement("div");
+    richTextContainer.className = "richtext-container";
+    
+    // Create display mode (read-only view)
+    const displayDiv = document.createElement("div");
+    displayDiv.className = "richtext-display";
+    displayDiv.style.padding = "0.5rem";
+    displayDiv.style.border = "1px solid #dee2e6";
+    displayDiv.style.borderRadius = "0.25rem";
+    displayDiv.style.backgroundColor = "#f8f9fa";
+    displayDiv.style.minHeight = "50px";
+    displayDiv.style.overflowY = "auto";
+    
+    // Extract and set display HTML
+    let htmlValue = value || "<p class='text-muted'>No content</p>";
+    let originalHtmlValue = htmlValue; // Store original for saving
+    
+    if (typeof htmlValue === 'string' && htmlValue.includes('ql-editor')) {
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = htmlValue;
+        const qlEditor = tempDiv.querySelector('.ql-editor');
+        htmlValue = qlEditor ? qlEditor.innerHTML : htmlValue;
+        originalHtmlValue = htmlValue;
+    }
+    
+    displayDiv.innerHTML = htmlValue;
+    
+    // Fix image URLs in display (for viewing)
+    displayDiv.querySelectorAll('img').forEach(img => {
+        const originalSrc = img.getAttribute('src');
+        const fixedUrl = fixImageUrl(originalSrc);
+        img.setAttribute('src', fixedUrl);
+        img.style.maxWidth = '100%';
+        img.style.height = 'auto';
+    });
+    
+    // Create edit mode (contenteditable)
+    const editorContainer = document.createElement("div");
+    editorContainer.className = "richtext-editor-container";
+    editorContainer.style.display = "none"; // Hidden by default
+    
+    // Toolbar
+    const toolbar = document.createElement("div");
+    toolbar.className = "richtext-toolbar mb-2";
+    toolbar.innerHTML = `
+        <button type="button" class="btn btn-sm btn-outline-secondary" id="insertImageBtn">
+            📷 Insert Image
+        </button>
+        <input type="file" accept="image/*" style="display: none;" id="imageUploadInput" />
+    `;
+    
+    // Editable div
+    const editableDiv = document.createElement("div");
+    editableDiv.className = "form-control form-control-sm editable-richtext";
+    editableDiv.contentEditable = "true";
+    editableDiv.style.minHeight = "150px";
+    editableDiv.style.maxHeight = "400px";
+    editableDiv.style.overflowY = "auto";
+    editableDiv.style.whiteSpace = "pre-wrap";
+    editableDiv.innerHTML = originalHtmlValue;
+    
+    editableDiv.dataset.fieldname = actualFieldname;
+    editableDiv.dataset.docname = docName;
+    editableDiv.dataset.doctype = config.doctype || "Work Order";
+    
+    // Assemble editor
+    editorContainer.appendChild(toolbar);
+    editorContainer.appendChild(editableDiv);
+    
+    // Add image upload functionality
+    const insertImageBtn = toolbar.querySelector('#insertImageBtn');
+    const imageUploadInput = toolbar.querySelector('#imageUploadInput');
+    
+    insertImageBtn.onclick = (e) => {
+        e.preventDefault();
+        imageUploadInput.click();
+    };
+    
+    imageUploadInput.addEventListener('change', async function(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+        
+        if (!file.type.startsWith('image/')) {
+            alert('Please select an image file');
+            return;
+        }
+        
+        if (file.size > 2 * 1024 * 1024) {
+            alert('Image size should be less than 2MB');
+            return;
+        }
+        
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const base64Image = e.target.result;
+            editableDiv.focus();
+            
+            const img = document.createElement('img');
+            img.src = base64Image;
+            img.style.maxWidth = '100%';
+            img.style.height = 'auto';
+            img.style.display = 'block';
+            img.style.margin = '10px 0';
+            
+            const selection = window.getSelection();
+            if (selection.rangeCount > 0) {
+                const range = selection.getRangeAt(0);
+                range.deleteContents();
+                range.insertNode(img);
+                range.setStartAfter(img);
+                range.setEndAfter(img);
+                selection.removeAllRanges();
+                selection.addRange(range);
+            } else {
+                editableDiv.appendChild(img);
+            }
+        };
+        
+        reader.readAsDataURL(file);
+        event.target.value = '';
+    });
+    
+    // Create Edit/Cancel/Save buttons
+    const buttonContainer = document.createElement("div");
+    buttonContainer.className = "mt-2";
+    
+    const editBtn = document.createElement("button");
+    editBtn.className = "btn btn-sm btn-primary";
+    editBtn.textContent = "✏️ Edit";
+    editBtn.onclick = () => {
+        // Set editor with original HTML
+        editableDiv.innerHTML = originalHtmlValue;
+        
+        // FIX: Now also fix image URLs in edit mode so they're visible
+        editableDiv.querySelectorAll('img').forEach(img => {
+            const originalSrc = img.getAttribute('src');
+            // Store the original URL in a data attribute
+            img.dataset.originalSrc = originalSrc;
+            // Fix the URL for display
+            const fixedUrl = fixImageUrl(originalSrc);
+            img.setAttribute('src', fixedUrl);
+            img.style.maxWidth = '100%';
+            img.style.height = 'auto';
+        });
+        
+        displayDiv.style.display = "none";
+        editorContainer.style.display = "block";
+        editBtn.style.display = "none";
+        cancelBtn.style.display = "inline-block";
+        saveBtn.style.display = "inline-block";
+    };
+    
+    const cancelBtn = document.createElement("button");
+    cancelBtn.className = "btn btn-sm btn-secondary me-2";
+    cancelBtn.textContent = "Cancel";
+    cancelBtn.style.display = "none";
+    cancelBtn.onclick = () => {
+        displayDiv.style.display = "block";
+        editorContainer.style.display = "none";
+        editBtn.style.display = "inline-block";
+        cancelBtn.style.display = "none";
+        saveBtn.style.display = "none";
+    };
+    
+    const saveBtn = createSaveButton(editableDiv, reportName, modal);
+    saveBtn.style.display = "none";
+    
+    buttonContainer.appendChild(editBtn);
+    buttonContainer.appendChild(cancelBtn);
+    buttonContainer.appendChild(saveBtn);
+    
+    // Assemble everything
+    richTextContainer.appendChild(displayDiv);
+    richTextContainer.appendChild(editorContainer);
+    
+    valueDiv.appendChild(richTextContainer);
+    valueDiv.appendChild(buttonContainer);
+}
+
+
+
+
+                
+                
+                
+                
+                
+                
+                
+                else {
                     const input = document.createElement("input");
                     input.type = "text";
                     input.className = "form-control form-control-sm";
@@ -940,39 +1207,47 @@ function createSaveButton(inputElement, reportName, modal) {
         const docname = inputElement.dataset.docname;
         const fieldname = inputElement.dataset.fieldname;
         
-        let value = inputElement.value;
+        let value;
+        if (inputElement.classList.contains('editable-richtext')) {
+            // FIX: Clone the content and restore original image URLs before saving
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = inputElement.innerHTML;
+            
+            // Restore original URLs from data-original-src
+            tempDiv.querySelectorAll('img').forEach(img => {
+                const originalSrc = img.dataset.originalSrc;
+                if (originalSrc) {
+                    img.setAttribute('src', originalSrc);
+                    img.removeAttribute('data-original-src');
+                }
+            });
+            
+            value = tempDiv.innerHTML;
+        } else {
+            value = inputElement.value || '';
+        }
         
-        // Trim the value
-        value = value.trim();
+        if (typeof value === 'string' && !value.includes('<') && !value.includes('>')) {
+            value = value.trim();
+        }
         
-        if (!value || value === '') {
+        if (!value || value.trim() === '') {
             alert("Please enter a value before saving.");
             saveBtn.disabled = false;
             saveBtn.textContent = "Save";
             return;
         }
         
-        // Check if this is a Text Editor field (textarea with 3+ rows)
-        // If so, wrap it in Quill editor format
-        if (inputElement.tagName === 'TEXTAREA' && inputElement.rows >= 3) {
-            // Convert plain text to Quill HTML format
-            // Split by newlines and wrap each line in <p> tags
-            const lines = value.split('\n').filter(line => line.trim() !== '');
-            const htmlLines = lines.map(line => `<p>${line}</p>`).join('');
-            value = `<div class="ql-editor read-mode">${htmlLines}</div>`;
+        if (inputElement.classList.contains('editable-richtext')) {
+            if (!value.includes('ql-editor')) {
+                value = `<div class="ql-editor read-mode">${value}</div>`;
+            }
         }
         
-        console.log("Saving field:", {
-            doctype,
-            docname,
-            fieldname,
-            originalValue: inputElement.value,
-            processedValue: value
-        });
+        console.log("Saving field:", {doctype, docname, fieldname});
         
         try {
             const result = await updateField(doctype, docname, fieldname, value);
-            
             console.log("Update result:", result);
             
             if (result.error || result.exc) {
@@ -997,6 +1272,7 @@ function createSaveButton(inputElement, reportName, modal) {
     
     return saveBtn;
 }
+
 
 
 
@@ -1135,6 +1411,9 @@ function preserveUserData() {
 
 
 async function openAdminSettings() {
+
+
+   
     const modal = new bootstrap.Modal(document.getElementById("adminModal"));
     
     const userData = await getUsers();
@@ -1515,6 +1794,14 @@ async function openReportConfigModal(userEmail) {
     configModal.show();
 }
 
+
+
+
+
+
+
+
+
 async function openGlobalReportConfigModal(reportName) {
     const configModalHtml = `
         <div class="modal fade" id="globalReportConfigModal" tabindex="-1">
@@ -1588,6 +1875,9 @@ async function openGlobalReportConfigModal(reportName) {
             group2Values.sort();
         }
     }
+    
+    // Get list of users for permissions table
+    const users = await getUsers();
     
     const contentHtml = `
         <div class="row">
@@ -1679,6 +1969,85 @@ async function openGlobalReportConfigModal(reportName) {
                         Start with groups collapsed
                     </label>
                 </div>
+                
+                <hr>
+                
+                <h6 class="mt-3">Time Logs Settings</h6>
+                <div class="form-check mb-3">
+                    <input class="form-check-input" type="checkbox" id="configShowTimeLogs" 
+                        ${config.show_time_logs_button ? 'checked' : ''}>
+                    <label class="form-check-label" for="configShowTimeLogs">
+                        Show Time Logs Button
+                    </label>
+                </div>
+                
+                <div id="timeLogsPermissionsSection" style="display: ${config.show_time_logs_button ? 'block' : 'none'}">
+                    <label class="small fw-bold">User Permissions for Time Logs</label>
+                    <div class="table-responsive" style="max-height: 250px; overflow-y: auto;">
+                        <table class="table table-sm table-bordered">
+                            <thead class="table-light sticky-top">
+                                <tr>
+                                    <th style="min-width: 150px;">User</th>
+                                    <th class="text-center" style="width: 60px;">View</th>
+                                    <th class="text-center" style="width: 60px;">Add</th>
+                                    <th class="text-center" style="width: 60px;">Edit</th>
+                                    <th class="text-center" style="width: 60px;">Delete</th>
+                                    <th class="text-center" style="width: 80px;">Edit WS</th>
+                                    <th class="text-center" style="width: 80px;">Edit Time</th>
+
+                                </tr>
+                            </thead>
+                            <tbody id="timeLogsPermissionsTable">
+                                ${users.users.map(user => {
+                                    const perms = config.time_logs_permissions?.[user.email] || {
+                                        can_view: false,
+                                        can_add: false,
+                                        can_edit: false,
+                                        can_delete: false
+                                    };
+                                    
+                                    return `
+                                        <tr>
+                                            <td class="small">${user.email}</td>
+                                            <td class="text-center">
+                                                <input type="checkbox" class="form-check-input time-log-perm" 
+                                                    data-user="${user.email}" data-perm="can_view" 
+                                                    ${perms.can_view ? 'checked' : ''}>
+                                            </td>
+                                            <td class="text-center">
+                                                <input type="checkbox" class="form-check-input time-log-perm" 
+                                                    data-user="${user.email}" data-perm="can_add" 
+                                                    ${perms.can_add ? 'checked' : ''}>
+                                            </td>
+                                            <td class="text-center">
+                                                <input type="checkbox" class="form-check-input time-log-perm" 
+                                                    data-user="${user.email}" data-perm="can_edit" 
+                                                    ${perms.can_edit ? 'checked' : ''}>
+                                            </td>
+                                            <td class="text-center">
+                                                <input type="checkbox" class="form-check-input time-log-perm" 
+                                                    data-user="${user.email}" data-perm="can_delete" 
+                                                    ${perms.can_delete ? 'checked' : ''}>
+                                            </td>
+                                            <td class="text-center">
+                                                <input type="checkbox" class="form-check-input time-log-perm" 
+                                                    data-user="${user.email}" data-perm="can_edit_workstation" 
+                                                    ${perms.can_edit_workstation ? 'checked' : ''}>
+                                            </td>
+                                            <td class="text-center">
+                                                <input type="checkbox" class="form-check-input time-log-perm" 
+                                                    data-user="${user.email}" data-perm="can_edit_time_required" 
+                                                    ${perms.can_edit_time_required ? 'checked' : ''}>
+                                            </td>
+ 
+
+                                        </tr>
+                                    `;
+                                }).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
             
             <div class="col-md-6">
@@ -1730,6 +2099,12 @@ async function openGlobalReportConfigModal(reportName) {
     setupDragDrop('group1SortList');
     setupDragDrop('group2SortList');
     
+    // Add event listener for show time logs checkbox
+    document.getElementById('configShowTimeLogs').addEventListener('change', (e) => {
+        document.getElementById('timeLogsPermissionsSection').style.display = 
+            e.target.checked ? 'block' : 'none';
+    });
+    
     document.getElementById('saveGlobalConfigBtn').onclick = () => {
         if (!reportConfig[reportName]) {
             reportConfig[reportName] = {};
@@ -1772,12 +2147,62 @@ async function openGlobalReportConfigModal(reportName) {
             reportConfig[reportName].group_sort[group2] = group2Order;
         }
         
+        // Save Time Logs configuration
+        reportConfig[reportName].show_time_logs_button = 
+            document.getElementById('configShowTimeLogs').checked;
+        
+        if (reportConfig[reportName].show_time_logs_button) {
+            const permissions = {};
+            document.querySelectorAll('.time-log-perm').forEach(checkbox => {
+                const user = checkbox.dataset.user;
+                const perm = checkbox.dataset.perm;
+                
+                if (!permissions[user]) {
+                    permissions[user] = {
+                        can_view: false,
+                        can_add: false,
+                        can_edit: false,
+                        can_delete: false,
+                        can_edit_workstation: false,
+                        can_edit_time_required: false
+                    };
+                }
+                
+                permissions[user][perm] = checkbox.checked;
+            });
+            
+            reportConfig[reportName].time_logs_permissions = permissions;
+        } else {
+            // Remove time logs permissions if feature is disabled
+            delete reportConfig[reportName].time_logs_permissions;
+        }
+        
         alert("Configuration saved! Click 'Save Changes' in main settings to persist.");
         configModal.hide();
     };
     
-    configModal.show();
+    // Blur any focused element to prevent aria-hidden focus conflict
+if (document.activeElement && document.activeElement.blur) {
+    document.activeElement.blur();
 }
+
+// Show modal after a small delay to ensure focus is cleared
+setTimeout(() => {
+    configModal.show();
+}, 50);
+}
+
+
+
+
+
+
+
+
+
+
+
+
 
 function setupDragDrop(listId) {
     const list = document.getElementById(listId);
@@ -1817,82 +2242,85 @@ function setupDragDrop(listId) {
 }
 
 async function saveUserSettings() {
-    // DON'T call preserveUserData here - it's already been called
-    
-    const users = await getUsers();
+    const users = await getUsers(); 
     const updatedUsers = [];
     
-    console.log("Using preserved data:", tempUserData);
-    
-    // Update existing users with preserved data
-    users.users.forEach((user) => {
-        if (tempUserData[user.email]) {
-            updatedUsers.push({
-                email: user.email,
-                role: tempUserData[user.email].role,
-                can_edit: tempUserData[user.email].can_edit,
-                allowed_reports: tempUserData[user.email].allowed_reports
-            });
-            console.log(`Updated ${user.email}:`, tempUserData[user.email]);
-        } else {
-            // Fallback to original data
-            updatedUsers.push({
-                email: user.email,
-                role: user.role,
-                can_edit: user.can_edit || false,
-                allowed_reports: user.allowed_reports || []
-            });
-            console.log(`Kept original for ${user.email}`);
-        }
-    });
-    
-    // Process NEW users
-    const newUserCards = document.querySelectorAll('#usersList .card.border-success');
-    newUserCards.forEach((cardEl) => {
+    // Collect all user cards currently visible
+    const userCards = document.querySelectorAll('#usersList .card:not(.border-success)'); // exclude new unsaved cards if needed
+    userCards.forEach(cardEl => {
         const cardBody = cardEl.querySelector('.card-body');
-        const emailInput = cardBody.querySelector('.new-user-email');
-        if (!emailInput) return;
-        
-        const email = emailInput.value;
-        const idx = cardBody.querySelector('.user-role').dataset.idx;
-        
+        if (!cardBody) return;
+        const emailEl = cardBody.querySelector('h6'); // or input for new users
+        if (!emailEl) return;
+        const email = emailEl.textContent.trim();
+
+        const idxElement = cardBody.querySelector('[data-idx]');
+        const idx = idxElement ? idxElement.dataset.idx : null;
+
         const roleSelect = cardBody.querySelector(`.user-role[data-idx="${idx}"]`);
         const editCheck = cardBody.querySelector(`.user-edit[data-idx="${idx}"]`);
         const reportChecks = cardBody.querySelectorAll(`.user-report-check[data-idx="${idx}"]:checked`);
-        
+        const allowedReports = Array.from(reportChecks).map(cb => cb.value);
+
         updatedUsers.push({
             email,
-            role: roleSelect ? roleSelect.value : 'user',
+            role: roleSelect ? roleSelect.value : "user",
             can_edit: editCheck ? editCheck.checked : false,
-            allowed_reports: Array.from(reportChecks).map(cb => cb.value)
+            allowed_reports: allowedReports
         });
     });
-    
+
+    // Also add new user cards (border-success class)
+    const newUserCards = document.querySelectorAll('#usersList .card.border-success');
+newUserCards.forEach(cardEl => {
+    const cardBody = cardEl.querySelector('.card-body');
+    if (!cardBody) return;
+
+    const emailInput = cardBody.querySelector('.new-user-email');
+    if (!emailInput) return;
+
+    const email = emailInput.value.trim();
+    if (!email) {
+        alert("Please provide a valid email for all new users before saving.");
+        emailInput.focus();
+        throw new Error("User email is required");
+    }
+
+    const roleSelect = cardBody.querySelector('.user-role');
+    const editCheck = cardBody.querySelector('.user-edit');
+    const reportChecks = cardBody.querySelectorAll('.user-report-check:checked');
+    const allowedReports = Array.from(reportChecks).map(cb => cb.value);
+
+    updatedUsers.push({
+        email,
+        role: roleSelect ? roleSelect.value : "user",
+        can_edit: editCheck ? editCheck.checked : false,
+        allowed_reports: allowedReports
+    });
+});
+
+
     if (updatedUsers.length === 0) {
         alert("No users to save!");
         return;
     }
-    
+
     console.log("Final users to save:", updatedUsers);
-    
+
     const res = await fetch(`${API_BASE}?action=save_users`, {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
         body: JSON.stringify({
             admin_email: userEmail,
-            data: {users: updatedUsers}
+            data: updatedUsers
         })
     });
-    
-    if (!res.ok) {
-        throw new Error("Failed to save users");
-    }
-    
+    if (!res.ok) throw new Error("Failed to save users");
+
     const result = await res.json();
-    tempUserData = {};
-    
     return result;
 }
+
 
 
 
@@ -2295,4 +2723,705 @@ function applyCurrentCollapseState(level1Content, level2Contents) {
         });
     }
 }
+
+
+
+
+
+
+
+
+
+
+
+
+// API Functions for Job Card Time Logs
+async function getTimeLogs(jobCard) {
+    const res = await fetch(`${API_BASE}?action=get_time_logs&job_card=${encodeURIComponent(jobCard)}`);
+    if (!res.ok) throw new Error("Failed to fetch time logs");
+    return res.json();
+}
+
+async function addTimeLog(jobCard, data) {
+    const res = await fetch(`${API_BASE}?action=add_time_log`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({...data, job_card: jobCard})
+    });
+    if (!res.ok) throw new Error("Failed to add time log");
+    return res.json();
+}
+
+async function updateTimeLog(jobCard, logIndex, data) {
+    const res = await fetch(`${API_BASE}?action=update_time_log`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({...data, job_card: jobCard, log_index: logIndex})
+    });
+    if (!res.ok) throw new Error("Failed to update time log");
+    return res.json();
+}
+
+async function deleteTimeLog(jobCard, logIndex) {
+    const res = await fetch(`${API_BASE}?action=delete_time_log&job_card=${encodeURIComponent(jobCard)}&log_index=${logIndex}`, {
+        method: 'DELETE'
+    });
+    if (!res.ok) throw new Error("Failed to delete time log");
+    return res.json();
+}
+
+
+// Get Employee list
+async function getEmployees() {
+    const res = await fetch(`${API_BASE}?action=get_employees`);
+    if (!res.ok) throw new Error("Failed to fetch employees");
+    return res.json();
+}
+
+// Get Workstation list
+async function getWorkstations() {
+    const res = await fetch(`${API_BASE}?action=get_workstations`);
+    if (!res.ok) throw new Error("Failed to fetch workstations");
+    return res.json();
+}
+
+// New API function to update Job Card workstation
+async function updateJobCardWorkstation(jobCard, workstation) {
+    const res = await fetch(`${API_BASE}?action=update_job_card_workstation`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            job_card: jobCard,
+            workstation: workstation
+        })
+    });
+    if (!res.ok) throw new Error("Failed to update workstation");
+    return res.json();
+}
+
+
+// Update Job Card Time Required
+async function updateJobCardTimeRequired(jobCard, timeRequired) {
+    const res = await fetch(`${API_BASE}?action=update_time_required`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            job_card: jobCard,
+            time_required: timeRequired
+        })
+    });
+    if (!res.ok) throw new Error("Failed to update time required");
+    return res.json();
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+// Time Logs Modal Function
+async function showTimeLogsModal(jobCard, reportName, config) {
+    const timeLogsPerms = config.time_logs_permissions?.[userEmail] || {};
+    
+    // Create modal if it doesn't exist
+    let modalEl = document.getElementById('timeLogsModal');
+    if (!modalEl) {
+        const modalHtml = `
+            <div class="modal fade" id="timeLogsModal" tabindex="-1">
+                <div class="modal-dialog modal-xl">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="timeLogsModalTitle">Time Logs</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body" id="timeLogsBody">
+                            <div class="text-center">
+                                <div class="spinner-border" role="status">
+                                    <span class="visually-hidden">Loading...</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+        modalEl = document.getElementById('timeLogsModal');
+    }
+    
+    const modal = new bootstrap.Modal(modalEl);
+    
+    // Fix the title to show just the job card name without HTML
+    document.getElementById('timeLogsModalTitle').textContent = `Time Logs - ${jobCard}`;
+
+    // Add proper cleanup on modal close
+    modalEl.addEventListener('hidden.bs.modal', function () {
+    // Remove backdrop manually if it's stuck
+    const backdrops = document.querySelectorAll('.modal-backdrop');
+    backdrops.forEach(backdrop => backdrop.remove());
+    document.body.classList.remove('modal-open');
+    document.body.style.overflow = '';
+    document.body.style.paddingRight = '';
+    }, { once: true });
+
+
+    
+    modal.show();
+    
+    try {
+        console.log('Fetching time logs for:', jobCard); // DEBUG
+        const response = await getTimeLogs(jobCard);
+        console.log('API Response:', response); // DEBUG
+        
+        const timeLogs = response.data || [];
+        const jobCardInfo = response.job_card_info || {};
+        
+        console.log('Calling renderTimeLogs with:', {timeLogs, jobCardInfo, timeLogsPerms}); // DEBUG
+        
+        renderTimeLogs(timeLogs, jobCard, jobCardInfo, timeLogsPerms, reportName, config);
+    } catch (err) {
+        console.error("Error loading time logs:", err);
+        document.getElementById('timeLogsBody').innerHTML = 
+            `<div class="alert alert-danger">Error loading time logs: ${err.message}</div>`;
+    }
+}
+
+
+function renderTimeLogs(timeLogs, jobCard, jobCardInfo, timeLogsPerms, reportName, config) {
+    const permissions = timeLogsPerms || {};
+
+    
+    const bodyEl = document.getElementById('timeLogsBody');
+    
+    let html = '';
+    
+    // Show Job Card Info with editable workstation
+        html += `
+            <div class="alert alert-info mb-3">
+                <div class="row align-items-center mb-2">
+                    <div class="col-md-3">
+                        <strong>Required Qty:</strong> ${jobCardInfo.for_quantity || 0}
+                    </div>
+                    <div class="col-md-3">
+                        <strong>Completed Qty:</strong> ${jobCardInfo.total_completed_qty || 0}
+                    </div>
+                    <div class="col-md-3">
+                            <strong>Time Required (mins):</strong>
+                            ${permissions.can_edit_time_required ? `
+
+                            <input type="number" class="form-control form-control-sm" id="jobCardTimeRequired" 
+                                value="${jobCardInfo.time_required || 0}" style="display: inline-block; width: 80px;">
+                            <button class="btn btn-sm btn-success" id="saveTimeRequiredBtn" style="padding: 2px 8px;">
+                                <i class="bi bi-check"></i>
+                            </button>
+                        ` : `
+                            <span>${jobCardInfo.time_required || 0}</span>
+                        `}
+                    </div>
+                    <div class="col-md-3">
+                        <strong>Workstation:</strong>
+                        ${permissions.can_edit_workstation ? `
+                            <select class="form-select form-select-sm" id="jobCardWorkstation" style="display: inline-block; width: auto;">
+                                <option value="">-- Select --</option>
+                            </select>
+                            <button class="btn btn-sm btn-success" id="saveWorkstationBtn" style="padding: 2px 8px;">
+                                <i class="bi bi-check"></i>
+                            </button>
+                        ` : `
+                            <span>${jobCardInfo.workstation || '-'}</span>
+                        `}
+                    </div>
+                </div>
+            </div>
+        `;
+
+
+    
+    
+    // Add button if user has permission
+    if (permissions.can_add) {
+        html += `
+            <div class="mb-3">
+                <button class="btn btn-primary btn-sm" id="addTimeLogBtn">
+                    <i class="bi bi-plus-circle"></i> Add Time Log
+                </button>
+            </div>
+        `;
+    }
+    
+    if (timeLogs.length === 0) {
+        html += '<div class="alert alert-info">No time logs found for this job card.</div>';
+        html += `
+            <div class="table-responsive">
+                <table class="table table-sm table-hover table-bordered">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Employee</th>
+                            <th>From Time</th>
+                            <th>To Time</th>
+                            <th>Time (mins)</th>
+                            <th>Completed Qty</th>
+                            ${permissions.can_edit || permissions.can_delete ? '<th>Actions</th>' : ''}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td colspan="${permissions.can_edit || permissions.can_delete ? 6 : 5}" class="text-center text-muted">
+                                No entries
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        `;
+    } else {
+html += `
+    <div class="table-responsive">
+        <table class="table table-sm table-hover table-bordered">
+            <thead class="table-light">
+                <tr>
+                    <th>Employee</th>
+                    <th>From Time</th>
+                    <th>To Time</th>
+                    <th>Time (mins)</th>
+                    <th>Completed Qty</th>
+                    <th>Job Detail</th>
+                    <th>Job Image</th>
+                    ${permissions.can_edit || permissions.can_delete ? '<th>Actions</th>' : ''}
+                </tr>
+            </thead>
+            <tbody>
+`;
+
+timeLogs.forEach((log, index) => {
+    const fromTime = log.from_time ? new Date(log.from_time).toLocaleString() : '-';
+    const toTime = log.to_time ? new Date(log.to_time).toLocaleString() : '-';
+    const timeInMins = log.time_in_mins || 0;
+    const completedQty = log.completed_qty || 0;
+    const employee = log.employee || '-';
+    const jobDetail = log.custom_job_detail || '-';
+    const jobImage = log.custom_job_image_view || log.custom_job_image;
+
+        html += `
+            <tr data-log-index="${index}">
+                <td>${employee}</td>
+                <td>${fromTime}</td>
+                <td>${toTime}</td>
+                <td>${timeInMins}</td>
+                <td>${completedQty}</td>
+                <td>${jobDetail}</td>
+                <td>
+                    ${jobImage ? `<img src="${fixImageUrl(jobImage)}" style="max-width: 100px; max-height: 60px; cursor: pointer;" 
+                        onclick="window.open('${fixImageUrl(jobImage)}', '_blank')">` : '-'}
+                </td>
+
+    `;
+    
+    if (permissions.can_edit || permissions.can_delete) {
+        html += '<td>';
+        if (permissions.can_edit) {
+            html += `<button class="btn btn-sm btn-outline-primary me-1 edit-time-log" data-log-index="${index}" data-log='${JSON.stringify(log).replace(/'/g, "&apos;")}'>
+                <i class="bi bi-pencil"></i>
+            </button>`;
+        }
+        if (permissions.can_delete) {
+            html += `<button class="btn btn-sm btn-outline-danger delete-time-log" data-log-index="${index}">
+                <i class="bi bi-trash"></i>
+            </button>`;
+        }
+        html += '</td>';
+    }
+    
+    html += '</tr>';
+});
+
+        
+        html += `
+                    </tbody>
+                </table>
+            </div>
+        `;
+    }
+    
+    bodyEl.innerHTML = html;
+    
+    // Attach event listeners
+
+
+console.log('🎯 About to call loadWorkstationDropdown, permissions check:', {
+    permissions,
+    caneditworkstation: permissions?.caneditworkstation,
+    canedittimerequired: permissions?.canedittimerequired,
+    conditionPasses: permissions && (permissions.can_edit_workstation || permissions.can_edit_time_required)
+});
+
+
+    
+           
+            // Load workstation and time required handlers if user has permission
+                if (permissions && (permissions.can_edit_workstation || permissions.can_edit_time_required)) {
+                    loadWorkstationDropdown(jobCardInfo.workstation, jobCard, jobCardInfo, permissions);
+                }
+
+
+
+
+    
+    if (permissions.can_add) {
+        document.getElementById('addTimeLogBtn')?.addEventListener('click', () => {
+            showTimeLogForm(null, jobCard, jobCardInfo, reportName, config);
+        });
+    }
+    
+    if (permissions.can_edit) {
+        bodyEl.querySelectorAll('.edit-time-log').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const logIndex = parseInt(e.currentTarget.dataset.logIndex);
+                const logData = JSON.parse(e.currentTarget.dataset.log);
+                showTimeLogForm({...logData, logIndex}, jobCard, jobCardInfo, reportName, config);
+            });
+        });
+    }
+    
+    if (permissions.can_delete) {
+        bodyEl.querySelectorAll('.delete-time-log').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                const logIndex = parseInt(e.currentTarget.dataset.logIndex);
+                if (confirm('Are you sure you want to delete this time log?')) {
+                    try {
+                        await deleteTimeLog(jobCard, logIndex);
+                        alert('Time log deleted successfully');
+                        showTimeLogsModal(jobCard, reportName, config);
+                    } catch (err) {
+                        alert('Error deleting time log: ' + err.message);
+                    }
+                }
+            });
+        });
+    }
+}
+
+
+
+
+async function showTimeLogForm(existingLog, jobCard, jobCardInfo, reportName, config) {
+    const isEdit = !!existingLog;
+    const bodyEl = document.getElementById('timeLogsBody');
+    const timeLogsPerms = config.time_logs_permissions?.[userEmail] || {};
+    
+    // Fetch employees and workstations
+    let employees = [];
+    let workstations = [];
+    
+    try {
+        const empData = await getEmployees();
+        employees = empData.data || [];
+        
+        const wsData = await getWorkstations();
+        workstations = wsData.data || [];
+    } catch (err) {
+        console.error('Error loading dropdowns:', err);
+    }
+    
+    const formHtml = `
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0">${isEdit ? 'Edit' : 'Add'} Time Log</h6>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-info mb-3">
+                    <div class="row">
+                        <div class="col-md-4">
+                            <strong>Required Qty:</strong> ${jobCardInfo.for_quantity || 0}
+                        </div>
+                        <div class="col-md-4">
+                            <strong>Completed Qty:</strong> ${jobCardInfo.total_completed_qty || 0}
+                        </div>
+                        <div class="col-md-4">
+                            <strong>Time Required:</strong> ${jobCardInfo.time_required || 0} mins
+                        </div>
+                    </div>
+                </div>
+                <form id="timeLogForm">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Employee</label>
+                            <select class="form-select" name="employee">
+                                <option value="">-- Select Employee --</option>
+                                ${employees.map(emp => `
+                                    <option value="${emp.name}" ${existingLog?.employee === emp.name ? 'selected' : ''}>
+                                        ${emp.employee_name || emp.name}
+                                    </option>
+                                `).join('')}
+                            </select>
+                        </div>
+                        
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Workstation ${timeLogsPerms.can_edit_workstation ? '' : '(Read-only)'}</label>
+                            <select class="form-select" name="workstation" ${timeLogsPerms.can_edit_workstation ? '' : 'disabled'}>
+                                <option value="">-- Select Workstation --</option>
+                                ${workstations.map(ws => `
+                                    <option value="${ws.name}" ${(existingLog?.workstation || jobCardInfo.workstation) === ws.name ? 'selected' : ''}>
+                                        ${ws.name}
+                                    </option>
+                                `).join('')}
+                            </select>
+                            ${!timeLogsPerms.can_edit_workstation ? '<small class="text-muted">You don\'t have permission to edit workstation</small>' : ''}
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">From Time *</label>
+                            <input type="datetime-local" class="form-control" name="from_time" id="fromTime"
+                                value="${existingLog?.from_time ? new Date(existingLog.from_time).toISOString().slice(0, 16) : ''}" required>
+                        </div>
+                        
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">To Time</label>
+                            <input type="datetime-local" class="form-control" name="to_time" id="toTime"
+                                value="${existingLog?.to_time ? new Date(existingLog.to_time).toISOString().slice(0, 16) : ''}">
+                            <small class="text-muted">Leave empty if work is ongoing</small>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Time (in minutes) *</label>
+                            <input type="number" step="1" class="form-control" name="time_in_mins" id="timeInMins"
+                                value="${existingLog?.time_in_mins || ''}" required>
+                            <small class="text-muted">Auto-calculated from From/To times</small>
+                        </div>
+                        
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Completed Qty</label>
+                            <input type="number" step="0.01" class="form-control" name="completed_qty" 
+                                value="${existingLog?.completed_qty || 0}">
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Job Detail</label>
+                        <textarea class="form-control" name="custom_job_detail" rows="3" 
+                            placeholder="Enter job details...">${existingLog?.custom_job_detail || ''}</textarea>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Job Image</label>
+                        <input type="file" class="form-control" id="jobImageFile" accept="image/*">
+                        <small class="text-muted">Upload an image for this time log entry</small>
+                        ${existingLog?.custom_job_image_view ? `
+                            <div class="mt-2">
+                                <img src="${fixImageUrl(existingLog.custom_job_image_view)}" 
+                                    style="max-width: 200px; max-height: 150px; cursor: pointer;"
+                                    onclick="window.open('${fixImageUrl(existingLog.custom_job_image_view)}', '_blank')">
+                            </div>
+                        ` : ''}
+
+                    </div>
+                    
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-success">
+                            <i class="bi bi-check-circle"></i> ${isEdit ? 'Update' : 'Save'}
+                        </button>
+                        <button type="button" class="btn btn-secondary" id="cancelTimeLogForm">Cancel</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    `;
+    
+    bodyEl.innerHTML = formHtml;
+    
+    // Auto-calculate time in minutes
+    const fromTimeInput = document.getElementById('fromTime');
+    const toTimeInput = document.getElementById('toTime');
+    const timeInMinsInput = document.getElementById('timeInMins');
+    
+    function calculateMinutes() {
+        const fromTime = fromTimeInput.value;
+        const toTime = toTimeInput.value;
+        
+        if (fromTime && toTime) {
+            const from = new Date(fromTime);
+            const to = new Date(toTime);
+            const diffMs = to - from;
+            const diffMins = Math.round(diffMs / 60000);
+            
+            if (diffMins >= 0) {
+                timeInMinsInput.value = diffMins;
+            }
+        }
+    }
+    
+    fromTimeInput.addEventListener('change', calculateMinutes);
+    toTimeInput.addEventListener('change', calculateMinutes);
+    
+    document.getElementById('timeLogForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const formData = new FormData(e.target);
+        
+        const data = {
+            from_time: formData.get('from_time'),
+            to_time: formData.get('to_time') || null,
+            time_in_mins: parseInt(formData.get('time_in_mins')),
+            completed_qty: parseFloat(formData.get('completed_qty')) || 0,
+            employee: formData.get('employee') || null,
+            custom_job_detail: formData.get('custom_job_detail') || null
+        };
+        
+        // Handle workstation if user has permission
+        if (timeLogsPerms.can_edit_workstation) {
+            data.workstation = formData.get('workstation') || null;
+        }
+        
+        // Handle image upload
+        const imageFile = document.getElementById('jobImageFile').files[0];
+        if (imageFile) {
+            try {
+                // Upload via our proxy instead of directly to ERPNext
+                const uploadFormData = new FormData();
+                uploadFormData.append('file', imageFile);
+                uploadFormData.append('job_card', jobCard);
+                
+                const uploadRes = await fetch(`${API_BASE}?action=upload_time_log_image`, {
+                    method: 'POST',
+                    body: uploadFormData
+                });
+                
+                const uploadData = await uploadRes.json();
+                if (uploadData.file_url) {
+                    data.custom_job_image = uploadData.file_url;
+                } else {
+                    throw new Error(uploadData.error || 'Upload failed');
+                }
+            } catch (err) {
+                console.error('Error uploading image:', err);
+                alert('Failed to upload image: ' + err.message);
+                return; // Don't save time log if image upload fails
+            }
+        }
+
+        
+        try {
+            if (isEdit) {
+                await updateTimeLog(jobCard, existingLog.logIndex, data);
+                alert('Time log updated successfully');
+            } else {
+                await addTimeLog(jobCard, data);
+                alert('Time log added successfully');
+            }
+            showTimeLogsModal(jobCard, reportName, config);
+        } catch (err) {
+            alert('Error saving time log: ' + err.message);
+        }
+    });
+    
+    document.getElementById('cancelTimeLogForm').addEventListener('click', () => {
+        showTimeLogsModal(jobCard, reportName, config);
+    });
+}
+
+
+
+
+
+
+
+// New function to load and handle workstation
+
+async function loadWorkstationDropdown(currentWorkstation, jobCard, jobCardInfo, permissions) {
+    
+    
+    
+        console.log('🔧 loadWorkstationDropdown called with:', {
+        currentWorkstation,
+        jobCard,
+        jobCardInfo,
+        permissions,
+        dropdownExists: !!document.getElementById('jobCardWorkstation'),
+        buttonExists: !!document.getElementById('saveWorkstationBtn')
+    });
+    
+    
+    
+    try {
+        // Handle WORKSTATION dropdown
+        const dropdown = document.getElementById('jobCardWorkstation');
+        if (dropdown && permissions && permissions.can_edit_workstation) {
+            const wsData = await getWorkstations();
+            const workstations = wsData.data || [];
+            
+            // Clear and populate dropdown
+            dropdown.innerHTML = '<option value="">-- Select --</option>';
+            workstations.forEach(ws => {
+                const option = document.createElement('option');
+                option.value = ws.name;
+                option.textContent = ws.name;
+                if (ws.name === currentWorkstation) {
+                    option.selected = true;
+                }
+                dropdown.appendChild(option);
+            });
+            
+            // Attach workstation save handler
+            const saveBtn = document.getElementById('saveWorkstationBtn');
+            if (saveBtn) {
+                saveBtn.addEventListener('click', async () => {
+                    const newWorkstation = dropdown.value;
+                    saveBtn.disabled = true;
+                    saveBtn.innerHTML = '<i class="bi bi-hourglass-split"></i>';
+                    
+                    try {
+                        await updateJobCardWorkstation(jobCard, newWorkstation);
+                        alert('Workstation updated successfully!');
+                        if (confirm('Refresh report?')) location.reload();
+                    } catch (err) {
+                        alert('Failed: ' + err.message);
+                    } finally {
+                        saveBtn.disabled = false;
+                        saveBtn.innerHTML = '<i class="bi bi-check"></i>';
+                    }
+                });
+            }
+        }
+        
+        // Handle TIME REQUIRED field (separate from workstation)
+        const timeReqBtn = document.getElementById('saveTimeRequiredBtn');
+        if (timeReqBtn && permissions && permissions.can_edit_time_required) {
+            timeReqBtn.addEventListener('click', async () => {
+                const newTimeRequired = document.getElementById('jobCardTimeRequired').value;
+                timeReqBtn.disabled = true;
+                timeReqBtn.innerHTML = '<i class="bi bi-hourglass-split"></i>';
+                
+                try {
+                    await updateJobCardTimeRequired(jobCard, parseFloat(newTimeRequired));
+                    alert('Time required updated successfully!');
+                } catch (err) {
+                    alert('Failed: ' + err.message);
+                } finally {
+                    timeReqBtn.disabled = false;
+                    timeReqBtn.innerHTML = '<i class="bi bi-check"></i>';
+                }
+            });
+        }
+    } catch (err) {
+        console.error('Error in loadWorkstationDropdown:', err);
+    }
+}
+
+
+
+
+
 
