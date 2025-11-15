@@ -387,7 +387,7 @@
                 }
             }
 
-            async apiCall(method, params = {}) {
+            async apiCall(method, params = {}, signal = null) {
                 const apiParams = new URLSearchParams();
                 apiParams.append('method', method);
                 apiParams.append('format', 'json');
@@ -662,96 +662,174 @@ async loadAlbums() {
                 }
             }
 
-            async selectAlbum(albumId) {
-                if (this.currentLoadingController) {
-                    this.currentLoadingController.abort();
-                }
-                
-                if (this.thumbnailLoadingController) {
-                    this.thumbnailLoadingController.abort();
-                }
-                
-                this.currentLoadingController = new AbortController();
-                this.thumbnailLoadingController = new AbortController();
 
-                this.clearSelection();
 
-                document.querySelectorAll('.album-item').forEach(item => {
-                    item.classList.remove('selected');
-                });
-                document.querySelector(`[data-album-id="${albumId}"]`).classList.add('selected');
 
-                const album = this.albums.find(a => a.id == albumId);
-                document.getElementById('currentAlbum').textContent = album.name;
-                
-                this.currentAlbumId = albumId;
-                this.updateLoadProgress(0, 0);
-                await this.loadAllImages(albumId);
+            
+async selectAlbum(albumId) {
+    // Cancel any previous loading
+    if (this.currentLoadingController) {
+        this.currentLoadingController.abort();
+    }
+    if (this.thumbnailLoadingController) {
+        this.thumbnailLoadingController.abort();
+    }
+    if (this.thumbnailObserver) {
+        this.thumbnailObserver.disconnect();
+    }
+    
+    // Clear current images immediately
+    const imageGrid = document.getElementById('imageGrid');
+    imageGrid.innerHTML = '<div class="loading"><div class="spinner"></div>Loading images...</div>';
+    
+    this.currentLoadingController = new AbortController();
+    this.thumbnailLoadingController = new AbortController();
+    
+    this.clearSelection();
+    
+    document.querySelectorAll('.album-item').forEach(item => item.classList.remove('selected'));
+    const albumItem = document.querySelector(`[data-album-id="${albumId}"]`);
+    if (albumItem) {
+        albumItem.classList.add('selected');
+    }
+    
+    const album = this.albums.find(a => a.id === albumId);
+    if (album) {
+        document.getElementById('currentAlbum').textContent = album.name;
+    }
+    this.currentAlbumId = albumId;
+    
+    this.updateLoadProgress(0, 0);
+    await this.loadAllImages(albumId);
+}
+
+
+
+
+
+            
+
+ async loadAllImages(albumId) {
+    const imageGrid = document.getElementById('imageGrid');
+    imageGrid.innerHTML = '<div class="loading"><div class="spinner"></div>Loading images...</div>';
+    
+    try {
+        let allImages = [];
+        const perPage = 500;
+        
+        const result = await this.apiCall('pwg.categories.getImages', {
+            cat_id: albumId,
+            per_page: perPage,
+            page: 0
+        }, this.currentLoadingController.signal);
+        
+        if (this.currentLoadingController.signal.aborted) return;
+        
+        allImages = result.images || [];
+        
+        if (this.currentAlbumId === albumId && !this.currentLoadingController.signal.aborted) {
+            this.allImages = allImages;
+            this.currentImages = allImages;
+            this.renderImages();
+            document.getElementById('imageCount').textContent = `${this.currentImages.length} images`;
+            
+            this.loadVisibleThumbnails();
+        }
+        
+        this.updateLoadProgress(0, 0);
+    } catch (error) {
+        if (error.name !== 'AbortError') {
+            console.error('Failed to load images:', error);
+            if (!this.currentLoadingController.signal.aborted) {
+                imageGrid.innerHTML = `<div class="loading">Error: ${error.message}</div>`;
             }
+        }
+        this.updateLoadProgress(0, 0);
+    }
+}
 
-            async loadAllImages(albumId) {
-                const imageGrid = document.getElementById('imageGrid');
-                imageGrid.innerHTML = '<div class="loading"><div class="spinner"></div>Loading all images...</div>';
 
-                try {
-                    let allImages = [];
-                    let page = 0;
-                    let hasMore = true;
-                    const perPage = 200;
 
-                    while (hasMore && !this.currentLoadingController.signal.aborted) {
-                        const result = await this.apiCall('pwg.categories.getImages', {
-                            cat_id: albumId,
-                            per_page: perPage,
-                            page: page
-                        });
 
-                        if (this.currentLoadingController.signal.aborted) return;
 
-                        const images = result.images || [];
-                        
-                        if (images.length > 0) {
-                            allImages = [...allImages, ...images];
-                            this.updateLoadProgress(allImages.length, allImages.length + (images.length === perPage ? perPage : 0));
-                            
-                            if (this.currentAlbumId == albumId && !this.currentLoadingController.signal.aborted) {
-                                this.allImages = allImages;
-                                this.currentImages = allImages;
-                                this.renderImages();
-                            } else {
-                                return;
-                            }
-                            
-                            if (images.length < perPage) {
-                                hasMore = false;
-                            } else {
-                                page++;
-                                await new Promise(resolve => setTimeout(resolve, 100));
-                            }
-                        } else {
-                            hasMore = false;
-                        }
-                    }
 
-                    if (!this.currentLoadingController.signal.aborted && this.currentAlbumId == albumId) {
-                        this.allImages = allImages;
-                        this.currentImages = allImages;
-                        document.getElementById('imageCount').textContent = `${this.currentImages.length} images`;
-                        this.updateLoadProgress(0, 0);
-                        this.loadThumbnailsProgressively(allImages);
-                    }
-                    
-                } catch (error) {
-                    if (error.name !== 'AbortError') {
-                        console.error('Failed to load images:', error);
-                        if (!this.currentLoadingController.signal.aborted) {
-                            imageGrid.innerHTML = `<div class="loading">Error: ${error.message}</div>`;
-                            this.updateLoadProgress(0, 0);
-                        }
-                    }
+
+
+
+
+loadVisibleThumbnails() {
+    if (this.thumbnailLoadingController) {
+        this.thumbnailLoadingController.abort();
+    }
+    this.thumbnailLoadingController = new AbortController();
+    
+    const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                const imageId = entry.target.dataset.imageId;
+                const image = this.currentImages.find(img => img.id === imageId);
+                if (image && !entry.target.dataset.loaded) {
+                    entry.target.dataset.loaded = 'true';
+                    this.loadSingleThumbnail(imageId);
                 }
             }
+        });
+    }, { rootMargin: '200px' });
+    
+    document.querySelectorAll('.image-item').forEach(item => {
+        observer.observe(item);
+    });
+    
+    this.thumbnailObserver = observer;
+}
 
+async loadSingleThumbnail(imageId) {
+    try {
+        const imageInfoUrl = `${this.baseUrl}/ws.php?format=json&method=pwg.images.getInfo&image_id=${imageId}&comments_page=0&comments_per_page=0`;
+        const response = await fetch(imageInfoUrl, {
+            credentials: 'include',
+            signal: this.thumbnailLoadingController.signal
+        });
+        
+        if (this.thumbnailLoadingController.signal.aborted) return;
+        
+        const data = await response.json();
+        if (data.stat === 'ok' && data.result && data.result.derivatives) {
+            const derivs = data.result.derivatives;
+            let thumbnailUrl = derivs.square?.url || derivs.thumb?.url || derivs.medium?.url;
+            
+            if (thumbnailUrl) {
+                this.updateImageThumbnail(imageId, thumbnailUrl);
+            }
+        }
+    } catch (e) {
+        if (e.name !== 'AbortError') {
+            console.log('Failed to get thumbnail for image', imageId);
+        }
+    }
+}
+
+updateImageThumbnail(imageId, thumbnailUrl) {
+    const imageItem = document.querySelector(`[data-image-id="${imageId}"]`);
+    if (imageItem) {
+        const img = imageItem.querySelector('img');
+        if (img) {
+            img.src = thumbnailUrl;
+            img.style.opacity = '1';
+        }
+    }
+}
+
+
+
+
+
+
+
+
+
+
+            
             async loadThumbnailsProgressively(images) {
                 if (this.thumbnailLoadingController.signal.aborted) return;
                 
@@ -834,73 +912,69 @@ async loadAlbums() {
                 }
             }
 
-            renderImages() {
-                const imageGrid = document.getElementById('imageGrid');
-                
-                if (this.currentImages.length === 0) {
-                    imageGrid.innerHTML = '<div class="loading">No images found</div>';
-                    return;
-                }
 
-                const imagesHtml = this.currentImages.map((image) => {
-                    const isSelected = this.selectedImages.has(image.id);
-                    return `
-                        <div class="image-item ${isSelected ? 'selected' : ''}" draggable="true" data-image-id="${image.id}">
-                            <div class="image-container">
-                                <div class="image-placeholder">
-                                    <div class="placeholder-icon">🖼️</div>
-                                    <div class="placeholder-id">ID: ${image.id}</div>
-                                    <div class="placeholder-file">${image.file || 'No file'}</div>
-                                </div>
-                                <div class="selection-overlay">✓</div>
-                                <button class="delete-btn" data-image-id="${image.id}">×</button>
-                            </div>
-                            <div class="image-info">
-                                <div class="image-title">${image.name || 'Untitled'}</div>
-                            </div>
-                        </div>
-                    `;
-                }).join('');
-
-                imageGrid.innerHTML = `<div class="grid-container">${imagesHtml}</div>`;
-
-                document.querySelectorAll('.image-item').forEach(item => {
-                    item.addEventListener('click', (e) => {
-                        if (e.target.classList.contains('delete-btn')) return;
-                        
-                        const imageId = item.dataset.imageId;
-                        if (e.ctrlKey || e.metaKey) {
-                            this.toggleImageSelection(imageId);
-                        } else {
-                            this.clearSelection();
-                            this.toggleImageSelection(imageId);
-                        }
-                    });
-                    
-                    item.addEventListener('dragstart', (e) => {
-                        if (this.selectedImages.size > 0) {
-                            this.draggedImage = null;
-                        } else {
-                            this.draggedImage = { id: item.dataset.imageId, element: item };
-                        }
-                        item.classList.add('dragging');
-                    });
-                    
-                    item.addEventListener('dragend', () => {
-                        item.classList.remove('dragging');
-                        this.draggedImage = null;
-                    });
-                });
-
-                document.querySelectorAll('.delete-btn').forEach(btn => {
-                    btn.addEventListener('click', (e) => {
-                        e.stopPropagation();
-                        const imageId = btn.dataset.imageId;
-                        this.deleteImage(imageId);
-                    });
-                });
+            
+            
+renderImages() {
+    const imageGrid = document.getElementById('imageGrid');
+    const fragment = document.createDocumentFragment();
+    
+    this.currentImages.forEach(image => {
+        const imageItem = document.createElement('div');
+        imageItem.className = 'image-item';
+        imageItem.dataset.imageId = image.id;
+        imageItem.dataset.loaded = 'false';
+        
+        if (this.selectedImages.has(image.id)) {
+            imageItem.classList.add('selected');
+        }
+        
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.className = 'image-checkbox';
+        checkbox.checked = this.selectedImages.has(image.id);
+        checkbox.addEventListener('change', (e) => {
+            e.stopPropagation();
+            this.toggleImageSelection(image.id);
+        });
+        
+        const img = document.createElement('img');
+        img.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"%3E%3Crect fill="%23ddd" width="100" height="100"/%3E%3C/svg%3E';
+        img.alt = image.name || 'Image';
+        img.style.opacity = '0.5';
+        img.loading = 'lazy';
+        
+        const imageName = document.createElement('div');
+        imageName.className = 'image-name';
+        imageName.textContent = image.name || `Image ${image.id}`;
+        
+        imageItem.appendChild(checkbox);
+        imageItem.appendChild(img);
+        imageItem.appendChild(imageName);
+        
+        imageItem.addEventListener('click', (e) => {
+            if (e.target !== checkbox) {
+                this.toggleImageSelection(image.id);
             }
+        });
+        
+        fragment.appendChild(imageItem);
+    });
+    
+    imageGrid.innerHTML = '';
+    imageGrid.appendChild(fragment);
+}
 
+
+
+
+
+
+
+
+
+
+            
             toggleImageSelection(imageId) {
                 if (this.selectedImages.has(imageId)) {
                     this.selectedImages.delete(imageId);
