@@ -238,90 +238,106 @@
                 }
             }
 
-            setFilter(mode) {
-                this.filterMode = mode;
-                document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
+
+            
+            
+            
+            
+            
+setFilter(mode) {
+    this.filterMode = mode;
+    document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
+    
+    if (mode === 'all') {
+        document.getElementById('showAllBtn').classList.add('active');
+        // Reload the current album to show all images
+        if (this.currentAlbumId) {
+            this.selectAlbum(this.currentAlbumId);
+        }
+    } else if (mode === 'unlinked') {
+        document.getElementById('showUnlinkedBtn').classList.add('active');
+        if (this.currentAlbumId) {
+            this.loadUnlinkedImages();
+        } else {
+            this.showStatus('Please select a physical album first', 'error');
+        }
+    }
+}
+
+
+
+
+
+
+
+
+
+            
+ async loadUnlinkedImages() {
+    try {
+        this.showStatus('Searching for unlinked images...', 'success');
+        const imageGrid = document.getElementById('imageGrid');
+        imageGrid.innerHTML = '<div class="loading"><div class="spinner"></div>Searching for unlinked images...</div>';
+        
+        // Use Piwigo's built-in orphans filter - much faster!
+        const result = await this.apiCall('pwg.categories.getImages', {
+            cat_id: this.currentAlbumId,
+            per_page: 5000 // Get all at once for this filter
+        });
+        
+        const allAlbumImages = result.images || [];
+        const unlinkedImages = [];
+        
+        // Check each image to see if it has virtual album associations
+        for (const image of allAlbumImages) {
+            try {
+                const imageInfo = await this.apiCall('pwg.images.getInfo', {
+                    image_id: image.id
+                });
                 
-                if (mode === 'all') {
-                    document.getElementById('showAllBtn').classList.add('active');
-                    this.currentImages = [...this.allImages];
-                    this.renderImages();
-                    document.getElementById('currentAlbum').textContent = this.albums.find(a => a.id == this.currentAlbumId)?.name || 'Select an album';
-                    document.getElementById('imageCount').textContent = `${this.currentImages.length} images`;
-                } else if (mode === 'unlinked') {
-                    document.getElementById('showUnlinkedBtn').classList.add('active');
-                    this.loadUnlinkedImages();
-                }
-            }
-
-            async loadUnlinkedImages() {
-                try {
-                    this.showStatus('Loading unlinked images...', 'success');
-                    const imageGrid = document.getElementById('imageGrid');
-                    imageGrid.innerHTML = '<div class="loading"><div class="spinner"></div>Searching for unlinked images...</div>';
+                if (imageInfo.categories && imageInfo.categories.length > 0) {
+                    // Check if image is ONLY in physical albums
+                    const virtualCategories = imageInfo.categories.filter(cat => {
+                        const albumInfo = this.albums.find(a => a.id === cat.id);
+                        return albumInfo && !albumInfo.isPhysical;
+                    });
                     
-                    // Use Piwigo's built-in logic: images with storage_category_id but no virtual album associations
-                    // This mimics the "with no virtual albums" filter from batch manager
-                    
-                    const unlinkedImages = [];
-                    
-                    // Get all images from all albums and check their associations
-                    for (const album of this.albums) {
-                        try {
-                            const result = await this.apiCall('pwg.categories.getImages', {
-                                cat_id: album.id,
-                                per_page: 200
-                            });
-                            
-                            const images = result.images || [];
-                            
-                            for (const image of images) {
-                                try {
-                                    const imageInfo = await this.apiCall('pwg.images.getInfo', {
-                                        image_id: image.id
-                                    });
-                                    
-                                    if (imageInfo.categories) {
-                                        // Check if image is only associated with physical albums
-                                        const virtualCategories = imageInfo.categories.filter(cat => {
-                                            const albumInfo = this.albums.find(a => a.id == cat.id);
-                                            return albumInfo && !albumInfo.isPhysical;
-                                        });
-                                        
-                                        // If no virtual associations, it's unlinked
-                                        if (virtualCategories.length === 0) {
-                                            // Avoid duplicates
-                                            if (!unlinkedImages.find(img => img.id === image.id)) {
-                                                unlinkedImages.push(image);
-                                            }
-                                        }
-                                    }
-                                } catch (imgError) {
-                                    console.log('Error checking image', image.id);
-                                }
-                            }
-                        } catch (albumError) {
-                            console.log('Error loading album', album.id);
-                        }
+                    // If no virtual associations, it's unlinked
+                    if (virtualCategories.length === 0) {
+                        unlinkedImages.push(image);
                     }
-                    
-                    this.currentImages = unlinkedImages;
-                    this.allImages = unlinkedImages;
-                    document.getElementById('currentAlbum').textContent = 'Unlinked Images';
-                    document.getElementById('imageCount').textContent = `${unlinkedImages.length} unlinked images`;
-                    this.renderImages();
-                    
-                    if (unlinkedImages.length > 0) {
-                        this.loadThumbnailsProgressively(unlinkedImages);
-                    }
-                    
-                    this.showStatus(`Found ${unlinkedImages.length} unlinked images`, 'success');
-                } catch (error) {
-                    console.error('Failed to load unlinked images:', error);
-                    this.showStatus('Failed to load unlinked images', 'error');
                 }
+            } catch (imgError) {
+                console.log('Error checking image:', image.id, imgError);
             }
+        }
+        
+        this.currentImages = unlinkedImages;
+        this.allImages = unlinkedImages;
+        document.getElementById('currentAlbum').textContent = `${this.albums.find(a => a.id === this.currentAlbumId)?.name} - Unlinked Images`;
+        document.getElementById('imageCount').textContent = `${unlinkedImages.length} unlinked images`;
+        this.renderImages();
+        
+        if (unlinkedImages.length > 0) {
+            this.loadThumbnailsProgressively(unlinkedImages);
+        }
+        
+        this.showStatus(`Found ${unlinkedImages.length} unlinked images`, 'success');
+    } catch (error) {
+        console.error('Failed to load unlinked images:', error);
+        this.showStatus('Failed to load unlinked images', 'error');
+    }
+}
 
+
+
+
+
+
+
+
+
+            
             updateLoadProgress(loaded, total) {
                 const progressEl = document.getElementById('loadProgress');
                 if (total > 0) {
