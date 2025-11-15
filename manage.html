@@ -705,7 +705,7 @@ async loadAlbums() {
 
 
             
-  async selectAlbum(albumId) {
+async selectAlbum(albumId) {
     // Handle special "no virtual album" album
     if (albumId === 'no_virtual') {
         await this.loadNoVirtualAlbumImages();
@@ -715,7 +715,32 @@ async loadAlbums() {
     // Store reference to old controller
     const oldThumbnailController = this.thumbnailLoadingController;
     
-    // ... rest of existing selectAlbum code continues here
+    // Create new controllers FIRST
+    this.currentLoadingController = new AbortController();
+    this.thumbnailLoadingController = new AbortController();
+    
+    // NOW abort the old ones (after new ones are in place)
+    if (oldThumbnailController) {
+        oldThumbnailController.abort();
+    }
+    
+    this.clearSelection();
+    
+    document.querySelectorAll('.album-item').forEach(item => item.classList.remove('selected'));
+    const albumItem = document.querySelector(`[data-album-id="${albumId}"]`);
+    if (albumItem) {
+        albumItem.classList.add('selected');
+    }
+    
+    const album = this.albums.find(a => a.id === albumId);
+    if (album) {
+        document.getElementById('currentAlbum').textContent = album.name;
+    }
+    this.currentAlbumId = albumId;
+    
+    this.updateLoadProgress(0, 0);
+    await this.loadAllImages(albumId);
+}
 
 
 
