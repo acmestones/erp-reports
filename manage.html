@@ -501,10 +501,15 @@
                 albumTree.innerHTML = '<div class="loading"><div class="spinner"></div>Loading albums...</div>';
 
                 try {
-                            const result = await this.apiCall('pwg.categories.getList', { 
-                            recursive: true, 
-                            fullname: true 
-                        });
+const result = await this.apiCall('pwg.categories.getAdminList', { recursive: true });
+let albums = result.categories;
+
+// Physical albums typically have site_id = 1 (local site)
+// Virtual albums have site_id = null or undefined
+for (const album of albums) {
+    album.isPhysical = album.site_id !== undefined && album.site_id !== null;
+}
+
                     let albums = result.categories || [];
                     
                     // Physical albums detection: 
