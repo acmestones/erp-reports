@@ -501,45 +501,65 @@ async loadAlbums() {
     albumTree.innerHTML = '<div class="loading"><div class="spinner"></div>Loading albums...</div>';
 
     try {
- const result = await this.apiCall('pwg.categories.getAdminList', { 
-    recursive: true
-});
-
-let albums = result.categories;
-
-// Query each album individually to check for storage location
-// This is more reliable but slower
-const albumChecks = albums.map(async (album) => {
-    try {
-        // Try to get the list with fullname which may include dir info
-        const details = await this.apiCall('pwg.categories.getList', {
-            cat_id: album.id,
-            fullname: true
+        const result = await this.apiCall('pwg.categories.getAdminList', { 
+            recursive: true
         });
-        
-        if (details.categories && details.categories.length > 0) {
-            const cat = details.categories[0];
-            // Physical albums have a dir property
-            album.isPhysical = cat.dir !== undefined && cat.dir !== null && cat.dir !== '';
-        } else {
-            album.isPhysical = false;
+
+        let albums = result.categories;
+
+        // DEBUG: Test with first album only
+        if (albums.length > 0) {
+            const testAlbum = albums[0];
+            console.log('Testing album:', testAlbum.name, 'ID:', testAlbum.id);
+            
+            const details = await this.apiCall('pwg.categories.getList', {
+                cat_id: testAlbum.id,
+                fullname: true
+            });
+            
+            console.log('Details returned:', details);
+            if (details.categories && details.categories.length > 0) {
+                console.log('First category details:', details.categories[0]);
+            }
         }
-    } catch (e) {
-        album.isPhysical = false;
-    }
-    return album;
-});
 
-// Wait for all checks to complete
-albums = await Promise.all(albumChecks);
+        // Query each album individually to check for storage location
+        const albumChecks = albums.map(async (album) => {
+            try {
+                const details = await this.apiCall('pwg.categories.getList', {
+                    cat_id: album.id,
+                    fullname: true
+                });
+                
+                if (details.categories && details.categories.length > 0) {
+                    const cat = details.categories[0];
+                    album.isPhysical = cat.dir !== undefined && cat.dir !== null && cat.dir !== '';
+                    console.log(`Album "${album.name}": dir=${cat.dir}, isPhysical=${album.isPhysical}`);
+                } else {
+                    album.isPhysical = false;
+                }
+            } catch (e) {
+                album.isPhysical = false;
+                console.error(`Error checking album ${album.name}:`, e);
+            }
+            return album;
+        });
 
-albums = albums.filter(album => parseInt(album.id) > 0);
-this.albums = albums;
-this.renderAlbumTree();
+        albums = await Promise.all(albumChecks);
+        albums = albums.filter(album => parseInt(album.id) > 0);
+        this.albums = albums;
+        this.renderAlbumTree();
+        
+        setTimeout(() => {
+            if (this.albumScrollPosition > 0) {
+                albumTree.scrollTop = this.albumScrollPosition;
+            }
+        }, 100);
     } catch (error) {
         albumTree.innerHTML = `<div class="loading">Error: ${error.message}</div>`;
     }
 }
+
 
 
             renderAlbumTree() {
