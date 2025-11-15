@@ -509,9 +509,18 @@ async loadAlbums() {
         let albums = result.categories;
 
 
+        // DEBUG: Check if dir property is now present
+if (albums.length > 0) {
+    console.log('Sample album with dir:', albums[0]);
+    console.log('First 3 albums:', albums.slice(0, 3));
+}
+
 // Physical albums have site_id, virtual albums don't
 for (const album of albums) {
     album.isPhysical = album.dir !== undefined && album.dir !== null && album.dir !== '';
+
+        console.log(`Album "${album.name}" - dir: ${album.dir}, isPhysical: ${album.isPhysical}`);
+}
 }
 
 
