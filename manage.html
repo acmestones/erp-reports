@@ -758,32 +758,33 @@ async selectAlbum(albumId) {
 
 
 loadVisibleThumbnails() {
-    if (this.thumbnailLoadingController) {
-        this.thumbnailLoadingController.abort();
-    }
-    this.thumbnailLoadingController = new AbortController();
-    
-    const observer = new IntersectionObserver((entries) => {
-        entries.forEach(entry => {
-            if (entry.isIntersecting) {
-                const imageId = entry.target.dataset.imageId;
-                const image = this.currentImages.find(img => img.id === imageId);
-                if (image && !entry.target.dataset.loaded) {
-                    entry.target.dataset.loaded = 'true';
-                    this.loadSingleThumbnail(imageId);
+                if (this.thumbnailLoadingController) {
+                    this.thumbnailLoadingController.abort();
                 }
+                this.thumbnailLoadingController = new AbortController();
+
+                const observer = new IntersectionObserver((entries) => {
+                    console.log("IntersectionObserver triggered, entries:", entries.length);
+                    entries.forEach(entry => {
+                        if (entry.isIntersecting) {
+                            const imageId = entry.target.dataset.imageId;
+                            if (imageId && entry.target.dataset.loaded !== 'true') {
+                                entry.target.dataset.loaded = 'true';
+                                this.loadSingleThumbnail(imageId);
+                            }
+                        }
+                    });
+                }, { rootMargin: '200px' });
+
+                document.querySelectorAll('.image-item').forEach(item => {
+                    observer.observe(item);
+                });
+
+                this.thumbnailObserver = observer;
             }
-        });
-    }, { rootMargin: '200px' });
-    
-    document.querySelectorAll('.image-item').forEach(item => {
-        observer.observe(item);
-    });
-    
-    this.thumbnailObserver = observer;
-}
 
 async loadSingleThumbnail(imageId) {
+                console.log("Loading thumbnail for image:", imageId);
     try {
         const imageInfoUrl = `${this.baseUrl}/ws.php?format=json&method=pwg.images.getInfo&image_id=${imageId}&comments_page=0&comments_per_page=0`;
         const response = await fetch(imageInfoUrl, {
