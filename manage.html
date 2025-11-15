@@ -758,6 +758,7 @@ async selectAlbum(albumId) {
 
 
 loadVisibleThumbnails() {
+                console.log('Setting up IntersectionObserver for lazy loading');
                 if (this.thumbnailLoadingController) {
                     this.thumbnailLoadingController.abort();
                 }
@@ -785,30 +786,31 @@ loadVisibleThumbnails() {
 
 async loadSingleThumbnail(imageId) {
                 console.log("Loading thumbnail for image:", imageId);
-    try {
-        const imageInfoUrl = `${this.baseUrl}/ws.php?format=json&method=pwg.images.getInfo&image_id=${imageId}&comments_page=0&comments_per_page=0`;
-        const response = await fetch(imageInfoUrl, {
-            credentials: 'include',
-            signal: this.thumbnailLoadingController.signal
-        });
-        
-        if (this.thumbnailLoadingController.signal.aborted) return;
-        
-        const data = await response.json();
-        if (data.stat === 'ok' && data.result && data.result.derivatives) {
-            const derivs = data.result.derivatives;
-            let thumbnailUrl = derivs.square?.url || derivs.thumb?.url || derivs.medium?.url;
-            
-            if (thumbnailUrl) {
-                this.updateImageThumbnail(imageId, thumbnailUrl);
+                try {
+                    const imageInfoUrl = `${this.baseUrl}/ws.php?format=json&method=pwg.images.getInfo&image_id=${imageId}&comments_page=0&comments_per_page=0`;
+                    const response = await fetch(imageInfoUrl, {
+                        credentials: 'include',
+                        signal: this.thumbnailLoadingController.signal
+                    });
+
+                    if (this.thumbnailLoadingController.signal.aborted) return;
+
+                    const data = await response.json();
+                    if (data.stat === 'ok' && data.result && data.result.derivatives) {
+                        const derivs = data.result.derivatives;
+                        let thumbnailUrl = derivs.square?.url || derivs.thumb?.url || derivs.medium?.url;
+
+                        if (thumbnailUrl) {
+                            console.log("Thumbnail loaded for image", imageId, "URL:", thumbnailUrl);
+                            this.updateImageThumbnail(imageId, thumbnailUrl);
+                        }
+                    }
+                } catch (e) {
+                    if (e.name !== 'AbortError') {
+                        console.log('Failed to get thumbnail for image', imageId, e);
+                    }
+                }
             }
-        }
-    } catch (e) {
-        if (e.name !== 'AbortError') {
-            console.log('Failed to get thumbnail for image', imageId);
-        }
-    }
-}
 
 updateImageThumbnail(imageId, thumbnailUrl) {
     const imageItem = document.querySelector(`[data-image-id="${imageId}"]`);
