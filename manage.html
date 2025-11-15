@@ -507,39 +507,39 @@ async loadAlbums() {
     albumTree.innerHTML = '<div class="loading"><div class="spinner"></div>Loading albums...</div>';
 
     try {
-        const result = await this.apiCall('pwg.categories.getAdminList', { 
-            recursive: true
-        });
+const result = await this.apiCall('pwg.categories.getAdminList', { 
+    recursive: true
+});
 
-        let albums = result.categories;
+let albums = result.categories;
 
-        // Try getting all categories with getList instead
-        const allCatsResult = await this.apiCall('pwg.categories.getList', {
-            recursive: true,
-            fullname: true
-        });
-        
-        console.log('All categories from getList:', allCatsResult);
+// Since Piwigo API doesn't reliably expose the 'dir' property,
+// we use heuristics to detect physical vs virtual albums
+for (const album of albums) {
+    const name = album.name ? album.name.toLowerCase() : '';
+    
+    // Physical albums are typically:
+    // - Created via FTP sync (phone import, device names)
+    // - Have certain keywords
+    // - Lower IDs (early albums before virtual feature existed)
+    const hasPhysicalKeywords = 
+        name.includes('import') || 
+        name.includes('phone') ||
+        name.includes('oneplus') ||
+        name.includes('upload') ||
+        name.includes('galleries') ||
+        name.includes('personal') ||
+        /cph\d{4}/.test(name); // Device model patterns like CPH2661
+    
+    const lowId = parseInt(album.id) < 20; // Very early albums
+    
+    album.isPhysical = hasPhysicalKeywords || lowId;
+}
 
-        // Create a map of categories with dir info
-        const dirMap = new Map();
-        if (allCatsResult.categories) {
-            allCatsResult.categories.forEach(cat => {
-                dirMap.set(cat.id, cat);
-                console.log(`Category ${cat.id} (${cat.name}):`, cat);
-            });
-        }
+albums = albums.filter(album => parseInt(album.id) > 0);
+this.albums = albums;
+this.renderAlbumTree();
 
-        // Apply dir info to albums
-        for (const album of albums) {
-            const catInfo = dirMap.get(album.id);
-            album.isPhysical = catInfo && catInfo.dir !== undefined && catInfo.dir !== null && catInfo.dir !== '';
-            console.log(`Album "${album.name}": isPhysical=${album.isPhysical}`);
-        }
-
-        albums = albums.filter(album => parseInt(album.id) > 0);
-        this.albums = albums;
-        this.renderAlbumTree();
         
         setTimeout(() => {
             if (this.albumScrollPosition > 0) {
