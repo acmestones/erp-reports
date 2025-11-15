@@ -501,7 +501,10 @@
                 albumTree.innerHTML = '<div class="loading"><div class="spinner"></div>Loading albums...</div>';
 
                 try {
-                    const result = await this.apiCall('pwg.categories.getAdminList', { recursive: 'true' });
+                            const result = await this.apiCall('pwg.categories.getList', { 
+                            recursive: true, 
+                            fullname: true 
+                        });
                     let albums = result.categories || [];
                     
                     // Physical albums detection: 
