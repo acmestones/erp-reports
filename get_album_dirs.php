@@ -1,5 +1,5 @@
 <?php
-define('PHPWG_ROOT_PATH', './');
+define('PHPWG_ROOT_PATH', '../');  // Go up one directory to Piwigo root
 include_once(PHPWG_ROOT_PATH.'include/common.inc.php');
 
 // Check if user is admin
