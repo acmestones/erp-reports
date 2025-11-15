@@ -493,26 +493,37 @@
                 return { stat, result };
             }
 
-            async loadAlbums() {
-                const albumTree = document.getElementById('albumTree');
-                if (albumTree.scrollTop > 0) {
-                    this.albumScrollPosition = albumTree.scrollTop;
-                }
-                albumTree.innerHTML = '<div class="loading"><div class="spinner"></div>Loading albums...</div>';
+async loadAlbums() {
+    const albumTree = document.getElementById('albumTree');
+    if (albumTree.scrollTop > 0) {
+        this.albumScrollPosition = albumTree.scrollTop;
+    }
+    albumTree.innerHTML = '<div class="loading"><div class="spinner"></div>Loading albums...</div>';
 
-                try {
-const result = await this.apiCall('pwg.categories.getAdminList', { recursive: true });
-                    
-                    // Restore scroll position
-                    setTimeout(() => {
-                        if (this.albumScrollPosition > 0) {
-                            albumTree.scrollTop = this.albumScrollPosition;
-                        }
-                    }, 100);
-                } catch (error) {
-                    albumTree.innerHTML = `<div class="loading">Error: ${error.message}</div>`;
-                }
+    try {
+        const result = await this.apiCall('pwg.categories.getAdminList', { recursive: true });
+        let albums = result.categories;
+
+        // Physical albums have site_id, virtual albums don't
+        for (const album of albums) {
+            album.isPhysical = album.site_id !== undefined && album.site_id !== null;
+        }
+
+        albums = albums.filter(album => parseInt(album.id) > 0);
+        this.albums = albums;
+        this.renderAlbumTree();
+        
+        // Restore scroll position
+        setTimeout(() => {
+            if (this.albumScrollPosition > 0) {
+                albumTree.scrollTop = this.albumScrollPosition;
             }
+        }, 100);
+    } catch (error) {
+        albumTree.innerHTML = `<div class="loading">Error: ${error.message}</div>`;
+    }
+}
+
 
             renderAlbumTree() {
                 const albumTree = document.getElementById('albumTree');
