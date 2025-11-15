@@ -729,69 +729,95 @@
                 }
             }
 
-            async loadThumbnailsProgressively(images) {
-                if (this.thumbnailLoadingController.signal.aborted) return;
+            
+            
+            
+            
+            
+ async loadThumbnailsProgressively(images) {
+    // Check if controller exists first
+    if (!this.thumbnailLoadingController || this.thumbnailLoadingController.signal.aborted) {
+        return;
+    }
+    
+    const batchSize = 10;
+    
+    for (let i = 0; i < images.length; i += batchSize) {
+        if (!this.thumbnailLoadingController || this.thumbnailLoadingController.signal.aborted) {
+            return;
+        }
+        
+        const batch = images.slice(i, i + batchSize);
+        this.updateLoadProgress(i, images.length);
+        
+        const batchPromises = batch.map(async (image) => {
+            if (!this.thumbnailLoadingController || this.thumbnailLoadingController.signal.aborted) {
+                return;
+            }
+            
+            try {
+                const imageInfoUrl = `${this.baseUrl}/ws.php?format=json&method=pwg.images.getInfo&image_id=${image.id}&comments_page=0&comments_per_page=0`;
+                const response = await fetch(imageInfoUrl, {
+                    credentials: 'include',
+                    signal: this.thumbnailLoadingController.signal
+                });
                 
-                const batchSize = 10;
-                for (let i = 0; i < images.length; i += batchSize) {
-                    if (this.thumbnailLoadingController.signal.aborted) return;
-                    
-                    const batch = images.slice(i, i + batchSize);
-                    this.updateLoadProgress(i, images.length);
-                    
-                    const batchPromises = batch.map(async (image) => {
-                        if (this.thumbnailLoadingController.signal.aborted) return;
+                if (!this.thumbnailLoadingController || this.thumbnailLoadingController.signal.aborted) {
+                    return;
+                }
+                
+                const data = await response.text();
+                
+                if (data.startsWith('{')) {
+                    const jsonData = JSON.parse(data);
+                    if (jsonData.stat === 'ok' && jsonData.result && jsonData.result.derivatives) {
+                        const derivs = jsonData.result.derivatives;
+                        let thumbnailUrl;
                         
-                        try {
-                            const imageInfoUrl = `${this.baseUrl}/ws.php?format=json&method=pwg.images.getInfo&image_id=${image.id}&comments_page=0&comments_per_page=0`;
-                            const response = await fetch(imageInfoUrl, { 
-                                credentials: 'include',
-                                signal: this.thumbnailLoadingController.signal
-                            });
-                            
-                            if (this.thumbnailLoadingController.signal.aborted) return;
-                            
-                            const data = await response.text();
-                            
-                            if (data.startsWith('{')) {
-                                const jsonData = JSON.parse(data);
-                                if (jsonData.stat === 'ok' && jsonData.result && jsonData.result.derivatives) {
-                                    const derivs = jsonData.result.derivatives;
-                                    let thumbnailUrl = '';
-                                    
-                                    if (derivs.square && derivs.square.url) {
-                                        thumbnailUrl = derivs.square.url;
-                                    } else if (derivs.thumb && derivs.thumb.url) {
-                                        thumbnailUrl = derivs.thumb.url;
-                                    } else if (derivs.medium && derivs.medium.url) {
-                                        thumbnailUrl = derivs.medium.url;
-                                    }
-                                    
-                                    if (thumbnailUrl && !this.thumbnailLoadingController.signal.aborted) {
-                                        this.updateImageThumbnail(image.id, thumbnailUrl);
-                                    }
-                                }
-                            }
-                        } catch (e) {
-                            if (e.name !== 'AbortError') {
-                                console.log('Failed to get thumbnail for image', image.id);
-                            }
+                        if (derivs.square && derivs.square.url) {
+                            thumbnailUrl = derivs.square.url;
+                        } else if (derivs.thumb && derivs.thumb.url) {
+                            thumbnailUrl = derivs.thumb.url;
+                        } else if (derivs.medium && derivs.medium.url) {
+                            thumbnailUrl = derivs.medium.url;
                         }
-                    });
-                    
-                    await Promise.all(batchPromises);
-                    
-                    if (i + batchSize < images.length && !this.thumbnailLoadingController.signal.aborted) {
-                        await new Promise(resolve => setTimeout(resolve, 300));
+                        
+                        if (thumbnailUrl && (!this.thumbnailLoadingController || !this.thumbnailLoadingController.signal.aborted)) {
+                            this.updateImageThumbnail(image.id, thumbnailUrl);
+                        }
                     }
                 }
-                
-                if (!this.thumbnailLoadingController.signal.aborted) {
-                    this.updateLoadProgress(images.length, images.length);
-                    setTimeout(() => this.updateLoadProgress(0, 0), 2000);
+            } catch (e) {
+                if (e.name !== 'AbortError') {
+                    console.log('Failed to get thumbnail for image', image.id);
                 }
             }
+        });
+        
+        await Promise.all(batchPromises);
+        
+        if (i + batchSize < images.length && (!this.thumbnailLoadingController || !this.thumbnailLoadingController.signal.aborted)) {
+            await new Promise(resolve => setTimeout(resolve, 300));
+        }
+    }
+    
+    if (!this.thumbnailLoadingController || !this.thumbnailLoadingController.signal.aborted) {
+        this.updateLoadProgress(images.length, images.length);
+        setTimeout(() => this.updateLoadProgress(0, 0), 2000);
+    }
+}
 
+
+
+
+
+
+
+
+
+
+
+            
             updateImageThumbnail(imageId, thumbnailUrl) {
                 const imageItem = document.querySelector(`[data-image-id="${imageId}"]`);
                 if (imageItem) {
