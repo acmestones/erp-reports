@@ -507,39 +507,35 @@ async loadAlbums() {
     albumTree.innerHTML = '<div class="loading"><div class="spinner"></div>Loading albums...</div>';
 
     try {
-const result = await this.apiCall('pwg.categories.getAdminList', { 
-    recursive: true
-});
+        // Get albums from Piwigo API
+        const result = await this.apiCall('pwg.categories.getAdminList', { 
+            recursive: true
+        });
 
-let albums = result.categories;
+        let albums = result.categories;
 
-// Since Piwigo API doesn't reliably expose the 'dir' property,
-// we use heuristics to detect physical vs virtual albums
-for (const album of albums) {
-    const name = album.name ? album.name.toLowerCase() : '';
-    
-    // Physical albums are typically:
-    // - Created via FTP sync (phone import, device names)
-    // - Have certain keywords
-    // - Lower IDs (early albums before virtual feature existed)
-    const hasPhysicalKeywords = 
-        name.includes('import') || 
-        name.includes('phone') ||
-        name.includes('oneplus') ||
-        name.includes('upload') ||
-        name.includes('galleries') ||
-        name.includes('personal') ||
-        /cph\d{4}/.test(name); // Device model patterns like CPH2661
-    
-    const lowId = parseInt(album.id) < 20; // Very early albums
-    
-    album.isPhysical = hasPhysicalKeywords || lowId;
-}
+        // Get physical/virtual status from our custom script
+        const dirResponse = await fetch(this.baseUrl + '/get_album_dirs.php', {
+            credentials: 'include'
+        });
+        const dirData = await dirResponse.json();
+        
+        // Create a map of album IDs to physical status
+        const physicalMap = new Map();
+        if (dirData.albums) {
+            dirData.albums.forEach(album => {
+                physicalMap.set(album.id, album.isPhysical);
+            });
+        }
 
-albums = albums.filter(album => parseInt(album.id) > 0);
-this.albums = albums;
-this.renderAlbumTree();
+        // Apply physical/virtual status
+        for (const album of albums) {
+            album.isPhysical = physicalMap.get(album.id) || false;
+        }
 
+        albums = albums.filter(album => parseInt(album.id) > 0);
+        this.albums = albums;
+        this.renderAlbumTree();
         
         setTimeout(() => {
             if (this.albumScrollPosition > 0) {
@@ -550,6 +546,7 @@ this.renderAlbumTree();
         albumTree.innerHTML = `<div class="loading">Error: ${error.message}</div>`;
     }
 }
+
 
 
 
