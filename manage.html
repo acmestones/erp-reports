@@ -501,20 +501,17 @@ async loadAlbums() {
     albumTree.innerHTML = '<div class="loading"><div class="spinner"></div>Loading albums...</div>';
 
     try {
-        const result = await this.apiCall('pwg.categories.getAdminList', { recursive: true });
+          const result = await this.apiCall('pwg.categories.getAdminList', { 
+            recursive: true,
+            additional_output: 'dir'
+        });
+
         let albums = result.categories;
 
 
-
-// DEBUG: Check what properties albums actually have
-if (albums.length > 0) {
-    console.log('Sample album properties:', albums[0]);
-    console.log('All album data:', albums.slice(0, 3));
-}
-
 // Physical albums have site_id, virtual albums don't
 for (const album of albums) {
-    album.isPhysical = album.site_id !== undefined && album.site_id !== null;
+    album.isPhysical = album.dir !== undefined && album.dir !== null && album.dir !== '';
 }
 
 
