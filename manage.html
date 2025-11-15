@@ -859,24 +859,26 @@ async loadThumbnailsProgressively(images) {
 
 
             
-            updateImageThumbnail(imageId, thumbnailUrl) {
-                const imageItem = document.querySelector(`[data-image-id="${imageId}"]`);
-                if (imageItem) {
-                    const placeholder = imageItem.querySelector('.image-placeholder');
-                    const container = imageItem.querySelector('.image-container');
-                    
-                    if (placeholder && container) {
-                        const img = document.createElement('img');
-                        img.src = thumbnailUrl;
-                        img.alt = imageItem.querySelector('.image-title')?.textContent || 'Image';
-                        img.loading = 'lazy';
-                        img.onerror = function() { this.remove(); };
-                        
-                        container.insertBefore(img, placeholder);
-                        img.onload = function() { placeholder.style.display = 'none'; };
-                    }
-                }
-            }
+ updateImageThumbnail(imageId, thumbnailUrl) {
+    // Only update if this image is in the current album view
+    const imageItem = document.querySelector(`[data-image-id="${imageId}"]`);
+    if (!imageItem) {
+        // Image is not in current view, skip it
+        return;
+    }
+    
+    const placeholder = imageItem.querySelector('.image-placeholder');
+    if (placeholder) {
+        const img = document.createElement('img');
+        img.src = thumbnailUrl;
+        img.alt = 'Image';
+        img.onload = () => {
+            placeholder.style.display = 'none';
+            placeholder.parentNode.insertBefore(img, placeholder);
+        };
+    }
+}
+
 
             renderImages() {
                 const imageGrid = document.getElementById('imageGrid');
