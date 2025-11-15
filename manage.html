@@ -507,7 +507,6 @@
 
                     let albums = result.categories;
 
-                    // Get physical/virtual status
                     try {
                         const dirResponse = await fetch(this.baseUrl + '/manage/get_album_dirs.php', {
                             credentials: 'include'
@@ -525,7 +524,6 @@
                             album.isPhysical = physicalMap.get(album.id) || false;
                         }
                     } catch (e) {
-                        console.error('Failed to get album dir info:', e);
                         albums.forEach(a => a.isPhysical = false);
                     }
 
@@ -647,7 +645,6 @@
             }
 
             async selectAlbum(albumId) {
-                // Cancel any previous loading
                 if (this.currentLoadingController) {
                     this.currentLoadingController.abort();
                 }
@@ -655,7 +652,6 @@
                     this.thumbnailObserver.disconnect();
                 }
 
-                // Clear current images immediately
                 const imageGrid = document.getElementById('imageGrid');
                 imageGrid.innerHTML = '<div class="loading"><div class="spinner"></div>Loading images...</div>';
 
@@ -685,11 +681,12 @@
                 try {
                     let allImages = [];
                     let page = 0;
-                    const perPage = 500;
+                    const perPage = 200; // Smaller batches to reduce server load
+                    const maxInitialLoad = 1000; // Stop at 1000 to prevent server overload
+                    let totalCount = 0;
                     let hasMore = true;
 
-                    // Load all pages
-                    while (hasMore) {
+                    while (hasMore && allImages.length < maxInitialLoad) {
                         const result = await this.apiCall('pwg.categories.getImages', {
                             cat_id: albumId,
                             per_page: perPage,
@@ -700,32 +697,42 @@
 
                         const images = result.images || [];
                         allImages = allImages.concat(images);
+                        totalCount = result.paging?.count || allImages.length;
 
-                        // Show progress
-                        this.updateLoadProgress(allImages.length, result.paging?.count || allImages.length);
+                        this.updateLoadProgress(allImages.length, totalCount);
 
-                        // Check if there are more pages
-                        hasMore = images.length === perPage;
+                        hasMore = images.length === perPage && totalCount > allImages.length;
                         page++;
 
-                        // Update display after first batch for faster perceived performance
+                        // Show first batch immediately
                         if (page === 1 && allImages.length > 0) {
                             if (this.currentAlbumId === albumId && !this.currentLoadingController.signal.aborted) {
                                 this.allImages = allImages;
                                 this.currentImages = allImages;
                                 this.renderImages();
-                                document.getElementById('imageCount').textContent = `${this.currentImages.length} images (loading...)`;
+                                document.getElementById('imageCount').textContent = `${allImages.length} images (loading...)`;
                                 this.setupLazyLoading();
                             }
                         }
+
+                        // Add 100ms delay between requests to prevent CPU spike
+                        if (hasMore && allImages.length < maxInitialLoad) {
+                            await new Promise(resolve => setTimeout(resolve, 100));
+                        }
                     }
 
-                    // Final update with all images
+                    // Final update
                     if (this.currentAlbumId === albumId && !this.currentLoadingController.signal.aborted) {
                         this.allImages = allImages;
                         this.currentImages = allImages;
                         this.renderImages();
-                        document.getElementById('imageCount').textContent = `${this.currentImages.length} images`;
+
+                        if (totalCount > allImages.length) {
+                            document.getElementById('imageCount').textContent = `Showing ${allImages.length} of ${totalCount} images`;
+                        } else {
+                            document.getElementById('imageCount').textContent = `${allImages.length} images`;
+                        }
+
                         this.setupLazyLoading();
                     }
 
@@ -793,7 +800,7 @@
                         }
                     }
                 } catch (e) {
-                    // Silent fail for thumbnails
+                    // Silent fail
                 }
             }
 
