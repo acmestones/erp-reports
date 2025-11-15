@@ -650,17 +650,19 @@
 
 
             
-    async selectAlbum(albumId) {
-    // Cancel any previous loading
-    if (this.currentLoadingController) {
-        this.currentLoadingController.abort();
-    }
-    if (this.thumbnailLoadingController) {
-        this.thumbnailLoadingController.abort();
+   async selectAlbum(albumId) {
+    // Store reference to old controller
+    const oldThumbnailController = this.thumbnailLoadingController;
+    
+    // Create new controllers FIRST
+    this.currentLoadingController = new AbortController();
+    this.thumbnailLoadingController = new AbortController();
+    
+    // NOW abort the old ones (after new ones are in place)
+    if (oldThumbnailController) {
+        oldThumbnailController.abort();
     }
     
-    this.currentLoadingController = new AbortController();
-    this.thumbnailLoadingController = new AbortController(); // Initialize here!
     this.clearSelection();
     
     document.querySelectorAll('.album-item').forEach(item => item.classList.remove('selected'));
@@ -673,6 +675,7 @@
     this.updateLoadProgress(0, 0);
     await this.loadAllImages(albumId);
 }
+
 
 
 
