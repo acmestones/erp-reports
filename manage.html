@@ -1,0 +1,1186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enhanced Piwigo Image Manager</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; height: 100vh; overflow: hidden; }
+        .container { display: flex; height: 100vh; }
+        .sidebar { width: 300px; background: white; border-right: 1px solid #e0e0e0; display: flex; flex-direction: column; }
+        .sidebar-header { padding: 15px 20px; border-bottom: 1px solid #e0e0e0; background: #fafafa; display: block; }
+        .sidebar-header.hide { display: none; }
+        .connected-header { padding: 15px 20px; border-bottom: 1px solid #e0e0e0; background: #f8f9fa; display: none; }
+        .connected-header.show { display: block; }
+        .connected-info { display: flex; align-items: center; justify-content: space-between; }
+        .user-info { font-size: 14px; color: #333; font-weight: 500; }
+        .disconnect-btn { background: #dc3545; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: 500; }
+        .sidebar-header h2 { font-size: 18px; color: #333; margin-bottom: 10px; }
+        .config-section { margin-bottom: 15px; }
+        .config-section label { display: block; font-size: 12px; color: #666; margin-bottom: 5px; font-weight: 500; }
+        .config-section input { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px; }
+        .connect-btn { background: #007AFF; color: white; border: none; padding: 10px; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 500; }
+        .album-tree { flex: 1; overflow-y: auto; padding: 10px; }
+        .album-item { padding: 8px 12px; margin: 2px 0; border-radius: 6px; cursor: pointer; display: flex; align-items: center; font-size: 13px; position: relative; transition: all 0.2s ease; }
+        .album-item:hover { background: #f0f0f0; }
+        .album-item.drag-over { background: #007AFF; color: white; transform: scale(1.02); }
+        .album-item.selected { background: #E3F2FD; border: 1px solid #007AFF; }
+        .album-item.physical { border-left: 3px solid #28a745; }
+        .album-item.virtual { border-left: 3px solid #007AFF; }
+        .album-expand { width: 16px; height: 16px; margin-right: 4px; cursor: pointer; fill: #666; flex-shrink: 0; transition: transform 0.2s ease; }
+        .album-expand.expanded { transform: rotate(90deg); }
+        .album-expand.no-children { opacity: 0; pointer-events: none; }
+        .album-icon { width: 16px; height: 16px; margin-right: 8px; fill: currentColor; flex-shrink: 0; }
+        .album-name { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .album-count { margin-left: auto; font-size: 11px; color: #666; flex-shrink: 0; }
+        .album-children { margin-left: 20px; overflow: hidden; transition: max-height 0.3s ease; }
+        .album-children.collapsed { max-height: 0; }
+        .album-children.expanded { max-height: 1000px; }
+        .main-content { flex: 1; display: flex; flex-direction: column; background: white; }
+        .toolbar { padding: 15px 20px; border-bottom: 1px solid #e0e0e0; background: white; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 15px; }
+        .toolbar-left { display: flex; flex-direction: column; }
+        .toolbar-right { display: flex; align-items: center; gap: 15px; flex-wrap: wrap; }
+        .current-album { font-size: 16px; font-weight: 600; color: #333; }
+        .image-count { font-size: 13px; color: #666; }
+        .mode-toggle { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #666; }
+        .toggle-switch { position: relative; width: 50px; height: 24px; background: #ddd; border-radius: 12px; cursor: pointer; transition: all 0.3s ease; }
+        .toggle-switch.associate { background: #28a745; }
+        .toggle-slider { position: absolute; top: 2px; left: 2px; width: 20px; height: 20px; background: white; border-radius: 50%; transition: all 0.3s ease; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
+        .toggle-switch.associate .toggle-slider { transform: translateX(26px); }
+        .mode-label { font-weight: 500; min-width: 70px; }
+        .mode-label.active { color: #333; }
+        .load-progress { font-size: 12px; color: #007AFF; font-weight: 500; }
+        .filter-controls { display: flex; gap: 8px; align-items: center; }
+        .filter-btn { background: #f8f9fa; border: 1px solid #dee2e6; color: #495057; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: 500; transition: all 0.2s ease; }
+        .filter-btn:hover { background: #e9ecef; border-color: #adb5bd; }
+        .filter-btn.active { background: #007AFF; border-color: #007AFF; color: white; }
+        .selection-controls { display: none; gap: 8px; align-items: center; padding: 8px 12px; background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 6px; }
+        .selection-controls.show { display: flex; }
+        .selection-count { font-size: 12px; font-weight: 600; color: #495057; margin-right: 8px; }
+        .action-btn { background: #6c757d; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 11px; font-weight: 500; transition: all 0.2s ease; }
+        .action-btn:hover { background: #5a6268; }
+        .action-btn.move-selected { background: #fd7e14; }
+        .action-btn.associate-selected { background: #28a745; }
+        .action-btn.delete-selected { background: #dc3545; }
+        .image-grid { flex: 1; overflow-y: auto; padding: 20px; }
+        .grid-container { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 15px; }
+        .image-item { background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1); cursor: grab; transition: all 0.2s ease; position: relative; }
+        .image-item:hover { transform: translateY(-2px); box-shadow: 0 4px 16px rgba(0,0,0,0.15); }
+        .image-item.dragging { opacity: 0.5; cursor: grabbing; transform: rotate(5deg); }
+        .image-item.selected { border: 3px solid #007AFF; transform: scale(0.95); }
+        .image-container { position: relative; width: 100%; height: 120px; }
+        .image-item img { width: 100%; height: 120px; object-fit: cover; background: #f0f0f0; border-radius: 4px 4px 0 0; }
+        .image-placeholder { position: absolute; top: 0; left: 0; width: 100%; height: 120px; background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%); display: flex; flex-direction: column; align-items: center; justify-content: center; color: #666; border-radius: 4px 4px 0 0; }
+        .placeholder-icon { font-size: 32px; margin-bottom: 8px; opacity: 0.7; }
+        .placeholder-id { font-size: 11px; font-weight: 600; margin-bottom: 2px; }
+        .placeholder-file { font-size: 9px; opacity: 0.8; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 90%; }
+        .image-info { padding: 8px; }
+        .image-title { font-size: 12px; color: #333; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .selection-overlay { position: absolute; top: 5px; right: 5px; width: 24px; height: 24px; background: rgba(0, 122, 255, 0.9); border-radius: 50%; display: none; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 12px; z-index: 5; }
+        .image-item.selected .selection-overlay { display: flex; }
+        .delete-btn { position: absolute; top: 5px; left: 5px; width: 20px; height: 20px; background: rgba(220, 53, 69, 0.9); border: none; border-radius: 50%; color: white; font-size: 12px; cursor: pointer; display: none; align-items: center; justify-content: center; z-index: 5; }
+        .delete-btn:hover { background: rgba(220, 53, 69, 1); }
+        .image-item:hover .delete-btn { display: flex; }
+        .loading { display: flex; align-items: center; justify-content: center; height: 200px; color: #666; }
+        .spinner { width: 20px; height: 20px; border: 2px solid #f3f3f3; border-top: 2px solid #007AFF; border-radius: 50%; animation: spin 1s linear infinite; margin-right: 10px; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .status-message { position: fixed; top: 20px; right: 20px; padding: 12px 20px; border-radius: 6px; color: white; font-size: 14px; font-weight: 500; z-index: 1000; transform: translateX(100%); transition: transform 0.3s ease; }
+        .status-message.show { transform: translateX(0); }
+        .status-message.success { background: #4CAF50; }
+        .status-message.error { background: #f44336; }
+        .drop-zone { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 122, 255, 0.1); border: 2px dashed #007AFF; display: none; align-items: center; justify-content: center; color: #007AFF; font-weight: 500; pointer-events: none; }
+        .drop-zone.active { display: flex; }
+        .drop-indicator { background: rgba(0, 122, 255, 0.9); color: white; padding: 10px 15px; border-radius: 6px; font-size: 14px; font-weight: 500; }
+        .cors-info { margin-top: 10px; padding: 10px; background: #fff3cd; border: 1px solid #ffeaa7; border-radius: 4px; font-size: 11px; color: #856404; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="sidebar">
+            <div class="sidebar-header" id="loginHeader">
+                <h2>Piwigo Manager</h2>
+                <div class="config-section">
+                    <label>Piwigo URL:</label>
+                    <input type="url" id="piwigoUrl" placeholder="https://photos.acmestones.com" value="https://photos.acmestones.com">
+                </div>
+                <div class="config-section">
+                    <label>Username:</label>
+                    <input type="text" id="username" placeholder="admin">
+                </div>
+                <div class="config-section">
+                    <label>Password:</label>
+                    <input type="password" id="password" placeholder="password">
+                </div>
+                <button class="connect-btn" id="connectBtn">Connect to Piwigo</button>
+                <div class="cors-info">
+                    <strong>🟢 Physical</strong> | <strong style="color: #007AFF;">🔵 Virtual</strong><br>
+                    <strong>CORS Setup:</strong> Add to .htaccess if connection fails
+                </div>
+            </div>
+            <div class="connected-header" id="connectedHeader">
+                <div class="connected-info">
+                    <div class="user-info" id="userInfo">Connected</div>
+                    <button class="disconnect-btn" id="disconnectBtn">Disconnect</button>
+                </div>
+            </div>
+            <div class="album-tree" id="albumTree">
+                <div class="loading">Connect to Piwigo to load albums</div>
+            </div>
+        </div>
+
+        <div class="main-content">
+            <div class="toolbar">
+                <div class="toolbar-left">
+                    <div class="current-album" id="currentAlbum">Select an album</div>
+                    <div class="image-count" id="imageCount"></div>
+                </div>
+                <div class="toolbar-right">
+                    <div class="load-progress" id="loadProgress"></div>
+                    <div class="filter-controls">
+                        <button class="filter-btn active" id="showAllBtn">All Images</button>
+                        <button class="filter-btn" id="showUnlinkedBtn">Unlinked Only</button>
+                    </div>
+                    <div class="mode-toggle">
+                        <span class="mode-label active" id="moveLabel">Move</span>
+                        <div class="toggle-switch" id="modeToggle">
+                            <div class="toggle-slider"></div>
+                        </div>
+                        <span class="mode-label" id="associateLabel">Associate</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="selection-controls" id="selectionControls">
+                <span class="selection-count" id="selectionCount">0 selected</span>
+                <button class="action-btn move-selected" id="moveSelectedBtn">Move Selected</button>
+                <button class="action-btn associate-selected" id="associateSelectedBtn">Associate Selected</button>
+                <button class="action-btn delete-selected" id="deleteSelectedBtn">Delete Selected</button>
+                <button class="action-btn" id="clearSelectionBtn">Clear</button>
+            </div>
+            
+            <div class="image-grid" id="imageGrid">
+                <div class="loading">Select an album to view images</div>
+            </div>
+            <div class="drop-zone" id="dropZone">
+                <div class="drop-indicator" id="dropIndicator">Drop images here to move them</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="status-message" id="statusMessage"></div>
+
+    <script>
+        class PiwigoManager {
+            constructor() {
+                this.baseUrl = '';
+                this.sessionId = '';
+                this.albums = [];
+                this.currentAlbumId = null;
+                this.currentImages = [];
+                this.allImages = [];
+                this.draggedImage = null;
+                this.isAssociateMode = false;
+                this.loadingProgress = { loaded: 0, total: 0 };
+                this.currentLoadingController = null;
+                this.thumbnailLoadingController = null;
+                this.selectedImages = new Set();
+                this.filterMode = 'all';
+                this.albumScrollPosition = 0;
+                
+                this.initEventListeners();
+                this.checkStoredSession();
+            }
+
+            initEventListeners() {
+                document.getElementById('connectBtn').addEventListener('click', () => this.connect());
+                document.getElementById('disconnectBtn').addEventListener('click', () => this.disconnect());
+                document.getElementById('modeToggle').addEventListener('click', () => this.toggleMode());
+                document.getElementById('showAllBtn').addEventListener('click', () => this.setFilter('all'));
+                document.getElementById('showUnlinkedBtn').addEventListener('click', () => this.setFilter('unlinked'));
+                document.getElementById('moveSelectedBtn').addEventListener('click', () => this.prepareSelectedAction('move'));
+                document.getElementById('associateSelectedBtn').addEventListener('click', () => this.prepareSelectedAction('associate'));
+                document.getElementById('deleteSelectedBtn').addEventListener('click', () => this.deleteSelectedImages());
+                document.getElementById('clearSelectionBtn').addEventListener('click', () => this.clearSelection());
+            }
+
+            checkStoredSession() {
+                const storedUrl = localStorage.getItem('piwigo_url');
+                const storedUsername = localStorage.getItem('piwigo_username');
+                const storedPassword = localStorage.getItem('piwigo_password');
+                
+                if (storedUrl && storedUsername && storedPassword) {
+                    document.getElementById('piwigoUrl').value = storedUrl;
+                    document.getElementById('username').value = storedUsername;
+                    document.getElementById('password').value = storedPassword;
+                    this.baseUrl = storedUrl.endsWith('/') ? storedUrl.slice(0, -1) : storedUrl;
+                    setTimeout(() => this.connect(), 500);
+                }
+            }
+
+            toggleMode() {
+                this.isAssociateMode = !this.isAssociateMode;
+                const toggle = document.getElementById('modeToggle');
+                const moveLabel = document.getElementById('moveLabel');
+                const associateLabel = document.getElementById('associateLabel');
+                const dropIndicator = document.getElementById('dropIndicator');
+
+                if (this.isAssociateMode) {
+                    toggle.classList.add('associate');
+                    moveLabel.classList.remove('active');
+                    associateLabel.classList.add('active');
+                    dropIndicator.textContent = 'Drop images here to associate them';
+                } else {
+                    toggle.classList.remove('associate');
+                    moveLabel.classList.add('active');
+                    associateLabel.classList.remove('active');
+                    dropIndicator.textContent = 'Drop images here to move them';
+                }
+            }
+
+            setFilter(mode) {
+                this.filterMode = mode;
+                document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
+                
+                if (mode === 'all') {
+                    document.getElementById('showAllBtn').classList.add('active');
+                    this.currentImages = [...this.allImages];
+                    this.renderImages();
+                    document.getElementById('currentAlbum').textContent = this.albums.find(a => a.id == this.currentAlbumId)?.name || 'Select an album';
+                    document.getElementById('imageCount').textContent = `${this.currentImages.length} images`;
+                } else if (mode === 'unlinked') {
+                    document.getElementById('showUnlinkedBtn').classList.add('active');
+                    this.loadUnlinkedImages();
+                }
+            }
+
+            async loadUnlinkedImages() {
+                try {
+                    this.showStatus('Loading unlinked images...', 'success');
+                    const imageGrid = document.getElementById('imageGrid');
+                    imageGrid.innerHTML = '<div class="loading"><div class="spinner"></div>Searching for unlinked images...</div>';
+                    
+                    // Use Piwigo's built-in logic: images with storage_category_id but no virtual album associations
+                    // This mimics the "with no virtual albums" filter from batch manager
+                    
+                    const unlinkedImages = [];
+                    
+                    // Get all images from all albums and check their associations
+                    for (const album of this.albums) {
+                        try {
+                            const result = await this.apiCall('pwg.categories.getImages', {
+                                cat_id: album.id,
+                                per_page: 200
+                            });
+                            
+                            const images = result.images || [];
+                            
+                            for (const image of images) {
+                                try {
+                                    const imageInfo = await this.apiCall('pwg.images.getInfo', {
+                                        image_id: image.id
+                                    });
+                                    
+                                    if (imageInfo.categories) {
+                                        // Check if image is only associated with physical albums
+                                        const virtualCategories = imageInfo.categories.filter(cat => {
+                                            const albumInfo = this.albums.find(a => a.id == cat.id);
+                                            return albumInfo && !albumInfo.isPhysical;
+                                        });
+                                        
+                                        // If no virtual associations, it's unlinked
+                                        if (virtualCategories.length === 0) {
+                                            // Avoid duplicates
+                                            if (!unlinkedImages.find(img => img.id === image.id)) {
+                                                unlinkedImages.push(image);
+                                            }
+                                        }
+                                    }
+                                } catch (imgError) {
+                                    console.log('Error checking image', image.id);
+                                }
+                            }
+                        } catch (albumError) {
+                            console.log('Error loading album', album.id);
+                        }
+                    }
+                    
+                    this.currentImages = unlinkedImages;
+                    this.allImages = unlinkedImages;
+                    document.getElementById('currentAlbum').textContent = 'Unlinked Images';
+                    document.getElementById('imageCount').textContent = `${unlinkedImages.length} unlinked images`;
+                    this.renderImages();
+                    
+                    if (unlinkedImages.length > 0) {
+                        this.loadThumbnailsProgressively(unlinkedImages);
+                    }
+                    
+                    this.showStatus(`Found ${unlinkedImages.length} unlinked images`, 'success');
+                } catch (error) {
+                    console.error('Failed to load unlinked images:', error);
+                    this.showStatus('Failed to load unlinked images', 'error');
+                }
+            }
+
+            updateLoadProgress(loaded, total) {
+                const progressEl = document.getElementById('loadProgress');
+                if (total > 0) {
+                    progressEl.textContent = `Loading ${loaded}/${total}`;
+                } else {
+                    progressEl.textContent = '';
+                }
+            }
+
+            async connect() {
+                const url = document.getElementById('piwigoUrl').value.trim();
+                const username = document.getElementById('username').value.trim();
+                const password = document.getElementById('password').value.trim();
+
+                if (!url || !username || !password) {
+                    this.showStatus('Please fill in all fields', 'error');
+                    return;
+                }
+
+                this.baseUrl = url.endsWith('/') ? url.slice(0, -1) : url;
+                const connectBtn = document.getElementById('connectBtn');
+                connectBtn.disabled = true;
+                connectBtn.textContent = 'Connecting...';
+
+                try {
+                    const loginParams = new URLSearchParams();
+                    loginParams.append('method', 'pwg.session.login');
+                    loginParams.append('username', username);
+                    loginParams.append('password', password);
+
+                    const loginResponse = await fetch(`${this.baseUrl}/ws.php`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                        body: loginParams,
+                        credentials: 'include'
+                    });
+
+                    if (loginResponse.ok) {
+                        const statusResponse = await fetch(`${this.baseUrl}/ws.php?format=json&method=pwg.session.getStatus`, {
+                            method: 'GET',
+                            credentials: 'include'
+                        });
+                        
+                        const statusData = await statusResponse.json();
+                        if (statusData.stat === 'ok' && (statusData.result.status === 'webmaster' || statusData.result.status === 'admin')) {
+                            this.sessionId = statusData.result.pwg_token || '';
+                            localStorage.setItem('piwigo_url', this.baseUrl);
+                            localStorage.setItem('piwigo_username', username);
+                            localStorage.setItem('piwigo_password', password);
+                            this.showConnectedState(statusData.result.username, statusData.result.status);
+                            await this.loadAlbums();
+                        } else {
+                            throw new Error('Insufficient privileges');
+                        }
+                    } else {
+                        throw new Error('Login failed');
+                    }
+                } catch (error) {
+                    this.showStatus(`Connection failed: ${error.message}`, 'error');
+                } finally {
+                    connectBtn.disabled = false;
+                    connectBtn.textContent = 'Connect to Piwigo';
+                }
+            }
+
+            async apiCall(method, params = {}) {
+                const apiParams = new URLSearchParams();
+                apiParams.append('method', method);
+                apiParams.append('format', 'json');
+                
+                for (const [key, value] of Object.entries(params)) {
+                    apiParams.append(key, value);
+                }
+
+                const response = await fetch(`${this.baseUrl}/ws.php`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: apiParams,
+                    credentials: 'include'
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const responseText = await response.text();
+                let data;
+                
+                if (responseText.trim().startsWith('{')) {
+                    data = JSON.parse(responseText);
+                } else {
+                    data = this.parseXmlResponse(responseText);
+                }
+                
+                if (data.stat !== 'ok') {
+                    throw new Error(data.message || 'API call failed');
+                }
+                
+                return data.result;
+            }
+
+            parseXmlResponse(xmlText) {
+                const parser = new DOMParser();
+                const xmlDoc = parser.parseFromString(xmlText, 'text/xml');
+                const rsp = xmlDoc.querySelector('rsp');
+                if (!rsp) throw new Error('Invalid XML response');
+                
+                const stat = rsp.getAttribute('stat');
+                const result = {};
+                
+                if (stat === 'ok') {
+                    const categories = [];
+                    const categoryElements = [...xmlDoc.querySelectorAll('item'), ...xmlDoc.querySelectorAll('category')];
+                    
+                    categoryElements.forEach(cat => {
+                        let id, name, uppercats, nb_images, total_nb_images;
+                        
+                        if (cat.tagName === 'item') {
+                            id = cat.querySelector('id')?.textContent;
+                            name = cat.querySelector('name')?.textContent;
+                            uppercats = cat.querySelector('uppercats')?.textContent;
+                            nb_images = parseInt(cat.querySelector('nb_images')?.textContent) || 0;
+                            total_nb_images = parseInt(cat.querySelector('total_nb_images')?.textContent) || 0;
+                        } else {
+                            id = cat.getAttribute('id');
+                            name = cat.getAttribute('name');
+                            uppercats = cat.getAttribute('uppercats');
+                            nb_images = parseInt(cat.getAttribute('nb_images')) || 0;
+                            total_nb_images = parseInt(cat.getAttribute('total_nb_images')) || 0;
+                        }
+                        
+                        if (id && name) {
+                            const uppercatsArray = uppercats ? uppercats.split(',') : [id];
+                            const level = uppercatsArray.length - 1;
+                            const parent_id = level > 0 ? uppercatsArray[level - 1] : null;
+                            
+                            categories.push({
+                                id: id,
+                                name: name,
+                                nb_images: nb_images,
+                                total_nb_images: total_nb_images,
+                                uppercats: uppercats,
+                                level: level,
+                                parent_id: parent_id,
+                                children: [],
+                                expanded: false,
+                                isPhysical: false
+                            });
+                        }
+                    });
+                    
+                    if (categories.length > 0) result.categories = categories;
+                    
+                    const images = Array.from(xmlDoc.querySelectorAll('image')).map(img => {
+                        const id = img.getAttribute('id');
+                        const name = img.getAttribute('name') || img.getAttribute('file') || `Image ${id}`;
+                        const file = img.getAttribute('file');
+                        
+                        return {
+                            id: id,
+                            name: name.length > 25 ? name.substring(0, 22) + '...' : name,
+                            file: file
+                        };
+                    });
+                    
+                    if (images.length > 0) result.images = images;
+                }
+                
+                return { stat, result };
+            }
+
+            async loadAlbums() {
+                const albumTree = document.getElementById('albumTree');
+                if (albumTree.scrollTop > 0) {
+                    this.albumScrollPosition = albumTree.scrollTop;
+                }
+                albumTree.innerHTML = '<div class="loading"><div class="spinner"></div>Loading albums...</div>';
+
+                try {
+                    const result = await this.apiCall('pwg.categories.getAdminList', { recursive: 'true' });
+                    let albums = result.categories || [];
+                    
+                    // Physical albums detection: 
+                    // Physical albums have actual directory paths, virtual albums don't
+                    for (const album of albums) {
+                        // In Piwigo:
+                        // - Physical albums: created from FTP sync, have storage_category_id or come from galleries folder
+                        // - Virtual albums: created through web interface, stored only in database
+                        
+                        // Try to detect based on album properties and patterns
+                        const name = album.name ? album.name.toLowerCase() : '';
+                        
+                        // Physical albums often have these characteristics:
+                        // 1. Lower IDs (created earlier from FTP sync)
+                        // 2. Names that match folder patterns
+                        // 3. Specific naming conventions
+                        const hasPhysicalPattern = name.includes('2020') || name.includes('2021') || 
+                                                 name.includes('2022') || name.includes('2023') || 
+                                                 name.includes('2024') || name.includes('gallery') ||
+                                                 name.includes('upload') || name.includes('photo');
+                        
+                        const lowId = parseInt(album.id) < 50; // Assumption: lower IDs are often physical
+                        
+                        // For now, mark as physical if it has typical patterns or low ID
+                        album.isPhysical = hasPhysicalPattern || lowId;
+                    }
+                    
+                    albums = albums.filter(album => parseInt(album.id) > 0);
+                    this.albums = albums;
+                    this.renderAlbumTree();
+                    
+                    // Restore scroll position
+                    setTimeout(() => {
+                        if (this.albumScrollPosition > 0) {
+                            albumTree.scrollTop = this.albumScrollPosition;
+                        }
+                    }, 100);
+                } catch (error) {
+                    albumTree.innerHTML = `<div class="loading">Error: ${error.message}</div>`;
+                }
+            }
+
+            renderAlbumTree() {
+                const albumTree = document.getElementById('albumTree');
+                if (this.albums.length === 0) {
+                    albumTree.innerHTML = '<div class="loading">No albums found</div>';
+                    return;
+                }
+                
+                const albumMap = new Map();
+                this.albums.forEach(album => {
+                    albumMap.set(album.id, album);
+                    album.children = [];
+                    
+                    if (album.uppercats) {
+                        const catIds = album.uppercats.split(',');
+                        album.level = catIds.length - 1;
+                        album.parent_id = catIds.length > 1 ? catIds[catIds.length - 2] : null;
+                    } else {
+                        album.level = 0;
+                        album.parent_id = null;
+                    }
+                });
+                
+                const rootAlbums = [];
+                this.albums.forEach(album => {
+                    if (album.parent_id && albumMap.has(album.parent_id)) {
+                        albumMap.get(album.parent_id).children.push(album);
+                    } else {
+                        rootAlbums.push(album);
+                    }
+                });
+                
+                const renderAlbum = (album, level = 0) => {
+                    const hasChildren = album.children.length > 0;
+                    const totalImages = album.total_nb_images || album.nb_images || 0;
+                    const isExpanded = album.expanded === true;
+                    const indent = level * 20;
+                    const albumType = album.isPhysical ? 'physical' : 'virtual';
+                    
+                    let html = `
+                        <div class="album-item ${albumType}" data-album-id="${album.id}" title="${album.name} (${totalImages} images)" style="padding-left: ${15 + indent}px;">
+                            <svg class="album-expand ${hasChildren ? '' : 'no-children'} ${isExpanded ? 'expanded' : ''}" 
+                                 viewBox="0 0 24 24" onclick="event.stopPropagation(); window.piwigoManager.toggleAlbum('${album.id}')">
+                                <path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"/>
+                            </svg>
+                            <svg class="album-icon" viewBox="0 0 24 24">
+                                <path d="M10 4H4c-1.11 0-2 .89-2 2v12c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2h-8l-2-2z"/>
+                            </svg>
+                            <span class="album-name">${album.name}</span>
+                            ${totalImages > 0 ? `<span class="album-count">${totalImages}</span>` : ''}
+                        </div>
+                    `;
+                    
+                    if (hasChildren && isExpanded) {
+                        html += '<div class="album-children expanded">';
+                        album.children.sort((a, b) => a.name.localeCompare(b.name)).forEach(child => {
+                            html += renderAlbum(child, level + 1);
+                        });
+                        html += '</div>';
+                    }
+                    
+                    return html;
+                };
+                
+                const treeHtml = rootAlbums.sort((a, b) => a.name.localeCompare(b.name)).map(album => renderAlbum(album)).join('');
+                albumTree.innerHTML = treeHtml;
+
+                document.querySelectorAll('.album-item').forEach(item => {
+                    item.addEventListener('click', (e) => {
+                        if (!e.target.classList.contains('album-expand')) {
+                            this.selectAlbum(item.dataset.albumId);
+                        }
+                    });
+                    
+                    item.addEventListener('dragover', (e) => {
+                        e.preventDefault();
+                        item.classList.add('drag-over');
+                    });
+                    
+                    item.addEventListener('dragleave', () => {
+                        item.classList.remove('drag-over');
+                    });
+                    
+                    item.addEventListener('drop', (e) => {
+                        e.preventDefault();
+                        item.classList.remove('drag-over');
+                        
+                        if (this.selectedImages.size > 0) {
+                            this.moveSelectedImagesToAlbum(item.dataset.albumId);
+                        } else if (this.draggedImage) {
+                            this.moveImageToAlbum(this.draggedImage, item.dataset.albumId);
+                        }
+                    });
+                });
+            }
+
+            toggleAlbum(albumId) {
+                const album = this.albums.find(a => a.id === albumId);
+                if (album && album.children.length > 0) {
+                    album.expanded = !album.expanded;
+                    this.renderAlbumTree();
+                }
+            }
+
+            async selectAlbum(albumId) {
+                if (this.currentLoadingController) {
+                    this.currentLoadingController.abort();
+                }
+                
+                if (this.thumbnailLoadingController) {
+                    this.thumbnailLoadingController.abort();
+                }
+                
+                this.currentLoadingController = new AbortController();
+                this.thumbnailLoadingController = new AbortController();
+
+                this.clearSelection();
+
+                document.querySelectorAll('.album-item').forEach(item => {
+                    item.classList.remove('selected');
+                });
+                document.querySelector(`[data-album-id="${albumId}"]`).classList.add('selected');
+
+                const album = this.albums.find(a => a.id == albumId);
+                document.getElementById('currentAlbum').textContent = album.name;
+                
+                this.currentAlbumId = albumId;
+                this.updateLoadProgress(0, 0);
+                await this.loadAllImages(albumId);
+            }
+
+            async loadAllImages(albumId) {
+                const imageGrid = document.getElementById('imageGrid');
+                imageGrid.innerHTML = '<div class="loading"><div class="spinner"></div>Loading all images...</div>';
+
+                try {
+                    let allImages = [];
+                    let page = 0;
+                    let hasMore = true;
+                    const perPage = 200;
+
+                    while (hasMore && !this.currentLoadingController.signal.aborted) {
+                        const result = await this.apiCall('pwg.categories.getImages', {
+                            cat_id: albumId,
+                            per_page: perPage,
+                            page: page
+                        });
+
+                        if (this.currentLoadingController.signal.aborted) return;
+
+                        const images = result.images || [];
+                        
+                        if (images.length > 0) {
+                            allImages = [...allImages, ...images];
+                            this.updateLoadProgress(allImages.length, allImages.length + (images.length === perPage ? perPage : 0));
+                            
+                            if (this.currentAlbumId == albumId && !this.currentLoadingController.signal.aborted) {
+                                this.allImages = allImages;
+                                this.currentImages = allImages;
+                                this.renderImages();
+                            } else {
+                                return;
+                            }
+                            
+                            if (images.length < perPage) {
+                                hasMore = false;
+                            } else {
+                                page++;
+                                await new Promise(resolve => setTimeout(resolve, 100));
+                            }
+                        } else {
+                            hasMore = false;
+                        }
+                    }
+
+                    if (!this.currentLoadingController.signal.aborted && this.currentAlbumId == albumId) {
+                        this.allImages = allImages;
+                        this.currentImages = allImages;
+                        document.getElementById('imageCount').textContent = `${this.currentImages.length} images`;
+                        this.updateLoadProgress(0, 0);
+                        this.loadThumbnailsProgressively(allImages);
+                    }
+                    
+                } catch (error) {
+                    if (error.name !== 'AbortError') {
+                        console.error('Failed to load images:', error);
+                        if (!this.currentLoadingController.signal.aborted) {
+                            imageGrid.innerHTML = `<div class="loading">Error: ${error.message}</div>`;
+                            this.updateLoadProgress(0, 0);
+                        }
+                    }
+                }
+            }
+
+            async loadThumbnailsProgressively(images) {
+                if (this.thumbnailLoadingController.signal.aborted) return;
+                
+                const batchSize = 10;
+                for (let i = 0; i < images.length; i += batchSize) {
+                    if (this.thumbnailLoadingController.signal.aborted) return;
+                    
+                    const batch = images.slice(i, i + batchSize);
+                    this.updateLoadProgress(i, images.length);
+                    
+                    const batchPromises = batch.map(async (image) => {
+                        if (this.thumbnailLoadingController.signal.aborted) return;
+                        
+                        try {
+                            const imageInfoUrl = `${this.baseUrl}/ws.php?format=json&method=pwg.images.getInfo&image_id=${image.id}&comments_page=0&comments_per_page=0`;
+                            const response = await fetch(imageInfoUrl, { 
+                                credentials: 'include',
+                                signal: this.thumbnailLoadingController.signal
+                            });
+                            
+                            if (this.thumbnailLoadingController.signal.aborted) return;
+                            
+                            const data = await response.text();
+                            
+                            if (data.startsWith('{')) {
+                                const jsonData = JSON.parse(data);
+                                if (jsonData.stat === 'ok' && jsonData.result && jsonData.result.derivatives) {
+                                    const derivs = jsonData.result.derivatives;
+                                    let thumbnailUrl = '';
+                                    
+                                    if (derivs.square && derivs.square.url) {
+                                        thumbnailUrl = derivs.square.url;
+                                    } else if (derivs.thumb && derivs.thumb.url) {
+                                        thumbnailUrl = derivs.thumb.url;
+                                    } else if (derivs.medium && derivs.medium.url) {
+                                        thumbnailUrl = derivs.medium.url;
+                                    }
+                                    
+                                    if (thumbnailUrl && !this.thumbnailLoadingController.signal.aborted) {
+                                        this.updateImageThumbnail(image.id, thumbnailUrl);
+                                    }
+                                }
+                            }
+                        } catch (e) {
+                            if (e.name !== 'AbortError') {
+                                console.log('Failed to get thumbnail for image', image.id);
+                            }
+                        }
+                    });
+                    
+                    await Promise.all(batchPromises);
+                    
+                    if (i + batchSize < images.length && !this.thumbnailLoadingController.signal.aborted) {
+                        await new Promise(resolve => setTimeout(resolve, 300));
+                    }
+                }
+                
+                if (!this.thumbnailLoadingController.signal.aborted) {
+                    this.updateLoadProgress(images.length, images.length);
+                    setTimeout(() => this.updateLoadProgress(0, 0), 2000);
+                }
+            }
+
+            updateImageThumbnail(imageId, thumbnailUrl) {
+                const imageItem = document.querySelector(`[data-image-id="${imageId}"]`);
+                if (imageItem) {
+                    const placeholder = imageItem.querySelector('.image-placeholder');
+                    const container = imageItem.querySelector('.image-container');
+                    
+                    if (placeholder && container) {
+                        const img = document.createElement('img');
+                        img.src = thumbnailUrl;
+                        img.alt = imageItem.querySelector('.image-title')?.textContent || 'Image';
+                        img.loading = 'lazy';
+                        img.onerror = function() { this.remove(); };
+                        
+                        container.insertBefore(img, placeholder);
+                        img.onload = function() { placeholder.style.display = 'none'; };
+                    }
+                }
+            }
+
+            renderImages() {
+                const imageGrid = document.getElementById('imageGrid');
+                
+                if (this.currentImages.length === 0) {
+                    imageGrid.innerHTML = '<div class="loading">No images found</div>';
+                    return;
+                }
+
+                const imagesHtml = this.currentImages.map((image) => {
+                    const isSelected = this.selectedImages.has(image.id);
+                    return `
+                        <div class="image-item ${isSelected ? 'selected' : ''}" draggable="true" data-image-id="${image.id}">
+                            <div class="image-container">
+                                <div class="image-placeholder">
+                                    <div class="placeholder-icon">🖼️</div>
+                                    <div class="placeholder-id">ID: ${image.id}</div>
+                                    <div class="placeholder-file">${image.file || 'No file'}</div>
+                                </div>
+                                <div class="selection-overlay">✓</div>
+                                <button class="delete-btn" data-image-id="${image.id}">×</button>
+                            </div>
+                            <div class="image-info">
+                                <div class="image-title">${image.name || 'Untitled'}</div>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+
+                imageGrid.innerHTML = `<div class="grid-container">${imagesHtml}</div>`;
+
+                document.querySelectorAll('.image-item').forEach(item => {
+                    item.addEventListener('click', (e) => {
+                        if (e.target.classList.contains('delete-btn')) return;
+                        
+                        const imageId = item.dataset.imageId;
+                        if (e.ctrlKey || e.metaKey) {
+                            this.toggleImageSelection(imageId);
+                        } else {
+                            this.clearSelection();
+                            this.toggleImageSelection(imageId);
+                        }
+                    });
+                    
+                    item.addEventListener('dragstart', (e) => {
+                        if (this.selectedImages.size > 0) {
+                            this.draggedImage = null;
+                        } else {
+                            this.draggedImage = { id: item.dataset.imageId, element: item };
+                        }
+                        item.classList.add('dragging');
+                    });
+                    
+                    item.addEventListener('dragend', () => {
+                        item.classList.remove('dragging');
+                        this.draggedImage = null;
+                    });
+                });
+
+                document.querySelectorAll('.delete-btn').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        const imageId = btn.dataset.imageId;
+                        this.deleteImage(imageId);
+                    });
+                });
+            }
+
+            toggleImageSelection(imageId) {
+                if (this.selectedImages.has(imageId)) {
+                    this.selectedImages.delete(imageId);
+                } else {
+                    this.selectedImages.add(imageId);
+                }
+                this.updateSelectionUI();
+            }
+
+            updateSelectionUI() {
+                document.querySelectorAll('.image-item').forEach(item => {
+                    const imageId = item.dataset.imageId;
+                    if (this.selectedImages.has(imageId)) {
+                        item.classList.add('selected');
+                    } else {
+                        item.classList.remove('selected');
+                    }
+                });
+
+                const selectionControls = document.getElementById('selectionControls');
+                const selectionCount = document.getElementById('selectionCount');
+                
+                if (this.selectedImages.size > 0) {
+                    selectionControls.classList.add('show');
+                    selectionCount.textContent = `${this.selectedImages.size} selected`;
+                } else {
+                    selectionControls.classList.remove('show');
+                }
+            }
+
+            clearSelection() {
+                this.selectedImages.clear();
+                this.updateSelectionUI();
+            }
+
+            prepareSelectedAction(action) {
+                if (this.selectedImages.size === 0) {
+                    this.showStatus('No images selected', 'error');
+                    return;
+                }
+                this.showStatus(`Click on an album to ${action} ${this.selectedImages.size} selected images`, 'success');
+            }
+
+            updateAlbumCounts() {
+                // Simple approach: update the current album's count in the UI
+                const currentAlbumElement = document.querySelector(`[data-album-id="${this.currentAlbumId}"] .album-count`);
+                if (currentAlbumElement) {
+                    currentAlbumElement.textContent = this.currentImages.length;
+                }
+                
+                // Also update the album object
+                const currentAlbum = this.albums.find(a => a.id == this.currentAlbumId);
+                if (currentAlbum) {
+                    currentAlbum.nb_images = this.currentImages.length;
+                    currentAlbum.total_nb_images = this.currentImages.length;
+                }
+            }
+
+            async moveSelectedImagesToAlbum(targetAlbumId) {
+                if (this.selectedImages.size === 0) return;
+
+                const targetAlbum = this.albums.find(a => a.id == targetAlbumId);
+                const mode = this.isAssociateMode ? 'associate' : 'move';
+                
+                try {
+                    this.showStatus(`${mode === 'move' ? 'Moving' : 'Associating'} ${this.selectedImages.size} images...`, 'success');
+                    
+                    const imageIds = Array.from(this.selectedImages);
+                    
+                    for (const imageId of imageIds) {
+                        await this.apiCall('pwg.images.setInfo', {
+                            image_id: imageId,
+                            categories: targetAlbumId,
+                            multiple_value_mode: mode === 'move' ? 'replace' : 'append'
+                        });
+                        
+                        if (mode === 'move') {
+                            const imageElement = document.querySelector(`[data-image-id="${imageId}"]`);
+                            if (imageElement) imageElement.remove();
+                            
+                            this.currentImages = this.currentImages.filter(img => img.id != imageId);
+                            this.allImages = this.allImages.filter(img => img.id != imageId);
+                        }
+                    }
+                    
+                    this.clearSelection();
+                    document.getElementById('imageCount').textContent = `${this.currentImages.length} images`;
+                    this.showStatus(`${imageIds.length} images ${mode}d to ${targetAlbum.name}`, 'success');
+                    
+                    // Update album counts manually instead of full reload
+                    this.updateAlbumCounts();
+                    
+                } catch (error) {
+                    this.showStatus(`Failed to ${mode} selected images`, 'error');
+                }
+            }
+
+            async deleteSelectedImages() {
+                if (this.selectedImages.size === 0) {
+                    this.showStatus('No images selected', 'error');
+                    return;
+                }
+
+                if (!confirm(`Remove ${this.selectedImages.size} selected images from this album?\n\nNote: This will dissociate images from the current album but not delete them permanently.`)) return;
+
+                try {
+                    this.showStatus(`Removing ${this.selectedImages.size} images from album...`, 'success');
+                    
+                    const imageIds = Array.from(this.selectedImages);
+                    let successCount = 0;
+                    
+                    for (const imageId of imageIds) {
+                        try {
+                            // Get current categories for the image
+                            const imageInfo = await this.apiCall('pwg.images.getInfo', { image_id: imageId });
+                            
+                            if (imageInfo.categories && imageInfo.categories.length > 1) {
+                                // Image is in multiple albums - remove only from current album
+                                const currentCategories = imageInfo.categories.map(cat => cat.id);
+                                const updatedCategories = currentCategories.filter(catId => catId != this.currentAlbumId);
+                                
+                                if (updatedCategories.length > 0) {
+                                    await this.apiCall('pwg.images.setInfo', {
+                                        image_id: imageId,
+                                        categories: updatedCategories.join(','),
+                                        multiple_value_mode: 'replace'
+                                    });
+                                    successCount++;
+                                } else {
+                                    // Would leave image with no categories - skip
+                                    console.log(`Skipping image ${imageId} - would become orphan`);
+                                }
+                            } else {
+                                // Image is only in this album - cannot remove without making orphan
+                                console.log(`Cannot remove image ${imageId} - only in this album`);
+                            }
+                            
+                            // Remove from UI regardless
+                            const imageElement = document.querySelector(`[data-image-id="${imageId}"]`);
+                            if (imageElement) imageElement.remove();
+                            
+                            this.currentImages = this.currentImages.filter(img => img.id != imageId);
+                            this.allImages = this.allImages.filter(img => img.id != imageId);
+                            
+                        } catch (imgError) {
+                            console.error(`Error processing image ${imageId}:`, imgError);
+                        }
+                    }
+                    
+                    this.clearSelection();
+                    document.getElementById('imageCount').textContent = `${this.currentImages.length} images`;
+                    this.showStatus(`${successCount} images removed from album`, 'success');
+                    
+                    // Update album counts manually
+                    this.updateAlbumCounts();
+                    
+                } catch (error) {
+                    console.error('Delete error:', error);
+                    this.showStatus(`Failed to remove images: ${error.message}`, 'error');
+                }
+            }
+
+            async deleteImage(imageId) {
+                if (!confirm('Remove this image from the album?')) return;
+
+                try {
+                    // Get current categories for the image
+                    const imageInfo = await this.apiCall('pwg.images.getInfo', { image_id: imageId });
+                    
+                    if (imageInfo.categories && imageInfo.categories.length > 1) {
+                        // Image is in multiple albums - remove only from current album
+                        const currentCategories = imageInfo.categories.map(cat => cat.id);
+                        const updatedCategories = currentCategories.filter(catId => catId != this.currentAlbumId);
+                        
+                        await this.apiCall('pwg.images.setInfo', {
+                            image_id: imageId,
+                            categories: updatedCategories.join(';'),
+                            multiple_value_mode: 'replace'
+                        });
+                        
+                        this.showStatus('Image removed from album', 'success');
+                    } else {
+                        // Image is only in this album - fully delete it
+                        await this.apiCall('pwg.images.delete', { image_id: imageId });
+                        this.showStatus('Image deleted', 'success');
+                    }
+                    
+                    const imageElement = document.querySelector(`[data-image-id="${imageId}"]`);
+                    if (imageElement) imageElement.remove();
+                    
+                    this.currentImages = this.currentImages.filter(img => img.id != imageId);
+                    this.allImages = this.allImages.filter(img => img.id != imageId);
+                    this.selectedImages.delete(imageId);
+                    
+                    document.getElementById('imageCount').textContent = `${this.currentImages.length} images`;
+                    this.updateSelectionUI();
+                    
+                } catch (error) {
+                    console.error('Delete error:', error);
+                    this.showStatus(`Failed to remove image: ${error.message}`, 'error');
+                }
+            }
+
+            async moveImageToAlbum(imageData, targetAlbumId) {
+                if (!imageData || targetAlbumId == this.currentAlbumId) return;
+
+                const targetAlbum = this.albums.find(a => a.id == targetAlbumId);
+                
+                try {
+                    if (this.isAssociateMode) {
+                        this.showStatus(`Associating with ${targetAlbum.name}...`, 'success');
+                        
+                        await this.apiCall('pwg.images.setInfo', {
+                            image_id: imageData.id,
+                            categories: targetAlbumId,
+                            multiple_value_mode: 'append'
+                        });
+                        
+                        this.showStatus(`Associated with ${targetAlbum.name}`, 'success');
+                        
+                    } else {
+                        this.showStatus(`Moving to ${targetAlbum.name}...`, 'success');
+                        
+                        await this.apiCall('pwg.images.setInfo', {
+                            image_id: imageData.id,
+                            categories: targetAlbumId,
+                            multiple_value_mode: 'replace'
+                        });
+
+                        imageData.element.remove();
+                        
+                        this.currentImages = this.currentImages.filter(img => img.id != imageData.id);
+                        this.allImages = this.allImages.filter(img => img.id != imageData.id);
+                        document.getElementById('imageCount').textContent = `${this.currentImages.length} images`;
+                        
+                        this.showStatus(`Moved to ${targetAlbum.name}`, 'success');
+                    }
+                    
+                    // Update album counts manually instead of full reload
+                    this.updateAlbumCounts();
+                    
+                } catch (error) {
+                    this.showStatus('Failed to process image', 'error');
+                }
+            }
+
+            showConnectedState(username, status) {
+                document.getElementById('loginHeader').classList.add('hide');
+                const connectedHeader = document.getElementById('connectedHeader');
+                const userInfo = document.getElementById('userInfo');
+                userInfo.textContent = `${username} (${status})`;
+                connectedHeader.classList.add('show');
+                this.showStatus(`Connected as ${username}`, 'success');
+            }
+
+            showStatus(message, type) {
+                const statusEl = document.getElementById('statusMessage');
+                statusEl.textContent = message;
+                statusEl.className = `status-message ${type} show`;
+                setTimeout(() => statusEl.classList.remove('show'), 3000);
+            }
+
+            async disconnect() {
+                try {
+                    await fetch(`${this.baseUrl}/ws.php?format=json&method=pwg.session.logout`, {
+                        method: 'GET',
+                        credentials: 'include'
+                    });
+                } catch (error) {
+                    console.log('Logout error:', error);
+                }
+                
+                localStorage.removeItem('piwigo_url');
+                localStorage.removeItem('piwigo_username');
+                localStorage.removeItem('piwigo_password');
+                
+                this.sessionId = '';
+                this.albums = [];
+                this.currentImages = [];
+                this.allImages = [];
+                this.currentAlbumId = null;
+                this.clearSelection();
+                
+                document.getElementById('loginHeader').classList.remove('hide');
+                document.getElementById('connectedHeader').classList.remove('show');
+                document.getElementById('albumTree').innerHTML = '<div class="loading">Connect to Piwigo to load albums</div>';
+                document.getElementById('imageGrid').innerHTML = '<div class="loading">Select an album to view images</div>';
+                document.getElementById('currentAlbum').textContent = 'Select an album';
+                document.getElementById('imageCount').textContent = '';
+                this.updateLoadProgress(0, 0);
+                this.showStatus('Disconnected', 'success');
+            }
+        }
+
+        window.piwigoManager = new PiwigoManager();
+    </script>
+</body>
+</html>
