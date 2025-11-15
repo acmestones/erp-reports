@@ -809,42 +809,16 @@ async loadSingleThumbnail(imageId) {
     }
 }
 
-updateImageThumbnail(imageId, thumbnailUrl) {
-                console.log("updateImageThumbnail called for image:", imageId, "URL:", thumbnailUrl);
-                const imageItem = document.querySelector(`[data-image-id="${imageId}"]`);
-                console.log("Found imageItem:", imageItem);
-                if (imageItem) {
-                    const img = imageItem.querySelector('img');
-                    console.log("Found img element:", img);
-                    if (img) {
-                        console.log("Setting img.src to:", thumbnailUrl);
-                        img.src = thumbnailUrl;
-                        img.style.opacity = '1';
-                        img.onload = () => {
-                            console.log("Image loaded successfully:", imageId);
-                        };
-                        img.onerror = (e) => {
-                            console.error("Image failed to load:", imageId, e);
-                        };
-                    } else {
-                        console.error("No img element found in imageItem for:", imageId);
-                    }
-                } else {
-                    console.error("No imageItem found with data-image-id:", imageId);
-                }
-            }
-
-
-
-
-
-
-
-
-
-
-            
-            async loadThumbnailsProgressively(images) {
+            updateImageThumbnail(imageId, thumbnailUrl) {
+    const imageItem = document.querySelector(`[data-image-id="${imageId}"]`);
+    if (imageItem) {
+        const img = imageItem.querySelector('img');
+        if (img) {
+            img.src = thumbnailUrl;
+            img.style.opacity = '1';
+        }
+    }
+}async loadThumbnailsProgressively(images) {
                 if (this.thumbnailLoadingController.signal.aborted) return;
                 
                 const batchSize = 10;
