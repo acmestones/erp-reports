@@ -645,26 +645,43 @@
                 }
             }
 
-            async selectAlbum(albumId) {
-                // Cancel any previous loading - ONLY NEW ADDITION
-                if (this.currentLoadingController) {
-                    this.currentLoadingController.abort();
-                }
 
-                this.currentLoadingController = new AbortController();
-                this.clearSelection();
 
-                document.querySelectorAll('.album-item').forEach(item => item.classList.remove('selected'));
-                document.querySelector(`[data-album-id="${albumId}"]`).classList.add('selected');
 
-                const album = this.albums.find(a => a.id === albumId);
-                document.getElementById('currentAlbum').textContent = album.name;
-                this.currentAlbumId = albumId;
 
-                this.updateLoadProgress(0, 0);
-                await this.loadAllImages(albumId);
-            }
+            
+    async selectAlbum(albumId) {
+    // Cancel any previous loading
+    if (this.currentLoadingController) {
+        this.currentLoadingController.abort();
+    }
+    if (this.thumbnailLoadingController) {
+        this.thumbnailLoadingController.abort();
+    }
+    
+    this.currentLoadingController = new AbortController();
+    this.thumbnailLoadingController = new AbortController(); // Initialize here!
+    this.clearSelection();
+    
+    document.querySelectorAll('.album-item').forEach(item => item.classList.remove('selected'));
+    document.querySelector(`[data-album-id="${albumId}"]`).classList.add('selected');
+    
+    const album = this.albums.find(a => a.id === albumId);
+    document.getElementById('currentAlbum').textContent = album.name;
+    this.currentAlbumId = albumId;
+    
+    this.updateLoadProgress(0, 0);
+    await this.loadAllImages(albumId);
+}
 
+
+
+
+
+
+
+
+            
             async loadAllImages(albumId) {
                 const imageGrid = document.getElementById('imageGrid');
                 imageGrid.innerHTML = '<div class="loading"><div class="spinner"></div>Loading all images...</div>';
@@ -734,16 +751,19 @@
             
             
             
- async loadThumbnailsProgressively(images) {
-    // Check if controller exists first
-    if (!this.thumbnailLoadingController || this.thumbnailLoadingController.signal.aborted) {
+async loadThumbnailsProgressively(images) {
+    if (!this.thumbnailLoadingController) {
+        this.thumbnailLoadingController = new AbortController();
+    }
+    
+    if (this.thumbnailLoadingController.signal.aborted) {
         return;
     }
     
     const batchSize = 10;
     
     for (let i = 0; i < images.length; i += batchSize) {
-        if (!this.thumbnailLoadingController || this.thumbnailLoadingController.signal.aborted) {
+        if (this.thumbnailLoadingController.signal.aborted) {
             return;
         }
         
@@ -751,7 +771,7 @@
         this.updateLoadProgress(i, images.length);
         
         const batchPromises = batch.map(async (image) => {
-            if (!this.thumbnailLoadingController || this.thumbnailLoadingController.signal.aborted) {
+            if (this.thumbnailLoadingController.signal.aborted) {
                 return;
             }
             
@@ -762,7 +782,7 @@
                     signal: this.thumbnailLoadingController.signal
                 });
                 
-                if (!this.thumbnailLoadingController || this.thumbnailLoadingController.signal.aborted) {
+                if (this.thumbnailLoadingController.signal.aborted) {
                     return;
                 }
                 
@@ -782,7 +802,7 @@
                             thumbnailUrl = derivs.medium.url;
                         }
                         
-                        if (thumbnailUrl && (!this.thumbnailLoadingController || !this.thumbnailLoadingController.signal.aborted)) {
+                        if (thumbnailUrl && !this.thumbnailLoadingController.signal.aborted) {
                             this.updateImageThumbnail(image.id, thumbnailUrl);
                         }
                     }
@@ -796,16 +816,17 @@
         
         await Promise.all(batchPromises);
         
-        if (i + batchSize < images.length && (!this.thumbnailLoadingController || !this.thumbnailLoadingController.signal.aborted)) {
+        if (i + batchSize < images.length && !this.thumbnailLoadingController.signal.aborted) {
             await new Promise(resolve => setTimeout(resolve, 300));
         }
     }
     
-    if (!this.thumbnailLoadingController || !this.thumbnailLoadingController.signal.aborted) {
+    if (!this.thumbnailLoadingController.signal.aborted) {
         this.updateLoadProgress(images.length, images.length);
         setTimeout(() => this.updateLoadProgress(0, 0), 2000);
     }
 }
+
 
 
 
