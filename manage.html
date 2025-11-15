@@ -755,18 +755,32 @@
             
             
 async loadThumbnailsProgressively(images) {
-    if (!this.thumbnailLoadingController) {
-        this.thumbnailLoadingController = new AbortController();
+    // Capture the controller at the START of this function
+    const myController = this.thumbnailLoadingController;
+    const albumId = this.currentAlbumId;
+    
+    console.log(`[Album ${albumId}] Starting thumbnail load for ${images.length} images`);
+    
+    if (!myController) {
+        console.log(`[Album ${albumId}] No controller, aborting`);
+        return;
     }
     
-    if (this.thumbnailLoadingController.signal.aborted) {
+    if (myController.signal.aborted) {
+        console.log(`[Album ${albumId}] Controller already aborted, stopping`);
         return;
     }
     
     const batchSize = 10;
     
     for (let i = 0; i < images.length; i += batchSize) {
-        if (this.thumbnailLoadingController.signal.aborted) {
+        if (myController.signal.aborted) {
+            console.log(`[Album ${albumId}] Aborted at batch ${i}/${images.length}`);
+            return;
+        }
+        
+        if (this.currentAlbumId !== albumId) {
+            console.log(`[Album ${albumId}] Album changed (now ${this.currentAlbumId}), stopping`);
             return;
         }
         
@@ -774,7 +788,7 @@ async loadThumbnailsProgressively(images) {
         this.updateLoadProgress(i, images.length);
         
         const batchPromises = batch.map(async (image) => {
-            if (this.thumbnailLoadingController.signal.aborted) {
+            if (myController.signal.aborted) {
                 return;
             }
             
@@ -782,10 +796,10 @@ async loadThumbnailsProgressively(images) {
                 const imageInfoUrl = `${this.baseUrl}/ws.php?format=json&method=pwg.images.getInfo&image_id=${image.id}&comments_page=0&comments_per_page=0`;
                 const response = await fetch(imageInfoUrl, {
                     credentials: 'include',
-                    signal: this.thumbnailLoadingController.signal
+                    signal: myController.signal
                 });
                 
-                if (this.thumbnailLoadingController.signal.aborted) {
+                if (myController.signal.aborted) {
                     return;
                 }
                 
@@ -805,7 +819,7 @@ async loadThumbnailsProgressively(images) {
                             thumbnailUrl = derivs.medium.url;
                         }
                         
-                        if (thumbnailUrl && !this.thumbnailLoadingController.signal.aborted) {
+                        if (thumbnailUrl && !myController.signal.aborted) {
                             this.updateImageThumbnail(image.id, thumbnailUrl);
                         }
                     }
@@ -819,14 +833,17 @@ async loadThumbnailsProgressively(images) {
         
         await Promise.all(batchPromises);
         
-        if (i + batchSize < images.length && !this.thumbnailLoadingController.signal.aborted) {
+        if (i + batchSize < images.length && !myController.signal.aborted) {
             await new Promise(resolve => setTimeout(resolve, 300));
         }
     }
     
-    if (!this.thumbnailLoadingController.signal.aborted) {
+    if (!myController.signal.aborted) {
+        console.log(`[Album ${albumId}] Completed all ${images.length} thumbnails`);
         this.updateLoadProgress(images.length, images.length);
         setTimeout(() => this.updateLoadProgress(0, 0), 2000);
+    } else {
+        console.log(`[Album ${albumId}] Was aborted before completion`);
     }
 }
 
