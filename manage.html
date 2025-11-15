@@ -509,55 +509,94 @@ setFilter(mode) {
                 return { stat, result };
             }
 
-            async loadAlbums() {
-                const albumTree = document.getElementById('albumTree');
-                if (albumTree.scrollTop > 0) {
-                    this.albumScrollPosition = albumTree.scrollTop;
-                }
-                albumTree.innerHTML = '<div class="loading"><div class="spinner"></div>Loading albums...</div>';
+ 
+            
+            
+            
+            
+            
+async loadAlbums() {
+    const albumTree = document.getElementById('albumTree');
+    if (albumTree.scrollTop > 0) {
+        this.albumScrollPosition = albumTree.scrollTop;
+    }
+    albumTree.innerHTML = '<div class="loading"><div class="spinner"></div>Loading albums...</div>';
 
-                try {
-                    const result = await this.apiCall('pwg.categories.getAdminList', { 
-                        recursive: true
-                    });
+    try {
+        const result = await this.apiCall('pwg.categories.getAdminList', { 
+            recursive: true
+        });
 
-                    let albums = result.categories;
+        let albums = result.categories;
 
-                    // Get physical/virtual status
-                    try {
-                        const dirResponse = await fetch(this.baseUrl + '/manage/get_album_dirs.php', {
-                            credentials: 'include'
-                        });
-                        const dirData = await dirResponse.json();
-
-                        const physicalMap = new Map();
-                        if (dirData.albums) {
-                            dirData.albums.forEach(album => {
-                                physicalMap.set(album.id, album.isPhysical);
-                            });
-                        }
-
-                        for (const album of albums) {
-                            album.isPhysical = physicalMap.get(album.id) || false;
-                        }
-                    } catch (e) {
-                        albums.forEach(a => a.isPhysical = false);
-                    }
-
-                    albums = albums.filter(album => parseInt(album.id) > 0);
-                    this.albums = albums;
-                    this.renderAlbumTree();
-
-                    setTimeout(() => {
-                        if (this.albumScrollPosition > 0) {
-                            albumTree.scrollTop = this.albumScrollPosition;
-                        }
-                    }, 100);
-                } catch (error) {
-                    albumTree.innerHTML = `<div class="loading">Error: ${error.message}</div>`;
-                }
+        // Get physical/virtual status
+        try {
+            const dirResponse = await fetch(this.baseUrl + '/manage/get_album_dirs.php', {
+                credentials: 'include'
+            });
+            const dirData = await dirResponse.json();
+            
+            const physicalMap = new Map();
+            if (dirData.albums) {
+                dirData.albums.forEach(album => {
+                    physicalMap.set(album.id, album.isPhysical);
+                });
             }
 
+            for (const album of albums) {
+                album.isPhysical = physicalMap.get(album.id) || false;
+            }
+        } catch (e) {
+            albums.forEach(a => a.isPhysical = false);
+        }
+
+        albums = albums.filter(album => parseInt(album.id) > 0);
+        
+        // Add special album for images with no virtual albums
+        try {
+            const noVirtualResponse = await fetch(this.baseUrl + '/manage/get_no_virtual_album_images.php', {
+                credentials: 'include'
+            });
+            const noVirtualData = await noVirtualResponse.json();
+            
+            if (noVirtualData.count > 0) {
+                albums.unshift({
+                    id: 'no_virtual',
+                    name: `📌 No Virtual Album (${noVirtualData.count})`,
+                    nb_images: noVirtualData.count,
+                    isPhysical: false,
+                    isVirtual: true,
+                    uppercats: '',
+                    global_rank: '0'
+                });
+            }
+        } catch (e) {
+            console.error('Failed to get no-virtual-album count:', e);
+        }
+        
+        this.albums = albums;
+        this.renderAlbumTree();
+        
+        setTimeout(() => {
+            if (this.albumScrollPosition > 0) {
+                albumTree.scrollTop = this.albumScrollPosition;
+            }
+        }, 100);
+    } catch (error) {
+        albumTree.innerHTML = `<div class="loading">Error: ${error.message}</div>`;
+    }
+}
+
+
+
+
+
+
+
+
+
+
+            
             renderAlbumTree() {
                 const albumTree = document.getElementById('albumTree');
                 if (this.albums.length === 0) {
@@ -666,31 +705,18 @@ setFilter(mode) {
 
 
             
-   async selectAlbum(albumId) {
+  async selectAlbum(albumId) {
+    // Handle special "no virtual album" album
+    if (albumId === 'no_virtual') {
+        await this.loadNoVirtualAlbumImages();
+        return;
+    }
+    
     // Store reference to old controller
     const oldThumbnailController = this.thumbnailLoadingController;
     
-    // Create new controllers FIRST
-    this.currentLoadingController = new AbortController();
-    this.thumbnailLoadingController = new AbortController();
-    
-    // NOW abort the old ones (after new ones are in place)
-    if (oldThumbnailController) {
-        oldThumbnailController.abort();
-    }
-    
-    this.clearSelection();
-    
-    document.querySelectorAll('.album-item').forEach(item => item.classList.remove('selected'));
-    document.querySelector(`[data-album-id="${albumId}"]`).classList.add('selected');
-    
-    const album = this.albums.find(a => a.id === albumId);
-    document.getElementById('currentAlbum').textContent = album.name;
-    this.currentAlbumId = albumId;
-    
-    this.updateLoadProgress(0, 0);
-    await this.loadAllImages(albumId);
-}
+    // ... rest of existing selectAlbum code continues here
+
 
 
 
@@ -765,6 +791,50 @@ setFilter(mode) {
                 }
             }
 
+
+
+
+
+
+
+
+
+
+async loadNoVirtualAlbumImages() {
+    try {
+        this.currentAlbumId = 'no_virtual';
+        document.getElementById('currentAlbum').textContent = 'No Virtual Album';
+        
+        const imageGrid = document.getElementById('imageGrid');
+        imageGrid.innerHTML = '<div class="loading"><div class="spinner"></div>Loading images with no virtual album...</div>';
+        
+        const response = await fetch(this.baseUrl + '/manage/get_no_virtual_album_images.php', {
+            credentials: 'include'
+        });
+        const data = await response.json();
+        
+        this.allImages = data.images || [];
+        this.currentImages = this.allImages;
+        
+        document.getElementById('imageCount').textContent = `${this.allImages.length} images`;
+        this.renderImages();
+        
+        if (this.allImages.length > 0) {
+            this.thumbnailLoadingController = new AbortController();
+            this.loadThumbnailsProgressively(this.allImages);
+        }
+        
+        this.showStatus(`Found ${this.allImages.length} images with no virtual album`, 'success');
+    } catch (error) {
+        console.error('Failed to load no-virtual-album images:', error);
+        this.showStatus('Failed to load images', 'error');
+    }
+}
+
+
+
+
+      
             
             
             
