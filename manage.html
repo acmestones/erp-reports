@@ -507,14 +507,13 @@
 
                     let albums = result.categories;
 
-                    // Get physical/virtual status from our custom script
+                    // Get physical/virtual status
                     try {
                         const dirResponse = await fetch(this.baseUrl + '/manage/get_album_dirs.php', {
                             credentials: 'include'
                         });
                         const dirData = await dirResponse.json();
 
-                        // Create a map of album IDs to physical status
                         const physicalMap = new Map();
                         if (dirData.albums) {
                             dirData.albums.forEach(album => {
@@ -522,13 +521,11 @@
                             });
                         }
 
-                        // Apply physical/virtual status
                         for (const album of albums) {
                             album.isPhysical = physicalMap.get(album.id) || false;
                         }
                     } catch (e) {
                         console.error('Failed to get album dir info:', e);
-                        // Default all to virtual if the script fails
                         albums.forEach(a => a.isPhysical = false);
                     }
 
@@ -536,7 +533,6 @@
                     this.albums = albums;
                     this.renderAlbumTree();
 
-                    // Restore scroll position
                     setTimeout(() => {
                         if (this.albumScrollPosition > 0) {
                             albumTree.scrollTop = this.albumScrollPosition;
@@ -687,25 +683,49 @@
                 imageGrid.innerHTML = '<div class="loading"><div class="spinner"></div>Loading images...</div>';
 
                 try {
+                    let allImages = [];
+                    let page = 0;
                     const perPage = 500;
+                    let hasMore = true;
 
-                    const result = await this.apiCall('pwg.categories.getImages', {
-                        cat_id: albumId,
-                        per_page: perPage,
-                        page: 0
-                    });
+                    // Load all pages
+                    while (hasMore) {
+                        const result = await this.apiCall('pwg.categories.getImages', {
+                            cat_id: albumId,
+                            per_page: perPage,
+                            page: page
+                        });
 
-                    if (this.currentLoadingController.signal.aborted) return;
+                        if (this.currentLoadingController.signal.aborted) return;
 
-                    const allImages = result.images || [];
+                        const images = result.images || [];
+                        allImages = allImages.concat(images);
 
+                        // Show progress
+                        this.updateLoadProgress(allImages.length, result.paging?.count || allImages.length);
+
+                        // Check if there are more pages
+                        hasMore = images.length === perPage;
+                        page++;
+
+                        // Update display after first batch for faster perceived performance
+                        if (page === 1 && allImages.length > 0) {
+                            if (this.currentAlbumId === albumId && !this.currentLoadingController.signal.aborted) {
+                                this.allImages = allImages;
+                                this.currentImages = allImages;
+                                this.renderImages();
+                                document.getElementById('imageCount').textContent = `${this.currentImages.length} images (loading...)`;
+                                this.setupLazyLoading();
+                            }
+                        }
+                    }
+
+                    // Final update with all images
                     if (this.currentAlbumId === albumId && !this.currentLoadingController.signal.aborted) {
                         this.allImages = allImages;
                         this.currentImages = allImages;
                         this.renderImages();
                         document.getElementById('imageCount').textContent = `${this.currentImages.length} images`;
-
-                        // Load thumbnails using Intersection Observer
                         this.setupLazyLoading();
                     }
 
@@ -773,7 +793,7 @@
                         }
                     }
                 } catch (e) {
-                    console.error('Failed to load thumbnail for image', imageId, e);
+                    // Silent fail for thumbnails
                 }
             }
 
