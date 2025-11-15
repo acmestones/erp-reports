@@ -501,46 +501,41 @@ async loadAlbums() {
     albumTree.innerHTML = '<div class="loading"><div class="spinner"></div>Loading albums...</div>';
 
     try {
-          const result = await this.apiCall('pwg.categories.getAdminList', { 
-            recursive: true,
-            additional_output: 'dir'
+ const result = await this.apiCall('pwg.categories.getAdminList', { 
+    recursive: true
+});
+
+let albums = result.categories;
+
+// Query each album individually to check for storage location
+// This is more reliable but slower
+const albumChecks = albums.map(async (album) => {
+    try {
+        // Try to get the list with fullname which may include dir info
+        const details = await this.apiCall('pwg.categories.getList', {
+            cat_id: album.id,
+            fullname: true
         });
-
-        let albums = result.categories;
-
-
-        // DEBUG: Check if dir property is now present
-if (albums.length > 0) {
-    console.log('Sample album with dir:', albums[0]);
-    console.log('First 3 albums:', albums.slice(0, 3));
-}
-
-// Physical albums have site_id, virtual albums don't
-for (const album of albums) {
-    album.isPhysical = album.dir !== undefined && album.dir !== null && album.dir !== '';
-
-        console.log(`Album "${album.name}" - dir: ${album.dir}, isPhysical: ${album.isPhysical}`);
-}
-
-
-
         
-
-        // Physical albums have site_id, virtual albums don't
-        for (const album of albums) {
-            album.isPhysical = album.site_id !== undefined && album.site_id !== null;
+        if (details.categories && details.categories.length > 0) {
+            const cat = details.categories[0];
+            // Physical albums have a dir property
+            album.isPhysical = cat.dir !== undefined && cat.dir !== null && cat.dir !== '';
+        } else {
+            album.isPhysical = false;
         }
+    } catch (e) {
+        album.isPhysical = false;
+    }
+    return album;
+});
 
-        albums = albums.filter(album => parseInt(album.id) > 0);
-        this.albums = albums;
-        this.renderAlbumTree();
-        
-        // Restore scroll position
-        setTimeout(() => {
-            if (this.albumScrollPosition > 0) {
-                albumTree.scrollTop = this.albumScrollPosition;
-            }
-        }, 100);
+// Wait for all checks to complete
+albums = await Promise.all(albumChecks);
+
+albums = albums.filter(album => parseInt(album.id) > 0);
+this.albums = albums;
+this.renderAlbumTree();
     } catch (error) {
         albumTree.innerHTML = `<div class="loading">Error: ${error.message}</div>`;
     }
