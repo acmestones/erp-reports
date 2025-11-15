@@ -506,26 +506,13 @@ let albums = result.categories;
 
 // Physical albums typically have site_id = 1 (local site)
 // Virtual albums have site_id = null or undefined
+let albums = result.categories;
+
+// Physical albums have site_id, virtual albums have site_id = null
 for (const album of albums) {
     album.isPhysical = album.site_id !== undefined && album.site_id !== null;
 }
 
-                    let albums = result.categories || [];
-                    
-                    // Physical albums detection: 
-                    // Physical albums have actual directory paths, virtual albums don't
-                    for (const album of albums) {
-                        // In Piwigo:
-                        // - Physical albums: created from FTP sync, have storage_category_id or come from galleries folder
-                        // - Virtual albums: created through web interface, stored only in database
-                        
-                        // Try to detect based on album properties and patterns
-                        const name = album.name ? album.name.toLowerCase() : '';
-                        
-// Physical albums have a 'dir' property (directory path)
-// Virtual albums do not have this property
-album.isPhysical = album.dir !== undefined && album.dir !== null && album.dir !== '';
-                    }
                     
                     albums = albums.filter(album => parseInt(album.id) > 0);
                     this.albums = albums;
