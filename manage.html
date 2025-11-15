@@ -504,6 +504,22 @@ async loadAlbums() {
         const result = await this.apiCall('pwg.categories.getAdminList', { recursive: true });
         let albums = result.categories;
 
+
+
+// DEBUG: Check what properties albums actually have
+if (albums.length > 0) {
+    console.log('Sample album properties:', albums[0]);
+    console.log('All album data:', albums.slice(0, 3));
+}
+
+// Physical albums have site_id, virtual albums don't
+for (const album of albums) {
+    album.isPhysical = album.site_id !== undefined && album.site_id !== null;
+}
+
+
+        
+
         // Physical albums have site_id, virtual albums don't
         for (const album of albums) {
             album.isPhysical = album.site_id !== undefined && album.site_id !== null;
