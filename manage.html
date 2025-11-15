@@ -514,19 +514,9 @@
                         // Try to detect based on album properties and patterns
                         const name = album.name ? album.name.toLowerCase() : '';
                         
-                        // Physical albums often have these characteristics:
-                        // 1. Lower IDs (created earlier from FTP sync)
-                        // 2. Names that match folder patterns
-                        // 3. Specific naming conventions
-                        const hasPhysicalPattern = name.includes('2020') || name.includes('2021') || 
-                                                 name.includes('2022') || name.includes('2023') || 
-                                                 name.includes('2024') || name.includes('gallery') ||
-                                                 name.includes('upload') || name.includes('photo');
-                        
-                        const lowId = parseInt(album.id) < 50; // Assumption: lower IDs are often physical
-                        
-                        // For now, mark as physical if it has typical patterns or low ID
-                        album.isPhysical = hasPhysicalPattern || lowId;
+// Physical albums have a 'dir' property (directory path)
+// Virtual albums do not have this property
+album.isPhysical = album.dir !== undefined && album.dir !== null && album.dir !== '';
                     }
                     
                     albums = albums.filter(album => parseInt(album.id) > 0);
