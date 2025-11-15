@@ -515,7 +515,7 @@ async loadAlbums() {
         let albums = result.categories;
 
         // Get physical/virtual status from our custom script
-        const dirResponse = await fetch(this.baseUrl + '/get_album_dirs.php', {
+        const dirResponse = await fetch(this.baseUrl + '/manage/get_album_dirs.php', {
             credentials: 'include'
         });
         const dirData = await dirResponse.json();
