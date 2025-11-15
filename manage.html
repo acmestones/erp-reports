@@ -493,6 +493,12 @@
                 return { stat, result };
             }
 
+
+
+
+
+
+            
 async loadAlbums() {
     const albumTree = document.getElementById('albumTree');
     if (albumTree.scrollTop > 0) {
@@ -507,45 +513,30 @@ async loadAlbums() {
 
         let albums = result.categories;
 
-        // DEBUG: Test with first album only
-        if (albums.length > 0) {
-            const testAlbum = albums[0];
-            console.log('Testing album:', testAlbum.name, 'ID:', testAlbum.id);
-            
-            const details = await this.apiCall('pwg.categories.getList', {
-                cat_id: testAlbum.id,
-                fullname: true
+        // Try getting all categories with getList instead
+        const allCatsResult = await this.apiCall('pwg.categories.getList', {
+            recursive: true,
+            fullname: true
+        });
+        
+        console.log('All categories from getList:', allCatsResult);
+
+        // Create a map of categories with dir info
+        const dirMap = new Map();
+        if (allCatsResult.categories) {
+            allCatsResult.categories.forEach(cat => {
+                dirMap.set(cat.id, cat);
+                console.log(`Category ${cat.id} (${cat.name}):`, cat);
             });
-            
-            console.log('Details returned:', details);
-            if (details.categories && details.categories.length > 0) {
-                console.log('First category details:', details.categories[0]);
-            }
         }
 
-        // Query each album individually to check for storage location
-        const albumChecks = albums.map(async (album) => {
-            try {
-                const details = await this.apiCall('pwg.categories.getList', {
-                    cat_id: album.id,
-                    fullname: true
-                });
-                
-                if (details.categories && details.categories.length > 0) {
-                    const cat = details.categories[0];
-                    album.isPhysical = cat.dir !== undefined && cat.dir !== null && cat.dir !== '';
-                    console.log(`Album "${album.name}": dir=${cat.dir}, isPhysical=${album.isPhysical}`);
-                } else {
-                    album.isPhysical = false;
-                }
-            } catch (e) {
-                album.isPhysical = false;
-                console.error(`Error checking album ${album.name}:`, e);
-            }
-            return album;
-        });
+        // Apply dir info to albums
+        for (const album of albums) {
+            const catInfo = dirMap.get(album.id);
+            album.isPhysical = catInfo && catInfo.dir !== undefined && catInfo.dir !== null && catInfo.dir !== '';
+            console.log(`Album "${album.name}": isPhysical=${album.isPhysical}`);
+        }
 
-        albums = await Promise.all(albumChecks);
         albums = albums.filter(album => parseInt(album.id) > 0);
         this.albums = albums;
         this.renderAlbumTree();
@@ -559,6 +550,15 @@ async loadAlbums() {
         albumTree.innerHTML = `<div class="loading">Error: ${error.message}</div>`;
     }
 }
+
+
+
+
+
+
+
+
+            
 
 
 
