@@ -507,6 +507,7 @@
 
                     let albums = result.categories;
 
+                    // Get physical/virtual status
                     try {
                         const dirResponse = await fetch(this.baseUrl + '/manage/get_album_dirs.php', {
                             credentials: 'include'
@@ -645,29 +646,19 @@
             }
 
             async selectAlbum(albumId) {
+                // Cancel any previous loading - ONLY NEW ADDITION
                 if (this.currentLoadingController) {
                     this.currentLoadingController.abort();
                 }
-                if (this.thumbnailObserver) {
-                    this.thumbnailObserver.disconnect();
-                }
-
-                const imageGrid = document.getElementById('imageGrid');
-                imageGrid.innerHTML = '<div class="loading"><div class="spinner"></div>Loading images...</div>';
 
                 this.currentLoadingController = new AbortController();
                 this.clearSelection();
 
                 document.querySelectorAll('.album-item').forEach(item => item.classList.remove('selected'));
-                const albumItem = document.querySelector(`[data-album-id="${albumId}"]`);
-                if (albumItem) {
-                    albumItem.classList.add('selected');
-                }
+                document.querySelector(`[data-album-id="${albumId}"]`).classList.add('selected');
 
                 const album = this.albums.find(a => a.id === albumId);
-                if (album) {
-                    document.getElementById('currentAlbum').textContent = album.name;
-                }
+                document.getElementById('currentAlbum').textContent = album.name;
                 this.currentAlbumId = albumId;
 
                 this.updateLoadProgress(0, 0);
@@ -676,18 +667,17 @@
 
             async loadAllImages(albumId) {
                 const imageGrid = document.getElementById('imageGrid');
-                imageGrid.innerHTML = '<div class="loading"><div class="spinner"></div>Loading images...</div>';
+                imageGrid.innerHTML = '<div class="loading"><div class="spinner"></div>Loading all images...</div>';
 
                 try {
                     let allImages = [];
                     let page = 0;
-                    const perPage = 200; // Smaller batches to reduce server load
-                    const maxInitialLoad = 1000; // Stop at 1000 to prevent server overload
-                    let totalCount = 0;
                     let hasMore = true;
+                    const perPage = 200;
 
-                    while (hasMore && allImages.length < maxInitialLoad) {
-                        const result = await this.apiCall('pwg.categories.getImages', {
+                    while (hasMore && !this.currentLoadingController.signal.aborted) {
+                        if (this.currentLoadingController.signal.aborted) return;
+                const result = await this.apiCall('pwg.categories.getImages', {
                             cat_id: albumId,
                             per_page: perPage,
                             page: page
@@ -696,114 +686,48 @@
                         if (this.currentLoadingController.signal.aborted) return;
 
                         const images = result.images || [];
-                        allImages = allImages.concat(images);
-                        totalCount = result.paging?.count || allImages.length;
-
-                        this.updateLoadProgress(allImages.length, totalCount);
-
-                        hasMore = images.length === perPage && totalCount > allImages.length;
-                        page++;
-
-                        // Show first batch immediately
-                        if (page === 1 && allImages.length > 0) {
-                            if (this.currentAlbumId === albumId && !this.currentLoadingController.signal.aborted) {
+                        
+                        if (images.length > 0) {
+                            allImages = [...allImages, ...images];
+                            this.updateLoadProgress(allImages.length, allImages.length + (images.length === perPage ? perPage : 0));
+                            
+                            if (this.currentAlbumId == albumId && !this.currentLoadingController.signal.aborted) {
                                 this.allImages = allImages;
                                 this.currentImages = allImages;
                                 this.renderImages();
-                                document.getElementById('imageCount').textContent = `${allImages.length} images (loading...)`;
-                                this.setupLazyLoading();
+                            } else {
+                                return;
                             }
-                        }
-
-                        // Add 100ms delay between requests to prevent CPU spike
-                        if (hasMore && allImages.length < maxInitialLoad) {
-                            await new Promise(resolve => setTimeout(resolve, 100));
+                            
+                            if (images.length < perPage) {
+                                hasMore = false;
+                            } else {
+                                page++;
+                                await new Promise(resolve => setTimeout(resolve, 100));
+                            }
+                        } else {
+                            hasMore = false;
                         }
                     }
 
-                    // Final update
-                    if (this.currentAlbumId === albumId && !this.currentLoadingController.signal.aborted) {
+                    if (!this.currentLoadingController.signal.aborted && this.currentAlbumId == albumId) {
                         this.allImages = allImages;
                         this.currentImages = allImages;
-                        this.renderImages();
-
-                        if (totalCount > allImages.length) {
-                            document.getElementById('imageCount').textContent = `Showing ${allImages.length} of ${totalCount} images`;
-                        } else {
-                            document.getElementById('imageCount').textContent = `${allImages.length} images`;
-                        }
-
-                        this.setupLazyLoading();
+                        document.getElementById('imageCount').textContent = `${this.currentImages.length} images`;
+                        this.updateLoadProgress(0, 0);
+                        this.loadThumbnailsProgressively(allImages);
                     }
-
-                    this.updateLoadProgress(0, 0);
+                    
                 } catch (error) {
                     if (error.name !== 'AbortError') {
                         console.error('Failed to load images:', error);
                         if (!this.currentLoadingController.signal.aborted) {
                             imageGrid.innerHTML = `<div class="loading">Error: ${error.message}</div>`;
+                            this.updateLoadProgress(0, 0);
                         }
                     }
-                    this.updateLoadProgress(0, 0);
                 }
             }
-
-            setupLazyLoading() {
-                if (this.thumbnailObserver) {
-                    this.thumbnailObserver.disconnect();
-                }
-
-                const observer = new IntersectionObserver((entries) => {
-                    entries.forEach(entry => {
-                        if (entry.isIntersecting) {
-                            const imageId = entry.target.dataset.imageId;
-                            const placeholder = entry.target.querySelector('.image-placeholder');
-
-                            if (placeholder && !placeholder.dataset.loaded) {
-                                placeholder.dataset.loaded = 'true';
-                                this.loadThumbnailForImage(imageId, entry.target);
-                            }
-                        }
-                    });
-                }, { rootMargin: '200px' });
-
-                document.querySelectorAll('.image-item').forEach(item => {
-                    observer.observe(item);
-                });
-
-                this.thumbnailObserver = observer;
-            }
-
-            async loadThumbnailForImage(imageId, imageItem) {
-                try {
-                    const imageInfoUrl = `${this.baseUrl}/ws.php?format=json&method=pwg.images.getInfo&image_id=${imageId}&comments_page=0&comments_per_page=0`;
-                    const response = await fetch(imageInfoUrl, {
-                        credentials: 'include'
-                    });
-
-                    const data = await response.json();
-                    if (data.stat === 'ok' && data.result && data.result.derivatives) {
-                        const derivs = data.result.derivatives;
-                        const thumbnailUrl = derivs.square?.url || derivs.thumb?.url || derivs.medium?.url;
-
-                        if (thumbnailUrl && imageItem) {
-                            const placeholder = imageItem.querySelector('.image-placeholder');
-                            if (placeholder) {
-                                const img = document.createElement('img');
-                                img.src = thumbnailUrl;
-                                img.alt = data.result.name || 'Image';
-                                img.onload = () => {
-                                    placeholder.style.display = 'none';
-                                    placeholder.parentNode.insertBefore(img, placeholder);
-                                };
-                            }
-                        }
-                    }
-                } catch (e) {
-                    // Silent fail
-                }
-            }
-
 
             async loadThumbnailsProgressively(images) {
                 if (this.thumbnailLoadingController.signal.aborted) return;
