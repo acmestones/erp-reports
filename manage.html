@@ -738,6 +738,18 @@ async loadAllImages(albumId) {
 
 async loadNoVirtualAlbumImages() {
     try {
+        // Clear previous selection and select this album
+        document.querySelectorAll('.album-item').forEach(item => item.classList.remove('selected'));
+        const noVirtualAlbumItem = document.querySelector('[data-album-id="no_virtual"]');
+        if (noVirtualAlbumItem) {
+            noVirtualAlbumItem.classList.add('selected');
+        }
+        
+        // Disconnect thumbnail observer
+        if (this.thumbnailObserver) {
+            this.thumbnailObserver.disconnect();
+        }
+        
         this.currentAlbumId = 'no_virtual';
         document.getElementById('currentAlbum').textContent = 'No Virtual Album';
         
@@ -756,7 +768,6 @@ async loadNoVirtualAlbumImages() {
         this.renderImages();
         
         if (this.allImages.length > 0) {
-            // Use lazy loading instead of progressive loading
             this.setupLazyThumbnailLoading(this.allImages);
         }
         
@@ -766,6 +777,7 @@ async loadNoVirtualAlbumImages() {
         this.showStatus('Failed to load images', 'error');
     }
 }
+
 
 
 
