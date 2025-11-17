@@ -671,23 +671,29 @@ async loadNoVirtualAlbumImages() {
         });
         const data = await response.json();
         
-        // ✓ Limit to first 500 for performance
+        // Limit to first 500 for performance
         const allImages = data.images || [];
         const maxInitialLoad = 500;
         this.allImages = allImages.slice(0, maxInitialLoad);
         this.currentImages = this.allImages;
         this.remainingNoVirtualImages = allImages.slice(maxInitialLoad);
+        this.totalNoVirtualCount = allImages.length;
         
         const totalCount = allImages.length;
         const loadedCount = this.allImages.length;
         
         if (totalCount > maxInitialLoad) {
-            document.getElementById('imageCount').textContent = `${loadedCount} of ${totalCount} images (showing first ${maxInitialLoad} for performance)`;
+            document.getElementById('imageCount').textContent = `${loadedCount} of ${totalCount} images`;
         } else {
             document.getElementById('imageCount').textContent = `${loadedCount} images`;
         }
         
         this.renderImages();
+        
+        // Add Load More button if there are more images
+        if (this.remainingNoVirtualImages.length > 0) {
+            this.showLoadMoreButton();
+        }
         
         if (this.allImages.length > 0) {
             this.setupLazyThumbnailLoading(this.allImages);
@@ -703,6 +709,87 @@ async loadNoVirtualAlbumImages() {
 
 
 
+
+
+
+
+showLoadMoreButton() {
+    const imageGrid = document.getElementById('imageGrid');
+    
+    // Remove existing button if present
+    const existingButton = document.getElementById('loadMoreBtn');
+    if (existingButton) {
+        existingButton.remove();
+    }
+    
+    // Create Load More button
+    const loadMoreContainer = document.createElement('div');
+    loadMoreContainer.id = 'loadMoreContainer';
+    loadMoreContainer.style.cssText = 'display: flex; justify-content: center; padding: 20px; margin-top: 20px;';
+    
+    const loadMoreBtn = document.createElement('button');
+    loadMoreBtn.id = 'loadMoreBtn';
+    loadMoreBtn.textContent = `Load More Images (${this.remainingNoVirtualImages.length} remaining)`;
+    loadMoreBtn.style.cssText = 'background: #007AFF; color: white; border: none; padding: 12px 24px; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500;';
+    
+    loadMoreBtn.addEventListener('click', () => {
+        this.loadMoreNoVirtualImages();
+    });
+    
+    loadMoreContainer.appendChild(loadMoreBtn);
+    imageGrid.appendChild(loadMoreContainer);
+}
+
+
+
+
+
+
+
+
+loadMoreNoVirtualImages() {
+    const batchSize = 500;
+    const nextBatch = this.remainingNoVirtualImages.slice(0, batchSize);
+    
+    // Add next batch to current images
+    this.allImages = this.allImages.concat(nextBatch);
+    this.currentImages = this.allImages;
+    this.remainingNoVirtualImages = this.remainingNoVirtualImages.slice(batchSize);
+    
+    // Update count
+    const loadedCount = this.allImages.length;
+    document.getElementById('imageCount').textContent = `${loadedCount} of ${this.totalNoVirtualCount} images`;
+    
+    // Re-render grid
+    this.renderImages();
+    
+    // Update or remove Load More button
+    if (this.remainingNoVirtualImages.length > 0) {
+        const loadMoreBtn = document.getElementById('loadMoreBtn');
+        if (loadMoreBtn) {
+            loadMoreBtn.textContent = `Load More Images (${this.remainingNoVirtualImages.length} remaining)`;
+        }
+    } else {
+        // All loaded, remove button
+        const loadMoreContainer = document.getElementById('loadMoreContainer');
+        if (loadMoreContainer) {
+            loadMoreContainer.remove();
+        }
+    }
+    
+    // Setup lazy loading for new images
+    this.setupLazyThumbnailLoading(this.allImages);
+    
+    this.showStatus(`Loaded ${nextBatch.length} more images`, 'success');
+}
+
+
+            
+
+
+
+
+            
 
 
 
