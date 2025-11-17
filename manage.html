@@ -1392,71 +1392,48 @@ async loadAlbumTags() {
         document.getElementById('tagsPanel').classList.remove('show');
         return;
     }
-    
     document.getElementById('tagsPanel').classList.add('show');
-    
     try {
         const imageIds = this.currentImages.map(img => img.id);
-        
         if (imageIds.length === 0) {
             this.renderAlbumTags([]);
             return;
         }
-        
         const tagMap = new Map();
-        
-        const batchSize = 20;
+        const batchSize = 10;
         for (let i = 0; i < imageIds.length; i += batchSize) {
             const batch = imageIds.slice(i, i + batchSize);
-            
             await Promise.all(batch.map(async (imageId) => {
                 try {
-                    const result = await this.apiCall('pwg.images.getInfo', {
-                        image_id: imageId,
-                        additionalOutput: 'tags'  // ← ADD THIS
+                    // Direct fetch for each image
+                    const response = await fetch(`${this.baseUrl}/ws.php?format=json&method=pwg.images.getInfo&image_id=${imageId}`, {
+                        credentials: 'include'
                     });
-                    
-                    const imageData = result.images && result.images[0];
-                    const imageTags = imageData?.tags || [];
-                    
-                    if (imageTags && imageTags.length > 0) {
-                        imageTags.forEach(tag => {
-                            let displayName = tag.name;
-                            let groupName = null;
-                            
-                            if (tag.name.includes(':')) {
-                                const parts = tag.name.split(':', 2);
-                                groupName = parts[0].replace(/^[^=]*=/, '');
-                                displayName = parts[1];
-                            }
-                            
-                            if (tagMap.has(tag.id)) {
-                                tagMap.get(tag.id).count++;
-                            } else {
-                                tagMap.set(tag.id, {
-                                    id: tag.id,
-                                    name: displayName,
-                                    fullName: tag.name,
-                                    group: groupName,
-                                    count: 1
-                                });
-                            }
-                        });
-                    }
+                    const result = await response.json();
+                    const imageTags = result.result && result.result.tags ? result.result.tags : [];
+                    imageTags.forEach(tag => {
+                        if (tagMap.has(tag.id)) {
+                            tagMap.get(tag.id).count++;
+                        } else {
+                            tagMap.set(tag.id, {
+                                id: tag.id,
+                                name: tag.name,
+                                count: 1
+                            });
+                        }
+                    });
                 } catch (e) {
                     console.log('Failed to get tags for image', imageId, e);
                 }
             }));
         }
-        
         const albumTags = Array.from(tagMap.values());
-        console.log('Found album tags:', albumTags);
         this.renderAlbumTags(albumTags);
-        
     } catch (error) {
         console.error('Failed to load album tags:', error);
     }
 }
+
 
 
 
