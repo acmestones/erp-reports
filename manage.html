@@ -1384,7 +1384,6 @@ async loadAlbumTags() {
     document.getElementById('tagsPanel').classList.add('show');
     
     try {
-        // Get all image IDs in current album
         const imageIds = this.currentImages.map(img => img.id);
         
         if (imageIds.length === 0) {
@@ -1392,10 +1391,9 @@ async loadAlbumTags() {
             return;
         }
         
-        // Get tags for all images in album
         const tagMap = new Map();
         
-        // Batch process - limit to avoid overwhelming the server
+        // Batch process
         const batchSize = 20;
         for (let i = 0; i < imageIds.length; i += batchSize) {
             const batch = imageIds.slice(i, i + batchSize);
@@ -1406,17 +1404,28 @@ async loadAlbumTags() {
                         image_id: imageId
                     });
                     
-                    // Tags can be in result.tags or result.result.tags
                     const imageTags = result.tags || (result.result && result.result.tags) || [];
                     
                     if (imageTags && imageTags.length > 0) {
                         imageTags.forEach(tag => {
+                            // Parse grouped tags (e.g., "material:marble")
+                            let displayName = tag.name;
+                            let groupName = null;
+                            
+                            if (tag.name.includes(':')) {
+                                const parts = tag.name.split(':', 2);
+                                groupName = parts[0].replace(/^[^=]*=/, ''); // Remove sort prefix if exists
+                                displayName = parts[1];
+                            }
+                            
                             if (tagMap.has(tag.id)) {
                                 tagMap.get(tag.id).count++;
                             } else {
                                 tagMap.set(tag.id, {
                                     id: tag.id,
-                                    name: tag.name,
+                                    name: displayName,
+                                    fullName: tag.name,
+                                    group: groupName,
                                     count: 1
                                 });
                             }
@@ -1429,7 +1438,7 @@ async loadAlbumTags() {
         }
         
         const albumTags = Array.from(tagMap.values());
-        console.log('Found album tags:', albumTags); // Debug log
+        console.log('Found album tags:', albumTags);
         this.renderAlbumTags(albumTags);
         
     } catch (error) {
@@ -1437,14 +1446,7 @@ async loadAlbumTags() {
     }
 }
 
-
-
-
-
-
-            
-
-// Render album tags
+// Render album tags grouped by category
 renderAlbumTags(tags) {
     const container = document.getElementById('albumTagsContainer');
     
@@ -1453,15 +1455,49 @@ renderAlbumTags(tags) {
         return;
     }
     
-    container.innerHTML = tags
-        .sort((a, b) => b.count - a.count)
-        .map(tag => `
-            <div class="tag-pill">
-                <span>${tag.name}</span>
-                <span class="tag-count">${tag.count}</span>
-            </div>
-        `).join('');
+    // Group tags by their group name
+    const groupedTags = {};
+    tags.forEach(tag => {
+        const group = tag.group || 'Other';
+        if (!groupedTags[group]) {
+            groupedTags[group] = [];
+        }
+        groupedTags[group].push(tag);
+    });
+    
+    // Sort groups alphabetically
+    const sortedGroups = Object.keys(groupedTags).sort();
+    
+    let html = '';
+    sortedGroups.forEach(group => {
+        const groupTags = groupedTags[group].sort((a, b) => b.count - a.count);
+        
+        html += `<div style="margin-bottom: 12px;">
+            <div style="font-size: 11px; font-weight: 600; color: #666; margin-bottom: 4px;">${group}</div>
+            <div style="display: flex; flex-wrap: wrap; gap: 6px;">`;
+        
+        groupTags.forEach(tag => {
+            html += `
+                <div class="tag-pill">
+                    <span>${tag.name}</span>
+                    <span class="tag-count">${tag.count}</span>
+                </div>`;
+        });
+        
+        html += `</div></div>`;
+    });
+    
+    container.innerHTML = html;
 }
+
+
+
+
+
+
+
+            
+
 
 // Show tag autocomplete
 showTagAutocomplete(query) {
