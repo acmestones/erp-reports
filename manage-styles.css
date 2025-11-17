@@ -36,9 +36,19 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 .album-icon { width: 16px; height: 16px; margin-right: 8px; fill: currentColor; flex-shrink: 0; }
 .album-name { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .album-count { margin-left: auto; font-size: 11px; color: #666; flex-shrink: 0; }
-.album-children { margin-left: 20px; overflow: hidden; transition: max-height 0.3s ease; }
-.album-children.collapsed { max-height: 0; }
-.album-children.expanded { max-height: 1000px; }
+.album-children { 
+    margin-left: 20px; 
+    overflow: hidden; 
+    transition: max-height 0.3s ease; 
+}
+.album-children.collapsed { 
+    max-height: 0; 
+}
+.album-children.expanded { 
+    max-height: 10000px; /* Increased from 1000px to support many sub-albums */
+}
+
+
 
 /* Main Content Area */
 .main-content { flex: 1; display: flex; flex-direction: column; background: white; }
