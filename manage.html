@@ -621,6 +621,18 @@ async selectAlbum(albumId) {
     this.updateLoadProgress(0, 0);
     await this.loadAllImages(albumId);
     await this.loadAlbumTags();
+
+
+    await this.loadAllImages(albumId);
+    await this.loadAlbumTags();
+    
+    // Add this debug call
+    if (this.currentImages.length > 0) {
+        await this.debugTagIssue();
+    }
+
+
+    
 }
 
 
@@ -1492,6 +1504,69 @@ renderAlbumTags(tags) {
 
 
 
+
+
+
+// Add this debugging function
+async debugTagIssue() {
+    console.log('=== TAG DEBUG START ===');
+    
+    // Check if we have images
+    console.log('Current album ID:', this.currentAlbumId);
+    console.log('Current images count:', this.currentImages.length);
+    
+    if (this.currentImages.length === 0) {
+        console.log('❌ No images in current album');
+        return;
+    }
+    
+    // Test first image
+    const testImage = this.currentImages[0];
+    console.log('Testing image:', testImage);
+    
+    try {
+        // Method 1: pwg.images.getInfo
+        const infoResult = await this.apiCall('pwg.images.getInfo', {
+            image_id: testImage.id
+        });
+        console.log('1. pwg.images.getInfo FULL response:', infoResult);
+        console.log('   Tags:', infoResult.tags);
+        console.log('   Result.tags:', infoResult.result?.tags);
+        
+        // Method 2: pwg.tags.getList
+        try {
+            const tagListResult = await this.apiCall('pwg.tags.getList');
+            console.log('2. pwg.tags.getList response:', tagListResult);
+        } catch (e) {
+            console.log('2. pwg.tags.getList failed:', e);
+        }
+        
+        // Method 3: pwg.tags.getAdminList
+        try {
+            const adminTagResult = await this.apiCall('pwg.tags.getAdminList');
+            console.log('3. pwg.tags.getAdminList response:', adminTagResult);
+        } catch (e) {
+            console.log('3. pwg.tags.getAdminList failed:', e);
+        }
+        
+        // Method 4: Check if image has tags field at all
+        console.log('4. All fields in image info:', Object.keys(infoResult));
+        
+    } catch (error) {
+        console.error('❌ Error during debug:', error);
+    }
+    
+    console.log('=== TAG DEBUG END ===');
+}
+
+
+
+
+
+
+
+
+            
 
 
 
