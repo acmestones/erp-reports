@@ -1393,6 +1393,7 @@ async loadAlbumTags() {
         return;
     }
     document.getElementById('tagsPanel').classList.add('show');
+
     try {
         const imageIds = this.currentImages.map(img => img.id);
         if (imageIds.length === 0) {
@@ -1400,17 +1401,18 @@ async loadAlbumTags() {
             return;
         }
         const tagMap = new Map();
-        const batchSize = 10;
+        const batchSize = 10; // Adjust batch size as needed
         for (let i = 0; i < imageIds.length; i += batchSize) {
             const batch = imageIds.slice(i, i + batchSize);
             await Promise.all(batch.map(async (imageId) => {
                 try {
-                    // Direct fetch for each image
+                    // Fetch tags per image directly
                     const response = await fetch(`${this.baseUrl}/ws.php?format=json&method=pwg.images.getInfo&image_id=${imageId}`, {
                         credentials: 'include'
                     });
                     const result = await response.json();
-                    const imageTags = result.result && result.result.tags ? result.result.tags : [];
+                    const imageData = result.result && result.result.tags ? result :{};
+                    const imageTags = imageData.tags || [];
                     imageTags.forEach(tag => {
                         if (tagMap.has(tag.id)) {
                             tagMap.get(tag.id).count++;
@@ -1423,7 +1425,7 @@ async loadAlbumTags() {
                         }
                     });
                 } catch (e) {
-                    console.log('Failed to get tags for image', imageId, e);
+                    console.log('Failed to get tags for:', imageId, e);
                 }
             }));
         }
@@ -1683,21 +1685,19 @@ async loadSelectedImagesTags() {
         document.getElementById('selectedTagsSection').style.display = 'none';
         return;
     }
-    
     document.getElementById('selectedTagsSection').style.display = 'block';
-    
+
     try {
         const imageIds = Array.from(this.selectedImages);
         const tagMaps = [];
-        
+
         for (const imageId of imageIds) {
-            const result = await this.apiCall('pwg.images.getInfo', {
-                image_id: imageId,
-                additionalOutput: 'tags'  // ← ADD THIS
+            const response = await fetch(`${this.baseUrl}/ws.php?format=json&method=pwg.images.getInfo&image_id=${imageId}`, {
+                credentials: 'include'
             });
-            
-            const imageData = result.images && result.images[0];
-            const imageTags = imageData?.tags || [];
+            const result = await response.json();
+            const imageData = result.result && result.result.tags ? result : {};
+            const imageTags = imageData.tags || [];
             tagMaps.push(new Set(imageTags.map(t => t.id)));
         }
         
@@ -1707,17 +1707,13 @@ async loadSelectedImagesTags() {
             )
             : [];
         
-        const commonTags = commonTagIds.map(id => 
-            this.allTags.find(t => t.id === id)
-        ).filter(Boolean);
-        
-        console.log('Found common tags:', commonTags);
+        const commonTags = commonTagIds.map(id => this.allTags.find(t => t.id === id)).filter(Boolean);
         this.renderSelectedImagesTags(commonTags);
-        
     } catch (error) {
         console.error('Failed to load selected images tags:', error);
     }
 }
+
 
 
 
