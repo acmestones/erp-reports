@@ -1369,6 +1369,11 @@ async loadAllTags() {
     }
 }
 
+
+
+
+
+            
 // Load tags for current album
 async loadAlbumTags() {
     if (!this.currentAlbumId || this.currentAlbumId === 'no_virtual') {
@@ -1390,37 +1395,54 @@ async loadAlbumTags() {
         // Get tags for all images in album
         const tagMap = new Map();
         
-        for (const imageId of imageIds) {
-            try {
-                const imageInfo = await this.apiCall('pwg.images.getInfo', {
-                    image_id: imageId
-                });
-                
-                if (imageInfo.tags) {
-                    imageInfo.tags.forEach(tag => {
-                        if (tagMap.has(tag.id)) {
-                            tagMap.get(tag.id).count++;
-                        } else {
-                            tagMap.set(tag.id, {
-                                id: tag.id,
-                                name: tag.name,
-                                count: 1
-                            });
-                        }
+        // Batch process - limit to avoid overwhelming the server
+        const batchSize = 20;
+        for (let i = 0; i < imageIds.length; i += batchSize) {
+            const batch = imageIds.slice(i, i + batchSize);
+            
+            await Promise.all(batch.map(async (imageId) => {
+                try {
+                    const result = await this.apiCall('pwg.images.getInfo', {
+                        image_id: imageId
                     });
+                    
+                    // Tags can be in result.tags or result.result.tags
+                    const imageTags = result.tags || (result.result && result.result.tags) || [];
+                    
+                    if (imageTags && imageTags.length > 0) {
+                        imageTags.forEach(tag => {
+                            if (tagMap.has(tag.id)) {
+                                tagMap.get(tag.id).count++;
+                            } else {
+                                tagMap.set(tag.id, {
+                                    id: tag.id,
+                                    name: tag.name,
+                                    count: 1
+                                });
+                            }
+                        });
+                    }
+                } catch (e) {
+                    console.log('Failed to get tags for image', imageId, e);
                 }
-            } catch (e) {
-                console.log('Failed to get tags for image', imageId);
-            }
+            }));
         }
         
         const albumTags = Array.from(tagMap.values());
+        console.log('Found album tags:', albumTags); // Debug log
         this.renderAlbumTags(albumTags);
         
     } catch (error) {
         console.error('Failed to load album tags:', error);
     }
 }
+
+
+
+
+
+
+            
 
 // Render album tags
 renderAlbumTags(tags) {
@@ -1513,6 +1535,10 @@ async addTagToSelectedImages(tagName) {
     }
 }
 
+
+
+
+            
 // Load tags for selected images
 async loadSelectedImagesTags() {
     if (this.selectedImages.size === 0) {
@@ -1528,10 +1554,13 @@ async loadSelectedImagesTags() {
         
         // Get tags for each selected image
         for (const imageId of imageIds) {
-            const imageInfo = await this.apiCall('pwg.images.getInfo', {
+            const result = await this.apiCall('pwg.images.getInfo', {
                 image_id: imageId
             });
-            tagMaps.push(new Set((imageInfo.tags || []).map(t => t.id)));
+            
+            // Tags can be in result.tags or result.result.tags
+            const imageTags = result.tags || (result.result && result.result.tags) || [];
+            tagMaps.push(new Set((imageTags).map(t => t.id)));
         }
         
         // Find common tags (intersection)
@@ -1545,12 +1574,23 @@ async loadSelectedImagesTags() {
             this.allTags.find(t => t.id === id)
         ).filter(Boolean);
         
+        console.log('Found common tags:', commonTags); // Debug log
         this.renderSelectedImagesTags(commonTags);
         
     } catch (error) {
         console.error('Failed to load selected images tags:', error);
     }
 }
+
+
+
+
+
+
+
+
+
+            
 
 // Render selected images tags
 renderSelectedImagesTags(tags) {
