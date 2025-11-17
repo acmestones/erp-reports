@@ -1405,7 +1405,6 @@ async loadAlbumTags() {
         
         const tagMap = new Map();
         
-        // Batch process
         const batchSize = 20;
         for (let i = 0; i < imageIds.length; i += batchSize) {
             const batch = imageIds.slice(i, i + batchSize);
@@ -1416,17 +1415,18 @@ async loadAlbumTags() {
                         image_id: imageId
                     });
                     
-                    const imageTags = result.tags || (result.result && result.result.tags) || [];
+                    // ✅ FIX: Access tags from images[0]
+                    const imageData = result.images && result.images[0];
+                    const imageTags = imageData?.tags || [];
                     
                     if (imageTags && imageTags.length > 0) {
                         imageTags.forEach(tag => {
-                            // Parse grouped tags (e.g., "material:marble")
                             let displayName = tag.name;
                             let groupName = null;
                             
                             if (tag.name.includes(':')) {
                                 const parts = tag.name.split(':', 2);
-                                groupName = parts[0].replace(/^[^=]*=/, ''); // Remove sort prefix if exists
+                                groupName = parts[0].replace(/^[^=]*=/, '');
                                 displayName = parts[1];
                             }
                             
@@ -1457,6 +1457,14 @@ async loadAlbumTags() {
         console.error('Failed to load album tags:', error);
     }
 }
+
+
+
+
+
+
+
+            
 
 // Render album tags grouped by category
 renderAlbumTags(tags) {
@@ -1511,53 +1519,31 @@ renderAlbumTags(tags) {
 async debugTagIssue() {
     console.log('=== TAG DEBUG START ===');
     
-    // Check if we have images
-    console.log('Current album ID:', this.currentAlbumId);
-    console.log('Current images count:', this.currentImages.length);
-    
-    if (this.currentImages.length === 0) {
-        console.log('❌ No images in current album');
-        return;
-    }
-    
-    // Test first image
     const testImage = this.currentImages[0];
     console.log('Testing image:', testImage);
     
     try {
-        // Method 1: pwg.images.getInfo
         const infoResult = await this.apiCall('pwg.images.getInfo', {
             image_id: testImage.id
         });
-        console.log('1. pwg.images.getInfo FULL response:', infoResult);
-        console.log('   Tags:', infoResult.tags);
-        console.log('   Result.tags:', infoResult.result?.tags);
         
-        // Method 2: pwg.tags.getList
-        try {
-            const tagListResult = await this.apiCall('pwg.tags.getList');
-            console.log('2. pwg.tags.getList response:', tagListResult);
-        } catch (e) {
-            console.log('2. pwg.tags.getList failed:', e);
+        console.log('FULL response:', infoResult);
+        
+        // The actual image data is in images[0]
+        if (infoResult.images && infoResult.images.length > 0) {
+            const imageData = infoResult.images[0];
+            console.log('Image data:', imageData);
+            console.log('Image tags:', imageData.tags);
+            console.log('All image fields:', Object.keys(imageData));
         }
-        
-        // Method 3: pwg.tags.getAdminList
-        try {
-            const adminTagResult = await this.apiCall('pwg.tags.getAdminList');
-            console.log('3. pwg.tags.getAdminList response:', adminTagResult);
-        } catch (e) {
-            console.log('3. pwg.tags.getAdminList failed:', e);
-        }
-        
-        // Method 4: Check if image has tags field at all
-        console.log('4. All fields in image info:', Object.keys(infoResult));
         
     } catch (error) {
-        console.error('❌ Error during debug:', error);
+        console.error('Error:', error);
     }
     
     console.log('=== TAG DEBUG END ===');
 }
+
 
 
 
@@ -1663,18 +1649,17 @@ async loadSelectedImagesTags() {
         const imageIds = Array.from(this.selectedImages);
         const tagMaps = [];
         
-        // Get tags for each selected image
         for (const imageId of imageIds) {
             const result = await this.apiCall('pwg.images.getInfo', {
                 image_id: imageId
             });
             
-            // Tags can be in result.tags or result.result.tags
-            const imageTags = result.tags || (result.result && result.result.tags) || [];
-            tagMaps.push(new Set((imageTags).map(t => t.id)));
+            // ✅ FIX: Access tags from images[0]
+            const imageData = result.images && result.images[0];
+            const imageTags = imageData?.tags || [];
+            tagMaps.push(new Set(imageTags.map(t => t.id)));
         }
         
-        // Find common tags (intersection)
         const commonTagIds = tagMaps.length > 0
             ? Array.from(tagMaps[0]).filter(tagId => 
                 tagMaps.every(set => set.has(tagId))
@@ -1685,13 +1670,14 @@ async loadSelectedImagesTags() {
             this.allTags.find(t => t.id === id)
         ).filter(Boolean);
         
-        console.log('Found common tags:', commonTags); // Debug log
+        console.log('Found common tags:', commonTags);
         this.renderSelectedImagesTags(commonTags);
         
     } catch (error) {
         console.error('Failed to load selected images tags:', error);
     }
 }
+
 
 
 
