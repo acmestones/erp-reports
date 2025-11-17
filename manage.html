@@ -60,6 +60,58 @@
                     </div>
                 </div>
             </div>
+
+
+
+
+
+
+            <!-- Tags Panel -->
+<div class="tags-panel" id="tagsPanel">
+    <!-- Album Tags -->
+    <div class="tags-section">
+        <div class="tags-section-title">Album Tags</div>
+        <div class="tags-container" id="albumTagsContainer">
+            <span class="tag-empty-state">No tags in this album</span>
+        </div>
+    </div>
+    
+    <!-- Selected Images Tags (only shown when images selected) -->
+    <div class="tags-section" id="selectedTagsSection" style="display: none;">
+        <div class="tags-section-title">Selected Images Tags</div>
+        <div class="tags-container" id="selectedTagsContainer">
+            <span class="tag-empty-state">No common tags</span>
+        </div>
+        
+        <!-- Tag Input -->
+        <div class="tag-input-container">
+            <input 
+                type="text" 
+                id="tagInput" 
+                class="tag-input" 
+                placeholder="Type to search or add tags..."
+                autocomplete="off"
+            />
+            <button class="tag-add-btn" id="addTagBtn">Add Tag</button>
+            
+            <!-- Autocomplete dropdown -->
+            <div class="tag-autocomplete" id="tagAutocomplete"></div>
+        </div>
+    </div>
+</div>
+
+
+
+
+
+            
+
+
+
+
+
+
+
             
             <div class="selection-controls" id="selectionControls">
                 <span class="selection-count" id="selectionCount">0 selected</span>
@@ -211,6 +263,7 @@
                             localStorage.setItem('piwigo_password', password);
                             this.showConnectedState(statusData.result.username, statusData.result.status);
                             await this.loadAlbums();
+                            await this.initTagging();
                         } else {
                             throw new Error('Insufficient privileges');
                         }
@@ -567,6 +620,7 @@ async selectAlbum(albumId) {
     
     this.updateLoadProgress(0, 0);
     await this.loadAllImages(albumId);
+    await this.loadAlbumTags();
 }
 
 
@@ -975,6 +1029,7 @@ updateImageThumbnail(imageId, thumbnailUrl) {
                     this.selectedImages.add(imageId);
                 }
                 this.updateSelectionUI();
+                this.loadSelectedImagesTags();
             }
 
             updateSelectionUI() {
@@ -1001,6 +1056,7 @@ updateImageThumbnail(imageId, thumbnailUrl) {
             clearSelection() {
                 this.selectedImages.clear();
                 this.updateSelectionUI();
+                this.loadSelectedImagesTags();
             }
 
             prepareSelectedAction(action) {
@@ -1260,6 +1316,316 @@ updateImageThumbnail(imageId, thumbnailUrl) {
                 this.updateLoadProgress(0, 0);
                 this.showStatus('Disconnected', 'success');
             }
+
+
+
+
+
+
+// Initialize tagging system
+async initTagging() {
+    this.allTags = [];
+    this.selectedImages = new Set();
+    
+    // Load all available tags
+    await this.loadAllTags();
+    
+    // Tag input autocomplete
+    const tagInput = document.getElementById('tagInput');
+    const tagAutocomplete = document.getElementById('tagAutocomplete');
+    const addTagBtn = document.getElementById('addTagBtn');
+    
+    tagInput.addEventListener('input', (e) => {
+        this.showTagAutocomplete(e.target.value);
+    });
+    
+    tagInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            this.addTagToSelectedImages(tagInput.value.trim());
+        }
+    });
+    
+    addTagBtn.addEventListener('click', () => {
+        this.addTagToSelectedImages(tagInput.value.trim());
+    });
+    
+    // Close autocomplete when clicking outside
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('.tag-input-container')) {
+            tagAutocomplete.classList.remove('show');
+        }
+    });
+}
+
+// Load all available tags from Piwigo
+async loadAllTags() {
+    try {
+        const result = await this.apiCall('pwg.tags.getAdminList');
+        this.allTags = result.tags || [];
+    } catch (error) {
+        console.error('Failed to load tags:', error);
+        this.allTags = [];
+    }
+}
+
+// Load tags for current album
+async loadAlbumTags() {
+    if (!this.currentAlbumId || this.currentAlbumId === 'no_virtual') {
+        document.getElementById('tagsPanel').classList.remove('show');
+        return;
+    }
+    
+    document.getElementById('tagsPanel').classList.add('show');
+    
+    try {
+        // Get all image IDs in current album
+        const imageIds = this.currentImages.map(img => img.id);
+        
+        if (imageIds.length === 0) {
+            this.renderAlbumTags([]);
+            return;
+        }
+        
+        // Get tags for all images in album
+        const tagMap = new Map();
+        
+        for (const imageId of imageIds) {
+            try {
+                const imageInfo = await this.apiCall('pwg.images.getInfo', {
+                    image_id: imageId
+                });
+                
+                if (imageInfo.tags) {
+                    imageInfo.tags.forEach(tag => {
+                        if (tagMap.has(tag.id)) {
+                            tagMap.get(tag.id).count++;
+                        } else {
+                            tagMap.set(tag.id, {
+                                id: tag.id,
+                                name: tag.name,
+                                count: 1
+                            });
+                        }
+                    });
+                }
+            } catch (e) {
+                console.log('Failed to get tags for image', imageId);
+            }
+        }
+        
+        const albumTags = Array.from(tagMap.values());
+        this.renderAlbumTags(albumTags);
+        
+    } catch (error) {
+        console.error('Failed to load album tags:', error);
+    }
+}
+
+// Render album tags
+renderAlbumTags(tags) {
+    const container = document.getElementById('albumTagsContainer');
+    
+    if (tags.length === 0) {
+        container.innerHTML = '<span class="tag-empty-state">No tags in this album</span>';
+        return;
+    }
+    
+    container.innerHTML = tags
+        .sort((a, b) => b.count - a.count)
+        .map(tag => `
+            <div class="tag-pill">
+                <span>${tag.name}</span>
+                <span class="tag-count">${tag.count}</span>
+            </div>
+        `).join('');
+}
+
+// Show tag autocomplete
+showTagAutocomplete(query) {
+    const autocomplete = document.getElementById('tagAutocomplete');
+    
+    if (!query) {
+        autocomplete.classList.remove('show');
+        return;
+    }
+    
+    const filtered = this.allTags.filter(tag => 
+        tag.name.toLowerCase().includes(query.toLowerCase())
+    );
+    
+    if (filtered.length === 0) {
+        autocomplete.innerHTML = `
+            <div class="tag-autocomplete-item">
+                <span>Create new tag: "${query}"</span>
+            </div>
+        `;
+    } else {
+        autocomplete.innerHTML = filtered.map(tag => `
+            <div class="tag-autocomplete-item" data-tag-id="${tag.id}" data-tag-name="${tag.name}">
+                <span>${tag.name}</span>
+                <span class="tag-autocomplete-count">${tag.counter || 0}</span>
+            </div>
+        `).join('');
+        
+        // Click handler
+        autocomplete.querySelectorAll('.tag-autocomplete-item').forEach(item => {
+            item.addEventListener('click', () => {
+                document.getElementById('tagInput').value = item.dataset.tagName;
+                autocomplete.classList.remove('show');
+            });
+        });
+    }
+    
+    autocomplete.classList.add('show');
+}
+
+// Add tag to selected images
+async addTagToSelectedImages(tagName) {
+    if (!tagName || this.selectedImages.size === 0) {
+        return;
+    }
+    
+    try {
+        const imageIds = Array.from(this.selectedImages);
+        
+        // Add tag to each image
+        for (const imageId of imageIds) {
+            await this.apiCall('pwg.images.setInfo', {
+                image_id: imageId,
+                tag_ids: tagName, // Piwigo will create new tag if doesn't exist
+                multiple_value_mode: 'append'
+            });
+        }
+        
+        this.showStatus(`Added tag "${tagName}" to ${imageIds.length} image(s)`, 'success');
+        document.getElementById('tagInput').value = '';
+        document.getElementById('tagAutocomplete').classList.remove('show');
+        
+        // Reload tags
+        await this.loadAllTags();
+        await this.loadAlbumTags();
+        await this.loadSelectedImagesTags();
+        
+    } catch (error) {
+        console.error('Failed to add tags:', error);
+        this.showStatus('Failed to add tags', 'error');
+    }
+}
+
+// Load tags for selected images
+async loadSelectedImagesTags() {
+    if (this.selectedImages.size === 0) {
+        document.getElementById('selectedTagsSection').style.display = 'none';
+        return;
+    }
+    
+    document.getElementById('selectedTagsSection').style.display = 'block';
+    
+    try {
+        const imageIds = Array.from(this.selectedImages);
+        const tagMaps = [];
+        
+        // Get tags for each selected image
+        for (const imageId of imageIds) {
+            const imageInfo = await this.apiCall('pwg.images.getInfo', {
+                image_id: imageId
+            });
+            tagMaps.push(new Set((imageInfo.tags || []).map(t => t.id)));
+        }
+        
+        // Find common tags (intersection)
+        const commonTagIds = tagMaps.length > 0
+            ? Array.from(tagMaps[0]).filter(tagId => 
+                tagMaps.every(set => set.has(tagId))
+            )
+            : [];
+        
+        const commonTags = commonTagIds.map(id => 
+            this.allTags.find(t => t.id === id)
+        ).filter(Boolean);
+        
+        this.renderSelectedImagesTags(commonTags);
+        
+    } catch (error) {
+        console.error('Failed to load selected images tags:', error);
+    }
+}
+
+// Render selected images tags
+renderSelectedImagesTags(tags) {
+    const container = document.getElementById('selectedTagsContainer');
+    
+    if (tags.length === 0) {
+        container.innerHTML = '<span class="tag-empty-state">No common tags</span>';
+        return;
+    }
+    
+    container.innerHTML = tags.map(tag => `
+        <div class="tag-pill">
+            <span>${tag.name}</span>
+            <span class="tag-remove" data-tag-id="${tag.id}" data-tag-name="${tag.name}">×</span>
+        </div>
+    `).join('');
+    
+    // Remove tag handlers
+    container.querySelectorAll('.tag-remove').forEach(btn => {
+        btn.addEventListener('click', () => {
+            this.removeTagFromSelectedImages(btn.dataset.tagId, btn.dataset.tagName);
+        });
+    });
+}
+
+// Remove tag from selected images
+async removeTagFromSelectedImages(tagId, tagName) {
+    if (this.selectedImages.size === 0) {
+        return;
+    }
+    
+    try {
+        const imageIds = Array.from(this.selectedImages);
+        
+        // For each image, get current tags and remove the specified one
+        for (const imageId of imageIds) {
+            const imageInfo = await this.apiCall('pwg.images.getInfo', {
+                image_id: imageId
+            });
+            
+            const remainingTagIds = (imageInfo.tags || [])
+                .filter(t => t.id !== parseInt(tagId))
+                .map(t => t.id)
+                .join(',');
+            
+            await this.apiCall('pwg.images.setInfo', {
+                image_id: imageId,
+                tag_ids: remainingTagIds,
+                multiple_value_mode: 'replace'
+            });
+        }
+        
+        this.showStatus(`Removed tag "${tagName}" from ${imageIds.length} image(s)`, 'success');
+        
+        // Reload tags
+        await this.loadAlbumTags();
+        await this.loadSelectedImagesTags();
+        
+    } catch (error) {
+        console.error('Failed to remove tags:', error);
+        this.showStatus('Failed to remove tags', 'error');
+    }
+}
+
+
+
+
+            
+
+
+
+
+
+
+            
         }
 
         window.piwigoManager = new PiwigoManager();
