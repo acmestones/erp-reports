@@ -1392,26 +1392,27 @@ async loadAlbumTags() {
         document.getElementById('tagsPanel').classList.remove('show');
         return;
     }
+    
     document.getElementById('tagsPanel').classList.add('show');
-
     try {
         const imageIds = this.currentImages.map(img => img.id);
         if (imageIds.length === 0) {
             this.renderAlbumTags([]);
             return;
         }
+        
         const tagMap = new Map();
-        const batchSize = 10; // Adjust batch size as needed
+        const batchSize = 10;
+        
         for (let i = 0; i < imageIds.length; i += batchSize) {
             const batch = imageIds.slice(i, i + batchSize);
             await Promise.all(batch.map(async (imageId) => {
                 try {
-                    // Fetch tags per image directly
                     const response = await fetch(`${this.baseUrl}/ws.php?format=json&method=pwg.images.getInfo&image_id=${imageId}`, {
                         credentials: 'include'
                     });
                     const result = await response.json();
-                    const imageData = result.result && result.result.tags ? result :{};
+                    const imageData = result.result || {};
                     const imageTags = imageData.tags || [];
                     imageTags.forEach(tag => {
                         if (tagMap.has(tag.id)) {
@@ -1425,16 +1426,18 @@ async loadAlbumTags() {
                         }
                     });
                 } catch (e) {
-                    console.log('Failed to get tags for:', imageId, e);
+                    console.log('Failed to get tags for image', imageId, e);
                 }
             }));
         }
+        
         const albumTags = Array.from(tagMap.values());
         this.renderAlbumTags(albumTags);
     } catch (error) {
         console.error('Failed to load album tags:', error);
     }
 }
+
 
 
 
@@ -1685,34 +1688,35 @@ async loadSelectedImagesTags() {
         document.getElementById('selectedTagsSection').style.display = 'none';
         return;
     }
+    
     document.getElementById('selectedTagsSection').style.display = 'block';
-
+    
     try {
         const imageIds = Array.from(this.selectedImages);
-        const tagMaps = [];
+        const tagSets = [];
 
         for (const imageId of imageIds) {
             const response = await fetch(`${this.baseUrl}/ws.php?format=json&method=pwg.images.getInfo&image_id=${imageId}`, {
                 credentials: 'include'
             });
             const result = await response.json();
-            const imageData = result.result && result.result.tags ? result : {};
+            const imageData = result.result || {};
             const imageTags = imageData.tags || [];
-            tagMaps.push(new Set(imageTags.map(t => t.id)));
+            tagSets.push(new Set(imageTags.map(t => t.id)));
         }
-        
-        const commonTagIds = tagMaps.length > 0
-            ? Array.from(tagMaps[0]).filter(tagId => 
-                tagMaps.every(set => set.has(tagId))
-            )
+
+        const commonTagIds = tagSets.length > 0
+            ? Array.from(tagSets[0]).filter(tagId => tagSets.every(set => set.has(tagId)))
             : [];
-        
+
         const commonTags = commonTagIds.map(id => this.allTags.find(t => t.id === id)).filter(Boolean);
+
         this.renderSelectedImagesTags(commonTags);
     } catch (error) {
         console.error('Failed to load selected images tags:', error);
     }
 }
+
 
 
 
