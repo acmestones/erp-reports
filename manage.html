@@ -1412,10 +1412,10 @@ async loadAlbumTags() {
             await Promise.all(batch.map(async (imageId) => {
                 try {
                     const result = await this.apiCall('pwg.images.getInfo', {
-                        image_id: imageId
+                        image_id: imageId,
+                        additionalOutput: 'tags'  // ← ADD THIS
                     });
                     
-                    // ✅ FIX: Access tags from images[0]
                     const imageData = result.images && result.images[0];
                     const imageTags = imageData?.tags || [];
                     
@@ -1457,6 +1457,7 @@ async loadAlbumTags() {
         console.error('Failed to load album tags:', error);
     }
 }
+
 
 
 
@@ -1523,13 +1524,14 @@ async debugTagIssue() {
     console.log('Testing image:', testImage);
     
     try {
+        // ✅ Add additionalOutput parameter to request tags
         const infoResult = await this.apiCall('pwg.images.getInfo', {
-            image_id: testImage.id
+            image_id: testImage.id,
+            additionalOutput: 'tags'  // ← REQUEST TAG DATA
         });
         
         console.log('FULL response:', infoResult);
         
-        // The actual image data is in images[0]
         if (infoResult.images && infoResult.images.length > 0) {
             const imageData = infoResult.images[0];
             console.log('Image data:', imageData);
@@ -1651,10 +1653,10 @@ async loadSelectedImagesTags() {
         
         for (const imageId of imageIds) {
             const result = await this.apiCall('pwg.images.getInfo', {
-                image_id: imageId
+                image_id: imageId,
+                additionalOutput: 'tags'  // ← ADD THIS
             });
             
-            // ✅ FIX: Access tags from images[0]
             const imageData = result.images && result.images[0];
             const imageTags = imageData?.tags || [];
             tagMaps.push(new Set(imageTags.map(t => t.id)));
@@ -1677,6 +1679,7 @@ async loadSelectedImagesTags() {
         console.error('Failed to load selected images tags:', error);
     }
 }
+
 
 
 
