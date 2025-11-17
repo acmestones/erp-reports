@@ -765,7 +765,7 @@ async loadSingleThumbnail(imageId, imageItem) {
             
 
             
- updateImageThumbnail(imageId, thumbnailUrl) {
+updateImageThumbnail(imageId, thumbnailUrl) {
     // Only update if this image is in the current view
     const imageItem = document.querySelector(`[data-image-id="${imageId}"]`);
     if (!imageItem) {
@@ -779,10 +779,7 @@ async loadSingleThumbnail(imageId, imageItem) {
         const img = document.createElement('img');
         img.src = thumbnailUrl;
         img.alt = 'Image';
-        img.style.width = '100%';
-        img.style.height = '120px';
-        img.style.objectFit = 'cover';
-        img.style.borderRadius = '4px 4px 0 0';
+        // ✓ NO INLINE STYLES - Let CSS handle it!
         
         img.onload = () => {
             // Replace placeholder with image (not insert before)
@@ -795,6 +792,7 @@ async loadSingleThumbnail(imageId, imageItem) {
         };
     }
 }
+
 
 
 
