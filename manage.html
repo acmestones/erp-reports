@@ -623,6 +623,11 @@ async selectAlbum(albumId) {
         return;
     }
     
+    // Disconnect thumbnail observer
+    if (this.thumbnailObserver) {
+        this.thumbnailObserver.disconnect();
+    }
+    
     // Store reference to old controller
     const oldThumbnailController = this.thumbnailLoadingController;
     
@@ -663,69 +668,64 @@ async selectAlbum(albumId) {
 
 
             
-            async loadAllImages(albumId) {
-                const imageGrid = document.getElementById('imageGrid');
-                imageGrid.innerHTML = '<div class="loading"><div class="spinner"></div>Loading all images...</div>';
-
-                try {
-                    let allImages = [];
-                    let page = 0;
-                    let hasMore = true;
-                    const perPage = 200;
-
-                    while (hasMore && !this.currentLoadingController.signal.aborted) {
-                        if (this.currentLoadingController.signal.aborted) return;
-                const result = await this.apiCall('pwg.categories.getImages', {
-                            cat_id: albumId,
-                            per_page: perPage,
-                            page: page
-                        });
-
-                        if (this.currentLoadingController.signal.aborted) return;
-
-                        const images = result.images || [];
-                        
-                        if (images.length > 0) {
-                            allImages = [...allImages, ...images];
-                            this.updateLoadProgress(allImages.length, allImages.length + (images.length === perPage ? perPage : 0));
-                            
-                            if (this.currentAlbumId == albumId && !this.currentLoadingController.signal.aborted) {
-                                this.allImages = allImages;
-                                this.currentImages = allImages;
-                                this.renderImages();
-                            } else {
-                                return;
-                            }
-                            
-                            if (images.length < perPage) {
-                                hasMore = false;
-                            } else {
-                                page++;
-                                await new Promise(resolve => setTimeout(resolve, 100));
-                            }
-                        } else {
-                            hasMore = false;
-                        }
-                    }
-
-                    if (!this.currentLoadingController.signal.aborted && this.currentAlbumId == albumId) {
-                        this.allImages = allImages;
-                        this.currentImages = allImages;
-                        document.getElementById('imageCount').textContent = `${this.currentImages.length} images`;
-                        this.updateLoadProgress(0, 0);
-                        this.loadThumbnailsProgressively(allImages);
-                    }
-                    
-                } catch (error) {
-                    if (error.name !== 'AbortError') {
-                        console.error('Failed to load images:', error);
-                        if (!this.currentLoadingController.signal.aborted) {
-                            imageGrid.innerHTML = `<div class="loading">Error: ${error.message}</div>`;
-                            this.updateLoadProgress(0, 0);
-                        }
-                    }
-                }
+async loadAllImages(albumId) {
+    const imageGrid = document.getElementById('imageGrid');
+    imageGrid.innerHTML = '<div class="loading"><div class="spinner"></div>Loading images...</div>';
+    
+    try {
+        let allImages = [];
+        let page = 0;
+        const perPage = 200;
+        let hasMore = true;
+        
+        while (hasMore) {
+            if (this.currentLoadingController.signal.aborted) return;
+            
+            const result = await this.apiCall('pwg.categories.getImages', {
+                cat_id: albumId,
+                per_page: perPage,
+                page: page
+            });
+            
+            if (this.currentLoadingController.signal.aborted) return;
+            
+            const images = result.images || [];
+            allImages = allImages.concat(images);
+            
+            hasMore = images.length === perPage;
+            page++;
+            
+            // Show first batch immediately
+            if (page === 1) {
+                this.allImages = allImages;
+                this.currentImages = allImages;
+                this.renderImages();
+                document.getElementById('imageCount').textContent = `${allImages.length} images`;
+                
+                // Start lazy loading thumbnails
+                this.setupLazyThumbnailLoading(allImages);
             }
+        }
+        
+        // Final update with all images
+        if (this.currentAlbumId === albumId) {
+            this.allImages = allImages;
+            this.currentImages = allImages;
+            this.renderImages();
+            document.getElementById('imageCount').textContent = `${allImages.length} images`;
+            
+            // Re-setup lazy loading with complete list
+            this.setupLazyThumbnailLoading(allImages);
+        }
+        
+    } catch (error) {
+        if (error.name !== 'AbortError') {
+            console.error('Failed to load images:', error);
+            imageGrid.innerHTML = `<div class="loading">Error: ${error.message}</div>`;
+        }
+    }
+}
+
 
 
 
@@ -756,8 +756,8 @@ async loadNoVirtualAlbumImages() {
         this.renderImages();
         
         if (this.allImages.length > 0) {
-            this.thumbnailLoadingController = new AbortController();
-            this.loadThumbnailsProgressively(this.allImages);
+            // Use lazy loading instead of progressive loading
+            this.setupLazyThumbnailLoading(this.allImages);
         }
         
         this.showStatus(`Found ${this.allImages.length} images with no virtual album`, 'success');
@@ -770,6 +770,77 @@ async loadNoVirtualAlbumImages() {
 
 
 
+
+
+
+
+
+
+setupLazyThumbnailLoading(images) {
+    // Disconnect any previous observer
+    if (this.thumbnailObserver) {
+        this.thumbnailObserver.disconnect();
+    }
+    
+    // Create observer that watches for images entering viewport
+    this.thumbnailObserver = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                const imageId = entry.target.dataset.imageId;
+                const placeholder = entry.target.querySelector('.image-placeholder');
+                
+                // Only load if not already loaded
+                if (placeholder && !placeholder.dataset.loading && !placeholder.dataset.loaded) {
+                    placeholder.dataset.loading = 'true';
+                    this.loadSingleThumbnail(imageId, entry.target);
+                }
+            }
+        });
+    }, {
+        root: document.getElementById('imageGrid'),
+        rootMargin: '200px', // Start loading 200px before entering viewport
+        threshold: 0.01
+    });
+    
+    // Observe all image items
+    document.querySelectorAll('.image-item').forEach(item => {
+        this.thumbnailObserver.observe(item);
+    });
+}
+
+async loadSingleThumbnail(imageId, imageItem) {
+    try {
+        const imageInfoUrl = `${this.baseUrl}/ws.php?format=json&method=pwg.images.getInfo&image_id=${imageId}&comments_page=0&comments_per_page=0`;
+        const response = await fetch(imageInfoUrl, {
+            credentials: 'include'
+        });
+        
+        const data = await response.json();
+        
+        if (data.stat === 'ok' && data.result && data.result.derivatives) {
+            const derivs = data.result.derivatives;
+            let thumbnailUrl = derivs.square?.url || derivs.thumb?.url || derivs.medium?.url;
+            
+            if (thumbnailUrl) {
+                this.updateImageThumbnail(imageId, thumbnailUrl);
+            }
+        }
+    } catch (e) {
+        console.log('Failed to load thumbnail for image', imageId);
+    }
+}
+
+
+
+
+
+
+
+
+
+
+
+            
       
             
             
