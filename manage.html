@@ -1521,30 +1521,92 @@ async debugTagIssue() {
     console.log('=== TAG DEBUG START ===');
     
     const testImage = this.currentImages[0];
-    console.log('Testing image:', testImage);
+    console.log('Testing image ID:', testImage.id);
     
-    try {
-        // ✅ Add additionalOutput parameter to request tags
-        const infoResult = await this.apiCall('pwg.images.getInfo', {
-            image_id: testImage.id,
-            additionalOutput: 'tags'  // ← REQUEST TAG DATA
-        });
-        
-        console.log('FULL response:', infoResult);
-        
-        if (infoResult.images && infoResult.images.length > 0) {
-            const imageData = infoResult.images[0];
-            console.log('Image data:', imageData);
-            console.log('Image tags:', imageData.tags);
-            console.log('All image fields:', Object.keys(imageData));
+    // Try multiple API methods
+    const methods = [
+        // Method 1: categories.getImages with tags
+        {
+            name: 'pwg.categories.getImages',
+            params: {
+                cat_id: this.currentAlbumId,
+                per_page: 1,
+                page: 0,
+                f_min_id: testImage.id,
+                f_max_id: testImage.id
+            }
+        },
+        // Method 2: Direct URL call to ws.php
+        {
+            name: 'DIRECT_URL',
+            url: `${this.baseUrl}/ws.php?format=json&method=pwg.images.getInfo&image_id=${testImage.id}`
         }
-        
-    } catch (error) {
-        console.error('Error:', error);
+    ];
+    
+    for (const method of methods) {
+        try {
+            console.log(`\n--- Testing ${method.name} ---`);
+            
+            let result;
+            if (method.url) {
+                // Direct fetch
+                const response = await fetch(method.url, { credentials: 'include' });
+                result = await response.json();
+            } else {
+                // Normal API call
+                result = await this.apiCall(method.name, method.params);
+            }
+            
+            console.log('Response:', result);
+            
+            // Try to find tags
+            if (result.result) {
+                console.log('result.result:', result.result);
+                if (result.result.images) {
+                    console.log('Found images:', result.result.images);
+                    if (result.result.images[0]) {
+                        console.log('First image:', result.result.images[0]);
+                        console.log('Tags:', result.result.images[0].tags);
+                    }
+                }
+                if (result.result.tags) {
+                    console.log('Tags found:', result.result.tags);
+                }
+            }
+            
+            if (result.images) {
+                console.log('result.images:', result.images);
+                if (result.images[0]) {
+                    console.log('First image:', result.images[0]);
+                    console.log('Tags:', result.images[0].tags);
+                }
+            }
+            
+        } catch (error) {
+            console.error(`${method.name} failed:`, error);
+        }
     }
     
-    console.log('=== TAG DEBUG END ===');
+    // Also try getting tags from the database directly via categories.getImages
+    try {
+        console.log('\n--- Testing pwg.categories.getImages for full album ---');
+        const albumResult = await this.apiCall('pwg.categories.getImages', {
+            cat_id: this.currentAlbumId,
+            per_page: 5,
+            page: 0
+        });
+        console.log('Album images result:', albumResult);
+        if (albumResult.images && albumResult.images[0]) {
+            console.log('First image from album:', albumResult.images[0]);
+            console.log('Available fields:', Object.keys(albumResult.images[0]));
+        }
+    } catch (e) {
+        console.error('Album images failed:', e);
+    }
+    
+    console.log('\n=== TAG DEBUG END ===');
 }
+
 
 
 
