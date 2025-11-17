@@ -855,26 +855,47 @@ async loadSingleThumbnail(imageId, imageItem) {
 
             
  updateImageThumbnail(imageId, thumbnailUrl) {
-    // Only update if this image is in the current album view
+    // Only update if this image is in the current view
     const imageItem = document.querySelector(`[data-image-id="${imageId}"]`);
     if (!imageItem) {
-        // Image is not in current view, skip it
         return;
     }
     
     const placeholder = imageItem.querySelector('.image-placeholder');
-    if (placeholder) {
+    if (placeholder && !placeholder.dataset.loaded) {
+        placeholder.dataset.loaded = 'true';
+        
         const img = document.createElement('img');
         img.src = thumbnailUrl;
         img.alt = 'Image';
+        img.style.width = '100%';
+        img.style.height = '120px';
+        img.style.objectFit = 'cover';
+        img.style.borderRadius = '4px 4px 0 0';
+        
         img.onload = () => {
-            placeholder.style.display = 'none';
-            placeholder.parentNode.insertBefore(img, placeholder);
+            // Replace placeholder with image (not insert before)
+            placeholder.replaceWith(img);
+        };
+        
+        img.onerror = () => {
+            // If image fails to load, keep placeholder
+            console.log('Failed to load thumbnail:', thumbnailUrl);
         };
     }
 }
 
 
+
+
+
+
+
+
+
+
+
+            
             renderImages() {
                 const imageGrid = document.getElementById('imageGrid');
                 
