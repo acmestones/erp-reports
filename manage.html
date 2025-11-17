@@ -656,7 +656,6 @@ async loadNoVirtualAlbumImages() {
             noVirtualAlbumItem.classList.add('selected');
         }
         
-        // Disconnect thumbnail observer
         if (this.thumbnailObserver) {
             this.thumbnailObserver.disconnect();
         }
@@ -672,17 +671,29 @@ async loadNoVirtualAlbumImages() {
         });
         const data = await response.json();
         
-        this.allImages = data.images || [];
+        // ✓ Limit to first 500 for performance
+        const allImages = data.images || [];
+        const maxInitialLoad = 500;
+        this.allImages = allImages.slice(0, maxInitialLoad);
         this.currentImages = this.allImages;
+        this.remainingNoVirtualImages = allImages.slice(maxInitialLoad);
         
-        document.getElementById('imageCount').textContent = `${this.allImages.length} images`;
+        const totalCount = allImages.length;
+        const loadedCount = this.allImages.length;
+        
+        if (totalCount > maxInitialLoad) {
+            document.getElementById('imageCount').textContent = `${loadedCount} of ${totalCount} images (showing first ${maxInitialLoad} for performance)`;
+        } else {
+            document.getElementById('imageCount').textContent = `${loadedCount} images`;
+        }
+        
         this.renderImages();
         
         if (this.allImages.length > 0) {
             this.setupLazyThumbnailLoading(this.allImages);
         }
         
-        this.showStatus(`Found ${this.allImages.length} images with no virtual album`, 'success');
+        this.showStatus(`Loaded ${loadedCount} of ${totalCount} images`, 'success');
     } catch (error) {
         console.error('Failed to load no-virtual-album images:', error);
         this.showStatus('Failed to load images', 'error');
