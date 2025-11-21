@@ -3792,8 +3792,16 @@ async function openOperationPlanningModal(row, config, reportName) {
 
 async function fetchWorkOrderOperations(workOrderId) {
   try {
-    const response = await fetch(`${API_BASE}?action=get_work_order_operations&work_order=${workOrderId}`);
+    console.log('Fetching operations for Work Order:', workOrderId);
+    
+    const url = `${API_BASE}?action=get_work_order_operations&work_order=${encodeURIComponent(workOrderId)}`;
+    console.log('Request URL:', url);
+    
+    const response = await fetch(url);
+    console.log('Response status:', response.status);
+    
     const data = await response.json();
+    console.log('Response data:', data);
     
     if (!data.success) {
       throw new Error(data.message || 'Failed to fetch operations');
@@ -3805,6 +3813,7 @@ async function fetchWorkOrderOperations(workOrderId) {
     throw error;
   }
 }
+
 
 
 
