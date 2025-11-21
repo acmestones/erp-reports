@@ -3999,14 +3999,119 @@ async function saveNewOperation(workOrderId) {
   }
 }
 
+
+
+
+
+
 function cancelNewOperation() {
   document.getElementById('newOperationForm')?.remove();
 }
 
-async function editOperation(operationId, workOrderId) {
-  // Similar to addNewOperation but pre-fill with existing data
-  // Implementation similar to above
+
+
+
+
+
+
+
+
+
+async function editOperation(operationName, workOrderId) {
+  console.log('Editing operation:', operationName, 'for WO:', workOrderId);
+  
+  // Find the operation row
+  const row = document.querySelector(`tr[data-operation-id="${operationName}"]`);
+  if (!row) {
+    alert('Operation row not found');
+    return;
+  }
+  
+  const cells = row.querySelectorAll('td');
+  const currentOperation = cells[1].textContent.trim();
+  const currentWorkstation = cells[2].textContent.trim();
+  const currentTime = cells[3].textContent.trim();
+  const currentPlant = cells[4].textContent.trim();
+  
+  // Replace row with editable inputs
+  cells[1].innerHTML = `<input type="text" class="form-control form-control-sm" id="edit_operation" value="${currentOperation}">`;
+  cells[2].innerHTML = `<input type="text" class="form-control form-control-sm" id="edit_workstation" value="${currentWorkstation}">`;
+  cells[3].innerHTML = `<input type="number" class="form-control form-control-sm" id="edit_time" value="${currentTime}">`;
+  cells[4].innerHTML = `<input type="text" class="form-control form-control-sm" id="edit_plant" value="${currentPlant}">`;
+  
+  // Replace action buttons
+  cells[5].innerHTML = `
+    <button class="btn btn-sm btn-success me-1" onclick="saveEditOperation('${operationName}', '${workOrderId}')">
+      <i class="bi bi-check"></i> Save
+    </button>
+    <button class="btn btn-sm btn-secondary" onclick="cancelEditOperation('${workOrderId}')">
+      <i class="bi bi-x"></i> Cancel
+    </button>
+  `;
 }
+
+async function saveEditOperation(operationName, workOrderId) {
+  const operation = document.getElementById('edit_operation').value;
+  const workstation = document.getElementById('edit_workstation').value;
+  const time = document.getElementById('edit_time').value;
+  const plant = document.getElementById('edit_plant').value;
+  
+  if (!operation) {
+    alert('Operation name is required');
+    return;
+  }
+  
+  try {
+    const response = await fetch(`${API_BASE}?action=update_work_order_operation`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        work_order: workOrderId,
+        operation_name: operationName,
+        operation: operation,
+        workstation: workstation,
+        time_in_mins: time,
+        custom_plant: plant
+      })
+    });
+    
+    const data = await response.json();
+    
+    if (data.success) {
+      alert('Operation updated successfully!');
+      // Reload operations
+      const operations = await fetchWorkOrderOperations(workOrderId);
+      const userEmail = localStorage.getItem("userEmail");
+      const config = reportConfig[currentReportData.reportName] || {};
+      const opPerms = config.operation_planning_permissions?.[userEmail] || {};
+      renderOperationsTable(operations, opPerms, workOrderId);
+    } else {
+      alert('Error: ' + (data.message || 'Failed to update operation'));
+    }
+  } catch (error) {
+    alert('Error updating operation: ' + error.message);
+  }
+}
+
+async function cancelEditOperation(workOrderId) {
+  // Reload the table to cancel editing
+  const operations = await fetchWorkOrderOperations(workOrderId);
+  const userEmail = localStorage.getItem("userEmail");
+  const config = reportConfig[currentReportData.reportName] || {};
+  const opPerms = config.operation_planning_permissions?.[userEmail] || {};
+  renderOperationsTable(operations, opPerms, workOrderId);
+}
+
+
+
+
+
+
+
+
+
+
+
 
 async function deleteOperation(operationId, workOrderId) {
   if (!confirm('Are you sure you want to delete this operation? This will also delete the linked job card.')) {
