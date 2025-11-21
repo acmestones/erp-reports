@@ -3705,3 +3705,343 @@ function renderGroupVisibilityCheckboxesForReport(userEmail, reportName, tabIdx)
 
 
 
+
+
+
+
+
+
+async function openOperationPlanningModal(row, config, reportName) {
+  const workOrderId = row.work_order_id || row.workorderid || row.name;
+  const userEmail = localStorage.getItem("userEmail");
+  const opPerms = config.operation_planning_permissions?.[userEmail] || {};
+  
+  // Create modal HTML
+  const modalHtml = `
+    <div class="modal fade" id="operationPlanningModal" tabindex="-1">
+      <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Operation Planning - ${workOrderId}</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <div id="operationPlanningContent">
+              <div class="text-center">
+                <div class="spinner-border" role="status">
+                  <span class="visually-hidden">Loading...</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            ${opPerms.can_add ? '<button type="button" class="btn btn-primary" id="addOperationBtn"><i class="bi bi-plus"></i> Add Operation</button>' : ''}
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+  
+  // Remove existing modal if any
+  const existingModal = document.getElementById('operationPlanningModal');
+  if (existingModal) existingModal.remove();
+  
+  document.body.insertAdjacentHTML('beforeend', modalHtml);
+  
+  const modal = new bootstrap.Modal(document.getElementById('operationPlanningModal'));
+  modal.show();
+  
+  // Load operations data
+  try {
+    const operations = await fetchWorkOrderOperations(workOrderId);
+    renderOperationsTable(operations, opPerms, workOrderId);
+    
+    // Setup add operation button
+    if (opPerms.can_add) {
+      document.getElementById('addOperationBtn').onclick = () => {
+        addNewOperation(workOrderId, opPerms);
+      };
+    }
+  } catch (error) {
+    document.getElementById('operationPlanningContent').innerHTML = 
+      `<div class="alert alert-danger">Error loading operations: ${error.message}</div>`;
+  }
+}
+
+
+
+
+
+
+
+async function fetchWorkOrderOperations(workOrderId) {
+  try {
+    const response = await fetch(`${API_BASE}?action=get_work_order_operations&work_order=${workOrderId}`);
+    const data = await response.json();
+    
+    if (!data.success) {
+      throw new Error(data.message || 'Failed to fetch operations');
+    }
+    
+    return data.operations || [];
+  } catch (error) {
+    console.error('Error fetching work order operations:', error);
+    throw error;
+  }
+}
+
+
+
+
+
+
+function renderOperationsTable(operations, permissions, workOrderId) {
+  const content = document.getElementById('operationPlanningContent');
+  
+  if (!operations || operations.length === 0) {
+    content.innerHTML = '<p class="text-muted">No operations found for this work order.</p>';
+    return;
+  }
+  
+  let tableHtml = `
+    <div class="table-responsive">
+      <table class="table table-bordered table-hover" id="operationsTable">
+        <thead class="table-light">
+          <tr>
+            ${permissions.can_reorder ? '<th width="50">Order</th>' : ''}
+            <th>Operation</th>
+            <th>Workstation</th>
+            <th>Time (mins)</th>
+            <th>Plant</th>
+            ${permissions.can_edit || permissions.can_delete ? '<th width="150">Actions</th>' : ''}
+          </tr>
+        </thead>
+        <tbody id="operationsTableBody">
+  `;
+  
+  operations.forEach((op, index) => {
+    tableHtml += `
+      <tr data-operation-id="${op.name}" data-idx="${op.idx}">
+        ${permissions.can_reorder ? `<td class="text-center"><i class="bi bi-grip-vertical drag-handle" style="cursor: move;"></i></td>` : ''}
+        <td>${op.operation || ''}</td>
+        <td>${op.workstation || ''}</td>
+        <td>${op.time_in_mins || ''}</td>
+        <td>${op.custom_plant || ''}</td>
+        ${permissions.can_edit || permissions.can_delete ? `
+          <td>
+            ${permissions.can_edit ? `<button class="btn btn-sm btn-warning me-1" onclick="editOperation('${op.name}', '${workOrderId}')"><i class="bi bi-pencil"></i> Edit</button>` : ''}
+            ${permissions.can_delete ? `<button class="btn btn-sm btn-danger" onclick="deleteOperation('${op.name}', '${workOrderId}')"><i class="bi bi-trash"></i> Delete</button>` : ''}
+          </td>
+        ` : ''}
+      </tr>
+    `;
+  });
+  
+  tableHtml += `
+        </tbody>
+      </table>
+    </div>
+  `;
+  
+  content.innerHTML = tableHtml;
+  
+  // Enable drag and drop reordering if permission exists
+  if (permissions.can_reorder) {
+    enableOperationReordering(workOrderId);
+  }
+}
+
+
+
+
+
+
+async function addNewOperation(workOrderId, permissions) {
+  // Create inline form in modal
+  const form = `
+    <div class="card p-3 mb-3" id="newOperationForm">
+      <h6>Add New Operation</h6>
+      <div class="row g-2">
+        <div class="col-md-3">
+          <label class="form-label">Operation</label>
+          <input type="text" class="form-control" id="newOpOperation" required>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Workstation</label>
+          <input type="text" class="form-control" id="newOpWorkstation">
+        </div>
+        <div class="col-md-2">
+          <label class="form-label">Time (mins)</label>
+          <input type="number" class="form-control" id="newOpTime">
+        </div>
+        <div class="col-md-2">
+          <label class="form-label">Plant</label>
+          <input type="text" class="form-control" id="newOpPlant">
+        </div>
+        <div class="col-md-2 d-flex align-items-end">
+          <button class="btn btn-success me-2" onclick="saveNewOperation('${workOrderId}')">Save</button>
+          <button class="btn btn-secondary" onclick="cancelNewOperation()">Cancel</button>
+        </div>
+      </div>
+    </div>
+  `;
+  
+  const content = document.getElementById('operationPlanningContent');
+  content.insertAdjacentHTML('afterbegin', form);
+}
+
+async function saveNewOperation(workOrderId) {
+  const operation = document.getElementById('newOpOperation').value;
+  const workstation = document.getElementById('newOpWorkstation').value;
+  const time = document.getElementById('newOpTime').value;
+  const plant = document.getElementById('newOpPlant').value;
+  
+  if (!operation) {
+    alert('Operation name is required');
+    return;
+  }
+  
+  try {
+    const response = await fetch(`${API_BASE}?action=add_work_order_operation`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        work_order: workOrderId,
+        operation: operation,
+        workstation: workstation,
+        time_in_mins: time,
+        custom_plant: plant
+      })
+    });
+    
+    const data = await response.json();
+    
+    if (data.success) {
+      alert('Operation added successfully!');
+      // Reload operations
+      const operations = await fetchWorkOrderOperations(workOrderId);
+      const opPerms = reportConfig[currentReportName].operation_planning_permissions?.[userEmail] || {};
+      renderOperationsTable(operations, opPerms, workOrderId);
+    } else {
+      alert('Error: ' + (data.message || 'Failed to add operation'));
+    }
+  } catch (error) {
+    alert('Error adding operation: ' + error.message);
+  }
+}
+
+function cancelNewOperation() {
+  document.getElementById('newOperationForm')?.remove();
+}
+
+async function editOperation(operationId, workOrderId) {
+  // Similar to addNewOperation but pre-fill with existing data
+  // Implementation similar to above
+}
+
+async function deleteOperation(operationId, workOrderId) {
+  if (!confirm('Are you sure you want to delete this operation? This will also delete the linked job card.')) {
+    return;
+  }
+  
+  try {
+    const response = await fetch(`${API_BASE}?action=delete_work_order_operation`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        operation_id: operationId,
+        work_order: workOrderId
+      })
+    });
+    
+    const data = await response.json();
+    
+    if (data.success) {
+      alert('Operation and linked job card deleted successfully!');
+      // Reload operations
+      const operations = await fetchWorkOrderOperations(workOrderId);
+      const opPerms = reportConfig[currentReportName].operation_planning_permissions?.[userEmail] || {};
+      renderOperationsTable(operations, opPerms, workOrderId);
+    } else {
+      alert('Error: ' + (data.message || 'Failed to delete operation'));
+    }
+  } catch (error) {
+    alert('Error deleting operation: ' + error.message);
+  }
+}
+
+
+
+
+
+
+
+function enableOperationReordering(workOrderId) {
+  const tbody = document.getElementById('operationsTableBody');
+  
+  let draggedRow = null;
+  
+  tbody.querySelectorAll('tr').forEach(row => {
+    row.setAttribute('draggable', true);
+    
+    row.addEventListener('dragstart', (e) => {
+      draggedRow = row;
+      row.style.opacity = '0.5';
+    });
+    
+    row.addEventListener('dragend', (e) => {
+      row.style.opacity = '';
+    });
+    
+    row.addEventListener('dragover', (e) => {
+      e.preventDefault();
+    });
+    
+    row.addEventListener('drop', async (e) => {
+      e.preventDefault();
+      if (draggedRow !== row) {
+        const allRows = Array.from(tbody.querySelectorAll('tr'));
+        const draggedIndex = allRows.indexOf(draggedRow);
+        const targetIndex = allRows.indexOf(row);
+        
+        if (draggedIndex < targetIndex) {
+          row.after(draggedRow);
+        } else {
+          row.before(draggedRow);
+        }
+        
+        // Save new order to backend
+        await saveOperationOrder(workOrderId);
+      }
+    });
+  });
+}
+
+async function saveOperationOrder(workOrderId) {
+  const tbody = document.getElementById('operationsTableBody');
+  const rows = tbody.querySelectorAll('tr');
+  const newOrder = Array.from(rows).map((row, index) => ({
+    name: row.dataset.operationId,
+    idx: index + 1
+  }));
+  
+  try {
+    const response = await fetch(`${API_BASE}?action=reorder_work_order_operations`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        work_order: workOrderId,
+        operations_order: newOrder
+      })
+    });
+    
+    const data = await response.json();
+    if (!data.success) {
+      alert('Error saving order: ' + (data.message || 'Unknown error'));
+    }
+  } catch (error) {
+    alert('Error saving operation order: ' + error.message);
+  }
+}
+
