@@ -1098,26 +1098,98 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_work_order_operations') {
 
 
 // Add work order operation
-if ($_GET['action'] === 'add_work_order_operation') {
+if (isset($_GET['action']) && $_GET['action'] === 'add_work_order_operation') {
     $input = json_decode(file_get_contents('php://input'), true);
     
-    // First, get current work order
-    $workOrder = $input['work_order'];
-    $url = ERP_BASE . "/api/resource/Work Order/{$workOrder}";
+    $workOrder = $input['work_order'] ?? '';
+    $operation = $input['operation'] ?? '';
+    $workstation = $input['workstation'] ?? '';
+    $timeInMins = $input['time_in_mins'] ?? 0;
+    $plant = $input['custom_plant'] ?? '';
     
-    // Fetch current operations
-    // Add new operation to array
-    // Update work order with new operations
-    // This will trigger ERPNext to create corresponding job card
+    if (empty($workOrder) || empty($operation)) {
+        echo json_encode(['success' => false, 'message' => 'Missing required parameters']);
+        exit;
+    }
     
-    // Implementation depends on your ERPNext version and customization
-    // You may need to use frappe.client.set_value or doc.append
+    // Get current Work Order
+    $encodedWO = rawurlencode($workOrder);
+    $getUrl = ERP_BASE . "/api/resource/Work%20Order/{$encodedWO}";
     
-    echo json_encode(['success' => true, 'message' => 'Operation added']);
+    $ch = curl_init();
+    curl_setopt_array($ch, [
+        CURLOPT_URL => $getUrl,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HTTPHEADER => [
+            "Authorization: token " . API_KEY . ":" . API_SECRET
+        ],
+        CURLOPT_SSL_VERIFYPEER => false
+    ]);
+    
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    
+    if ($httpCode !== 200) {
+        echo json_encode(['success' => false, 'message' => 'Failed to fetch Work Order']);
+        exit;
+    }
+    
+    $woData = json_decode($response, true);
+    $operations = $woData['data']['operations'] ?? [];
+    
+    // Add new operation
+    $newOp = [
+        'operation' => $operation,
+        'workstation' => $workstation,
+        'time_in_mins' => floatval($timeInMins),
+        'idx' => count($operations) + 1
+    ];
+    
+    if (!empty($plant)) {
+        $newOp['custom_plant'] = $plant;
+    }
+    
+    $operations[] = $newOp;
+    
+    // Update Work Order
+    $updateUrl = ERP_BASE . "/api/resource/Work%20Order/{$encodedWO}";
+    
+    $updateData = json_encode([
+        'operations' => $operations
+    ]);
+    
+    $ch = curl_init();
+    curl_setopt_array($ch, [
+        CURLOPT_URL => $updateUrl,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_CUSTOMREQUEST => 'PUT',
+        CURLOPT_POSTFIELDS => $updateData,
+        CURLOPT_HTTPHEADER => [
+            "Authorization: token " . API_KEY . ":" . API_SECRET,
+            "Content-Type: application/json"
+        ],
+        CURLOPT_SSL_VERIFYPEER => false
+    ]);
+    
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    
+    error_log("Add operation - HTTP {$httpCode}: {$response}");
+    
+    if ($httpCode === 200) {
+        echo json_encode(['success' => true, 'message' => 'Operation added successfully']);
+    } else {
+        echo json_encode([
+            'success' => false,
+            'message' => 'Failed to add operation',
+            'httpCode' => $httpCode
+        ]);
+    }
     exit;
 }
 
-// Similar implementations for delete and reorder operations
 
 
 
