@@ -3731,7 +3731,15 @@ function renderGroupVisibilityCheckboxesForReport(userEmail, reportName, tabIdx)
 
 
 async function openOperationPlanningModal(row, config, reportName) {
-  const workOrderId = row.work_order_id || row.workorderid || row.name;
+  const workOrderId = row.work_order_id || row.name;
+  
+  if (!workOrderId) {
+    alert('No Work Order ID found for this record');
+    return;
+  }
+  
+  console.log('Opening Operation Planning for:', workOrderId);
+  
   const userEmail = localStorage.getItem("userEmail");
   const opPerms = config.operation_planning_permissions?.[userEmail] || {};
   
@@ -3774,19 +3782,29 @@ async function openOperationPlanningModal(row, config, reportName) {
   // Load operations data
   try {
     const operations = await fetchWorkOrderOperations(workOrderId);
+    console.log('Fetched operations:', operations);
     renderOperationsTable(operations, opPerms, workOrderId);
     
     // Setup add operation button
     if (opPerms.can_add) {
-      document.getElementById('addOperationBtn').onclick = () => {
-        addNewOperation(workOrderId, opPerms);
-      };
+      const addBtn = document.getElementById('addOperationBtn');
+      if (addBtn) {
+        addBtn.onclick = () => {
+          addNewOperation(workOrderId, opPerms);
+        };
+      }
     }
   } catch (error) {
+    console.error('Error in openOperationPlanningModal:', error);
     document.getElementById('operationPlanningContent').innerHTML = 
-      `<div class="alert alert-danger">Error loading operations: ${error.message}</div>`;
+      `<div class="alert alert-danger">
+        <strong>Error loading operations:</strong><br>
+        ${error.message}<br>
+        <small>Check browser console for more details</small>
+      </div>`;
   }
 }
+
 
 
 
