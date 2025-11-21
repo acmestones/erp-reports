@@ -577,6 +577,11 @@ function groupData(rows, columns, groupFields, groupSort = {}) {
     return sortedGrouped;
 }
 
+
+
+
+
+
 function renderGroupedCards(grouped, columns, reportName) {
     const reportArea = document.getElementById("reportArea");
     reportArea.innerHTML = "";
