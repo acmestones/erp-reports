@@ -628,99 +628,107 @@ function groupData(rows, columns, groupFields, groupSort = {}) {
 
 
 function renderGroupedCards(grouped, columns, reportName) {
-  const reportArea = document.getElementById("reportArea");
-  reportArea.innerHTML = "";
-
-  const config = reportConfig[reportName] || {};
-  const collapsed = config.collapsed !== false;
-
-  const userEmail = localStorage.getItem("userEmail");
-  const userPerms = config.userpermissions?.[userEmail] || {};
-  const hiddenPrimaryGroups = userPerms.hiddenprimarygroups || [];
-  const hiddenSecondaryGroups = userPerms.hiddensecondarygroups || [];
-
-  Object.keys(grouped).forEach(level1 => {
-    // Skip primary groups if hidden for the current user
-    if (hiddenPrimaryGroups.includes(level1)) return;
-
-    const level1Div = document.createElement("div");
-    level1Div.className = "mb-4";
-
-    const level1Count = Object.values(grouped[level1]).reduce((sum, arr) => sum + arr.length, 0);
-
-    const level1Header = document.createElement("div");
-    level1Header.className = "operation-header p-3 text-white rounded mb-2";
-    level1Header.style.cursor = "pointer";
-    level1Header.innerHTML = `
+    const reportArea = document.getElementById("reportArea");
+    reportArea.innerHTML = "";
+    
+    const config = reportConfig[reportName] || {};
+    const collapsed = config.collapsed !== false;
+    
+    // Get hidden groups for current user
+    const userEmail = localStorage.getItem("userEmail");
+    const userPerms = config.user_permissions?.[userEmail] || {};
+    const hiddenPrimaryGroups = userPerms.hiddenprimarygroups || [];
+    const hiddenSecondaryGroups = userPerms.hiddensecondarygroups || [];
+    
+    Object.keys(grouped).forEach(level1 => {
+        // Skip this primary group if it's hidden for the user
+        if (hiddenPrimaryGroups.includes(level1)) {
+            console.log('Hiding primary group:', level1);
+            return;
+        }
+        
+        const level1Div = document.createElement("div");
+        level1Div.className = "mb-4";
+        
+        const level1Count = Object.values(grouped[level1]).reduce((sum, arr) => sum + arr.length, 0);
+        
+        const level1Header = document.createElement("div");
+        level1Header.className = "operation-header p-3 text-white rounded mb-2";
+        level1Header.style.cursor = "pointer";
+        level1Header.innerHTML = `
             <h5 class="mb-0">
                 <span class="toggle-icon">${collapsed ? '▶' : '▼'}</span> ${level1} 
                 <span class="badge bg-light text-dark ms-2">${level1Count}</span>
             </h5>
         `;
-
-    const level1Content = document.createElement("div");
-    level1Content.className = "level1-content";
-    level1Content.style.display = collapsed ? "none" : "block";
-
-    Object.keys(grouped[level1]).forEach(level2 => {
-      // Skip secondary groups if hidden for the current user
-      if (hiddenSecondaryGroups.includes(level2)) return;
-
-      const level2Div = document.createElement("div");
-      level2Div.className = "mb-3 ms-md-3";
-
-      const level2Header = document.createElement("div");
-      level2Header.className = "workstation-header p-2 text-white rounded mb-2";
-      level2Header.style.cursor = "pointer";
-      level2Header.innerHTML = `
+        
+        const level1Content = document.createElement("div");
+        level1Content.className = "level1-content";
+        level1Content.style.display = collapsed ? "none" : "block";
+        
+        Object.keys(grouped[level1]).forEach(level2 => {
+            // Skip this secondary group if it's hidden for the user
+            if (hiddenSecondaryGroups.includes(level2)) {
+                console.log('Hiding secondary group:', level2);
+                return;
+            }
+            
+            const level2Div = document.createElement("div");
+            level2Div.className = "mb-3 ms-md-3";
+            
+            const level2Header = document.createElement("div");
+            level2Header.className = "workstation-header p-2 text-white rounded mb-2";
+            level2Header.style.cursor = "pointer";
+            level2Header.innerHTML = `
                 <h6 class="mb-0">
                     <span class="toggle-icon">${collapsed ? '▶' : '▼'}</span> ${level2} 
                     <span class="badge bg-light text-dark ms-2">${grouped[level1][level2].length}</span>
                 </h6>
             `;
+            
+            const level2Content = document.createElement("div");
+            level2Content.className = "level2-content";
+            level2Content.style.display = collapsed ? "none" : "block";
+            
+            const cardsContainer = document.createElement("div");
+            cardsContainer.className = "d-flex flex-wrap gap-3 mt-2";
+            
+            grouped[level1][level2].forEach(row => {
+                const card = createCard(row, columns, reportName, config);
+                card.className = card.className + " card-grid-item";
+                cardsContainer.appendChild(card);
+            });
+            
+            level2Content.appendChild(cardsContainer);
+            level2Div.appendChild(level2Header);
+            level2Div.appendChild(level2Content);
+            
+            level2Header.addEventListener("click", () => {
+                level2Content.style.display = level2Content.style.display === "none" ? "block" : "none";
+                const icon = level2Header.querySelector(".toggle-icon");
+                icon.textContent = level2Content.style.display === "none" ? "▶" : "▼";
+            });
+            
+            level1Content.appendChild(level2Div);
+        });
+        
+        level1Div.appendChild(level1Header);
+        level1Div.appendChild(level1Content);
+        
+        level1Header.addEventListener("click", () => {
+            level1Content.style.display = level1Content.style.display === "none" ? "block" : "none";
+            const icon = level1Header.querySelector(".toggle-icon");
+            icon.textContent = level1Content.style.display === "none" ? "▶" : "▼";
+        });
+        
+        // Apply current collapse state to newly rendered groups
+        const level2ContentsArray = Array.from(level1Content.querySelectorAll('.level2-content'));
+        applyCurrentCollapseState(level1Content, level2ContentsArray);
 
-      const level2Content = document.createElement("div");
-      level2Content.className = "level2-content";
-      level2Content.style.display = collapsed ? "none" : "block";
-
-      const cardsContainer = document.createElement("div");
-      cardsContainer.className = "d-flex flex-wrap gap-3 mt-2";
-
-      grouped[level1][level2].forEach(row => {
-        const card = createCard(row, columns, reportName, config);
-        card.className = card.className + " card-grid-item";
-        cardsContainer.appendChild(card);
-      });
-
-      level2Content.appendChild(cardsContainer);
-      level2Div.appendChild(level2Header);
-      level2Div.appendChild(level2Content);
-
-      level2Header.addEventListener("click", () => {
-        level2Content.style.display = level2Content.style.display === "none" ? "block" : "none";
-        const icon = level2Header.querySelector(".toggle-icon");
-        icon.textContent = level2Content.style.display === "none" ? "▶" : "▼";
-      });
-
-      level1Content.appendChild(level2Div);
+        reportArea.appendChild(level1Div);
     });
-
-    level1Div.appendChild(level1Header);
-    level1Div.appendChild(level1Content);
-
-    level1Header.addEventListener("click", () => {
-      level1Content.style.display = level1Content.style.display === "none" ? "block" : "none";
-      const icon = level1Header.querySelector(".toggle-icon");
-      icon.textContent = level1Content.style.display === "none" ? "▶" : "▼";
-    });
-
-    // Apply current collapse state to newly rendered groups
-    const level2ContentsArray = Array.from(level1Content.querySelectorAll('.level2-content'));
-    applyCurrentCollapseState(level1Content, level2ContentsArray);
-
-    reportArea.appendChild(level1Div);
-  });
 }
+
 
 
 
