@@ -3855,7 +3855,6 @@ async function openOperationPlanningModal(row, config, reportName) {
 async function fetchWorkOrderOperations(workOrderId) {
   console.log('=== Fetch Work Order Operations ===');
   console.log('Work Order ID:', workOrderId);
-  console.log('API_BASE:', API_BASE);
   
   const url = `${API_BASE}?action=get_work_order_operations&work_order=${encodeURIComponent(workOrderId)}`;
   console.log('Full URL:', url);
