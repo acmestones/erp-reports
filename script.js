@@ -1770,7 +1770,6 @@ async function openReportConfigModal(userEmail) {
         tabsHtml += `
             <div class="tab-pane fade ${idx === 0 ? 'show active' : ''}" id="tab_${idx}" role="tabpanel">
                 <h6>Field Permissions for ${reportName}</h6>
-                
                 <div class="row">
                     <div class="col-md-6">
                         <h6 class="small fw-bold mt-3">Editable Fields:</h6>
@@ -1791,7 +1790,6 @@ async function openReportConfigModal(userEmail) {
                             `).join('')}
                         </div>
                     </div>
-                    
                     <div class="col-md-6">
                         <h6 class="small fw-bold mt-3">Hidden Fields:</h6>
                         <div class="border rounded p-2" style="max-height: 300px; overflow-y: auto;">
@@ -1812,7 +1810,7 @@ async function openReportConfigModal(userEmail) {
                         </div>
                     </div>
                 </div>
-
+        
                 <!-- Group Visibility Controls -->
                 <div style="margin-top: 20px;">
                   <h6>Hide Primary Groups:</h6>
@@ -1826,9 +1824,9 @@ async function openReportConfigModal(userEmail) {
                   </div>
                 </div>
                 <!-- End Group Visibility Controls -->
-
             </div>
         `;
+
     }
     
     tabsHtml += '</div>';
