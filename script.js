@@ -3969,6 +3969,7 @@ async function addNewOperation(workOrderId, permissions) {
   // Fetch options
   const operationOptions = await getOperationOptions();
   const workstationOptions = await getWorkstationOptions();
+  const plantOptions = await getPlantOptions();
   
   // Create operation dropdown
   let operationSelect = `<select class="form-select" id="newOpOperation" required>
@@ -3985,6 +3986,19 @@ async function addNewOperation(workOrderId, permissions) {
     workstationSelect += `<option value="${opt}">${opt}</option>`;
   });
   workstationSelect += `</select>`;
+  
+  // Create plant dropdown (if options exist, otherwise use text input)
+  let plantInput;
+  if (plantOptions.length > 0) {
+    plantInput = `<select class="form-select" id="newOpPlant">
+      <option value="">-- Select Plant --</option>`;
+    plantOptions.forEach(opt => {
+      plantInput += `<option value="${opt}">${opt}</option>`;
+    });
+    plantInput += `</select>`;
+  } else {
+    plantInput = `<input type="text" class="form-control" id="newOpPlant">`;
+  }
   
   // Create inline form in modal
   const form = `
@@ -4005,11 +4019,11 @@ async function addNewOperation(workOrderId, permissions) {
         </div>
         <div class="col-md-2">
           <label class="form-label">Plant</label>
-          <input type="text" class="form-control" id="newOpPlant">
+          ${plantInput}
         </div>
         <div class="col-md-2 d-flex align-items-end">
-          <button class="btn btn-success me-2" onclick="saveNewOperation('${workOrderId}')">Save</button>
-          <button class="btn btn-secondary" onclick="cancelNewOperation()">Cancel</button>
+          <button class="btn btn-success me-2" id="saveNewOpBtn">Save</button>
+          <button class="btn btn-secondary" id="cancelNewOpBtn">Cancel</button>
         </div>
       </div>
     </div>
@@ -4017,7 +4031,17 @@ async function addNewOperation(workOrderId, permissions) {
   
   const content = document.getElementById('operationPlanningContent');
   content.insertAdjacentHTML('afterbegin', form);
+  
+  // Attach event listeners
+  document.getElementById('saveNewOpBtn').addEventListener('click', () => {
+    saveNewOperation(workOrderId);
+  });
+  
+  document.getElementById('cancelNewOpBtn').addEventListener('click', () => {
+    cancelNewOperation();
+  });
 }
+
 
 
 
