@@ -3425,3 +3425,80 @@ async function loadWorkstationDropdown(currentWorkstation, jobCard, jobCardInfo,
 
 
 
+
+
+
+function getGroups(report, level) {
+  const groups = Array.isArray(report.groupby) 
+    ? report.groupby 
+    : report.groupby?.split(',').map(g => g.trim()) || [];
+
+  if (level === 'primary') {
+    return groups.length > 0 ? [groups[0]] : [];
+  } else if (level === 'secondary') {
+    return groups.length > 1 ? [groups[1]] : [];
+  }
+  return [];
+}
+
+
+
+
+
+
+
+
+function renderGroupVisibilityControls(reportName, userEmail) {
+  const report = reportConfig[reportName];
+  if (!report) return;
+
+  const userPerms = report.userpermissions?.[userEmail] || {};
+
+  const primaryGroups = getGroups(report, 'primary');
+  const secondaryGroups = getGroups(report, 'secondary');
+
+  const primaryContainer = document.getElementById('primaryGroupsList');
+  const secondaryContainer = document.getElementById('secondaryGroupsList');
+
+  primaryContainer.innerHTML = '';
+  secondaryContainer.innerHTML = '';
+
+  primaryGroups.forEach(group => {
+    const checked = userPerms.hiddenprimarygroups?.includes(group) ? 'checked' : '';
+    primaryContainer.innerHTML += `<div><input type="checkbox" class="hide-primary-group" value="${group}" ${checked}> ${group}</div>`;
+  });
+
+  secondaryGroups.forEach(group => {
+    const checked = userPerms.hiddensecondarygroups?.includes(group) ? 'checked' : '';
+    secondaryContainer.innerHTML += `<div><input type="checkbox" class="hide-secondary-group" value="${group}" ${checked}> ${group}</div>`;
+  });
+}
+
+
+
+
+
+
+
+
+function saveGroupVisibilitySettings(reportName, userEmail) {
+  const report = reportConfig[reportName];
+  if (!report) return;
+
+  const primaryCheckboxes = document.querySelectorAll('#primaryGroupsList input.hide-primary-group:checked');
+  const secondaryCheckboxes = document.querySelectorAll('#secondaryGroupsList input.hide-secondary-group:checked');
+
+  const hiddenprimarygroups = Array.from(primaryCheckboxes).map(cb => cb.value);
+  const hiddensecondarygroups = Array.from(secondaryCheckboxes).map(cb => cb.value);
+
+  if (!report.userpermissions) report.userpermissions = {};
+  if (!report.userpermissions[userEmail]) report.userpermissions[userEmail] = {};
+
+  report.userpermissions[userEmail].hiddenprimarygroups = hiddenprimarygroups;
+  report.userpermissions[userEmail].hiddensecondarygroups = hiddensecondarygroups;
+}
+
+
+
+
+
