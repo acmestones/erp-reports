@@ -3921,6 +3921,8 @@ function renderOperationsTable(operations, permissions, workOrderId) {
             <th>Workstation</th>
             <th>Time (mins)</th>
             <th>Plant</th>
+            <th>Qty to Manufacture</th>
+            <th>Completed Qty</th>
             ${permissions.can_edit || permissions.can_delete ? '<th width="150">Actions</th>' : ''}
           </tr>
         </thead>
@@ -3928,13 +3930,20 @@ function renderOperationsTable(operations, permissions, workOrderId) {
   `;
   
   operations.forEach((op, index) => {
+    const forQty = op.for_quantity || 0;
+    const completedQty = op.total_completed_qty || 0;
+    const isCompleted = completedQty >= forQty && forQty > 0;
+    const rowClass = isCompleted ? 'table-success' : '';
+    
     tableHtml += `
-      <tr data-operation-id="${op.name}" data-idx="${op.idx}">
+      <tr data-operation-id="${op.name}" data-idx="${op.idx}" class="${rowClass}">
         ${permissions.can_reorder ? `<td class="text-center"><i class="bi bi-grip-vertical drag-handle" style="cursor: move;"></i></td>` : ''}
         <td>${op.operation || ''}</td>
         <td>${op.workstation || ''}</td>
         <td>${op.time_in_mins || ''}</td>
         <td>${op.custom_plant || ''}</td>
+        <td class="text-center"><strong>${forQty}</strong></td>
+        <td class="text-center"><strong>${completedQty}</strong></td>
         ${permissions.can_edit || permissions.can_delete ? `
           <td>
             ${permissions.can_edit ? `<button class="btn btn-sm btn-warning me-1" onclick="editOperation('${op.name}', '${workOrderId}')"><i class="bi bi-pencil"></i> Edit</button>` : ''}
@@ -3958,6 +3967,7 @@ function renderOperationsTable(operations, permissions, workOrderId) {
     enableOperationReordering(workOrderId);
   }
 }
+
 
 
 
@@ -4148,10 +4158,16 @@ async function editOperation(operationName, workOrderId) {
   }
   
   const cells = row.querySelectorAll('td');
-  const currentOperation = cells[1].textContent.trim();
-  const currentWorkstation = cells[2].textContent.trim();
-  const currentTime = cells[3].textContent.trim();
-  const currentPlant = cells[4].textContent.trim();
+  
+  // Determine cell indices based on whether reorder column exists
+  const hasReorderCol = cells[0].querySelector('.drag-handle') !== null;
+  const offset = hasReorderCol ? 1 : 0;
+  
+  const currentOperation = cells[offset].textContent.trim();
+  const currentWorkstation = cells[offset + 1].textContent.trim();
+  const currentTime = cells[offset + 2].textContent.trim();
+  const currentPlant = cells[offset + 3].textContent.trim();
+  // Skip qty columns - they are readonly (offset + 4 and offset + 5)
   
   // Fetch options
   const operationOptions = await getOperationOptions();
@@ -4185,18 +4201,18 @@ async function editOperation(operationName, workOrderId) {
     });
     plantInput += `</select>`;
   } else {
-    // Fallback to text input if no options found
     plantInput = `<input type="text" class="form-control form-control-sm" id="edit_plant" value="${currentPlant}" placeholder="Enter plant floor">`;
   }
   
-  // Replace row with editable inputs
-  cells[1].innerHTML = operationSelect;
-  cells[2].innerHTML = workstationSelect;
-  cells[3].innerHTML = `<input type="number" class="form-control form-control-sm" id="edit_time" value="${currentTime}">`;
-  cells[4].innerHTML = plantInput;
+  // Replace editable cells with inputs
+  cells[offset].innerHTML = operationSelect;
+  cells[offset + 1].innerHTML = workstationSelect;
+  cells[offset + 2].innerHTML = `<input type="number" class="form-control form-control-sm" id="edit_time" value="${currentTime}">`;
+  cells[offset + 3].innerHTML = plantInput;
+  // Leave qty columns unchanged (offset + 4 and offset + 5)
   
   // Replace action buttons
-  cells[5].innerHTML = `
+  cells[offset + 6].innerHTML = `
     <button class="btn btn-sm btn-success me-1" onclick="saveEditOperation('${operationName}', '${workOrderId}')">
       <i class="bi bi-check"></i> Save
     </button>
@@ -4205,6 +4221,7 @@ async function editOperation(operationName, workOrderId) {
     </button>
   `;
 }
+
 
 
 
