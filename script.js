@@ -1705,11 +1705,11 @@ async function openReportConfigModal(userEmail) {
         return;
     }
     
-    let tabsHtml = '<ul class="nav nav-tabs mb-3">';
+    let tabsHtml = '<ul class="nav nav-tabs mb-3" id="reportConfigTabList">';
     user.allowed_reports.forEach((report, idx) => {
         tabsHtml += `
             <li class="nav-item">
-                <a class="nav-link ${idx === 0 ? 'active' : ''}" data-bs-toggle="tab" href="#tab_${idx}">
+                <a class="nav-link ${idx === 0 ? 'active' : ''}" data-bs-toggle="tab" href="#tab_${idx}" role="tab" aria-selected="${idx === 0}">
                     ${report}
                 </a>
             </li>
@@ -1720,7 +1720,7 @@ async function openReportConfigModal(userEmail) {
     for (let idx = 0; idx < user.allowed_reports.length; idx++) {
         const reportName = user.allowed_reports[idx];
         const config = reportConfig[reportName] || {};
-        const userPerms = config.user_permissions?.[userEmail] || { editable_fields: [], hidden_fields: [] };
+        const userPerms = config.user_permissions?.[userEmail] || { editable_fields: [], hidden_fields: [], hiddenprimarygroups: [], hiddensecondarygroups: [] };
         
         let columns = currentReportColumns;
         if (currentReportData && currentReportData.reportName === reportName) {
@@ -1728,9 +1728,8 @@ async function openReportConfigModal(userEmail) {
         }
         
         tabsHtml += `
-            <div class="tab-pane fade ${idx === 0 ? 'show active' : ''}" id="tab_${idx}">
+            <div class="tab-pane fade ${idx === 0 ? 'show active' : ''}" id="tab_${idx}" role="tabpanel">
                 <h6>Field Permissions for ${reportName}</h6>
-                
                 <div class="row">
                     <div class="col-md-6">
                         <h6 class="small fw-bold mt-3">Editable Fields:</h6>
@@ -1751,7 +1750,6 @@ async function openReportConfigModal(userEmail) {
                             `).join('')}
                         </div>
                     </div>
-                    
                     <div class="col-md-6">
                         <h6 class="small fw-bold mt-3">Hidden Fields:</h6>
                         <div class="border rounded p-2" style="max-height: 300px; overflow-y: auto;">
@@ -1772,6 +1770,21 @@ async function openReportConfigModal(userEmail) {
                         </div>
                     </div>
                 </div>
+
+                <!-- Added Group Visibility Controls -->
+                <div style="margin-top: 20px;">
+                  <h6>Hide Primary Groups:</h6>
+                  <div id="primaryGroupsContainer_${idx}" class="border rounded p-2" style="max-height: 150px; overflow-y: auto;">
+                      <!-- Filled dynamically later -->
+                  </div>
+                  
+                  <h6 class="mt-3">Hide Secondary Groups:</h6>
+                  <div id="secondaryGroupsContainer_${idx}" class="border rounded p-2" style="max-height: 150px; overflow-y: auto;">
+                      <!-- Filled dynamically later -->
+                  </div>
+                </div>
+                <!-- End Group Visibility Controls -->
+
             </div>
         `;
     }
@@ -1779,8 +1792,22 @@ async function openReportConfigModal(userEmail) {
     tabsHtml += '</div>';
     document.getElementById('reportConfigTabs').innerHTML = tabsHtml;
     
+    // After tabs rendered, populate group visibility checkboxes for first report
+    if (user.allowed_reports.length > 0) {
+        renderGroupVisibilityCheckboxesForAllReports(userEmail, user.allowed_reports);
+    }
+    
+    // Add event listener for tab change to update group visibility on tab switch
+    const tabLinks = document.querySelectorAll('#reportConfigTabList .nav-link');
+    tabLinks.forEach((tabLink, idx) => {
+        tabLink.addEventListener('shown.bs.tab', () => {
+            renderGroupVisibilityCheckboxesForReport(userEmail, user.allowed_reports[idx], idx);
+        });
+    });
+    
+    // Setup Save button handler
     document.getElementById('saveReportConfigBtn').onclick = () => {
-        user.allowed_reports.forEach(reportName => {
+        user.allowed_reports.forEach((reportName, idx) => {
             if (!reportConfig[reportName]) {
                 reportConfig[reportName] = {};
             }
@@ -1788,12 +1815,21 @@ async function openReportConfigModal(userEmail) {
                 reportConfig[reportName].user_permissions = {};
             }
             
+            // Save editable and hidden fields
             const editableChecks = document.querySelectorAll(`.editable-field-check[data-report="${reportName}"][data-user="${userEmail}"]:checked`);
             const hiddenChecks = document.querySelectorAll(`.hidden-field-check[data-report="${reportName}"][data-user="${userEmail}"]:checked`);
             
+            // Save hidden groups from dynamically created checkboxes
+            const hiddenPrimary = Array.from(document.querySelectorAll(`#primaryGroupsContainer_${idx} input[type=checkbox]:checked`))
+                                     .map(cb => cb.value);
+            const hiddenSecondary = Array.from(document.querySelectorAll(`#secondaryGroupsContainer_${idx} input[type=checkbox]:checked`))
+                                     .map(cb => cb.value);
+
             reportConfig[reportName].user_permissions[userEmail] = {
                 editable_fields: Array.from(editableChecks).map(cb => cb.value),
-                hidden_fields: Array.from(hiddenChecks).map(cb => cb.value)
+                hidden_fields: Array.from(hiddenChecks).map(cb => cb.value),
+                hiddenprimarygroups: hiddenPrimary,
+                hiddensecondarygroups: hiddenSecondary
             };
         });
         
@@ -1802,6 +1838,52 @@ async function openReportConfigModal(userEmail) {
     };
     
     configModal.show();
+}
+
+
+// Helper function to render group visibility checkboxes for all reports in the modal
+function renderGroupVisibilityCheckboxesForAllReports(userEmail, allowedReports) {
+    allowedReports.forEach((reportName, idx) => {
+        renderGroupVisibilityCheckboxesForReport(userEmail, reportName, idx);
+    });
+}
+
+// Helper function to render group visibility checkboxes for a single report tab
+function renderGroupVisibilityCheckboxesForReport(userEmail, reportName, tabIdx) {
+    const config = reportConfig[reportName] || {};
+    const userPerms = config.user_permissions?.[userEmail] || { hiddenprimarygroups: [], hiddensecondarygroups: [] };
+    
+    // Assuming you have functions or data to get primary and secondary groups for a report
+    const primaryGroups = getGroups(config, 'primary');  // returns array of primary group names
+    const secondaryGroups = getGroups(config, 'secondary');  // returns array of secondary group names
+    
+    const primaryContainer = document.getElementById(`primaryGroupsContainer_${tabIdx}`);
+    const secondaryContainer = document.getElementById(`secondaryGroupsContainer_${tabIdx}`);
+    
+    if (!primaryContainer || !secondaryContainer) return;
+    
+    primaryContainer.innerHTML = '';
+    secondaryContainer.innerHTML = '';
+    
+    primaryGroups.forEach(group => {
+        const checked = userPerms.hiddenprimarygroups?.includes(group) ? 'checked' : '';
+        primaryContainer.innerHTML += `
+            <div class="form-check">
+                <input class="form-check-input" type="checkbox" value="${group}" id="primary_${tabIdx}_${group}" ${checked}>
+                <label class="form-check-label" for="primary_${tabIdx}_${group}">${group}</label>
+            </div>
+        `;
+    });
+    
+    secondaryGroups.forEach(group => {
+        const checked = userPerms.hiddensecondarygroups?.includes(group) ? 'checked' : '';
+        secondaryContainer.innerHTML += `
+            <div class="form-check">
+                <input class="form-check-input" type="checkbox" value="${group}" id="secondary_${tabIdx}_${group}" ${checked}>
+                <label class="form-check-label" for="secondary_${tabIdx}_${group}">${group}</label>
+            </div>
+        `;
+    });
 }
 
 
