@@ -827,11 +827,11 @@ function createCard(row, columns, reportName, config) {
     
     // Create buttons container
     const buttonsContainer = document.createElement("div");
-    buttonsContainer.className = "d-flex gap-2 mt-2";
+    buttonsContainer.className = "d-flex flex-column gap-2 mt-2";
     
     // View Details button (always present)
     const detailsBtn = document.createElement("button");
-    detailsBtn.className = "btn btn-sm btn-outline-primary flex-grow-1";
+    detailsBtn.className = "btn btn-sm btn-outline-primary";
     detailsBtn.textContent = "View Details";
     detailsBtn.addEventListener("click", () => {
         showDetailModal(row, columns, reportName, config);
@@ -844,23 +844,37 @@ function createCard(row, columns, reportName, config) {
         
         if (timeLogsPerms.can_view) {
             const timeLogsBtn = document.createElement("button");
-            timeLogsBtn.className = "btn btn-sm btn-outline-info flex-grow-1";
+            timeLogsBtn.className = "btn btn-sm btn-outline-info";
             timeLogsBtn.innerHTML = '<i class="bi bi-clock-history"></i> Time Logs';
-timeLogsBtn.addEventListener("click", () => {
-    // Extract plain text from HTML link if it exists
-    let jobCardName = row['job_card'];
-    
-    // If it's an HTML string, extract the text content
-    if (typeof jobCardName === 'string' && jobCardName.includes('<a')) {
-        const tempDiv = document.createElement('div');
-        tempDiv.innerHTML = jobCardName;
-        jobCardName = tempDiv.textContent || tempDiv.innerText || jobCardName;
+            timeLogsBtn.addEventListener("click", () => {
+                // Extract plain text from HTML link if it exists
+                let jobCardName = row['job_card'];
+                
+                // If it's an HTML string, extract the text content
+                if (typeof jobCardName === 'string' && jobCardName.includes('<a')) {
+                    const tempDiv = document.createElement('div');
+                    tempDiv.innerHTML = jobCardName;
+                    jobCardName = tempDiv.textContent || tempDiv.innerText || jobCardName;
+                }
+                
+                showTimeLogsModal(jobCardName, reportName, config);
+            });
+            buttonsContainer.appendChild(timeLogsBtn);
+        }
     }
     
-    showTimeLogsModal(jobCardName, reportName, config);
-});
-
-            buttonsContainer.appendChild(timeLogsBtn);
+    // Add Operation Planning button if configured
+    if (config.show_operation_planning_button !== false) {
+        const opPerms = config.operation_planning_permissions?.[userEmail] || {};
+        
+        if (opPerms.can_view) {
+            const opPlanningBtn = document.createElement("button");
+            opPlanningBtn.className = "btn btn-sm btn-outline-success";
+            opPlanningBtn.innerHTML = '<i class="bi bi-diagram-3"></i> Operation Planning';
+            opPlanningBtn.addEventListener("click", () => {
+                openOperationPlanningModal(row, config, reportName);
+            });
+            buttonsContainer.appendChild(opPlanningBtn);
         }
     }
     
@@ -869,6 +883,7 @@ timeLogsBtn.addEventListener("click", () => {
     
     return card;
 }
+
 
 
 
