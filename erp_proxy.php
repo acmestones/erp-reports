@@ -1112,7 +1112,11 @@ if (isset($_GET['action']) && $_GET['action'] === 'add_work_order_operation') {
         exit;
     }
     
-    // Get current Work Order
+    // Use Frappe's server script method to add operation and create job card
+    // This is more reliable than manual updates
+    $methodUrl = ERP_BASE . "/api/method/frappe.client.insert";
+    
+    // First, get Work Order details for Job Card creation
     $encodedWO = rawurlencode($workOrder);
     $getUrl = ERP_BASE . "/api/resource/Work%20Order/{$encodedWO}";
     
@@ -1187,6 +1191,9 @@ if (isset($_GET['action']) && $_GET['action'] === 'add_work_order_operation') {
         exit;
     }
     
+    // IMPORTANT: Wait a moment for ERPNext to process and assign the name
+    sleep(1);
+    
     // Get the updated Work Order to find the newly created operation's name
     $ch = curl_init();
     curl_setopt_array($ch, [
@@ -1199,74 +1206,124 @@ if (isset($_GET['action']) && $_GET['action'] === 'add_work_order_operation') {
     ]);
     
     $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
+    
+    if ($httpCode !== 200) {
+        echo json_encode([
+            'success' => true,
+            'message' => 'Operation added but could not verify operation ID for Job Card creation'
+        ]);
+        exit;
+    }
     
     $updatedWoData = json_decode($response, true);
     $updatedOperations = $updatedWoData['data']['operations'] ?? [];
     
-    // Find the newly added operation (last one)
-    $newOperationData = end($updatedOperations);
-    $operationId = $newOperationData['name'] ?? '';
+    // Find the newly added operation (match by operation name and workstation)
+    $newOperationData = null;
+    foreach ($updatedOperations as $op) {
+        if ($op['operation'] === $operation && 
+            $op['workstation'] === $workstation && 
+            !empty($op['name'])) {
+            // Check if Job Card already exists for this operation
+            $searchUrl = ERP_BASE . "/api/resource/Job%20Card?filters=" . urlencode('[["work_order","=","' . $workOrder . '"],["operation_id","=","' . $op['name'] . '"]]') . "&fields=[\"name\"]";
+            
+            $ch = curl_init();
+            curl_setopt_array($ch, [
+                CURLOPT_URL => $searchUrl,
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_HTTPHEADER => [
+                    "Authorization: token " . API_KEY . ":" . API_SECRET
+                ],
+                CURLOPT_SSL_VERIFYPEER => false
+            ]);
+            
+            $searchResponse = curl_exec($ch);
+            curl_close($ch);
+            
+            $existingJCs = json_decode($searchResponse, true);
+            if (empty($existingJCs['data'])) {
+                // No job card exists for this operation, so this must be our new one
+                $newOperationData = $op;
+                break;
+            }
+        }
+    }
     
-    // Now create the Job Card for this operation
-    if (!empty($operationId)) {
-        $createJobCardUrl = ERP_BASE . "/api/resource/Job%20Card";
-        
-        $jobCardData = [
-            'work_order' => $workOrder,
-            'operation_id' => $operationId,
-            'operation' => $operation,
-            'workstation' => $workstation,
-            'for_quantity' => floatval($woData['data']['qty'] ?? 1),
-            'production_item' => $woData['data']['production_item'] ?? '',
-            'item_name' => $woData['data']['item_name'] ?? '',
-            'bom_no' => $woData['data']['bom_no'] ?? ''
-        ];
-        
-        if (!empty($plant)) {
-            $jobCardData['custom_plant'] = $plant;
-        }
-        
-        $ch = curl_init();
-        curl_setopt_array($ch, [
-            CURLOPT_URL => $createJobCardUrl,
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_POST => true,
-            CURLOPT_POSTFIELDS => json_encode($jobCardData),
-            CURLOPT_HTTPHEADER => [
-                "Authorization: token " . API_KEY . ":" . API_SECRET,
-                "Content-Type: application/json"
-            ],
-            CURLOPT_SSL_VERIFYPEER => false
-        ]);
-        
-        $jcResponse = curl_exec($ch);
-        $jcHttpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
-        
-        error_log("Create Job Card - HTTP {$jcHttpCode}: {$jcResponse}");
-        
-        if ($jcHttpCode === 200) {
-            $jcData = json_decode($jcResponse, true);
-            $jobCardName = $jcData['data']['name'] ?? '';
-            echo json_encode([
-                'success' => true,
-                'message' => 'Operation and Job Card created successfully',
-                'job_card' => $jobCardName
-            ]);
-        } else {
-            // Operation was added but Job Card creation failed
-            echo json_encode([
-                'success' => true,
-                'message' => 'Operation added but Job Card creation failed',
-                'warning' => 'You may need to create the Job Card manually',
-                'job_card_error' => $jcResponse
-            ]);
-        }
-    } else {
+    if (empty($newOperationData) || empty($newOperationData['name'])) {
+        error_log("Could not find operation ID. Operations data: " . json_encode($updatedOperations));
         echo json_encode([
             'success' => true,
-            'message' => 'Operation added successfully (Job Card creation skipped - operation ID not found)'
+            'message' => 'Operation added but Job Card creation skipped (operation ID not found)',
+            'debug' => [
+                'operations_count' => count($updatedOperations),
+                'looking_for' => $operation . ' - ' . $workstation
+            ]
+        ]);
+        exit;
+    }
+    
+    $operationId = $newOperationData['name'];
+    error_log("Found new operation ID: {$operationId}");
+    
+    // Now create the Job Card for this operation
+    $createJobCardUrl = ERP_BASE . "/api/resource/Job%20Card";
+    
+    $jobCardData = [
+        'work_order' => $workOrder,
+        'operation_id' => $operationId,
+        'operation' => $operation,
+        'workstation' => $workstation,
+        'for_quantity' => floatval($woData['data']['qty'] ?? 1),
+        'production_item' => $woData['data']['production_item'] ?? '',
+        'item_name' => $woData['data']['item_name'] ?? '',
+        'bom_no' => $woData['data']['bom_no'] ?? ''
+    ];
+    
+    if (!empty($plant)) {
+        $jobCardData['custom_plant'] = $plant;
+    }
+    
+    error_log("Creating Job Card with data: " . json_encode($jobCardData));
+    
+    $ch = curl_init();
+    curl_setopt_array($ch, [
+        CURLOPT_URL => $createJobCardUrl,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_POST => true,
+        CURLOPT_POSTFIELDS => json_encode($jobCardData),
+        CURLOPT_HTTPHEADER => [
+            "Authorization: token " . API_KEY . ":" . API_SECRET,
+            "Content-Type: application/json"
+        ],
+        CURLOPT_SSL_VERIFYPEER => false
+    ]);
+    
+    $jcResponse = curl_exec($ch);
+    $jcHttpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    
+    error_log("Create Job Card - HTTP {$jcHttpCode}: {$jcResponse}");
+    
+    if ($jcHttpCode === 200) {
+        $jcData = json_decode($jcResponse, true);
+        $jobCardName = $jcData['data']['name'] ?? '';
+        echo json_encode([
+            'success' => true,
+            'message' => 'Operation and Job Card created successfully',
+            'job_card' => $jobCardName,
+            'operation_id' => $operationId
+        ]);
+    } else {
+        // Operation was added but Job Card creation failed
+        $jcError = json_decode($jcResponse, true);
+        error_log("Job Card creation failed: " . json_encode($jcError));
+        echo json_encode([
+            'success' => true,
+            'message' => 'Operation added but Job Card creation failed',
+            'warning' => 'Job Card creation error: ' . ($jcError['exception'] ?? $jcResponse),
+            'operation_id' => $operationId
         ]);
     }
     exit;
