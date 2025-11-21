@@ -2204,7 +2204,6 @@ async function openGlobalReportConfigModal(reportName) {
                                     <th class="text-center" style="width: 60px;">Delete</th>
                                     <th class="text-center" style="width: 80px;">Edit WS</th>
                                     <th class="text-center" style="width: 80px;">Edit Time</th>
-
                                 </tr>
                             </thead>
                             <tbody id="timeLogsPermissionsTable">
@@ -2249,10 +2248,71 @@ async function openGlobalReportConfigModal(reportName) {
                                                     data-user="${user.email}" data-perm="can_edit_time_required" 
                                                     ${perms.can_edit_time_required ? 'checked' : ''}>
                                             </td>
- 
-
                                         </tr>
                                     `;
+                                }).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <hr>
+                
+                <h6 class="mt-3">Operation Planning Settings</h6>
+                <div class="form-check mb-3">
+                    <input class="form-check-input" type="checkbox" id="configShowOperationPlanning" 
+                        ${config.show_operation_planning_button !== false ? 'checked' : ''}>
+                    <label class="form-check-label" for="configShowOperationPlanning">
+                        Show Operation Planning Button
+                    </label>
+                </div>
+                
+                <div id="operationPlanningPermissionsSection" style="display: ${config.show_operation_planning_button !== false ? 'block' : 'none'};">
+                    <label class="small fw-bold">User Permissions for Operation Planning</label>
+                    <div class="table-responsive" style="max-height: 300px; overflow-y: auto;">
+                        <table class="table table-sm table-bordered">
+                            <thead class="table-light sticky-top">
+                                <tr>
+                                    <th style="min-width: 180px;">User</th>
+                                    <th class="text-center" style="width: 60px;" title="View operations table">View</th>
+                                    <th class="text-center" style="width: 60px;" title="Add new operations">Add</th>
+                                    <th class="text-center" style="width: 60px;" title="Edit existing operations">Edit</th>
+                                    <th class="text-center" style="width: 60px;" title="Delete operations">Delete</th>
+                                    <th class="text-center" style="width: 80px;" title="Reorder operations">Reorder</th>
+                                </tr>
+                            </thead>
+                            <tbody id="operationPlanningPermissionsTable">
+                                ${users.users.map(user => {
+                                    const perms = config.operation_planning_permissions?.[user.email] || {
+                                        can_view: false,
+                                        can_add: false,
+                                        can_edit: false,
+                                        can_delete: false,
+                                        can_reorder: false
+                                    };
+                                    return `<tr>
+                                        <td class="small">${user.email}</td>
+                                        <td class="text-center">
+                                            <input type="checkbox" class="form-check-input op-planning-perm" 
+                                                data-user="${user.email}" data-perm="can_view" ${perms.can_view ? 'checked' : ''}>
+                                        </td>
+                                        <td class="text-center">
+                                            <input type="checkbox" class="form-check-input op-planning-perm" 
+                                                data-user="${user.email}" data-perm="can_add" ${perms.can_add ? 'checked' : ''}>
+                                        </td>
+                                        <td class="text-center">
+                                            <input type="checkbox" class="form-check-input op-planning-perm" 
+                                                data-user="${user.email}" data-perm="can_edit" ${perms.can_edit ? 'checked' : ''}>
+                                        </td>
+                                        <td class="text-center">
+                                            <input type="checkbox" class="form-check-input op-planning-perm" 
+                                                data-user="${user.email}" data-perm="can_delete" ${perms.can_delete ? 'checked' : ''}>
+                                        </td>
+                                        <td class="text-center">
+                                            <input type="checkbox" class="form-check-input op-planning-perm" 
+                                                data-user="${user.email}" data-perm="can_reorder" ${perms.can_reorder ? 'checked' : ''}>
+                                        </td>
+                                    </tr>`;
                                 }).join('')}
                             </tbody>
                         </table>
@@ -2312,6 +2372,12 @@ async function openGlobalReportConfigModal(reportName) {
     // Add event listener for show time logs checkbox
     document.getElementById('configShowTimeLogs').addEventListener('change', (e) => {
         document.getElementById('timeLogsPermissionsSection').style.display = 
+            e.target.checked ? 'block' : 'none';
+    });
+    
+    // Add event listener for show operation planning checkbox
+    document.getElementById('configShowOperationPlanning').addEventListener('change', (e) => {
+        document.getElementById('operationPlanningPermissionsSection').style.display = 
             e.target.checked ? 'block' : 'none';
     });
     
@@ -2387,20 +2453,47 @@ async function openGlobalReportConfigModal(reportName) {
             delete reportConfig[reportName].time_logs_permissions;
         }
         
+        // Save Operation Planning configuration
+        reportConfig[reportName].show_operation_planning_button = 
+            document.getElementById('configShowOperationPlanning').checked;
+        
+        if (reportConfig[reportName].show_operation_planning_button) {
+            const opPlanningPermissions = {};
+            document.querySelectorAll('.op-planning-perm').forEach(checkbox => {
+                const user = checkbox.dataset.user;
+                const perm = checkbox.dataset.perm;
+                if (!opPlanningPermissions[user]) {
+                    opPlanningPermissions[user] = {
+                        can_view: false,
+                        can_add: false,
+                        can_edit: false,
+                        can_delete: false,
+                        can_reorder: false
+                    };
+                }
+                opPlanningPermissions[user][perm] = checkbox.checked;
+            });
+            reportConfig[reportName].operation_planning_permissions = opPlanningPermissions;
+        } else {
+            // Remove operation planning permissions if feature is disabled
+            delete reportConfig[reportName].operation_planning_permissions;
+        }
+        
         alert("Configuration saved! Click 'Save Changes' in main settings to persist.");
         configModal.hide();
     };
     
     // Blur any focused element to prevent aria-hidden focus conflict
-if (document.activeElement && document.activeElement.blur) {
-    document.activeElement.blur();
+    if (document.activeElement && document.activeElement.blur) {
+        document.activeElement.blur();
+    }
+
+    // Show modal after a small delay to ensure focus is cleared
+    setTimeout(() => {
+        configModal.show();
+    }, 50);
 }
 
-// Show modal after a small delay to ensure focus is cleared
-setTimeout(() => {
-    configModal.show();
-}, 50);
-}
 
 
 
