@@ -4040,6 +4040,8 @@ async function addNewOperation(workOrderId, permissions) {
   const workstationOptions = await getWorkstationOptions();
   const plantOptions = await getPlantOptions();
   
+  console.log('Plant options fetched:', plantOptions);
+  
   // Create operation dropdown
   let operationSelect = `<select class="form-select" id="newOpOperation" required>
     <option value="">-- Select Operation --</option>`;
@@ -4056,17 +4058,18 @@ async function addNewOperation(workOrderId, permissions) {
   });
   workstationSelect += `</select>`;
   
-  // Create plant dropdown (if options exist, otherwise use text input)
+  // Create plant floor dropdown
   let plantInput;
   if (plantOptions.length > 0) {
     plantInput = `<select class="form-select" id="newOpPlant">
-      <option value="">-- Select Plant --</option>`;
+      <option value="">-- Select Plant Floor --</option>`;
     plantOptions.forEach(opt => {
       plantInput += `<option value="${opt}">${opt}</option>`;
     });
     plantInput += `</select>`;
   } else {
-    plantInput = `<input type="text" class="form-control" id="newOpPlant">`;
+    // Fallback to text input if no options found
+    plantInput = `<input type="text" class="form-control" id="newOpPlant" placeholder="Enter plant floor">`;
   }
   
   // Create inline form in modal
@@ -4075,7 +4078,7 @@ async function addNewOperation(workOrderId, permissions) {
       <h6>Add New Operation</h6>
       <div class="row g-2">
         <div class="col-md-3">
-          <label class="form-label">Operation</label>
+          <label class="form-label">Operation <span class="text-danger">*</span></label>
           ${operationSelect}
         </div>
         <div class="col-md-3">
@@ -4084,10 +4087,10 @@ async function addNewOperation(workOrderId, permissions) {
         </div>
         <div class="col-md-2">
           <label class="form-label">Time (mins)</label>
-          <input type="number" class="form-control" id="newOpTime">
+          <input type="number" class="form-control" id="newOpTime" placeholder="0">
         </div>
         <div class="col-md-2">
-          <label class="form-label">Plant</label>
+          <label class="form-label">Plant Floor</label>
           ${plantInput}
         </div>
         <div class="col-md-2 d-flex align-items-end">
@@ -4102,14 +4105,15 @@ async function addNewOperation(workOrderId, permissions) {
   content.insertAdjacentHTML('afterbegin', form);
   
   // Attach event listeners
-  document.getElementById('saveNewOpBtn').addEventListener('click', () => {
-    saveNewOperation(workOrderId);
+  document.getElementById('saveNewOpBtn').addEventListener('click', async () => {
+    await saveNewOperation(workOrderId);
   });
   
   document.getElementById('cancelNewOpBtn').addEventListener('click', () => {
     cancelNewOperation();
   });
 }
+
 
 
 
@@ -4171,18 +4175,19 @@ async function editOperation(operationName, workOrderId) {
   });
   workstationSelect += `</select>`;
   
-  // Create plant dropdown (if options exist, otherwise use text input)
+  // Create plant floor dropdown
   let plantInput;
   if (plantOptions.length > 0) {
-    plantInput = `<select class="form-select form-select-sm" id="edit_plant">`;
-    plantInput += `<option value="">-- Select Plant --</option>`;
+    plantInput = `<select class="form-select form-select-sm" id="edit_plant">
+      <option value="">-- Select Plant Floor --</option>`;
     plantOptions.forEach(opt => {
       const selected = opt === currentPlant ? 'selected' : '';
       plantInput += `<option value="${opt}" ${selected}>${opt}</option>`;
     });
     plantInput += `</select>`;
   } else {
-    plantInput = `<input type="text" class="form-control form-control-sm" id="edit_plant" value="${currentPlant}">`;
+    // Fallback to text input if no options found
+    plantInput = `<input type="text" class="form-control form-control-sm" id="edit_plant" value="${currentPlant}" placeholder="Enter plant floor">`;
   }
   
   // Replace row with editable inputs
@@ -4201,6 +4206,7 @@ async function editOperation(operationName, workOrderId) {
     </button>
   `;
 }
+
 
 
 
