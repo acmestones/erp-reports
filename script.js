@@ -1732,7 +1732,7 @@ async function openReportConfigModal(userEmail) {
     user.allowed_reports.forEach((report, idx) => {
         tabsHtml += `
             <li class="nav-item">
-                <a class="nav-link ${idx === 0 ? 'active' : ''}" data-bs-toggle="tab" href="#tab_${idx}" role="tab" aria-selected="${idx === 0}">
+                <a class="nav-link ${idx === 0 ? 'active' : ''}" data-bs-toggle="tab" href="#tab_${idx}" role="tab">
                     ${report}
                 </a>
             </li>
@@ -1753,6 +1753,7 @@ async function openReportConfigModal(userEmail) {
         tabsHtml += `
             <div class="tab-pane fade ${idx === 0 ? 'show active' : ''}" id="tab_${idx}" role="tabpanel">
                 <h6>Field Permissions for ${reportName}</h6>
+                
                 <div class="row">
                     <div class="col-md-6">
                         <h6 class="small fw-bold mt-3">Editable Fields:</h6>
@@ -1773,6 +1774,7 @@ async function openReportConfigModal(userEmail) {
                             `).join('')}
                         </div>
                     </div>
+                    
                     <div class="col-md-6">
                         <h6 class="small fw-bold mt-3">Hidden Fields:</h6>
                         <div class="border rounded p-2" style="max-height: 300px; overflow-y: auto;">
@@ -1794,16 +1796,16 @@ async function openReportConfigModal(userEmail) {
                     </div>
                 </div>
 
-                <!-- Added Group Visibility Controls -->
+                <!-- Group Visibility Controls -->
                 <div style="margin-top: 20px;">
                   <h6>Hide Primary Groups:</h6>
                   <div id="primaryGroupsContainer_${idx}" class="border rounded p-2" style="max-height: 150px; overflow-y: auto;">
-                      <!-- Filled dynamically later -->
+                      <!-- Filled dynamically -->
                   </div>
                   
                   <h6 class="mt-3">Hide Secondary Groups:</h6>
                   <div id="secondaryGroupsContainer_${idx}" class="border rounded p-2" style="max-height: 150px; overflow-y: auto;">
-                      <!-- Filled dynamically later -->
+                      <!-- Filled dynamically -->
                   </div>
                 </div>
                 <!-- End Group Visibility Controls -->
@@ -1815,12 +1817,12 @@ async function openReportConfigModal(userEmail) {
     tabsHtml += '</div>';
     document.getElementById('reportConfigTabs').innerHTML = tabsHtml;
     
-    // After tabs rendered, populate group visibility checkboxes for first report
+    // Populate group visibility checkboxes for all reports
     if (user.allowed_reports.length > 0) {
         renderGroupVisibilityCheckboxesForAllReports(userEmail, user.allowed_reports);
     }
     
-    // Add event listener for tab change to update group visibility on tab switch
+    // Add event listener for tab change to update group visibility
     const tabLinks = document.querySelectorAll('#reportConfigTabList .nav-link');
     tabLinks.forEach((tabLink, idx) => {
         tabLink.addEventListener('shown.bs.tab', () => {
@@ -1828,7 +1830,6 @@ async function openReportConfigModal(userEmail) {
         });
     });
     
-    // Setup Save button handler
     document.getElementById('saveReportConfigBtn').onclick = () => {
         user.allowed_reports.forEach((reportName, idx) => {
             if (!reportConfig[reportName]) {
@@ -1838,11 +1839,10 @@ async function openReportConfigModal(userEmail) {
                 reportConfig[reportName].user_permissions = {};
             }
             
-            // Save editable and hidden fields
             const editableChecks = document.querySelectorAll(`.editable-field-check[data-report="${reportName}"][data-user="${userEmail}"]:checked`);
             const hiddenChecks = document.querySelectorAll(`.hidden-field-check[data-report="${reportName}"][data-user="${userEmail}"]:checked`);
             
-            // Save hidden groups from dynamically created checkboxes
+            // Save hidden groups
             const hiddenPrimary = Array.from(document.querySelectorAll(`#primaryGroupsContainer_${idx} input[type=checkbox]:checked`))
                                      .map(cb => cb.value);
             const hiddenSecondary = Array.from(document.querySelectorAll(`#secondaryGroupsContainer_${idx} input[type=checkbox]:checked`))
@@ -1862,6 +1862,7 @@ async function openReportConfigModal(userEmail) {
     
     configModal.show();
 }
+
 
 
 
@@ -3663,6 +3664,61 @@ function saveGroupVisibilitySettings(reportName, userEmail) {
 
   report.userpermissions[userEmail].hiddenprimarygroups = hiddenprimarygroups;
   report.userpermissions[userEmail].hiddensecondarygroups = hiddensecondarygroups;
+}
+
+
+
+
+
+
+function renderGroupVisibilityCheckboxesForAllReports(userEmail, allowedReports) {
+  allowedReports.forEach((reportName, idx) => {
+    renderGroupVisibilityCheckboxesForReport(userEmail, reportName, idx);
+  });
+}
+
+function renderGroupVisibilityCheckboxesForReport(userEmail, reportName, tabIdx) {
+  const config = reportConfig[reportName] || {};
+  const userPerms = config.user_permissions?.[userEmail] || { hiddenprimarygroups: [], hiddensecondarygroups: [] };
+
+  const primaryGroups = getGroups(config, 'primary');
+  const secondaryGroups = getGroups(config, 'secondary');
+
+  const primaryContainer = document.getElementById(`primaryGroupsContainer_${tabIdx}`);
+  const secondaryContainer = document.getElementById(`secondaryGroupsContainer_${tabIdx}`);
+
+  if (!primaryContainer || !secondaryContainer) return;
+
+  primaryContainer.innerHTML = '';
+  secondaryContainer.innerHTML = '';
+
+  if (primaryGroups.length === 0) {
+    primaryContainer.innerHTML = '<p class="text-muted small">No primary groups configured for this report</p>';
+  } else {
+    primaryGroups.forEach(group => {
+      const checked = userPerms.hiddenprimarygroups?.includes(group) ? 'checked' : '';
+      primaryContainer.innerHTML += `
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" value="${group}" id="primary_${tabIdx}_${group}" ${checked}>
+          <label class="form-check-label" for="primary_${tabIdx}_${group}">${group}</label>
+        </div>
+      `;
+    });
+  }
+
+  if (secondaryGroups.length === 0) {
+    secondaryContainer.innerHTML = '<p class="text-muted small">No secondary groups configured for this report</p>';
+  } else {
+    secondaryGroups.forEach(group => {
+      const checked = userPerms.hiddensecondarygroups?.includes(group) ? 'checked' : '';
+      secondaryContainer.innerHTML += `
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" value="${group}" id="secondary_${tabIdx}_${group}" ${checked}>
+          <label class="form-check-label" for="secondary_${tabIdx}_${group}">${group}</label>
+        </div>
+      `;
+    });
+  }
 }
 
 
