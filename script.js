@@ -149,17 +149,34 @@ async function getReportConfig() {
 
 
 function getGroups(report, level) {
-  const groups = Array.isArray(report.groupby) 
-    ? report.groupby 
-    : report.groupby?.split(',').map(g => g.trim()) || [];
-
+  if (!report || !report.groupby) return [];
+  
+  const groups = Array.isArray(report.groupby) ? report.groupby : report.groupby.split(',').map(g => g.trim());
+  
   if (level === 'primary') {
-    return groups.length > 0 ? [groups[0]] : [];
+    // Get primary grouping field name
+    const primaryField = groups.length > 0 ? groups[0] : null;
+    if (!primaryField) return [];
+    
+    // Get actual values from groupsort if available
+    if (report.groupsort && report.groupsort[primaryField]) {
+      return report.groupsort[primaryField];
+    }
+    return [];
   } else if (level === 'secondary') {
-    return groups.length > 1 ? [groups[1]] : [];
+    // Get secondary grouping field name
+    const secondaryField = groups.length > 1 ? groups[1] : null;
+    if (!secondaryField) return [];
+    
+    // Get actual values from groupsort if available
+    if (report.groupsort && report.groupsort[secondaryField]) {
+      return report.groupsort[secondaryField];
+    }
+    return [];
   }
   return [];
 }
+
 
 
 
