@@ -369,6 +369,16 @@ async function getWorkstationOptions() {
 }
 
 
+async function getPlantOptions() {
+  try {
+    const response = await fetch(`${API_BASE}?action=get_plant_options`);
+    const data = await response.json();
+    return data.success ? data.options : [];
+  } catch (error) {
+    console.error('Error fetching plant options:', error);
+    return [];
+  }
+}
 
 
 
