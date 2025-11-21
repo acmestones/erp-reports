@@ -1630,11 +1630,9 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_workstation_options') {
 
 
 
-// Get plant options
+// Get plant floor options (custom link field)
 if (isset($_GET['action']) && $_GET['action'] === 'get_plant_options') {
-    // Assuming Plant is a custom field with options or a link field
-    // First try to get it as a DocType
-    $url = ERP_BASE . "/api/resource/Plant?fields=[\"name\"]&limit_page_length=999";
+    $url = ERP_BASE . "/api/resource/Plant%20Floor?fields=[\"name\"]&limit_page_length=999";
     
     $ch = curl_init();
     curl_setopt_array($ch, [
@@ -1650,6 +1648,8 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_plant_options') {
     $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
     
+    error_log("Get Plant Floor options - HTTP {$httpCode}: {$response}");
+    
     if ($httpCode === 200) {
         $data = json_decode($response, true);
         $options = array_map(function($item) {
@@ -1658,11 +1658,11 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_plant_options') {
         
         echo json_encode(['success' => true, 'options' => $options]);
     } else {
-        // If Plant doesn't exist as DocType, return empty array
-        echo json_encode(['success' => true, 'options' => []]);
+        echo json_encode(['success' => false, 'message' => 'Failed to fetch Plant Floor options', 'httpCode' => $httpCode]);
     }
     exit;
 }
+
 
 
 
