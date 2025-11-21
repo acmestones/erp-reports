@@ -4200,6 +4200,7 @@ async function deleteOperation(operationName, workOrderId) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
+        work_order: workOrderId,
         operation_name: operationName
       })
     });
@@ -4207,7 +4208,7 @@ async function deleteOperation(operationName, workOrderId) {
     const data = await response.json();
     
     if (data.success) {
-      alert('Operation and linked job card deleted successfully!');
+      alert(data.message || 'Operation deleted successfully!');
       // Reload operations
       const operations = await fetchWorkOrderOperations(workOrderId);
       const userEmail = localStorage.getItem("userEmail");
@@ -4215,12 +4216,15 @@ async function deleteOperation(operationName, workOrderId) {
       const opPerms = config.operation_planning_permissions?.[userEmail] || {};
       renderOperationsTable(operations, opPerms, workOrderId);
     } else {
+      console.error('Delete failed:', data);
       alert('Error: ' + (data.message || 'Failed to delete operation'));
     }
   } catch (error) {
+    console.error('Delete error:', error);
     alert('Error deleting operation: ' + error.message);
   }
 }
+
 
 
 
