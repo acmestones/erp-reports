@@ -4113,7 +4113,7 @@ async function cancelEditOperation(workOrderId) {
 
 
 
-async function deleteOperation(operationId, workOrderId) {
+async function deleteOperation(operationName, workOrderId) {
   if (!confirm('Are you sure you want to delete this operation? This will also delete the linked job card.')) {
     return;
   }
@@ -4123,8 +4123,7 @@ async function deleteOperation(operationId, workOrderId) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        operation_id: operationId,
-        work_order: workOrderId
+        operation_name: operationName
       })
     });
     
@@ -4134,7 +4133,9 @@ async function deleteOperation(operationId, workOrderId) {
       alert('Operation and linked job card deleted successfully!');
       // Reload operations
       const operations = await fetchWorkOrderOperations(workOrderId);
-      const opPerms = reportConfig[currentReportName].operation_planning_permissions?.[userEmail] || {};
+      const userEmail = localStorage.getItem("userEmail");
+      const config = reportConfig[currentReportData.reportName] || {};
+      const opPerms = config.operation_planning_permissions?.[userEmail] || {};
       renderOperationsTable(operations, opPerms, workOrderId);
     } else {
       alert('Error: ' + (data.message || 'Failed to delete operation'));
@@ -4143,6 +4144,7 @@ async function deleteOperation(operationId, workOrderId) {
     alert('Error deleting operation: ' + error.message);
   }
 }
+
 
 
 
