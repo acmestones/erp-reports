@@ -1152,7 +1152,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'add_work_order_operation') {
     
     $operations[] = $newOp;
     
-    // Update Work Order
+    // Update Work Order with new operation
     $updateUrl = ERP_BASE . "/api/resource/Work%20Order/{$encodedWO}";
     
     $updateData = json_encode([
@@ -1178,17 +1178,100 @@ if (isset($_GET['action']) && $_GET['action'] === 'add_work_order_operation') {
     
     error_log("Add operation - HTTP {$httpCode}: {$response}");
     
-    if ($httpCode === 200) {
-        echo json_encode(['success' => true, 'message' => 'Operation added successfully']);
-    } else {
+    if ($httpCode !== 200) {
         echo json_encode([
             'success' => false,
             'message' => 'Failed to add operation',
             'httpCode' => $httpCode
         ]);
+        exit;
+    }
+    
+    // Get the updated Work Order to find the newly created operation's name
+    $ch = curl_init();
+    curl_setopt_array($ch, [
+        CURLOPT_URL => $getUrl,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HTTPHEADER => [
+            "Authorization: token " . API_KEY . ":" . API_SECRET
+        ],
+        CURLOPT_SSL_VERIFYPEER => false
+    ]);
+    
+    $response = curl_exec($ch);
+    curl_close($ch);
+    
+    $updatedWoData = json_decode($response, true);
+    $updatedOperations = $updatedWoData['data']['operations'] ?? [];
+    
+    // Find the newly added operation (last one)
+    $newOperationData = end($updatedOperations);
+    $operationId = $newOperationData['name'] ?? '';
+    
+    // Now create the Job Card for this operation
+    if (!empty($operationId)) {
+        $createJobCardUrl = ERP_BASE . "/api/resource/Job%20Card";
+        
+        $jobCardData = [
+            'work_order' => $workOrder,
+            'operation_id' => $operationId,
+            'operation' => $operation,
+            'workstation' => $workstation,
+            'for_quantity' => floatval($woData['data']['qty'] ?? 1),
+            'production_item' => $woData['data']['production_item'] ?? '',
+            'item_name' => $woData['data']['item_name'] ?? '',
+            'bom_no' => $woData['data']['bom_no'] ?? ''
+        ];
+        
+        if (!empty($plant)) {
+            $jobCardData['custom_plant'] = $plant;
+        }
+        
+        $ch = curl_init();
+        curl_setopt_array($ch, [
+            CURLOPT_URL => $createJobCardUrl,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_POST => true,
+            CURLOPT_POSTFIELDS => json_encode($jobCardData),
+            CURLOPT_HTTPHEADER => [
+                "Authorization: token " . API_KEY . ":" . API_SECRET,
+                "Content-Type: application/json"
+            ],
+            CURLOPT_SSL_VERIFYPEER => false
+        ]);
+        
+        $jcResponse = curl_exec($ch);
+        $jcHttpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+        
+        error_log("Create Job Card - HTTP {$jcHttpCode}: {$jcResponse}");
+        
+        if ($jcHttpCode === 200) {
+            $jcData = json_decode($jcResponse, true);
+            $jobCardName = $jcData['data']['name'] ?? '';
+            echo json_encode([
+                'success' => true,
+                'message' => 'Operation and Job Card created successfully',
+                'job_card' => $jobCardName
+            ]);
+        } else {
+            // Operation was added but Job Card creation failed
+            echo json_encode([
+                'success' => true,
+                'message' => 'Operation added but Job Card creation failed',
+                'warning' => 'You may need to create the Job Card manually',
+                'job_card_error' => $jcResponse
+            ]);
+        }
+    } else {
+        echo json_encode([
+            'success' => true,
+            'message' => 'Operation added successfully (Job Card creation skipped - operation ID not found)'
+        ]);
     }
     exit;
 }
+
 
 
 
@@ -1283,26 +1366,81 @@ if (isset($_GET['action']) && $_GET['action'] === 'update_work_order_operation')
     
     $response = curl_exec($ch);
     $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $error = curl_error($ch);
     curl_close($ch);
     
     error_log("Update operation - HTTP {$httpCode}: {$response}");
-    error_log("Update operation - Error: {$error}");
     
-    if ($httpCode === 200) {
-        echo json_encode(['success' => true, 'message' => 'Operation updated successfully']);
-    } else {
+    if ($httpCode !== 200) {
         $responseData = json_decode($response, true);
         echo json_encode([
             'success' => false,
             'message' => 'Failed to update operation',
             'httpCode' => $httpCode,
-            'error' => $error,
             'response' => $responseData['exception'] ?? $response
         ]);
+        exit;
     }
+    
+    // Now update the linked Job Card if it exists
+    $searchUrl = ERP_BASE . "/api/resource/Job%20Card?filters=" . urlencode('[["work_order","=","' . $workOrder . '"],["operation_id","=","' . $operationName . '"]]') . "&fields=[\"name\"]";
+    
+    $ch = curl_init();
+    curl_setopt_array($ch, [
+        CURLOPT_URL => $searchUrl,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HTTPHEADER => [
+            "Authorization: token " . API_KEY . ":" . API_SECRET
+        ],
+        CURLOPT_SSL_VERIFYPEER => false
+    ]);
+    
+    $jcSearchResponse = curl_exec($ch);
+    $jcHttpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    
+    if ($jcHttpCode === 200) {
+        $jobCards = json_decode($jcSearchResponse, true);
+        if (!empty($jobCards['data'])) {
+            foreach ($jobCards['data'] as $jc) {
+                $jobCardName = $jc['name'];
+                $encodedJC = rawurlencode($jobCardName);
+                $updateJCUrl = ERP_BASE . "/api/resource/Job%20Card/{$encodedJC}";
+                
+                $jcUpdateData = [
+                    'operation' => $operation,
+                    'workstation' => $workstation
+                ];
+                
+                if (!empty($plant)) {
+                    $jcUpdateData['custom_plant'] = $plant;
+                }
+                
+                $ch = curl_init();
+                curl_setopt_array($ch, [
+                    CURLOPT_URL => $updateJCUrl,
+                    CURLOPT_RETURNTRANSFER => true,
+                    CURLOPT_CUSTOMREQUEST => 'PUT',
+                    CURLOPT_POSTFIELDS => json_encode($jcUpdateData),
+                    CURLOPT_HTTPHEADER => [
+                        "Authorization: token " . API_KEY . ":" . API_SECRET,
+                        "Content-Type: application/json"
+                    ],
+                    CURLOPT_SSL_VERIFYPEER => false
+                ]);
+                
+                $jcUpdateResponse = curl_exec($ch);
+                $jcUpdateHttpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                curl_close($ch);
+                
+                error_log("Update Job Card {$jobCardName} - HTTP {$jcUpdateHttpCode}: {$jcUpdateResponse}");
+            }
+        }
+    }
+    
+    echo json_encode(['success' => true, 'message' => 'Operation and Job Card updated successfully']);
     exit;
 }
+
 
 
 
