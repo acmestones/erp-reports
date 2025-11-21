@@ -1139,29 +1139,16 @@ if (isset($_GET['action']) && $_GET['action'] === 'update_work_order_operation')
         exit;
     }
     
-    // Frappe API call to update the operation in the child table
-    $url = ERP_BASE . "/api/method/frappe.client.set_value";
-    
-    $postData = [
-        'doctype' => 'Work Order Operation',
-        'name' => $operationName,
-        'fieldname' => [
-            'operation' => $operation,
-            'workstation' => $workstation,
-            'time_in_mins' => $timeInMins,
-            'custom_plant' => $plant
-        ]
-    ];
+    // First, get the parent Work Order document
+    $encodedWO = rawurlencode($workOrder);
+    $getUrl = ERP_BASE . "/api/resource/Work%20Order/{$encodedWO}";
     
     $ch = curl_init();
     curl_setopt_array($ch, [
-        CURLOPT_URL => $url,
+        CURLOPT_URL => $getUrl,
         CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_POST => true,
-        CURLOPT_POSTFIELDS => http_build_query($postData),
         CURLOPT_HTTPHEADER => [
-            "Authorization: token " . API_KEY . ":" . API_SECRET,
-            "Content-Type: application/x-www-form-urlencoded"
+            "Authorization: token " . API_KEY . ":" . API_SECRET
         ],
         CURLOPT_SSL_VERIFYPEER => false
     ]);
@@ -1170,20 +1157,87 @@ if (isset($_GET['action']) && $_GET['action'] === 'update_work_order_operation')
     $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
     
+    if ($httpCode !== 200) {
+        echo json_encode([
+            'success' => false,
+            'message' => 'Failed to fetch Work Order',
+            'httpCode' => $httpCode
+        ]);
+        exit;
+    }
+    
+    $woData = json_decode($response, true);
+    $operations = $woData['data']['operations'] ?? [];
+    
+    // Find and update the specific operation
+    $updated = false;
+    foreach ($operations as &$op) {
+        if ($op['name'] === $operationName) {
+            $op['operation'] = $operation;
+            $op['workstation'] = $workstation;
+            $op['time_in_mins'] = floatval($timeInMins);
+            if (!empty($plant)) {
+                $op['custom_plant'] = $plant;
+            }
+            $updated = true;
+            break;
+        }
+    }
+    
+    if (!$updated) {
+        echo json_encode(['success' => false, 'message' => 'Operation not found in Work Order']);
+        exit;
+    }
+    
+    // Update the entire Work Order with modified operations
+    $updateUrl = ERP_BASE . "/api/resource/Work%20Order/{$encodedWO}";
+    
+    $updateData = json_encode([
+        'operations' => $operations
+    ]);
+    
+    $ch = curl_init();
+    curl_setopt_array($ch, [
+        CURLOPT_URL => $updateUrl,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_CUSTOMREQUEST => 'PUT',
+        CURLOPT_POSTFIELDS => $updateData,
+        CURLOPT_HTTPHEADER => [
+            "Authorization: token " . API_KEY . ":" . API_SECRET,
+            "Content-Type: application/json"
+        ],
+        CURLOPT_SSL_VERIFYPEER => false
+    ]);
+    
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $error = curl_error($ch);
+    curl_close($ch);
+    
     error_log("Update operation - HTTP {$httpCode}: {$response}");
+    error_log("Update operation - Error: {$error}");
     
     if ($httpCode === 200) {
         echo json_encode(['success' => true, 'message' => 'Operation updated successfully']);
     } else {
+        $responseData = json_decode($response, true);
         echo json_encode([
             'success' => false,
             'message' => 'Failed to update operation',
             'httpCode' => $httpCode,
-            'response' => $response
+            'error' => $error,
+            'response' => $responseData['exception'] ?? $response
         ]);
     }
     exit;
 }
+
+
+
+
+
+
+
 
 // Reorder work order operations
 if (isset($_GET['action']) && $_GET['action'] === 'reorder_work_order_operations') {
@@ -1197,48 +1251,97 @@ if (isset($_GET['action']) && $_GET['action'] === 'reorder_work_order_operations
         exit;
     }
     
-    // Update idx for each operation
-    $success = true;
-    foreach ($operationsOrder as $op) {
-        $url = ERP_BASE . "/api/method/frappe.client.set_value";
-        
-        $postData = [
-            'doctype' => 'Work Order Operation',
-            'name' => $op['name'],
-            'fieldname' => 'idx',
-            'value' => $op['idx']
-        ];
-        
-        $ch = curl_init();
-        curl_setopt_array($ch, [
-            CURLOPT_URL => $url,
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_POST => true,
-            CURLOPT_POSTFIELDS => http_build_query($postData),
-            CURLOPT_HTTPHEADER => [
-                "Authorization: token " . API_KEY . ":" . API_SECRET,
-                "Content-Type: application/x-www-form-urlencoded"
-            ],
-            CURLOPT_SSL_VERIFYPEER => false
+    // Get the current Work Order
+    $encodedWO = rawurlencode($workOrder);
+    $getUrl = ERP_BASE . "/api/resource/Work%20Order/{$encodedWO}";
+    
+    $ch = curl_init();
+    curl_setopt_array($ch, [
+        CURLOPT_URL => $getUrl,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HTTPHEADER => [
+            "Authorization: token " . API_KEY . ":" . API_SECRET
+        ],
+        CURLOPT_SSL_VERIFYPEER => false
+    ]);
+    
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    
+    if ($httpCode !== 200) {
+        echo json_encode([
+            'success' => false,
+            'message' => 'Failed to fetch Work Order',
+            'httpCode' => $httpCode
         ]);
-        
-        $response = curl_exec($ch);
-        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
-        
-        if ($httpCode !== 200) {
-            $success = false;
-            error_log("Reorder failed for {$op['name']}: {$response}");
+        exit;
+    }
+    
+    $woData = json_decode($response, true);
+    $operations = $woData['data']['operations'] ?? [];
+    
+    // Reorder operations based on new order
+    $reorderedOps = [];
+    foreach ($operationsOrder as $orderItem) {
+        foreach ($operations as $op) {
+            if ($op['name'] === $orderItem['name']) {
+                $op['idx'] = $orderItem['idx'];
+                $reorderedOps[] = $op;
+                break;
+            }
         }
     }
     
-    if ($success) {
+    // Update the Work Order with reordered operations
+    $updateUrl = ERP_BASE . "/api/resource/Work%20Order/{$encodedWO}";
+    
+    $updateData = json_encode([
+        'operations' => $reorderedOps
+    ]);
+    
+    $ch = curl_init();
+    curl_setopt_array($ch, [
+        CURLOPT_URL => $updateUrl,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_CUSTOMREQUEST => 'PUT',
+        CURLOPT_POSTFIELDS => $updateData,
+        CURLOPT_HTTPHEADER => [
+            "Authorization: token " . API_KEY . ":" . API_SECRET,
+            "Content-Type: application/json"
+        ],
+        CURLOPT_SSL_VERIFYPEER => false
+    ]);
+    
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $error = curl_error($ch);
+    curl_close($ch);
+    
+    error_log("Reorder operations - HTTP {$httpCode}: {$response}");
+    error_log("Reorder operations - Error: {$error}");
+    
+    if ($httpCode === 200) {
         echo json_encode(['success' => true, 'message' => 'Operations reordered successfully']);
     } else {
-        echo json_encode(['success' => false, 'message' => 'Failed to reorder some operations']);
+        $responseData = json_decode($response, true);
+        echo json_encode([
+            'success' => false,
+            'message' => 'Failed to reorder operations',
+            'httpCode' => $httpCode,
+            'error' => $error,
+            'response' => $responseData['exception'] ?? $response
+        ]);
     }
     exit;
 }
+
+
+
+
+
+
+
 
 // Delete work order operation
 if (isset($_GET['action']) && $_GET['action'] === 'delete_work_order_operation') {
