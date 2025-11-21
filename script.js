@@ -4209,6 +4209,9 @@ function enableOperationReordering(workOrderId) {
   });
 }
 
+
+
+
 async function saveOperationOrder(workOrderId) {
   const tbody = document.getElementById('operationsTableBody');
   const rows = tbody.querySelectorAll('tr');
@@ -4227,10 +4230,13 @@ async function saveOperationOrder(workOrderId) {
       })
     });
     
-    const data = await response.json();
-    if (!data.success) {
-      alert('Error saving order: ' + (data.message || 'Unknown error'));
-    }
+        const data = await response.json();
+        if (!data.success) {
+          console.error('Reorder failed:', data);
+          alert('Error saving order: ' + (data.message || 'Unknown error') + 
+                (data.response ? '\nDetails: ' + JSON.stringify(data.response) : ''));
+        }
+
   } catch (error) {
     alert('Error saving operation order: ' + error.message);
   }
