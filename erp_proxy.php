@@ -1027,9 +1027,20 @@ if (isset($_GET['action']) && $_GET['action'] == 'update_time_required') {
 
 
 // Get work order operations
-if ($_GET['action'] === 'get_work_order_operations') {
-    $workOrder = $_GET['work_order'];
-    $url = ERP_BASE . "/api/resource/Work Order/{$workOrder}?fields=[\"operations\"]";
+if (isset($_GET['action']) && $_GET['action'] === 'get_work_order_operations') {
+    $workOrder = $_GET['work_order'] ?? '';
+    
+    if (empty($workOrder)) {
+        echo json_encode(['success' => false, 'message' => 'Work Order not specified']);
+        exit;
+    }
+    
+    // URL encode the work order name properly
+    $encodedWorkOrder = rawurlencode($workOrder);
+    $url = ERP_BASE . "/api/resource/Work%20Order/{$encodedWorkOrder}";
+    
+    // Log the URL being called
+    error_log("Fetching Work Order: {$url}");
     
     $ch = curl_init();
     curl_setopt_array($ch, [
@@ -1043,19 +1054,48 @@ if ($_GET['action'] === 'get_work_order_operations') {
     
     $response = curl_exec($ch);
     $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curlError = curl_error($ch);
     curl_close($ch);
+    
+    // Log the response
+    error_log("HTTP Code: {$httpCode}");
+    error_log("Response: {$response}");
+    error_log("Curl Error: {$curlError}");
     
     if ($httpCode === 200) {
         $data = json_decode($response, true);
-        echo json_encode([
-            'success' => true,
-            'operations' => $data['data']['operations'] ?? []
-        ]);
+        
+        if ($data && isset($data['data'])) {
+            echo json_encode([
+                'success' => true,
+                'operations' => $data['data']['operations'] ?? [],
+                'work_order' => $workOrder
+            ]);
+        } else {
+            echo json_encode([
+                'success' => false, 
+                'message' => 'Invalid response structure from ERPNext',
+                'raw_response' => $response
+            ]);
+        }
     } else {
-        echo json_encode(['success' => false, 'message' => 'Failed to fetch operations']);
+        echo json_encode([
+            'success' => false, 
+            'message' => "Failed to fetch Work Order from ERPNext. HTTP {$httpCode}",
+            'httpCode' => $httpCode,
+            'curlError' => $curlError,
+            'url' => $url,
+            'response' => $response
+        ]);
     }
     exit;
 }
+
+
+
+
+
+
 
 // Add work order operation
 if ($_GET['action'] === 'add_work_order_operation') {
@@ -1078,6 +1118,44 @@ if ($_GET['action'] === 'add_work_order_operation') {
 }
 
 // Similar implementations for delete and reorder operations
+
+
+
+
+
+
+
+
+
+// Test ERPNext connection
+if (isset($_GET['action']) && $_GET['action'] === 'test_erpnext') {
+    $url = ERP_BASE . "/api/method/frappe.auth.get_logged_user";
+    
+    $ch = curl_init();
+    curl_setopt_array($ch, [
+        CURLOPT_URL => $url,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HTTPHEADER => [
+            "Authorization: token " . API_KEY . ":" . API_SECRET
+        ],
+        CURLOPT_SSL_VERIFYPEER => false
+    ]);
+    
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    
+    echo json_encode([
+        'httpCode' => $httpCode,
+        'response' => $response,
+        'credentials_check' => $httpCode === 200 ? 'Valid' : 'Invalid'
+    ]);
+    exit;
+}
+
+
+
+
 
 
 
