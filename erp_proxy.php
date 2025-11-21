@@ -1347,20 +1347,22 @@ if (isset($_GET['action']) && $_GET['action'] === 'reorder_work_order_operations
 if (isset($_GET['action']) && $_GET['action'] === 'delete_work_order_operation') {
     $input = json_decode(file_get_contents('php://input'), true);
     
+    $workOrder = $input['work_order'] ?? '';
     $operationName = $input['operation_name'] ?? '';
     
-    if (empty($operationName)) {
-        echo json_encode(['success' => false, 'message' => 'Operation name not specified']);
+    if (empty($workOrder) || empty($operationName)) {
+        echo json_encode(['success' => false, 'message' => 'Missing required parameters']);
         exit;
     }
     
-    $url = ERP_BASE . "/api/resource/Work%20Order%20Operation/{$operationName}";
+    // First, find the linked Job Card
+    $encodedWO = rawurlencode($workOrder);
+    $searchUrl = ERP_BASE . "/api/resource/Job%20Card?filters=" . urlencode('[["work_order","=","' . $workOrder . '"],["operation_id","=","' . $operationName . '"]]') . "&fields=[\"name\"]";
     
     $ch = curl_init();
     curl_setopt_array($ch, [
-        CURLOPT_URL => $url,
+        CURLOPT_URL => $searchUrl,
         CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_CUSTOMREQUEST => 'DELETE',
         CURLOPT_HTTPHEADER => [
             "Authorization: token " . API_KEY . ":" . API_SECRET
         ],
@@ -1371,10 +1373,106 @@ if (isset($_GET['action']) && $_GET['action'] === 'delete_work_order_operation')
     $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
     
+    error_log("Search Job Card - HTTP {$httpCode}: {$response}");
+    
+    $jobCardDeleted = false;
+    if ($httpCode === 200) {
+        $jobCards = json_decode($response, true);
+        if (!empty($jobCards['data'])) {
+            foreach ($jobCards['data'] as $jc) {
+                $jobCardName = $jc['name'];
+                $encodedJC = rawurlencode($jobCardName);
+                $deleteJCUrl = ERP_BASE . "/api/resource/Job%20Card/{$encodedJC}";
+                
+                $ch = curl_init();
+                curl_setopt_array($ch, [
+                    CURLOPT_URL => $deleteJCUrl,
+                    CURLOPT_RETURNTRANSFER => true,
+                    CURLOPT_CUSTOMREQUEST => 'DELETE',
+                    CURLOPT_HTTPHEADER => [
+                        "Authorization: token " . API_KEY . ":" . API_SECRET
+                    ],
+                    CURLOPT_SSL_VERIFYPEER => false
+                ]);
+                
+                $jcResponse = curl_exec($ch);
+                $jcHttpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                curl_close($ch);
+                
+                error_log("Delete Job Card {$jobCardName} - HTTP {$jcHttpCode}: {$jcResponse}");
+                
+                if ($jcHttpCode === 202 || $jcHttpCode === 200) {
+                    $jobCardDeleted = true;
+                }
+            }
+        }
+    }
+    
+    // Now delete the operation from Work Order
+    $getWOUrl = ERP_BASE . "/api/resource/Work%20Order/{$encodedWO}";
+    
+    $ch = curl_init();
+    curl_setopt_array($ch, [
+        CURLOPT_URL => $getWOUrl,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HTTPHEADER => [
+            "Authorization: token " . API_KEY . ":" . API_SECRET
+        ],
+        CURLOPT_SSL_VERIFYPEER => false
+    ]);
+    
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    
+    if ($httpCode !== 200) {
+        echo json_encode(['success' => false, 'message' => 'Failed to fetch Work Order']);
+        exit;
+    }
+    
+    $woData = json_decode($response, true);
+    $operations = $woData['data']['operations'] ?? [];
+    
+    // Remove the operation
+    $filteredOps = array_filter($operations, function($op) use ($operationName) {
+        return $op['name'] !== $operationName;
+    });
+    
+    // Reindex array
+    $filteredOps = array_values($filteredOps);
+    
+    // Update the Work Order
+    $updateUrl = ERP_BASE . "/api/resource/Work%20Order/{$encodedWO}";
+    
+    $updateData = json_encode([
+        'operations' => $filteredOps
+    ]);
+    
+    $ch = curl_init();
+    curl_setopt_array($ch, [
+        CURLOPT_URL => $updateUrl,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_CUSTOMREQUEST => 'PUT',
+        CURLOPT_POSTFIELDS => $updateData,
+        CURLOPT_HTTPHEADER => [
+            "Authorization: token " . API_KEY . ":" . API_SECRET,
+            "Content-Type: application/json"
+        ],
+        CURLOPT_SSL_VERIFYPEER => false
+    ]);
+    
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    
     error_log("Delete operation - HTTP {$httpCode}: {$response}");
     
-    if ($httpCode === 202 || $httpCode === 200) {
-        echo json_encode(['success' => true, 'message' => 'Operation deleted successfully']);
+    if ($httpCode === 200) {
+        $message = 'Operation deleted successfully';
+        if ($jobCardDeleted) {
+            $message .= ' and linked Job Card deleted';
+        }
+        echo json_encode(['success' => true, 'message' => $message]);
     } else {
         echo json_encode([
             'success' => false,
@@ -1384,6 +1482,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'delete_work_order_operation')
     }
     exit;
 }
+
 
 
 
