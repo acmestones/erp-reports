@@ -1026,7 +1026,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'update_time_required') {
 
 
 
-// Get work order operations
+// Get work order operations with job card data
 if (isset($_GET['action']) && $_GET['action'] === 'get_work_order_operations') {
     $workOrder = $_GET['work_order'] ?? '';
     
@@ -1037,10 +1037,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_work_order_operations') {
     
     // URL encode the work order name properly
     $encodedWorkOrder = rawurlencode($workOrder);
-    $url = ERP_BASE . "/api/resource/Work%20Order/{$encodedWorkOrder}";
-    
-    // Log the URL being called
-    error_log("Fetching Work Order: {$url}");
+    $url = ERP_BASE . "/api/resource/Work%20Order/{$encodedWorkOrder}?fields=[\"operations\",\"qty\"]";
     
     $ch = curl_init();
     curl_setopt_array($ch, [
@@ -1054,37 +1051,70 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_work_order_operations') {
     
     $response = curl_exec($ch);
     $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $curlError = curl_error($ch);
     curl_close($ch);
     
-    // Log the response
-    error_log("HTTP Code: {$httpCode}");
-    error_log("Response: {$response}");
-    error_log("Curl Error: {$curlError}");
+    error_log("Get WO Operations - HTTP {$httpCode}: " . $response);
     
     if ($httpCode === 200) {
         $data = json_decode($response, true);
+        $operations = $data['data']['operations'] ?? [];
+        $woQty = $data['data']['qty'] ?? 0;
         
-        if ($data && isset($data['data'])) {
-            echo json_encode([
-                'success' => true,
-                'operations' => $data['data']['operations'] ?? [],
-                'work_order' => $workOrder
-            ]);
-        } else {
-            echo json_encode([
-                'success' => false, 
-                'message' => 'Invalid response structure from ERPNext',
-                'raw_response' => $response
-            ]);
+        // For each operation, fetch the linked Job Card data
+        foreach ($operations as &$op) {
+            $operationId = $op['name'] ?? '';
+            
+            if (!empty($operationId)) {
+                // Search for Job Card linked to this operation
+                $searchUrl = ERP_BASE . "/api/resource/Job%20Card?filters=" . 
+                    urlencode('[["work_order","=","' . $workOrder . '"],["operation_id","=","' . $operationId . '"]]') . 
+                    "&fields=[\"name\",\"for_quantity\",\"total_completed_qty\"]";
+                
+                $ch = curl_init();
+                curl_setopt_array($ch, [
+                    CURLOPT_URL => $searchUrl,
+                    CURLOPT_RETURNTRANSFER => true,
+                    CURLOPT_HTTPHEADER => [
+                        "Authorization: token " . API_KEY . ":" . API_SECRET
+                    ],
+                    CURLOPT_SSL_VERIFYPEER => false
+                ]);
+                
+                $jcResponse = curl_exec($ch);
+                $jcHttpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                curl_close($ch);
+                
+                if ($jcHttpCode === 200) {
+                    $jcData = json_decode($jcResponse, true);
+                    if (!empty($jcData['data'])) {
+                        $jobCard = $jcData['data'][0];
+                        $op['job_card_name'] = $jobCard['name'] ?? '';
+                        $op['for_quantity'] = $jobCard['for_quantity'] ?? $woQty;
+                        $op['total_completed_qty'] = $jobCard['total_completed_qty'] ?? 0;
+                    } else {
+                        // No job card found
+                        $op['job_card_name'] = '';
+                        $op['for_quantity'] = $woQty;
+                        $op['total_completed_qty'] = 0;
+                    }
+                } else {
+                    // Error fetching job card
+                    $op['job_card_name'] = '';
+                    $op['for_quantity'] = $woQty;
+                    $op['total_completed_qty'] = 0;
+                }
+            }
         }
+        
+        echo json_encode([
+            'success' => true,
+            'operations' => $operations
+        ]);
     } else {
         echo json_encode([
             'success' => false, 
-            'message' => "Failed to fetch Work Order from ERPNext. HTTP {$httpCode}",
+            'message' => 'Failed to fetch operations',
             'httpCode' => $httpCode,
-            'curlError' => $curlError,
-            'url' => $url,
             'response' => $response
         ]);
     }
