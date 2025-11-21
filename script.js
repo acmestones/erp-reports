@@ -3813,25 +3813,47 @@ async function openOperationPlanningModal(row, config, reportName) {
 
 
 async function fetchWorkOrderOperations(workOrderId) {
+  console.log('=== Fetch Work Order Operations ===');
+  console.log('Work Order ID:', workOrderId);
+  console.log('API_BASE:', API_BASE);
+  
+  const url = `${API_BASE}?action=get_work_order_operations&work_order=${encodeURIComponent(workOrderId)}`;
+  console.log('Full URL:', url);
+  
   try {
-    console.log('Fetching operations for Work Order:', workOrderId);
-    
-    const url = `${API_BASE}?action=get_work_order_operations&work_order=${encodeURIComponent(workOrderId)}`;
-    console.log('Request URL:', url);
-    
     const response = await fetch(url);
-    console.log('Response status:', response.status);
+    console.log('Response received, status:', response.status, response.statusText);
     
-    const data = await response.json();
-    console.log('Response data:', data);
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    const text = await response.text();
+    console.log('Raw response text:', text);
+    
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch (e) {
+      console.error('JSON parse error:', e);
+      console.error('Response was:', text);
+      throw new Error('Invalid JSON response from server');
+    }
+    
+    console.log('Parsed response data:', data);
     
     if (!data.success) {
       throw new Error(data.message || 'Failed to fetch operations');
     }
     
+    console.log('Operations:', data.operations);
     return data.operations || [];
+    
   } catch (error) {
-    console.error('Error fetching work order operations:', error);
+    console.error('=== Fetch Error ===');
+    console.error('Error type:', error.name);
+    console.error('Error message:', error.message);
+    console.error('Full error:', error);
     throw error;
   }
 }
