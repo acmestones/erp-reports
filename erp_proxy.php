@@ -1127,38 +1127,6 @@ if ($_GET['action'] === 'add_work_order_operation') {
 
 
 
-// Test ERPNext connection
-if (isset($_GET['action']) && $_GET['action'] === 'test_erpnext') {
-    $url = ERP_BASE . "/api/method/frappe.auth.get_logged_user";
-    
-    $ch = curl_init();
-    curl_setopt_array($ch, [
-        CURLOPT_URL => $url,
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_HTTPHEADER => [
-            "Authorization: token " . API_KEY . ":" . API_SECRET
-        ],
-        CURLOPT_SSL_VERIFYPEER => false
-    ]);
-    
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
-    
-    echo json_encode([
-        'httpCode' => $httpCode,
-        'response' => $response,
-        'credentials_check' => $httpCode === 200 ? 'Valid' : 'Invalid'
-    ]);
-    exit;
-}
-
-
-
-
-
-
-
 
 
 
