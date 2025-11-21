@@ -4050,6 +4050,11 @@ async function editOperation(operationName, workOrderId) {
   `;
 }
 
+
+
+
+
+
 async function saveEditOperation(operationName, workOrderId) {
   const operation = document.getElementById('edit_operation').value;
   const workstation = document.getElementById('edit_workstation').value;
@@ -4086,12 +4091,23 @@ async function saveEditOperation(operationName, workOrderId) {
       const opPerms = config.operation_planning_permissions?.[userEmail] || {};
       renderOperationsTable(operations, opPerms, workOrderId);
     } else {
-      alert('Error: ' + (data.message || 'Failed to update operation'));
+      console.error('Update failed:', data);
+      alert('Error: ' + (data.message || 'Failed to update operation') + 
+            (data.response ? '\nDetails: ' + JSON.stringify(data.response) : ''));
     }
+
   } catch (error) {
     alert('Error updating operation: ' + error.message);
   }
 }
+
+
+
+
+
+
+
+
 
 async function cancelEditOperation(workOrderId) {
   // Reload the table to cancel editing
