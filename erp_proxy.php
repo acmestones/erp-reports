@@ -1123,6 +1123,169 @@ if ($_GET['action'] === 'add_work_order_operation') {
 
 
 
+// Update work order operation
+if (isset($_GET['action']) && $_GET['action'] === 'update_work_order_operation') {
+    $input = json_decode(file_get_contents('php://input'), true);
+    
+    $workOrder = $input['work_order'] ?? '';
+    $operationName = $input['operation_name'] ?? '';
+    $operation = $input['operation'] ?? '';
+    $workstation = $input['workstation'] ?? '';
+    $timeInMins = $input['time_in_mins'] ?? 0;
+    $plant = $input['custom_plant'] ?? '';
+    
+    if (empty($workOrder) || empty($operationName)) {
+        echo json_encode(['success' => false, 'message' => 'Missing required parameters']);
+        exit;
+    }
+    
+    // Frappe API call to update the operation in the child table
+    $url = ERP_BASE . "/api/method/frappe.client.set_value";
+    
+    $postData = [
+        'doctype' => 'Work Order Operation',
+        'name' => $operationName,
+        'fieldname' => [
+            'operation' => $operation,
+            'workstation' => $workstation,
+            'time_in_mins' => $timeInMins,
+            'custom_plant' => $plant
+        ]
+    ];
+    
+    $ch = curl_init();
+    curl_setopt_array($ch, [
+        CURLOPT_URL => $url,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_POST => true,
+        CURLOPT_POSTFIELDS => http_build_query($postData),
+        CURLOPT_HTTPHEADER => [
+            "Authorization: token " . API_KEY . ":" . API_SECRET,
+            "Content-Type: application/x-www-form-urlencoded"
+        ],
+        CURLOPT_SSL_VERIFYPEER => false
+    ]);
+    
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    
+    error_log("Update operation - HTTP {$httpCode}: {$response}");
+    
+    if ($httpCode === 200) {
+        echo json_encode(['success' => true, 'message' => 'Operation updated successfully']);
+    } else {
+        echo json_encode([
+            'success' => false,
+            'message' => 'Failed to update operation',
+            'httpCode' => $httpCode,
+            'response' => $response
+        ]);
+    }
+    exit;
+}
+
+// Reorder work order operations
+if (isset($_GET['action']) && $_GET['action'] === 'reorder_work_order_operations') {
+    $input = json_decode(file_get_contents('php://input'), true);
+    
+    $workOrder = $input['work_order'] ?? '';
+    $operationsOrder = $input['operations_order'] ?? [];
+    
+    if (empty($workOrder) || empty($operationsOrder)) {
+        echo json_encode(['success' => false, 'message' => 'Missing required parameters']);
+        exit;
+    }
+    
+    // Update idx for each operation
+    $success = true;
+    foreach ($operationsOrder as $op) {
+        $url = ERP_BASE . "/api/method/frappe.client.set_value";
+        
+        $postData = [
+            'doctype' => 'Work Order Operation',
+            'name' => $op['name'],
+            'fieldname' => 'idx',
+            'value' => $op['idx']
+        ];
+        
+        $ch = curl_init();
+        curl_setopt_array($ch, [
+            CURLOPT_URL => $url,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_POST => true,
+            CURLOPT_POSTFIELDS => http_build_query($postData),
+            CURLOPT_HTTPHEADER => [
+                "Authorization: token " . API_KEY . ":" . API_SECRET,
+                "Content-Type: application/x-www-form-urlencoded"
+            ],
+            CURLOPT_SSL_VERIFYPEER => false
+        ]);
+        
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+        
+        if ($httpCode !== 200) {
+            $success = false;
+            error_log("Reorder failed for {$op['name']}: {$response}");
+        }
+    }
+    
+    if ($success) {
+        echo json_encode(['success' => true, 'message' => 'Operations reordered successfully']);
+    } else {
+        echo json_encode(['success' => false, 'message' => 'Failed to reorder some operations']);
+    }
+    exit;
+}
+
+// Delete work order operation
+if (isset($_GET['action']) && $_GET['action'] === 'delete_work_order_operation') {
+    $input = json_decode(file_get_contents('php://input'), true);
+    
+    $operationName = $input['operation_name'] ?? '';
+    
+    if (empty($operationName)) {
+        echo json_encode(['success' => false, 'message' => 'Operation name not specified']);
+        exit;
+    }
+    
+    $url = ERP_BASE . "/api/resource/Work%20Order%20Operation/{$operationName}";
+    
+    $ch = curl_init();
+    curl_setopt_array($ch, [
+        CURLOPT_URL => $url,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_CUSTOMREQUEST => 'DELETE',
+        CURLOPT_HTTPHEADER => [
+            "Authorization: token " . API_KEY . ":" . API_SECRET
+        ],
+        CURLOPT_SSL_VERIFYPEER => false
+    ]);
+    
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    
+    error_log("Delete operation - HTTP {$httpCode}: {$response}");
+    
+    if ($httpCode === 202 || $httpCode === 200) {
+        echo json_encode(['success' => true, 'message' => 'Operation deleted successfully']);
+    } else {
+        echo json_encode([
+            'success' => false,
+            'message' => 'Failed to delete operation',
+            'httpCode' => $httpCode
+        ]);
+    }
+    exit;
+}
+
+
+
+
+
 
 
 
