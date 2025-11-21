@@ -863,20 +863,24 @@ function createCard(row, columns, reportName, config) {
         }
     }
     
-    // Add Operation Planning button if configured
-    if (config.show_operation_planning_button !== false) {
-        const opPerms = config.operation_planning_permissions?.[userEmail] || {};
-        
-        if (opPerms.can_view) {
-            const opPlanningBtn = document.createElement("button");
-            opPlanningBtn.className = "btn btn-sm btn-outline-success";
-            opPlanningBtn.innerHTML = '<i class="bi bi-diagram-3"></i> Operation Planning';
-            opPlanningBtn.addEventListener("click", () => {
-                openOperationPlanningModal(row, config, reportName);
-            });
-            buttonsContainer.appendChild(opPlanningBtn);
-        }
+// Add Operation Planning button if configured
+if (config.show_operation_planning_button !== false) {
+    const opPerms = config.operation_planning_permissions?.[userEmail] || {};
+    
+    if (opPerms.can_view) {
+        const opPlanningBtn = document.createElement("button");
+        opPlanningBtn.className = "btn btn-sm btn-outline-success";
+        opPlanningBtn.innerHTML = '<i class="bi bi-diagram-3"></i> Operation Planning';
+        opPlanningBtn.addEventListener("click", () => {
+            // Debug: Check what work order ID we're passing
+            console.log('Row data:', row);
+            console.log('Work Order ID:', row.work_order_id || row.name);
+            openOperationPlanningModal(row, config, reportName);
+        });
+        buttonsContainer.appendChild(opPlanningBtn);
     }
+}
+
     
     cardBody.appendChild(buttonsContainer);
     card.appendChild(cardBody);
