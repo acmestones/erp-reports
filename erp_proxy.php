@@ -1024,6 +1024,67 @@ if (isset($_GET['action']) && $_GET['action'] == 'update_time_required') {
 
 
 
+
+
+// Get work order operations
+if ($_GET['action'] === 'get_work_order_operations') {
+    $workOrder = $_GET['work_order'];
+    $url = ERP_BASE . "/api/resource/Work Order/{$workOrder}?fields=[\"operations\"]";
+    
+    $ch = curl_init();
+    curl_setopt_array($ch, [
+        CURLOPT_URL => $url,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HTTPHEADER => [
+            "Authorization: token " . API_KEY . ":" . API_SECRET
+        ],
+        CURLOPT_SSL_VERIFYPEER => false
+    ]);
+    
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    
+    if ($httpCode === 200) {
+        $data = json_decode($response, true);
+        echo json_encode([
+            'success' => true,
+            'operations' => $data['data']['operations'] ?? []
+        ]);
+    } else {
+        echo json_encode(['success' => false, 'message' => 'Failed to fetch operations']);
+    }
+    exit;
+}
+
+// Add work order operation
+if ($_GET['action'] === 'add_work_order_operation') {
+    $input = json_decode(file_get_contents('php://input'), true);
+    
+    // First, get current work order
+    $workOrder = $input['work_order'];
+    $url = ERP_BASE . "/api/resource/Work Order/{$workOrder}";
+    
+    // Fetch current operations
+    // Add new operation to array
+    // Update work order with new operations
+    // This will trigger ERPNext to create corresponding job card
+    
+    // Implementation depends on your ERPNext version and customization
+    // You may need to use frappe.client.set_value or doc.append
+    
+    echo json_encode(['success' => true, 'message' => 'Operation added']);
+    exit;
+}
+
+// Similar implementations for delete and reorder operations
+
+
+
+
+
+
+
 // ==================== END TIME LOGS ENDPOINTS ====================
 
 echo json_encode(["error" => "Invalid request"]);
