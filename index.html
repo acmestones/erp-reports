@@ -3,21 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Acme Stones Reports</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="style.css">
-    
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
-    
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <!-- Add this base tag to prevent relative URL issues -->
     <base href="https://stagingreports.acmestones.com/">
     
     <title>Acme Stones Reports</title>
-    <!-- rest of your head content -->
-
-
+    
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm">
@@ -36,55 +29,51 @@
     </nav>
 
     <div class="container-fluid mt-4">
-        <!-- Column Selector -->
-
-
-<div class="mb-3">
-    <div class="d-flex justify-content-between align-items-center mb-2">
-        <div id="reportSelector"></div>
-        <div class="d-flex align-items-center gap-2">
-            <label for="columnSelector" class="small mb-0 d-none d-md-block">Columns:</label>
-            <select id="columnSelector" class="form-select form-select-sm d-none d-md-block" style="width: auto;">
-                <option value="3">3</option>
-                <option value="4">4</option>
-                <option value="5" selected>5</option>
-            </select>
+        <!-- Column Selector and Search Bar -->
+        <div class="mb-3">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <div id="reportSelector"></div>
+                <div class="d-flex align-items-center gap-2">
+                    <label for="columnSelector" class="small mb-0 d-none d-md-block">Columns:</label>
+                    <select id="columnSelector" class="form-select form-select-sm d-none d-md-block" style="width: auto;">
+                        <option value="3">3</option>
+                        <option value="4">4</option>
+                        <option value="5" selected>5</option>
+                    </select>
+                </div>
+            </div>
+            
+            <!-- Search Bar with Collapse/Expand Button -->
+            <div class="d-flex gap-2">
+                <div class="input-group flex-grow-1">
+                    <span class="input-group-text bg-white">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                            <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z"/>
+                        </svg>
+                    </span>
+                    <input type="text" id="searchInput" class="form-control" placeholder="Search by Work Order, Customer, Item, or any field..." autocomplete="off">
+                    <button class="btn btn-outline-secondary" type="button" id="clearSearchBtn" style="display: none;">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                            <path d="M2.146 2.854a.5.5 0 1 1 .708-.708L8 7.293l5.146-5.147a.5.5 0 0 1 .708.708L8.707 8l5.147 5.146a.5.5 0 0 1-.708.708L8 8.707l-5.146 5.147a.5.5 0 0 1-.708-.708L7.293 8 2.146 2.854Z"/>
+                        </svg>
+                    </button>
+                    <span class="input-group-text bg-light" id="searchResultCount" style="display: none;">
+                        <span id="searchCount">0</span> results
+                    </span>
+                </div>
+                
+                <!-- Collapse/Expand All Button -->
+                <button class="btn btn-outline-primary" type="button" id="toggleAllGroupsBtn" title="Collapse/Expand All">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16" id="collapseIcon">
+                        <path fill-rule="evenodd" d="M1 8a.5.5 0 0 1 .5-.5h13a.5.5 0 0 1 0 1h-13A.5.5 0 0 1 1 8zm7-8a.5.5 0 0 1 .5.5v3.793l1.146-1.147a.5.5 0 0 1 .708.708l-2 2a.5.5 0 0 1-.708 0l-2-2a.5.5 0 1 1 .708-.708L7.5 4.293V.5A.5.5 0 0 1 8 0zm-.5 11.707-1.146 1.147a.5.5 0 0 1-.708-.708l2-2a.5.5 0 0 1 .708 0l2 2a.5.5 0 0 1-.708.708L8.5 11.707V15.5a.5.5 0 0 1-1 0v-3.793z"/>
+                    </svg>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16" id="expandIcon" style="display: none;">
+                        <path fill-rule="evenodd" d="M1 8a.5.5 0 0 1 .5-.5h13a.5.5 0 0 1 0 1h-13A.5.5 0 0 1 1 8zM7.646.146a.5.5 0 0 1 .708 0l2 2a.5.5 0 0 1-.708.708L8.5 1.707V5.5a.5.5 0 0 1-1 0V1.707L6.354 2.854a.5.5 0 1 1-.708-.708l2-2zM8 10a.5.5 0 0 1 .5.5v3.793l1.146-1.147a.5.5 0 0 1 .708.708l-2 2a.5.5 0 0 1-.708 0l-2-2a.5.5 0 0 1 .708-.708L7.5 14.293V10.5A.5.5 0 0 1 8 10z"/>
+                    </svg>
+                    <span class="d-none d-md-inline ms-1" id="toggleAllText">Collapse All</span>
+                </button>
+            </div>
         </div>
-    </div>
-    
-    <!-- Search Bar with Collapse/Expand Button -->
-    <div class="d-flex gap-2">
-        <div class="input-group flex-grow-1">
-            <span class="input-group-text bg-white">
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-                    <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z"/>
-                </svg>
-            </span>
-            <input type="text" id="searchInput" class="form-control" placeholder="Search by Work Order, Customer, Item, or any field..." autocomplete="off">
-            <button class="btn btn-outline-secondary" type="button" id="clearSearchBtn" style="display: none;">
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-                    <path d="M2.146 2.854a.5.5 0 1 1 .708-.708L8 7.293l5.146-5.147a.5.5 0 0 1 .708.708L8.707 8l5.147 5.146a.5.5 0 0 1-.708.708L8 8.707l-5.146 5.147a.5.5 0 0 1-.708-.708L7.293 8 2.146 2.854Z"/>
-                </svg>
-            </button>
-            <span class="input-group-text bg-light" id="searchResultCount" style="display: none;">
-                <span id="searchCount">0</span> results
-            </span>
-        </div>
-        
-        <!-- Collapse/Expand All Button -->
-        <button class="btn btn-outline-primary" type="button" id="toggleAllGroupsBtn" title="Collapse/Expand All">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16" id="collapseIcon">
-                <path fill-rule="evenodd" d="M1 8a.5.5 0 0 1 .5-.5h13a.5.5 0 0 1 0 1h-13A.5.5 0 0 1 1 8zm7-8a.5.5 0 0 1 .5.5v3.793l1.146-1.147a.5.5 0 0 1 .708.708l-2 2a.5.5 0 0 1-.708 0l-2-2a.5.5 0 1 1 .708-.708L7.5 4.293V.5A.5.5 0 0 1 8 0zm-.5 11.707-1.146 1.147a.5.5 0 0 1-.708-.708l2-2a.5.5 0 0 1 .708 0l2 2a.5.5 0 0 1-.708.708L8.5 11.707V15.5a.5.5 0 0 1-1 0v-3.793z"/>
-            </svg>
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16" id="expandIcon" style="display: none;">
-                <path fill-rule="evenodd" d="M1 8a.5.5 0 0 1 .5-.5h13a.5.5 0 0 1 0 1h-13A.5.5 0 0 1 1 8zM7.646.146a.5.5 0 0 1 .708 0l2 2a.5.5 0 0 1-.708.708L8.5 1.707V5.5a.5.5 0 0 1-1 0V1.707L6.354 2.854a.5.5 0 1 1-.708-.708l2-2zM8 10a.5.5 0 0 1 .5.5v3.793l1.146-1.147a.5.5 0 0 1 .708.708l-2 2a.5.5 0 0 1-.708 0l-2-2a.5.5 0 0 1 .708-.708L7.5 14.293V10.5A.5.5 0 0 1 8 10z"/>
-            </svg>
-            <span class="d-none d-md-inline ms-1" id="toggleAllText">Collapse All</span>
-        </button>
-    </div>
-</div>
-
-
 
         <div id="reportArea"></div>
     </div>
@@ -102,44 +91,41 @@
         </div>
     </div>
 
-<!-- Admin Settings Modal -->
-<div class="modal fade" id="adminModal" tabindex="-1">
-  <div class="modal-dialog modal-xl">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title">Admin Settings</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-      </div>
-      <div class="modal-body">
-        <ul class="nav nav-tabs mb-3" id="adminTabs">
-          <li class="nav-item">
-            <a class="nav-link active" data-bs-toggle="tab" href="#userManagement">User Management</a>
-          </li>
-          <li class="nav-item">
-            <a class="nav-link" data-bs-toggle="tab" href="#reportManagement">Report Management</a>
-          </li>
-        </ul>
-        <div class="tab-content">
-          <div class="tab-pane fade show active" id="userManagement">
-            <button class="btn btn-primary mb-3" id="addUserBtn">+ Add User</button>
-            <div id="usersList"></div>
-
-        
-          </div>
-          <div class="tab-pane fade" id="reportManagement">
-            <button class="btn btn-primary mb-3" id="fetchReportsBtn">Fetch All Reports from ERPNext</button>
-            <div id="reportsList"></div>
-          </div>
+    <!-- Admin Settings Modal -->
+    <div class="modal fade" id="adminModal" tabindex="-1">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Admin Settings</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <ul class="nav nav-tabs mb-3" id="adminTabs">
+                        <li class="nav-item">
+                            <a class="nav-link active" data-bs-toggle="tab" href="#userManagement">User Management</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" data-bs-toggle="tab" href="#reportManagement">Report Management</a>
+                        </li>
+                    </ul>
+                    <div class="tab-content">
+                        <div class="tab-pane fade show active" id="userManagement">
+                            <button class="btn btn-primary mb-3" id="addUserBtn">+ Add User</button>
+                            <div id="usersList"></div>
+                        </div>
+                        <div class="tab-pane fade" id="reportManagement">
+                            <button class="btn btn-primary mb-3" id="fetchReportsBtn">Fetch All Reports from ERPNext</button>
+                            <div id="reportsList"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-primary" id="saveSettingsBtn">Save Changes</button>
+                </div>
+            </div>
         </div>
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-        <button type="button" class="btn btn-primary" id="saveSettingsBtn">Save Changes</button>
-      </div>
     </div>
-  </div>
-</div>
-
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="script.js"></script>
