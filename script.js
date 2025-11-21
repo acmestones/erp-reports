@@ -4060,6 +4060,7 @@ async function editOperation(operationName, workOrderId) {
   // Fetch options
   const operationOptions = await getOperationOptions();
   const workstationOptions = await getWorkstationOptions();
+  const plantOptions = await getPlantOptions();
   
   // Create operation dropdown
   let operationSelect = `<select class="form-select form-select-sm" id="edit_operation">`;
@@ -4077,11 +4078,25 @@ async function editOperation(operationName, workOrderId) {
   });
   workstationSelect += `</select>`;
   
+  // Create plant dropdown (if options exist, otherwise use text input)
+  let plantInput;
+  if (plantOptions.length > 0) {
+    plantInput = `<select class="form-select form-select-sm" id="edit_plant">`;
+    plantInput += `<option value="">-- Select Plant --</option>`;
+    plantOptions.forEach(opt => {
+      const selected = opt === currentPlant ? 'selected' : '';
+      plantInput += `<option value="${opt}" ${selected}>${opt}</option>`;
+    });
+    plantInput += `</select>`;
+  } else {
+    plantInput = `<input type="text" class="form-control form-control-sm" id="edit_plant" value="${currentPlant}">`;
+  }
+  
   // Replace row with editable inputs
   cells[1].innerHTML = operationSelect;
   cells[2].innerHTML = workstationSelect;
   cells[3].innerHTML = `<input type="number" class="form-control form-control-sm" id="edit_time" value="${currentTime}">`;
-  cells[4].innerHTML = `<input type="text" class="form-control form-control-sm" id="edit_plant" value="${currentPlant}">`;
+  cells[4].innerHTML = plantInput;
   
   // Replace action buttons
   cells[5].innerHTML = `
@@ -4093,6 +4108,7 @@ async function editOperation(operationName, workOrderId) {
     </button>
   `;
 }
+
 
 
 
