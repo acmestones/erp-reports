@@ -117,6 +117,11 @@ document.getElementById("logoutBtn").addEventListener("click", () => {
     window.location.replace("login.html");
 });
 
+
+
+
+
+
 async function getUsers() {
     const res = await fetch(`${API_BASE}?action=get_users`);
     if (!res.ok) throw new Error("Failed to fetch users");
@@ -140,6 +145,24 @@ async function getReportConfig() {
     if (!res.ok) return {};
     return res.json();
 }
+
+
+
+function getGroups(report, level) {
+  const groups = Array.isArray(report.groupby) 
+    ? report.groupby 
+    : report.groupby?.split(',').map(g => g.trim()) || [];
+
+  if (level === 'primary') {
+    return groups.length > 0 ? [groups[0]] : [];
+  } else if (level === 'secondary') {
+    return groups.length > 1 ? [groups[1]] : [];
+  }
+  return [];
+}
+
+
+
 
 async function saveReportConfig(config) {
     const res = await fetch(`${API_BASE}?action=save_report_config`, {
@@ -1841,6 +1864,69 @@ async function openReportConfigModal(userEmail) {
 }
 
 
+
+
+
+
+
+
+
+function renderGroupVisibilityCheckboxesForAllReports(userEmail, allowedReports) {
+  allowedReports.forEach((reportName, idx) => {
+    renderGroupVisibilityCheckboxesForReport(userEmail, reportName, idx);
+  });
+}
+
+function renderGroupVisibilityCheckboxesForReport(userEmail, reportName, tabIdx) {
+  const config = reportConfig[reportName] || {};
+  const userPerms = config.user_permissions?.[userEmail] || { hiddenprimarygroups: [], hiddensecondarygroups: [] };
+
+  const primaryGroups = getGroups(config, 'primary');
+  const secondaryGroups = getGroups(config, 'secondary');
+
+  const primaryContainer = document.getElementById(`primaryGroupsContainer_${tabIdx}`);
+  const secondaryContainer = document.getElementById(`secondaryGroupsContainer_${tabIdx}`);
+
+  if (!primaryContainer || !secondaryContainer) return;
+
+  primaryContainer.innerHTML = '';
+  secondaryContainer.innerHTML = '';
+
+  primaryGroups.forEach(group => {
+    const checked = userPerms.hiddenprimarygroups?.includes(group) ? 'checked' : '';
+    primaryContainer.innerHTML += `
+      <div class="form-check">
+        <input class="form-check-input" type="checkbox" value="${group}" id="primary_${tabIdx}_${group}" ${checked}>
+        <label class="form-check-label" for="primary_${tabIdx}_${group}">${group}</label>
+      </div>
+    `;
+  });
+
+  secondaryGroups.forEach(group => {
+    const checked = userPerms.hiddensecondarygroups?.includes(group) ? 'checked' : '';
+    secondaryContainer.innerHTML += `
+      <div class="form-check">
+        <input class="form-check-input" type="checkbox" value="${group}" id="secondary_${tabIdx}_${group}" ${checked}>
+        <label class="form-check-label" for="secondary_${tabIdx}_${group}">${group}</label>
+      </div>
+    `;
+  });
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 // Helper function to render group visibility checkboxes for all reports in the modal
 function renderGroupVisibilityCheckboxesForAllReports(userEmail, allowedReports) {
     allowedReports.forEach((reportName, idx) => {
@@ -3520,18 +3606,7 @@ async function loadWorkstationDropdown(currentWorkstation, jobCard, jobCardInfo,
 
 
 
-function getGroups(report, level) {
-  const groups = Array.isArray(report.groupby) 
-    ? report.groupby 
-    : report.groupby?.split(',').map(g => g.trim()) || [];
 
-  if (level === 'primary') {
-    return groups.length > 0 ? [groups[0]] : [];
-  } else if (level === 'secondary') {
-    return groups.length > 1 ? [groups[1]] : [];
-  }
-  return [];
-}
 
 
 
