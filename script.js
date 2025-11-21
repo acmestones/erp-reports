@@ -149,18 +149,20 @@ async function getReportConfig() {
 
 
 function getGroups(report, level) {
-  if (!report || !report.groupby) return [];
+  if (!report || !report.group_by) return [];
   
-  const groups = Array.isArray(report.groupby) ? report.groupby : report.groupby.split(',').map(g => g.trim());
+  const groups = Array.isArray(report.group_by) ? report.group_by : report.group_by.split(',').map(g => g.trim());
   
   if (level === 'primary') {
     // Get primary grouping field name
     const primaryField = groups.length > 0 ? groups[0] : null;
     if (!primaryField) return [];
     
-    // Get actual values from groupsort if available
-    if (report.groupsort && report.groupsort[primaryField]) {
-      return report.groupsort[primaryField];
+    // Get actual values from group_sort if available
+    if (report.group_sort && report.group_sort[primaryField]) {
+      return Array.isArray(report.group_sort[primaryField]) 
+        ? report.group_sort[primaryField] 
+        : [];
     }
     return [];
   } else if (level === 'secondary') {
@@ -168,14 +170,17 @@ function getGroups(report, level) {
     const secondaryField = groups.length > 1 ? groups[1] : null;
     if (!secondaryField) return [];
     
-    // Get actual values from groupsort if available
-    if (report.groupsort && report.groupsort[secondaryField]) {
-      return report.groupsort[secondaryField];
+    // Get actual values from group_sort if available
+    if (report.group_sort && report.group_sort[secondaryField]) {
+      return Array.isArray(report.group_sort[secondaryField]) 
+        ? report.group_sort[secondaryField] 
+        : [];
     }
     return [];
   }
   return [];
 }
+
 
 
 
