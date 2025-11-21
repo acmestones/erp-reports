@@ -1489,6 +1489,72 @@ if (isset($_GET['action']) && $_GET['action'] === 'delete_work_order_operation')
 
 
 
+// Get operation options
+if (isset($_GET['action']) && $_GET['action'] === 'get_operation_options') {
+    $url = ERP_BASE . "/api/resource/Operation?fields=[\"name\"]&limit_page_length=999";
+    
+    $ch = curl_init();
+    curl_setopt_array($ch, [
+        CURLOPT_URL => $url,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HTTPHEADER => [
+            "Authorization: token " . API_KEY . ":" . API_SECRET
+        ],
+        CURLOPT_SSL_VERIFYPEER => false
+    ]);
+    
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    
+    if ($httpCode === 200) {
+        $data = json_decode($response, true);
+        $options = array_map(function($item) {
+            return $item['name'];
+        }, $data['data'] ?? []);
+        
+        echo json_encode(['success' => true, 'options' => $options]);
+    } else {
+        echo json_encode(['success' => false, 'message' => 'Failed to fetch operations']);
+    }
+    exit;
+}
+
+// Get workstation options
+if (isset($_GET['action']) && $_GET['action'] === 'get_workstation_options') {
+    $url = ERP_BASE . "/api/resource/Workstation?fields=[\"name\"]&limit_page_length=999";
+    
+    $ch = curl_init();
+    curl_setopt_array($ch, [
+        CURLOPT_URL => $url,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HTTPHEADER => [
+            "Authorization: token " . API_KEY . ":" . API_SECRET
+        ],
+        CURLOPT_SSL_VERIFYPEER => false
+    ]);
+    
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    
+    if ($httpCode === 200) {
+        $data = json_decode($response, true);
+        $options = array_map(function($item) {
+            return $item['name'];
+        }, $data['data'] ?? []);
+        
+        echo json_encode(['success' => true, 'options' => $options]);
+    } else {
+        echo json_encode(['success' => false, 'message' => 'Failed to fetch workstations']);
+    }
+    exit;
+}
+
+
+
+
+
 
 
 
