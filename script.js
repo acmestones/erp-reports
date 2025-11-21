@@ -3965,6 +3965,75 @@ function renderOperationsTable(operations, permissions, workOrderId) {
 
 
 
+
+
+
+
+async function saveNewOperation(workOrderId) {
+  const operation = document.getElementById('newOpOperation').value;
+  const workstation = document.getElementById('newOpWorkstation').value;
+  const time = document.getElementById('newOpTime').value;
+  const plant = document.getElementById('newOpPlant').value;
+  
+  if (!operation) {
+    alert('Operation name is required');
+    return;
+  }
+  
+  try {
+    const response = await fetch(`${API_BASE}?action=add_work_order_operation`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        work_order: workOrderId,
+        operation: operation,
+        workstation: workstation,
+        time_in_mins: time,
+        custom_plant: plant
+      })
+    });
+    
+    const data = await response.json();
+    
+    if (data.success) {
+      alert('Operation added successfully!');
+      // Remove the form
+      document.getElementById('newOperationForm')?.remove();
+      // Reload operations
+      const operations = await fetchWorkOrderOperations(workOrderId);
+      const userEmail = localStorage.getItem("userEmail");
+      const config = reportConfig[currentReportData.reportName] || {};
+      const opPerms = config.operation_planning_permissions?.[userEmail] || {};
+      renderOperationsTable(operations, opPerms, workOrderId);
+    } else {
+      console.error('Add operation failed:', data);
+      alert('Error: ' + (data.message || 'Failed to add operation'));
+    }
+  } catch (error) {
+    console.error('Add operation error:', error);
+    alert('Error adding operation: ' + error.message);
+  }
+}
+
+function cancelNewOperation() {
+  document.getElementById('newOperationForm')?.remove();
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 async function addNewOperation(workOrderId, permissions) {
   // Fetch options
   const operationOptions = await getOperationOptions();
