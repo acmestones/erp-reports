@@ -346,6 +346,36 @@ function renderReportsList(reports) {
 
 
 
+async function getOperationOptions() {
+  try {
+    const response = await fetch(`${API_BASE}?action=get_operation_options`);
+    const data = await response.json();
+    return data.success ? data.options : [];
+  } catch (error) {
+    console.error('Error fetching operation options:', error);
+    return [];
+  }
+}
+
+async function getWorkstationOptions() {
+  try {
+    const response = await fetch(`${API_BASE}?action=get_workstation_options`);
+    const data = await response.json();
+    return data.success ? data.options : [];
+  } catch (error) {
+    console.error('Error fetching workstation options:', error);
+    return [];
+  }
+}
+
+
+
+
+
+
+
+
+
 
 
 
@@ -3926,6 +3956,26 @@ function renderOperationsTable(operations, permissions, workOrderId) {
 
 
 async function addNewOperation(workOrderId, permissions) {
+  // Fetch options
+  const operationOptions = await getOperationOptions();
+  const workstationOptions = await getWorkstationOptions();
+  
+  // Create operation dropdown
+  let operationSelect = `<select class="form-select" id="newOpOperation" required>
+    <option value="">-- Select Operation --</option>`;
+  operationOptions.forEach(opt => {
+    operationSelect += `<option value="${opt}">${opt}</option>`;
+  });
+  operationSelect += `</select>`;
+  
+  // Create workstation dropdown
+  let workstationSelect = `<select class="form-select" id="newOpWorkstation">
+    <option value="">-- Select Workstation --</option>`;
+  workstationOptions.forEach(opt => {
+    workstationSelect += `<option value="${opt}">${opt}</option>`;
+  });
+  workstationSelect += `</select>`;
+  
   // Create inline form in modal
   const form = `
     <div class="card p-3 mb-3" id="newOperationForm">
@@ -3933,11 +3983,11 @@ async function addNewOperation(workOrderId, permissions) {
       <div class="row g-2">
         <div class="col-md-3">
           <label class="form-label">Operation</label>
-          <input type="text" class="form-control" id="newOpOperation" required>
+          ${operationSelect}
         </div>
         <div class="col-md-3">
           <label class="form-label">Workstation</label>
-          <input type="text" class="form-control" id="newOpWorkstation">
+          ${workstationSelect}
         </div>
         <div class="col-md-2">
           <label class="form-label">Time (mins)</label>
@@ -3959,45 +4009,9 @@ async function addNewOperation(workOrderId, permissions) {
   content.insertAdjacentHTML('afterbegin', form);
 }
 
-async function saveNewOperation(workOrderId) {
-  const operation = document.getElementById('newOpOperation').value;
-  const workstation = document.getElementById('newOpWorkstation').value;
-  const time = document.getElementById('newOpTime').value;
-  const plant = document.getElementById('newOpPlant').value;
-  
-  if (!operation) {
-    alert('Operation name is required');
-    return;
-  }
-  
-  try {
-    const response = await fetch(`${API_BASE}?action=add_work_order_operation`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        work_order: workOrderId,
-        operation: operation,
-        workstation: workstation,
-        time_in_mins: time,
-        custom_plant: plant
-      })
-    });
-    
-    const data = await response.json();
-    
-    if (data.success) {
-      alert('Operation added successfully!');
-      // Reload operations
-      const operations = await fetchWorkOrderOperations(workOrderId);
-      const opPerms = reportConfig[currentReportName].operation_planning_permissions?.[userEmail] || {};
-      renderOperationsTable(operations, opPerms, workOrderId);
-    } else {
-      alert('Error: ' + (data.message || 'Failed to add operation'));
-    }
-  } catch (error) {
-    alert('Error adding operation: ' + error.message);
-  }
-}
+
+
+
 
 
 
@@ -4033,9 +4047,29 @@ async function editOperation(operationName, workOrderId) {
   const currentTime = cells[3].textContent.trim();
   const currentPlant = cells[4].textContent.trim();
   
+  // Fetch options
+  const operationOptions = await getOperationOptions();
+  const workstationOptions = await getWorkstationOptions();
+  
+  // Create operation dropdown
+  let operationSelect = `<select class="form-select form-select-sm" id="edit_operation">`;
+  operationOptions.forEach(opt => {
+    const selected = opt === currentOperation ? 'selected' : '';
+    operationSelect += `<option value="${opt}" ${selected}>${opt}</option>`;
+  });
+  operationSelect += `</select>`;
+  
+  // Create workstation dropdown
+  let workstationSelect = `<select class="form-select form-select-sm" id="edit_workstation">`;
+  workstationOptions.forEach(opt => {
+    const selected = opt === currentWorkstation ? 'selected' : '';
+    workstationSelect += `<option value="${opt}" ${selected}>${opt}</option>`;
+  });
+  workstationSelect += `</select>`;
+  
   // Replace row with editable inputs
-  cells[1].innerHTML = `<input type="text" class="form-control form-control-sm" id="edit_operation" value="${currentOperation}">`;
-  cells[2].innerHTML = `<input type="text" class="form-control form-control-sm" id="edit_workstation" value="${currentWorkstation}">`;
+  cells[1].innerHTML = operationSelect;
+  cells[2].innerHTML = workstationSelect;
   cells[3].innerHTML = `<input type="number" class="form-control form-control-sm" id="edit_time" value="${currentTime}">`;
   cells[4].innerHTML = `<input type="text" class="form-control form-control-sm" id="edit_plant" value="${currentPlant}">`;
   
@@ -4049,6 +4083,7 @@ async function editOperation(operationName, workOrderId) {
     </button>
   `;
 }
+
 
 
 
