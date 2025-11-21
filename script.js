@@ -117,6 +117,11 @@ document.getElementById("logoutBtn").addEventListener("click", () => {
     window.location.replace("login.html");
 });
 
+
+
+
+
+
 async function getUsers() {
     const res = await fetch(`${API_BASE}?action=get_users`);
     if (!res.ok) throw new Error("Failed to fetch users");
@@ -140,6 +145,46 @@ async function getReportConfig() {
     if (!res.ok) return {};
     return res.json();
 }
+
+
+
+function getGroups(report, level) {
+  if (!report || !report.group_by) return [];
+  
+  const groups = Array.isArray(report.group_by) ? report.group_by : report.group_by.split(',').map(g => g.trim());
+  
+  if (level === 'primary') {
+    // Get primary grouping field name
+    const primaryField = groups.length > 0 ? groups[0] : null;
+    if (!primaryField) return [];
+    
+    // Get actual values from group_sort if available
+    if (report.group_sort && report.group_sort[primaryField]) {
+      return Array.isArray(report.group_sort[primaryField]) 
+        ? report.group_sort[primaryField] 
+        : [];
+    }
+    return [];
+  } else if (level === 'secondary') {
+    // Get secondary grouping field name
+    const secondaryField = groups.length > 1 ? groups[1] : null;
+    if (!secondaryField) return [];
+    
+    // Get actual values from group_sort if available
+    if (report.group_sort && report.group_sort[secondaryField]) {
+      return Array.isArray(report.group_sort[secondaryField]) 
+        ? report.group_sort[secondaryField] 
+        : [];
+    }
+    return [];
+  }
+  return [];
+}
+
+
+
+
+
 
 async function saveReportConfig(config) {
     const res = await fetch(`${API_BASE}?action=save_report_config`, {
@@ -577,6 +622,11 @@ function groupData(rows, columns, groupFields, groupSort = {}) {
     return sortedGrouped;
 }
 
+
+
+
+
+
 function renderGroupedCards(grouped, columns, reportName) {
     const reportArea = document.getElementById("reportArea");
     reportArea.innerHTML = "";
@@ -584,7 +634,19 @@ function renderGroupedCards(grouped, columns, reportName) {
     const config = reportConfig[reportName] || {};
     const collapsed = config.collapsed !== false;
     
+    // Get hidden groups for current user
+    const userEmail = localStorage.getItem("userEmail");
+    const userPerms = config.user_permissions?.[userEmail] || {};
+    const hiddenPrimaryGroups = userPerms.hiddenprimarygroups || [];
+    const hiddenSecondaryGroups = userPerms.hiddensecondarygroups || [];
+    
     Object.keys(grouped).forEach(level1 => {
+        // Skip this primary group if it's hidden for the user
+        if (hiddenPrimaryGroups.includes(level1)) {
+            console.log('Hiding primary group:', level1);
+            return;
+        }
+        
         const level1Div = document.createElement("div");
         level1Div.className = "mb-4";
         
@@ -605,6 +667,12 @@ function renderGroupedCards(grouped, columns, reportName) {
         level1Content.style.display = collapsed ? "none" : "block";
         
         Object.keys(grouped[level1]).forEach(level2 => {
+            // Skip this secondary group if it's hidden for the user
+            if (hiddenSecondaryGroups.includes(level2)) {
+                console.log('Hiding secondary group:', level2);
+                return;
+            }
+            
             const level2Div = document.createElement("div");
             level2Div.className = "mb-3 ms-md-3";
             
@@ -653,20 +721,15 @@ function renderGroupedCards(grouped, columns, reportName) {
             icon.textContent = level1Content.style.display === "none" ? "▶" : "▼";
         });
         
-        
         // Apply current collapse state to newly rendered groups
-const level2ContentsArray = Array.from(level1Content.querySelectorAll('.level2-content'));
-applyCurrentCollapseState(level1Content, level2ContentsArray);
+        const level2ContentsArray = Array.from(level1Content.querySelectorAll('.level2-content'));
+        applyCurrentCollapseState(level1Content, level2ContentsArray);
 
-reportArea.appendChild(level1Div);
-
-        
-        
-        
-        
         reportArea.appendChild(level1Div);
     });
 }
+
+
 
 
 
@@ -1695,11 +1758,11 @@ async function openReportConfigModal(userEmail) {
         return;
     }
     
-    let tabsHtml = '<ul class="nav nav-tabs mb-3">';
+    let tabsHtml = '<ul class="nav nav-tabs mb-3" id="reportConfigTabList">';
     user.allowed_reports.forEach((report, idx) => {
         tabsHtml += `
             <li class="nav-item">
-                <a class="nav-link ${idx === 0 ? 'active' : ''}" data-bs-toggle="tab" href="#tab_${idx}">
+                <a class="nav-link ${idx === 0 ? 'active' : ''}" data-bs-toggle="tab" href="#tab_${idx}" role="tab">
                     ${report}
                 </a>
             </li>
@@ -1710,7 +1773,7 @@ async function openReportConfigModal(userEmail) {
     for (let idx = 0; idx < user.allowed_reports.length; idx++) {
         const reportName = user.allowed_reports[idx];
         const config = reportConfig[reportName] || {};
-        const userPerms = config.user_permissions?.[userEmail] || { editable_fields: [], hidden_fields: [] };
+        const userPerms = config.user_permissions?.[userEmail] || { editable_fields: [], hidden_fields: [], hiddenprimarygroups: [], hiddensecondarygroups: [] };
         
         let columns = currentReportColumns;
         if (currentReportData && currentReportData.reportName === reportName) {
@@ -1718,9 +1781,8 @@ async function openReportConfigModal(userEmail) {
         }
         
         tabsHtml += `
-            <div class="tab-pane fade ${idx === 0 ? 'show active' : ''}" id="tab_${idx}">
+            <div class="tab-pane fade ${idx === 0 ? 'show active' : ''}" id="tab_${idx}" role="tabpanel">
                 <h6>Field Permissions for ${reportName}</h6>
-                
                 <div class="row">
                     <div class="col-md-6">
                         <h6 class="small fw-bold mt-3">Editable Fields:</h6>
@@ -1741,7 +1803,6 @@ async function openReportConfigModal(userEmail) {
                             `).join('')}
                         </div>
                     </div>
-                    
                     <div class="col-md-6">
                         <h6 class="small fw-bold mt-3">Hidden Fields:</h6>
                         <div class="border rounded p-2" style="max-height: 300px; overflow-y: auto;">
@@ -1762,15 +1823,43 @@ async function openReportConfigModal(userEmail) {
                         </div>
                     </div>
                 </div>
+        
+                <!-- Group Visibility Controls -->
+                <div style="margin-top: 20px;">
+                  <h6>Hide Primary Groups:</h6>
+                  <div id="primaryGroupsContainer_${idx}" class="border rounded p-2" style="max-height: 150px; overflow-y: auto;">
+                      <!-- Filled dynamically -->
+                  </div>
+                  
+                  <h6 class="mt-3">Hide Secondary Groups:</h6>
+                  <div id="secondaryGroupsContainer_${idx}" class="border rounded p-2" style="max-height: 150px; overflow-y: auto;">
+                      <!-- Filled dynamically -->
+                  </div>
+                </div>
+                <!-- End Group Visibility Controls -->
             </div>
         `;
+
     }
     
     tabsHtml += '</div>';
     document.getElementById('reportConfigTabs').innerHTML = tabsHtml;
     
+    // Populate group visibility checkboxes for all reports
+    if (user.allowed_reports.length > 0) {
+        renderGroupVisibilityCheckboxesForAllReports(userEmail, user.allowed_reports);
+    }
+    
+    // Add event listener for tab change to update group visibility
+    const tabLinks = document.querySelectorAll('#reportConfigTabList .nav-link');
+    tabLinks.forEach((tabLink, idx) => {
+        tabLink.addEventListener('shown.bs.tab', () => {
+            renderGroupVisibilityCheckboxesForReport(userEmail, user.allowed_reports[idx], idx);
+        });
+    });
+    
     document.getElementById('saveReportConfigBtn').onclick = () => {
-        user.allowed_reports.forEach(reportName => {
+        user.allowed_reports.forEach((reportName, idx) => {
             if (!reportConfig[reportName]) {
                 reportConfig[reportName] = {};
             }
@@ -1781,9 +1870,17 @@ async function openReportConfigModal(userEmail) {
             const editableChecks = document.querySelectorAll(`.editable-field-check[data-report="${reportName}"][data-user="${userEmail}"]:checked`);
             const hiddenChecks = document.querySelectorAll(`.hidden-field-check[data-report="${reportName}"][data-user="${userEmail}"]:checked`);
             
+            // Save hidden groups
+            const hiddenPrimary = Array.from(document.querySelectorAll(`#primaryGroupsContainer_${idx} input[type=checkbox]:checked`))
+                                     .map(cb => cb.value);
+            const hiddenSecondary = Array.from(document.querySelectorAll(`#secondaryGroupsContainer_${idx} input[type=checkbox]:checked`))
+                                     .map(cb => cb.value);
+
             reportConfig[reportName].user_permissions[userEmail] = {
                 editable_fields: Array.from(editableChecks).map(cb => cb.value),
-                hidden_fields: Array.from(hiddenChecks).map(cb => cb.value)
+                hidden_fields: Array.from(hiddenChecks).map(cb => cb.value),
+                hiddenprimarygroups: hiddenPrimary,
+                hiddensecondarygroups: hiddenSecondary
             };
         });
         
@@ -1792,6 +1889,60 @@ async function openReportConfigModal(userEmail) {
     };
     
     configModal.show();
+}
+
+
+
+
+
+
+
+
+
+
+// Helper function to render group visibility checkboxes for all reports in the modal
+function renderGroupVisibilityCheckboxesForAllReports(userEmail, allowedReports) {
+    allowedReports.forEach((reportName, idx) => {
+        renderGroupVisibilityCheckboxesForReport(userEmail, reportName, idx);
+    });
+}
+
+// Helper function to render group visibility checkboxes for a single report tab
+function renderGroupVisibilityCheckboxesForReport(userEmail, reportName, tabIdx) {
+    const config = reportConfig[reportName] || {};
+    const userPerms = config.user_permissions?.[userEmail] || { hiddenprimarygroups: [], hiddensecondarygroups: [] };
+    
+    // Assuming you have functions or data to get primary and secondary groups for a report
+    const primaryGroups = getGroups(config, 'primary');  // returns array of primary group names
+    const secondaryGroups = getGroups(config, 'secondary');  // returns array of secondary group names
+    
+    const primaryContainer = document.getElementById(`primaryGroupsContainer_${tabIdx}`);
+    const secondaryContainer = document.getElementById(`secondaryGroupsContainer_${tabIdx}`);
+    
+    if (!primaryContainer || !secondaryContainer) return;
+    
+    primaryContainer.innerHTML = '';
+    secondaryContainer.innerHTML = '';
+    
+    primaryGroups.forEach(group => {
+        const checked = userPerms.hiddenprimarygroups?.includes(group) ? 'checked' : '';
+        primaryContainer.innerHTML += `
+            <div class="form-check">
+                <input class="form-check-input" type="checkbox" value="${group}" id="primary_${tabIdx}_${group}" ${checked}>
+                <label class="form-check-label" for="primary_${tabIdx}_${group}">${group}</label>
+            </div>
+        `;
+    });
+    
+    secondaryGroups.forEach(group => {
+        const checked = userPerms.hiddensecondarygroups?.includes(group) ? 'checked' : '';
+        secondaryContainer.innerHTML += `
+            <div class="form-check">
+                <input class="form-check-input" type="checkbox" value="${group}" id="secondary_${tabIdx}_${group}" ${checked}>
+                <label class="form-check-label" for="secondary_${tabIdx}_${group}">${group}</label>
+            </div>
+        `;
+    });
 }
 
 
@@ -3421,6 +3572,134 @@ async function loadWorkstationDropdown(currentWorkstation, jobCard, jobCardInfo,
 }
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+function renderGroupVisibilityControls(reportName, userEmail) {
+  const report = reportConfig[reportName];
+  if (!report) return;
+
+  const userPerms = report.userpermissions?.[userEmail] || {};
+
+  const primaryGroups = getGroups(report, 'primary');
+  const secondaryGroups = getGroups(report, 'secondary');
+
+  const primaryContainer = document.getElementById('primaryGroupsList');
+  const secondaryContainer = document.getElementById('secondaryGroupsList');
+
+  primaryContainer.innerHTML = '';
+  secondaryContainer.innerHTML = '';
+
+  primaryGroups.forEach(group => {
+    const checked = userPerms.hiddenprimarygroups?.includes(group) ? 'checked' : '';
+    primaryContainer.innerHTML += `<div><input type="checkbox" class="hide-primary-group" value="${group}" ${checked}> ${group}</div>`;
+  });
+
+  secondaryGroups.forEach(group => {
+    const checked = userPerms.hiddensecondarygroups?.includes(group) ? 'checked' : '';
+    secondaryContainer.innerHTML += `<div><input type="checkbox" class="hide-secondary-group" value="${group}" ${checked}> ${group}</div>`;
+  });
+}
+
+
+
+
+
+
+
+
+function saveGroupVisibilitySettings(reportName, userEmail) {
+  const report = reportConfig[reportName];
+  if (!report) return;
+
+  const primaryCheckboxes = document.querySelectorAll('#primaryGroupsList input.hide-primary-group:checked');
+  const secondaryCheckboxes = document.querySelectorAll('#secondaryGroupsList input.hide-secondary-group:checked');
+
+  const hiddenprimarygroups = Array.from(primaryCheckboxes).map(cb => cb.value);
+  const hiddensecondarygroups = Array.from(secondaryCheckboxes).map(cb => cb.value);
+
+  if (!report.userpermissions) report.userpermissions = {};
+  if (!report.userpermissions[userEmail]) report.userpermissions[userEmail] = {};
+
+  report.userpermissions[userEmail].hiddenprimarygroups = hiddenprimarygroups;
+  report.userpermissions[userEmail].hiddensecondarygroups = hiddensecondarygroups;
+}
+
+
+
+
+
+
+function renderGroupVisibilityCheckboxesForAllReports(userEmail, allowedReports) {
+  allowedReports.forEach((reportName, idx) => {
+    renderGroupVisibilityCheckboxesForReport(userEmail, reportName, idx);
+  });
+}
+
+
+
+
+function renderGroupVisibilityCheckboxesForReport(userEmail, reportName, tabIdx) {
+  const config = reportConfig[reportName] || {};
+  const userPerms = config.user_permissions?.[userEmail] || { hiddenprimarygroups: [], hiddensecondarygroups: [] };
+
+  const primaryGroups = getGroups(config, 'primary');
+  const secondaryGroups = getGroups(config, 'secondary');
+
+  const primaryContainer = document.getElementById(`primaryGroupsContainer_${tabIdx}`);
+  const secondaryContainer = document.getElementById(`secondaryGroupsContainer_${tabIdx}`);
+
+  if (!primaryContainer || !secondaryContainer) {
+    console.error('Group containers not found for tab', tabIdx);
+    return;
+  }
+
+  primaryContainer.innerHTML = '';
+  secondaryContainer.innerHTML = '';
+
+  // Handle primary groups
+  if (primaryGroups.length === 0) {
+    primaryContainer.innerHTML = '<p class="text-muted small mb-0">No primary groups configured for this report</p>';
+  } else {
+    primaryGroups.forEach(group => {
+      const checked = userPerms.hiddenprimarygroups?.includes(group) ? 'checked' : '';
+      primaryContainer.innerHTML += `
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" value="${group}" id="primary_${tabIdx}_${group}" ${checked}>
+          <label class="form-check-label" for="primary_${tabIdx}_${group}">${group}</label>
+        </div>
+      `;
+    });
+  }
+
+  // Handle secondary groups
+  if (secondaryGroups.length === 0) {
+    secondaryContainer.innerHTML = '<p class="text-muted small mb-0">No secondary groups configured for this report</p>';
+  } else {
+    secondaryGroups.forEach(group => {
+      const checked = userPerms.hiddensecondarygroups?.includes(group) ? 'checked' : '';
+      secondaryContainer.innerHTML += `
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" value="${group}" id="secondary_${tabIdx}_${group}" ${checked}>
+          <label class="form-check-label" for="secondary_${tabIdx}_${group}">${group}</label>
+        </div>
+      `;
+    });
+  }
+}
 
 
 
