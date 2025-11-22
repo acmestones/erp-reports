@@ -1446,18 +1446,59 @@ async initTagging() {
     });
 }
 
-// Load all available tags from Piwigo
+
+            
+// Load all tags with fallback manual fetch if empty
 async loadAllTags() {
     try {
-        const result = await this.apiCall('pwg.tags.getAdminList');
-        this.allTags = result.tags || [];
+        const response = await fetch(
+            `${this.baseUrl}/ws.php?format=json&method=pwg.tags.getAdminList`,
+            { credentials: 'include' }
+        );
+        const data = await response.json();
+        if (data.stat === 'ok' && data.result?.tags) {
+            this.allTags = data.result.tags;
+            console.log(`Loaded ${this.allTags.length} tags successfully.`);
+        } else {
+            console.warn('Empty or failed tag list from API.');
+            this.allTags = [];
+        }
     } catch (error) {
-        console.error('Failed to load tags:', error);
+        console.error('Error loading tags in loadAllTags:', error);
         this.allTags = [];
+    }
+
+    // Fallback manual fetch if allTags empty
+    if (!this.allTags.length) {
+        try {
+            console.log('Fallback manual loadAllTags triggered');
+            const fallbackResponse = await fetch(
+                `${this.baseUrl}/ws.php?format=json&method=pwg.tags.getAdminList`,
+                { credentials: 'include' }
+            );
+            const fallbackData = await fallbackResponse.json();
+            if (fallbackData.stat === 'ok' && fallbackData.result?.tags) {
+                this.allTags = fallbackData.result.tags;
+                console.log(`Manually loaded ${this.allTags.length} tags after fallback`);
+            }
+        } catch (fallbackError) {
+            console.error('Error in fallback loadAllTags:', fallbackError);
+        }
     }
 }
 
 
+
+
+
+// Called after login/session restore to initialize tags and autocomplete
+async initializeTagsAfterLogin() {
+    await this.loadAllTags();
+
+    // Additional logic to initialize your autocomplete UI/event listeners here
+    // e.g., call this.initTagging();
+}
+            
 
 
 
@@ -1682,45 +1723,50 @@ async debugTagIssue() {
             
 
 
-// Show tag autocomplete
+// Method to show autocomplete suggestions based on user input for tag addition
 showTagAutocomplete(query) {
     const autocomplete = document.getElementById('tagAutocomplete');
-    
+    const tagInput = document.getElementById('tagInput');
     if (!query) {
         autocomplete.classList.remove('show');
+        autocomplete.innerHTML = '';
         return;
     }
-    
-    const filtered = this.allTags.filter(tag => 
-        tag.name.toLowerCase().includes(query.toLowerCase())
+
+    const matched = this.allTags.filter(tag =>
+        tag.name.toLowerCase().startsWith(query.toLowerCase())
     );
-    
-    if (filtered.length === 0) {
-        autocomplete.innerHTML = `
-            <div class="tag-autocomplete-item">
-                <span>Create new tag: "${query}"</span>
-            </div>
-        `;
+
+    if (matched.length === 0) {
+        autocomplete.innerHTML = `<div class="tag-autocomplete-item"><span>Create new tag "${query}"</span></div>`;
     } else {
-        autocomplete.innerHTML = filtered.map(tag => `
+        autocomplete.innerHTML = matched.map(tag => `
             <div class="tag-autocomplete-item" data-tag-id="${tag.id}" data-tag-name="${tag.name}">
-                <span>${tag.name}</span>
-                <span class="tag-autocomplete-count">${tag.counter || 0}</span>
+                <span class="tag-name">${tag.name}</span>
+                <span class="tag-count">${tag.counter || 0}</span>
             </div>
         `).join('');
-        
-        // Click handler
-        autocomplete.querySelectorAll('.tag-autocomplete-item').forEach(item => {
-            item.addEventListener('click', () => {
-                document.getElementById('tagInput').value = item.dataset.tagName;
-                autocomplete.classList.remove('show');
-            });
-        });
     }
-    
+
     autocomplete.classList.add('show');
+
+    autocomplete.querySelectorAll('.tag-autocomplete-item').forEach(item => {
+        item.addEventListener('mousedown', () => {
+            const tagName = item.dataset.tagName || tagInput.value.trim();
+            tagInput.value = tagName;
+            autocomplete.classList.remove('show');
+
+            this.addTagToSelectedImages(tagName);
+            tagInput.value = '';
+        });
+    });
 }
 
+
+
+
+
+            
 // Add tag to selected images
 async addTagToSelectedImages(tagName) {
     if (!tagName || this.selectedImages.size === 0) {
