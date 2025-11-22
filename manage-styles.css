@@ -426,6 +426,27 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 
 
 
+/* Fix for image tags positioning */
+.image-item {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+}
+
+.image-info {
+    position: relative !important;
+    width: 100%;
+}
+
+.image-tags {
+    position: relative !important;
+    width: 100%;
+}
+
+
+
+
+
 
 
 
