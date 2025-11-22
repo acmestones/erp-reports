@@ -1443,13 +1443,12 @@ async initTagging() {
 
 // Load all available tags from Piwigo
 async loadAllTags() {
-    try {
-        const result = await this.apiCall('pwg.tags.getAdminList');
-        this.allTags = result.tags || [];
-    } catch (error) {
-        console.error('Failed to load tags:', error);
-        this.allTags = [];
-    }
+    const response = await fetch(
+        `${this.baseUrl}/ws.php?format=json&method=pwg.tags.getAdminList`,
+        { credentials: 'include' }
+    );
+    const data = await response.json();
+    this.allTags = data.result.tags || [];
 }
 
 
