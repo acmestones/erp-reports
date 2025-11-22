@@ -1880,6 +1880,16 @@ async removeTagFromSelectedImages(tagId, tagName) {
         }
 
         window.piwigoManager = new PiwigoManager();
+
+
+        
+          // Add this here to load all tags on page load:
+  if (window.piwigoManager && typeof window.piwigoManager.loadAllTags === 'function') {
+      window.piwigoManager.loadAllTags();
+  }
+
+
+        
     </script>
 </body>
 </html>
