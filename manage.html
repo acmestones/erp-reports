@@ -1061,6 +1061,7 @@ updateImageThumbnail(imageId, thumbnailUrl) {
                             </div>
                             <div class="image-info">
                                 <div class="image-title">${image.name || 'Untitled'}</div>
+                <div class="image-tags" data-image-id="${image.id}"></div>
                             </div>
                         </div>
                     `;
@@ -1444,12 +1445,7 @@ async initTagging() {
 // Load all available tags from Piwigo
 async loadAllTags() {
     try {
-        const response = await fetch(
-                `${this.baseUrl}/ws.php?format=json&method=pwg.tags.getAdminList`,
-                { credentials: 'include' }
-            );
-            const data = await response.json();
-            const result = data.result;
+        const result = await this.apiCall('pwg.tags.getAdminList');
         this.allTags = result.tags || [];
     } catch (error) {
         console.error('Failed to load tags:', error);
