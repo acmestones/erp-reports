@@ -296,6 +296,36 @@ async connect() {
 
 
 
+
+// Optional: Implement UI update function (adjust to your UI code)
+updateUIForLoggedInUser() {
+    // Example: show connected header, hide login inputs
+    document.getElementById('connectedHeader').style.display = 'block';
+    document.getElementById('loginHeader').style.display = 'none';
+    
+    // Show user info
+    const userInfo = this.session.user;
+    if(userInfo) {
+        document.getElementById('userInfo').textContent = `Connected as ${userInfo.username || userInfo.username}`;
+    }
+}
+
+// Optional: load initial images or album after login
+async loadInitialData() {
+    // Your code here to load images, albums, etc.
+}
+
+
+
+
+
+
+
+
+
+            
+
+
             
             async apiCall(method, params = {}) {
                 const apiParams = new URLSearchParams();
