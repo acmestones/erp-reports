@@ -1767,38 +1767,44 @@ showTagAutocomplete(query) {
 
 
             
-// Add tag to selected images
 async addTagToSelectedImages(tagName) {
-    if (!tagName || this.selectedImages.size === 0) {
-        return;
-    }
-    
+    if (!tagName || this.selectedImages.size === 0) return;
+
+    const imageIds = Array.from(this.selectedImages);
     try {
-        const imageIds = Array.from(this.selectedImages);
-        
-        // Add tag to each image
         for (const imageId of imageIds) {
-            await this.apiCall('pwg.images.setInfo', {
-                image_id: imageId,
-                tag_ids: tagName, // Piwigo will create new tag if doesn't exist
-                multiple_value_mode: 'append'
+            const params = new URLSearchParams();
+            params.append('method', 'pwg.tags.addImageTag');
+            params.append('format', 'json');
+            params.append('image_id', imageId);
+            params.append('tag_name', tagName);
+
+            const response = await fetch(`${this.baseUrl}/ws.php`, {
+                method: 'POST',
+                credentials: 'include',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: params.toString(),
             });
+
+            const data = await response.json();
+            if (data.stat !== 'ok') {
+                throw new Error(data.error ? data.error.message : 'Failed to add tag');
+            }
         }
-        
-        this.showStatus(`Added tag "${tagName}" to ${imageIds.length} image(s)`, 'success');
+        this.showStatus(`Added tag "${tagName}" to ${imageIds.length} images`, 'success');
         document.getElementById('tagInput').value = '';
         document.getElementById('tagAutocomplete').classList.remove('show');
-        
-        // Reload tags
         await this.loadAllTags();
         await this.loadAlbumTags();
         await this.loadSelectedImagesTags();
-        
     } catch (error) {
-        console.error('Failed to add tags:', error);
-        this.showStatus('Failed to add tags', 'error');
+        console.error('Failed to add tags', error);
+        this.showStatus('Failed to add tags: ' + error.message, 'error');
     }
 }
+
 
 
 
