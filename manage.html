@@ -1952,6 +1952,85 @@ renderSelectedImagesTags(tags) {
 
 
 
+
+
+
+// Fetch current tag IDs for an image via API call
+async getTagsForImage(imageId) {
+    try {
+        const url = new URL(`${this.baseUrl}/ws.php`);
+        url.searchParams.append('method', 'pwg.images.getInfo');
+        url.searchParams.append('format', 'json');
+        url.searchParams.append('image_id', imageId);
+
+        const response = await fetch(url.toString(), {
+            credentials: 'include'
+        });
+        const data = await response.json();
+
+        if (data.stat === 'ok' && data.result && data.result.tags) {
+            // Return array of tag IDs assigned to the image
+            return data.result.tags.map(tag => tag.id);
+        } else {
+            console.warn(`No tags found for image ${imageId}`);
+            return [];
+        }
+    } catch (error) {
+        console.error(`Failed to get tags for image ${imageId}:`, error);
+        return [];
+    }
+}
+
+// Remove a specific tag from an image by tag ID
+async removeTagFromImage(imageId, tagId) {
+    try {
+        const currentTags = await this.getTagsForImage(imageId) || [];
+        const updatedTags = currentTags.filter(id => id !== tagId);
+        const pwgToken = this.session?.user?.pwg_token || '';
+
+        const params = new URLSearchParams({
+            method: 'pwg.images.setInfo',
+            format: 'json',
+            image_id: imageId,
+            tag_ids: updatedTags.join(','),
+            pwg_token: pwgToken
+        });
+
+        const response = await fetch(`${this.baseUrl}/ws.php`, {
+            method: 'POST',
+            credentials: 'include',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: params.toString(),
+        });
+
+        const data = await response.json();
+        if (data.stat !== 'ok') {
+            throw new Error(data.error ? data.error.message : 'Failed to remove tag');
+        }
+
+        this.showStatus(`Tag removed from image ${imageId}`, 'success');
+
+        // Update UI tags list if needed
+        await this.loadAllTags();
+        await this.loadAlbumTags();
+        await this.loadSelectedImagesTags();
+
+    } catch (error) {
+        console.error('Failed to remove tag:', error);
+        this.showStatus('Failed to remove tag: ' + error.message, 'error');
+    }
+}
+
+
+
+
+
+
+
+            
+
             
 // Remove tag from selected images
 async removeTagFromSelectedImages(tagId) {
