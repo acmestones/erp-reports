@@ -253,6 +253,7 @@ async connect() {
     this.baseUrl = urlInput.endsWith('/') ? urlInput.slice(0, -1) : urlInput;
 
     try {
+        // Login API call via POST
         const loginUrl = `${this.baseUrl}/ws.php?format=json`;
 
         const formData = new URLSearchParams();
@@ -273,8 +274,8 @@ async connect() {
         console.log('Login response:', data);
 
         if (data.stat === 'ok') {
+            // If login response contains session info, use it
             if (typeof data.result === 'object' && data.result.session) {
-                // Session included in login response
                 this.session = {
                     baseUrl: this.baseUrl,
                     username,
@@ -282,20 +283,27 @@ async connect() {
                     user: data.result.session
                 };
             } else if (data.result === true) {
-                // Need an extra call to get session info
+                // Login succeeded: retrieve session info from getStatus
                 const statusUrl = `${this.baseUrl}/ws.php?format=json&method=pwg.session.getStatus`;
                 const statusResponse = await fetch(statusUrl, { credentials: 'include' });
                 const statusData = await statusResponse.json();
                 console.log('Session status:', statusData);
-                if (statusData.stat === 'ok' && statusData.result.session) {
-                    this.session = {
-                        baseUrl: this.baseUrl,
-                        username,
-                        password,
-                        user: statusData.result.session
-                    };
+
+                if (statusData.stat === 'ok') {
+                    const userInfo = statusData.result;
+                    if (userInfo && userInfo.username) {
+                        this.session = {
+                            baseUrl: this.baseUrl,
+                            username,
+                            password,
+                            user: userInfo
+                        };
+                    } else {
+                        alert('Failed to retrieve valid session info after login.');
+                        return false;
+                    }
                 } else {
-                    alert('Failed to retrieve session info after login.');
+                    alert('Failed to retrieve session info: ' + (statusData.error ? statusData.error.message : 'Unknown error'));
                     return false;
                 }
             } else {
@@ -306,13 +314,13 @@ async connect() {
             // Save session to localStorage
             localStorage.setItem('piwigoSession', JSON.stringify(this.session));
 
-            // Update UI
+            // Update UI for logged-in user
             this.updateUIForLoggedInUser();
 
-            // Load all tags for autocomplete and tag display
+            // Load tags for autocomplete and display
             await this.loadAllTags();
 
-            // Optional: Load initial albums or photos
+            // Load initial data/albums/images as needed
             await this.loadInitialData();
 
             return true;
@@ -330,6 +338,7 @@ async connect() {
         return false;
     }
 }
+
 
 
 
