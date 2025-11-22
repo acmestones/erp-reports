@@ -1773,22 +1773,28 @@ async addTagToSelectedImages(tagName) {
     const imageIds = Array.from(this.selectedImages);
     try {
         for (const imageId of imageIds) {
-            const params = new URLSearchParams();
-            params.append('method', 'pwg.tags.addImageTag');
-            params.append('format', 'json');
-            params.append('image_id', imageId);
-            params.append('tag_name', tagName);
+            const url = new URL(`${this.baseUrl}/ws.php`);
+            url.searchParams.append('method', 'pwg.tags.addImageTag');
+            url.searchParams.append('format', 'json');
+            url.searchParams.append('image_id', imageId);
+            url.searchParams.append('tag_name', tagName);
 
-            const response = await fetch(`${this.baseUrl}/ws.php`, {
-                method: 'POST',
-                credentials: 'include',
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                },
-                body: params.toString(),
+            const response = await fetch(url.toString(), {
+                method: 'GET',
+                credentials: 'include'
             });
 
-            const data = await response.json();
+            const text = await response.text();
+
+            // Try parsing JSON but if invalid log raw response for debugging
+            let data;
+            try {
+                data = JSON.parse(text);
+            } catch (e) {
+                console.error('Invalid JSON response:', text);
+                throw new Error('Server returned invalid response');
+            }
+
             if (data.stat !== 'ok') {
                 throw new Error(data.error ? data.error.message : 'Failed to add tag');
             }
@@ -1804,6 +1810,7 @@ async addTagToSelectedImages(tagName) {
         this.showStatus('Failed to add tags: ' + error.message, 'error');
     }
 }
+
 
 
 
