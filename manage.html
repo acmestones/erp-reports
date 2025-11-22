@@ -270,15 +270,61 @@ async connect() {
         const data = await response.json();
         console.log('Login response:', data);
 
-        if (data.stat === 'ok' && data.result.session) {
-            // put your logic for success here
+        if (data.stat === 'ok') {
+            if (typeof data.result === 'object' && data.result.session) {
+                // Login response includes session info
+                this.session = {
+                    baseUrl: this.baseUrl,
+                    username,
+                    password,
+                    user: data.result.session
+                };
+            } else if (data.result === true) {
+                // Login succeeded but no session info - get it via separate call
+                const statusUrl = `${this.baseUrl}/ws.php?format=json&method=pwg.session.getStatus`;
+                const statusResponse = await fetch(statusUrl, { credentials: 'include' });
+                const statusData = await statusResponse.json();
+                console.log('Session status:', statusData);
+                if (statusData.stat === 'ok' && statusData.result.session) {
+                    this.session = {
+                        baseUrl: this.baseUrl,
+                        username,
+                        password,
+                        user: statusData.result.session
+                    };
+                } else {
+                    alert('Failed to retrieve session info after login.');
+                    return false;
+                }
+            } else {
+                alert('Login failed: Unexpected response from server.');
+                return false;
+            }
+
+            // Save session locally
+            localStorage.setItem('piwigoSession', JSON.stringify(this.session));
+
+            // Update UI to reflect logged in state
+            this.updateUIForLoggedInUser();
+
+            // Load tags for autocomplete and display under images
+            await this.loadAllTags();
+
+            // Load initial images or albums as needed (optional)
+            await this.loadInitialData();
+
             return true;
         } else {
             alert('Login failed: ' + (data.error ? data.error.message : 'Unknown error'));
+            this.session = null;
+            localStorage.removeItem('piwigoSession');
             return false;
         }
     } catch (error) {
         console.error('Login request failed:', error);
+        alert('Login error: ' + error.message);
+        this.session = null;
+        localStorage.removeItem('piwigoSession');
         return false;
     }
 }
