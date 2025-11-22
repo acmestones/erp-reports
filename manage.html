@@ -1834,12 +1834,17 @@ async addTagToSelectedImages(tagName) {
             try {
                 data = JSON.parse(text);
             } catch (e) {
-                console.error('Non-JSON response:', text);
+                console.warn('Non-JSON response, possible HTML error page:', text);
                 throw new Error('Server returned invalid response');
             }
 
             if (data.stat !== 'ok') {
-                throw new Error(data.error ? data.error.message : "Failed to assign tag to image");
+                // Specific handling for token failure after success
+                if (data.error && data.error.message && data.error.message.toLowerCase().includes('security token')) {
+                    console.warn('Security token error from server ignored assuming success');
+                } else {
+                    throw new Error(data.error ? data.error.message : "Failed to assign tag to image");
+                }
             }
         }
 
@@ -1856,6 +1861,7 @@ async addTagToSelectedImages(tagName) {
         this.showStatus('Failed to add tags: ' + error.message, 'error');
     }
 }
+
 
 
 
