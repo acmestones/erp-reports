@@ -967,7 +967,78 @@ updateImageThumbnail(imageId, thumbnailUrl) {
 
 
             
-            renderImages() {
+            async loadAndDisplayImageTags(imageId) {
+        try {
+            const response = await fetch(
+                `${this.baseUrl}/ws.php?format=json&method=pwg.images.getInfo&image_id=${imageId}`,
+                { credentials: 'include' }
+            );
+            const data = await response.json();
+
+            if (data.stat === 'ok' && data.result && data.result.tags) {
+                this.renderImageTags(imageId, data.result.tags);
+            } else {
+                this.renderImageTags(imageId, []);
+            }
+        } catch (e) {
+            console.log('Failed to load tags for image', imageId);
+        }
+    }
+
+    renderImageTags(imageId, tags) {
+        const tagContainer = document.querySelector(`[data-image-id="${imageId}"].image-tags`);
+        if (!tagContainer) return;
+
+        if (!tags || tags.length === 0) {
+            tagContainer.innerHTML = '<span class="no-tags"></span>';
+            return;
+        }
+
+        tagContainer.innerHTML = tags.map(tag => `
+            <span class="image-tag-pill">
+                <span>${tag.name}</span>
+                <span class="image-tag-remove" data-image-id="${imageId}" data-tag-id="${tag.id}" data-tag-name="${tag.name}">×</span>
+            </span>
+        `).join('');
+
+        // Add click handlers for remove buttons
+        tagContainer.querySelectorAll('.image-tag-remove').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.removeTagFromImage(btn.dataset.imageId, btn.dataset.tagId, btn.dataset.tagName);
+            });
+        });
+    }
+
+    async removeTagFromImage(imageId, tagId, tagName) {
+        try {
+            const imageInfo = await this.apiCall('pwg.images.getInfo', { image_id: imageId });
+            const remainingTagIds = imageInfo.tags
+                .filter(t => t.id != parseInt(tagId))
+                .map(t => t.id)
+                .join(',');
+
+            await this.apiCall('pwg.images.setInfo', {
+                image_id: imageId,
+                tag_ids: remainingTagIds,
+                multiple_value_mode: 'replace'
+            });
+
+            this.showStatus(`Removed tag "${tagName}" from image`, 'success');
+
+            // Reload tags for this image
+            await this.loadAndDisplayImageTags(imageId);
+            await this.loadAlbumTags();
+            if (this.selectedImages.has(parseInt(imageId))) {
+                await this.loadSelectedImagesTags();
+            }
+        } catch (error) {
+            console.error('Failed to remove tag:', error);
+            this.showStatus('Failed to remove tag', 'error');
+        }
+    }
+
+    renderImages() {
                 const imageGrid = document.getElementById('imageGrid');
                 
                 if (this.currentImages.length === 0) {
