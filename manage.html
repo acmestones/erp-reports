@@ -165,30 +165,29 @@
             }
 
 
-
+            async checkStoredSession() {
+                const storedSession = localStorage.getItem('piwigoSession');
+                if (storedSession) {
+                    this.session = JSON.parse(storedSession);
+                    this.baseUrl = this.session.baseUrl || '';
             
-                      async checkStoredSession() {
-                        const storedSession = localStorage.getItem('piwigoSession');
-                        if (storedSession) {
-                            this.session = JSON.parse(storedSession);
-                            this.baseUrl = this.session.baseUrl || '';
-                    
-                            // Update input fields with stored session data if present
-                            document.getElementById('piwigoUrl').value = this.session.baseUrl || '';
-                            document.getElementById('username').value = this.session.username || '';
-                            document.getElementById('password').value = this.session.password || '';
-                    
-                            // Update UI for logged-in user, e.g., show connected header (implement this in your UI logic)
-                            this.updateUIForLoggedInUser();
-                    
-                            // Load all tags if session has user info
-                            if (this.session.user && this.session.user.id) {
-                                await this.loadAllTags();
-                            }
-                            return true;
-                        }
-                        return false;
+                    // Update input fields if needed
+                    document.getElementById('piwigoUrl').value = this.session.baseUrl || '';
+                    document.getElementById('username').value = this.session.username || '';
+                    document.getElementById('password').value = this.session.password || '';
+            
+                    this.updateUIForLoggedInUser();
+            
+                    // Load all tags if session valid
+                    if (this.session.user && this.session.user.id) {
+                        await this.loadAllTags();
                     }
+            
+                    return true;
+                }
+                return false;
+            }
+
 
 
             
@@ -252,13 +251,11 @@ async connect() {
     this.baseUrl = urlInput.endsWith('/') ? urlInput.slice(0, -1) : urlInput;
 
     try {
-        // Example login request, replace with your actual API method
         const loginUrl = `${this.baseUrl}/ws.php?format=json&method=pwg.session.login&username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}`;
         const response = await fetch(loginUrl, { credentials: 'include' });
         const data = await response.json();
 
         if (data.stat === 'ok' && data.result.session) {
-            // Save session info
             this.session = {
                 baseUrl: this.baseUrl,
                 username,
@@ -267,13 +264,9 @@ async connect() {
             };
             localStorage.setItem('piwigoSession', JSON.stringify(this.session));
 
-            // Update UI
             this.updateUIForLoggedInUser();
 
-            // Load tags for autocomplete and display
             await this.loadAllTags();
-
-            // Optionally load initial images or album here
             await this.loadInitialData();
 
             return true;
@@ -291,6 +284,7 @@ async connect() {
         return false;
     }
 }
+
 
 
 
