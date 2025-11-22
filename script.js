@@ -346,6 +346,46 @@ function renderReportsList(reports) {
 
 
 
+async function getOperationOptions() {
+  try {
+    const response = await fetch(`${API_BASE}?action=get_operation_options`);
+    const data = await response.json();
+    return data.success ? data.options : [];
+  } catch (error) {
+    console.error('Error fetching operation options:', error);
+    return [];
+  }
+}
+
+async function getWorkstationOptions() {
+  try {
+    const response = await fetch(`${API_BASE}?action=get_workstation_options`);
+    const data = await response.json();
+    return data.success ? data.options : [];
+  } catch (error) {
+    console.error('Error fetching workstation options:', error);
+    return [];
+  }
+}
+
+
+async function getPlantOptions() {
+  try {
+    const response = await fetch(`${API_BASE}?action=get_plant_options`);
+    const data = await response.json();
+    return data.success ? data.options : [];
+  } catch (error) {
+    console.error('Error fetching plant options:', error);
+    return [];
+  }
+}
+
+
+
+
+
+
+
 
 
 
@@ -827,11 +867,11 @@ function createCard(row, columns, reportName, config) {
     
     // Create buttons container
     const buttonsContainer = document.createElement("div");
-    buttonsContainer.className = "d-flex gap-2 mt-2";
+    buttonsContainer.className = "d-flex flex-column gap-2 mt-2";
     
     // View Details button (always present)
     const detailsBtn = document.createElement("button");
-    detailsBtn.className = "btn btn-sm btn-outline-primary flex-grow-1";
+    detailsBtn.className = "btn btn-sm btn-outline-primary";
     detailsBtn.textContent = "View Details";
     detailsBtn.addEventListener("click", () => {
         showDetailModal(row, columns, reportName, config);
@@ -844,31 +884,50 @@ function createCard(row, columns, reportName, config) {
         
         if (timeLogsPerms.can_view) {
             const timeLogsBtn = document.createElement("button");
-            timeLogsBtn.className = "btn btn-sm btn-outline-info flex-grow-1";
+            timeLogsBtn.className = "btn btn-sm btn-outline-info";
             timeLogsBtn.innerHTML = '<i class="bi bi-clock-history"></i> Time Logs';
-timeLogsBtn.addEventListener("click", () => {
-    // Extract plain text from HTML link if it exists
-    let jobCardName = row['job_card'];
-    
-    // If it's an HTML string, extract the text content
-    if (typeof jobCardName === 'string' && jobCardName.includes('<a')) {
-        const tempDiv = document.createElement('div');
-        tempDiv.innerHTML = jobCardName;
-        jobCardName = tempDiv.textContent || tempDiv.innerText || jobCardName;
-    }
-    
-    showTimeLogsModal(jobCardName, reportName, config);
-});
-
+            timeLogsBtn.addEventListener("click", () => {
+                // Extract plain text from HTML link if it exists
+                let jobCardName = row['job_card'];
+                
+                // If it's an HTML string, extract the text content
+                if (typeof jobCardName === 'string' && jobCardName.includes('<a')) {
+                    const tempDiv = document.createElement('div');
+                    tempDiv.innerHTML = jobCardName;
+                    jobCardName = tempDiv.textContent || tempDiv.innerText || jobCardName;
+                }
+                
+                showTimeLogsModal(jobCardName, reportName, config);
+            });
             buttonsContainer.appendChild(timeLogsBtn);
         }
     }
+    
+// Add Operation Planning button if configured
+if (config.show_operation_planning_button !== false) {
+    const opPerms = config.operation_planning_permissions?.[userEmail] || {};
+    
+    if (opPerms.can_view) {
+        const opPlanningBtn = document.createElement("button");
+        opPlanningBtn.className = "btn btn-sm btn-outline-success";
+        opPlanningBtn.innerHTML = '<i class="bi bi-diagram-3"></i> Operation Planning';
+        opPlanningBtn.addEventListener("click", () => {
+            // Debug: Check what work order ID we're passing
+            console.log('Row data:', row);
+            console.log('Work Order ID:', row.work_order_id || row.name);
+            openOperationPlanningModal(row, config, reportName);
+        });
+        buttonsContainer.appendChild(opPlanningBtn);
+    }
+}
+
     
     cardBody.appendChild(buttonsContainer);
     card.appendChild(cardBody);
     
     return card;
 }
+
 
 
 
@@ -2145,7 +2204,6 @@ async function openGlobalReportConfigModal(reportName) {
                                     <th class="text-center" style="width: 60px;">Delete</th>
                                     <th class="text-center" style="width: 80px;">Edit WS</th>
                                     <th class="text-center" style="width: 80px;">Edit Time</th>
-
                                 </tr>
                             </thead>
                             <tbody id="timeLogsPermissionsTable">
@@ -2190,10 +2248,71 @@ async function openGlobalReportConfigModal(reportName) {
                                                     data-user="${user.email}" data-perm="can_edit_time_required" 
                                                     ${perms.can_edit_time_required ? 'checked' : ''}>
                                             </td>
- 
-
                                         </tr>
                                     `;
+                                }).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <hr>
+                
+                <h6 class="mt-3">Operation Planning Settings</h6>
+                <div class="form-check mb-3">
+                    <input class="form-check-input" type="checkbox" id="configShowOperationPlanning" 
+                        ${config.show_operation_planning_button !== false ? 'checked' : ''}>
+                    <label class="form-check-label" for="configShowOperationPlanning">
+                        Show Operation Planning Button
+                    </label>
+                </div>
+                
+                <div id="operationPlanningPermissionsSection" style="display: ${config.show_operation_planning_button !== false ? 'block' : 'none'};">
+                    <label class="small fw-bold">User Permissions for Operation Planning</label>
+                    <div class="table-responsive" style="max-height: 300px; overflow-y: auto;">
+                        <table class="table table-sm table-bordered">
+                            <thead class="table-light sticky-top">
+                                <tr>
+                                    <th style="min-width: 180px;">User</th>
+                                    <th class="text-center" style="width: 60px;" title="View operations table">View</th>
+                                    <th class="text-center" style="width: 60px;" title="Add new operations">Add</th>
+                                    <th class="text-center" style="width: 60px;" title="Edit existing operations">Edit</th>
+                                    <th class="text-center" style="width: 60px;" title="Delete operations">Delete</th>
+                                    <th class="text-center" style="width: 80px;" title="Reorder operations">Reorder</th>
+                                </tr>
+                            </thead>
+                            <tbody id="operationPlanningPermissionsTable">
+                                ${users.users.map(user => {
+                                    const perms = config.operation_planning_permissions?.[user.email] || {
+                                        can_view: false,
+                                        can_add: false,
+                                        can_edit: false,
+                                        can_delete: false,
+                                        can_reorder: false
+                                    };
+                                    return `<tr>
+                                        <td class="small">${user.email}</td>
+                                        <td class="text-center">
+                                            <input type="checkbox" class="form-check-input op-planning-perm" 
+                                                data-user="${user.email}" data-perm="can_view" ${perms.can_view ? 'checked' : ''}>
+                                        </td>
+                                        <td class="text-center">
+                                            <input type="checkbox" class="form-check-input op-planning-perm" 
+                                                data-user="${user.email}" data-perm="can_add" ${perms.can_add ? 'checked' : ''}>
+                                        </td>
+                                        <td class="text-center">
+                                            <input type="checkbox" class="form-check-input op-planning-perm" 
+                                                data-user="${user.email}" data-perm="can_edit" ${perms.can_edit ? 'checked' : ''}>
+                                        </td>
+                                        <td class="text-center">
+                                            <input type="checkbox" class="form-check-input op-planning-perm" 
+                                                data-user="${user.email}" data-perm="can_delete" ${perms.can_delete ? 'checked' : ''}>
+                                        </td>
+                                        <td class="text-center">
+                                            <input type="checkbox" class="form-check-input op-planning-perm" 
+                                                data-user="${user.email}" data-perm="can_reorder" ${perms.can_reorder ? 'checked' : ''}>
+                                        </td>
+                                    </tr>`;
                                 }).join('')}
                             </tbody>
                         </table>
@@ -2253,6 +2372,12 @@ async function openGlobalReportConfigModal(reportName) {
     // Add event listener for show time logs checkbox
     document.getElementById('configShowTimeLogs').addEventListener('change', (e) => {
         document.getElementById('timeLogsPermissionsSection').style.display = 
+            e.target.checked ? 'block' : 'none';
+    });
+    
+    // Add event listener for show operation planning checkbox
+    document.getElementById('configShowOperationPlanning').addEventListener('change', (e) => {
+        document.getElementById('operationPlanningPermissionsSection').style.display = 
             e.target.checked ? 'block' : 'none';
     });
     
@@ -2328,20 +2453,47 @@ async function openGlobalReportConfigModal(reportName) {
             delete reportConfig[reportName].time_logs_permissions;
         }
         
+        // Save Operation Planning configuration
+        reportConfig[reportName].show_operation_planning_button = 
+            document.getElementById('configShowOperationPlanning').checked;
+        
+        if (reportConfig[reportName].show_operation_planning_button) {
+            const opPlanningPermissions = {};
+            document.querySelectorAll('.op-planning-perm').forEach(checkbox => {
+                const user = checkbox.dataset.user;
+                const perm = checkbox.dataset.perm;
+                if (!opPlanningPermissions[user]) {
+                    opPlanningPermissions[user] = {
+                        can_view: false,
+                        can_add: false,
+                        can_edit: false,
+                        can_delete: false,
+                        can_reorder: false
+                    };
+                }
+                opPlanningPermissions[user][perm] = checkbox.checked;
+            });
+            reportConfig[reportName].operation_planning_permissions = opPlanningPermissions;
+        } else {
+            // Remove operation planning permissions if feature is disabled
+            delete reportConfig[reportName].operation_planning_permissions;
+        }
+        
         alert("Configuration saved! Click 'Save Changes' in main settings to persist.");
         configModal.hide();
     };
     
     // Blur any focused element to prevent aria-hidden focus conflict
-if (document.activeElement && document.activeElement.blur) {
-    document.activeElement.blur();
+    if (document.activeElement && document.activeElement.blur) {
+        document.activeElement.blur();
+    }
+
+    // Show modal after a small delay to ensure focus is cleared
+    setTimeout(() => {
+        configModal.show();
+    }, 50);
 }
 
-// Show modal after a small delay to ensure focus is cleared
-setTimeout(() => {
-    configModal.show();
-}, 50);
-}
 
 
 
@@ -3704,3 +3856,661 @@ function renderGroupVisibilityCheckboxesForReport(userEmail, reportName, tabIdx)
 
 
 
+
+
+
+
+
+
+
+async function openOperationPlanningModal(row, config, reportName) {
+  const workOrderId = row.work_order_id || row.name;
+  
+  if (!workOrderId) {
+    alert('No Work Order ID found for this record');
+    return;
+  }
+  
+  console.log('Opening Operation Planning for:', workOrderId);
+  
+  const userEmail = localStorage.getItem("userEmail");
+  const opPerms = config.operation_planning_permissions?.[userEmail] || {};
+  
+  // Create modal HTML
+  const modalHtml = `
+    <div class="modal fade" id="operationPlanningModal" tabindex="-1">
+      <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Operation Planning - ${workOrderId}</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <div id="operationPlanningContent">
+              <div class="text-center">
+                <div class="spinner-border" role="status">
+                  <span class="visually-hidden">Loading...</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            ${opPerms.can_add ? '<button type="button" class="btn btn-primary" id="addOperationBtn"><i class="bi bi-plus"></i> Add Operation</button>' : ''}
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+  
+  // Remove existing modal if any
+  const existingModal = document.getElementById('operationPlanningModal');
+  if (existingModal) existingModal.remove();
+  
+  document.body.insertAdjacentHTML('beforeend', modalHtml);
+  
+  const modal = new bootstrap.Modal(document.getElementById('operationPlanningModal'));
+  modal.show();
+  
+  // Load operations data
+  try {
+    const operations = await fetchWorkOrderOperations(workOrderId);
+    console.log('Fetched operations:', operations);
+    renderOperationsTable(operations, opPerms, workOrderId);
+    
+    // Setup add operation button
+    if (opPerms.can_add) {
+      const addBtn = document.getElementById('addOperationBtn');
+      if (addBtn) {
+        addBtn.onclick = () => {
+          addNewOperation(workOrderId, opPerms);
+        };
+      }
+    }
+  } catch (error) {
+    console.error('Error in openOperationPlanningModal:', error);
+    document.getElementById('operationPlanningContent').innerHTML = 
+      `<div class="alert alert-danger">
+        <strong>Error loading operations:</strong><br>
+        ${error.message}<br>
+        <small>Check browser console for more details</small>
+      </div>`;
+  }
+}
+
+
+
+
+
+
+
+
+async function fetchWorkOrderOperations(workOrderId) {
+  console.log('=== Fetch Work Order Operations ===');
+  console.log('Work Order ID:', workOrderId);
+  
+  const url = `${API_BASE}?action=get_work_order_operations&work_order=${encodeURIComponent(workOrderId)}`;
+  console.log('Full URL:', url);
+  
+  try {
+    const response = await fetch(url);
+    console.log('Response received, status:', response.status, response.statusText);
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    const text = await response.text();
+    console.log('Raw response text:', text);
+    
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch (e) {
+      console.error('JSON parse error:', e);
+      console.error('Response was:', text);
+      throw new Error('Invalid JSON response from server');
+    }
+    
+    console.log('Parsed response data:', data);
+    
+    if (!data.success) {
+      throw new Error(data.message || 'Failed to fetch operations');
+    }
+    
+    console.log('Operations:', data.operations);
+    return data.operations || [];
+    
+  } catch (error) {
+    console.error('=== Fetch Error ===');
+    console.error('Error type:', error.name);
+    console.error('Error message:', error.message);
+    console.error('Full error:', error);
+    throw error;
+  }
+}
+
+
+
+
+
+
+
+function renderOperationsTable(operations, permissions, workOrderId) {
+  const content = document.getElementById('operationPlanningContent');
+  
+  if (!operations || operations.length === 0) {
+    content.innerHTML = '<p class="text-muted">No operations found for this work order.</p>';
+    return;
+  }
+  
+  let tableHtml = `
+    <div class="table-responsive">
+      <table class="table table-bordered table-hover" id="operationsTable">
+        <thead class="table-light">
+          <tr>
+            ${permissions.can_reorder ? '<th width="50">Order</th>' : ''}
+            <th>Operation</th>
+            <th>Workstation</th>
+            <th>Time (mins)</th>
+            <th>Plant</th>
+            <th>Qty to Manufacture</th>
+            <th>Completed Qty</th>
+            ${permissions.can_edit || permissions.can_delete ? '<th width="150">Actions</th>' : ''}
+          </tr>
+        </thead>
+        <tbody id="operationsTableBody">
+  `;
+  
+  operations.forEach((op, index) => {
+    const forQty = op.for_quantity || 0;
+    const completedQty = op.total_completed_qty || 0;
+    const isCompleted = completedQty >= forQty && forQty > 0;
+    const rowClass = isCompleted ? 'table-success' : '';
+    
+    tableHtml += `
+      <tr data-operation-id="${op.name}" data-idx="${op.idx}" class="${rowClass}">
+        ${permissions.can_reorder ? `<td class="text-center"><i class="bi bi-grip-vertical drag-handle" style="cursor: move;"></i></td>` : ''}
+        <td>${op.operation || ''}</td>
+        <td>${op.workstation || ''}</td>
+        <td>${op.time_in_mins || ''}</td>
+        <td>${op.custom_plant || ''}</td>
+        <td class="text-center"><strong>${forQty}</strong></td>
+        <td class="text-center"><strong>${completedQty}</strong></td>
+        ${permissions.can_edit || permissions.can_delete ? `
+          <td>
+            ${permissions.can_edit ? `<button class="btn btn-sm btn-warning me-1" onclick="editOperation('${op.name}', '${workOrderId}')"><i class="bi bi-pencil"></i> Edit</button>` : ''}
+            ${permissions.can_delete ? `<button class="btn btn-sm btn-danger" onclick="deleteOperation('${op.name}', '${workOrderId}')"><i class="bi bi-trash"></i> Delete</button>` : ''}
+          </td>
+        ` : ''}
+      </tr>
+    `;
+  });
+  
+  tableHtml += `
+        </tbody>
+      </table>
+    </div>
+  `;
+  
+  content.innerHTML = tableHtml;
+  
+  // Enable drag and drop reordering if permission exists
+  if (permissions.can_reorder) {
+    enableOperationReordering(workOrderId);
+  }
+}
+
+
+
+
+
+
+
+
+
+
+
+async function saveNewOperation(workOrderId) {
+  const operation = document.getElementById('newOpOperation').value;
+  const workstation = document.getElementById('newOpWorkstation').value;
+  const time = document.getElementById('newOpTime').value;
+  const plant = document.getElementById('newOpPlant').value;
+  
+  if (!operation) {
+    alert('Operation name is required');
+    return;
+  }
+  
+  try {
+    const response = await fetch(`${API_BASE}?action=add_work_order_operation`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        work_order: workOrderId,
+        operation: operation,
+        workstation: workstation,
+        time_in_mins: time,
+        custom_plant: plant
+      })
+    });
+    
+    const data = await response.json();
+    
+    if (data.success) {
+      alert('Operation added successfully!');
+      // Remove the form
+      document.getElementById('newOperationForm')?.remove();
+      // Reload operations
+      const operations = await fetchWorkOrderOperations(workOrderId);
+      const userEmail = localStorage.getItem("userEmail");
+      const config = reportConfig[currentReportData.reportName] || {};
+      const opPerms = config.operation_planning_permissions?.[userEmail] || {};
+      renderOperationsTable(operations, opPerms, workOrderId);
+    } else {
+      console.error('Add operation failed:', data);
+      alert('Error: ' + (data.message || 'Failed to add operation'));
+    }
+  } catch (error) {
+    console.error('Add operation error:', error);
+    alert('Error adding operation: ' + error.message);
+  }
+}
+
+function cancelNewOperation() {
+  document.getElementById('newOperationForm')?.remove();
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+async function addNewOperation(workOrderId, permissions) {
+  // Fetch options
+  const operationOptions = await getOperationOptions();
+  const workstationOptions = await getWorkstationOptions();
+  const plantOptions = await getPlantOptions();
+  
+  console.log('Plant options fetched:', plantOptions);
+  
+  // Create operation dropdown
+  let operationSelect = `<select class="form-select" id="newOpOperation" required>
+    <option value="">-- Select Operation --</option>`;
+  operationOptions.forEach(opt => {
+    operationSelect += `<option value="${opt}">${opt}</option>`;
+  });
+  operationSelect += `</select>`;
+  
+  // Create workstation dropdown
+  let workstationSelect = `<select class="form-select" id="newOpWorkstation">
+    <option value="">-- Select Workstation --</option>`;
+  workstationOptions.forEach(opt => {
+    workstationSelect += `<option value="${opt}">${opt}</option>`;
+  });
+  workstationSelect += `</select>`;
+  
+  // Create plant floor dropdown
+  let plantInput;
+  if (plantOptions.length > 0) {
+    plantInput = `<select class="form-select" id="newOpPlant">
+      <option value="">-- Select Plant Floor --</option>`;
+    plantOptions.forEach(opt => {
+      plantInput += `<option value="${opt}">${opt}</option>`;
+    });
+    plantInput += `</select>`;
+  } else {
+    // Fallback to text input if no options found
+    plantInput = `<input type="text" class="form-control" id="newOpPlant" placeholder="Enter plant floor">`;
+  }
+  
+  // Create inline form in modal
+  const form = `
+    <div class="card p-3 mb-3" id="newOperationForm">
+      <h6>Add New Operation</h6>
+      <div class="row g-2">
+        <div class="col-md-3">
+          <label class="form-label">Operation <span class="text-danger">*</span></label>
+          ${operationSelect}
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Workstation</label>
+          ${workstationSelect}
+        </div>
+        <div class="col-md-2">
+          <label class="form-label">Time (mins)</label>
+          <input type="number" class="form-control" id="newOpTime" placeholder="0">
+        </div>
+        <div class="col-md-2">
+          <label class="form-label">Plant Floor</label>
+          ${plantInput}
+        </div>
+        <div class="col-md-2 d-flex align-items-end">
+          <button class="btn btn-success me-2" id="saveNewOpBtn">Save</button>
+          <button class="btn btn-secondary" id="cancelNewOpBtn">Cancel</button>
+        </div>
+      </div>
+    </div>
+  `;
+  
+  const content = document.getElementById('operationPlanningContent');
+  content.insertAdjacentHTML('afterbegin', form);
+  
+  // Attach event listeners
+  document.getElementById('saveNewOpBtn').addEventListener('click', async () => {
+    await saveNewOperation(workOrderId);
+  });
+  
+  document.getElementById('cancelNewOpBtn').addEventListener('click', () => {
+    cancelNewOperation();
+  });
+}
+
+
+
+
+
+
+
+
+
+
+
+
+function cancelNewOperation() {
+  document.getElementById('newOperationForm')?.remove();
+}
+
+
+
+
+
+
+
+
+
+
+async function editOperation(operationName, workOrderId) {
+  console.log('Editing operation:', operationName, 'for WO:', workOrderId);
+  
+  // Find the operation row
+  const row = document.querySelector(`tr[data-operation-id="${operationName}"]`);
+  if (!row) {
+    alert('Operation row not found');
+    return;
+  }
+  
+  const cells = row.querySelectorAll('td');
+  
+  // Determine cell indices based on whether reorder column exists
+  const hasReorderCol = cells[0].querySelector('.drag-handle') !== null;
+  const offset = hasReorderCol ? 1 : 0;
+  
+  const currentOperation = cells[offset].textContent.trim();
+  const currentWorkstation = cells[offset + 1].textContent.trim();
+  const currentTime = cells[offset + 2].textContent.trim();
+  const currentPlant = cells[offset + 3].textContent.trim();
+  // Skip qty columns - they are readonly (offset + 4 and offset + 5)
+  
+  // Fetch options
+  const operationOptions = await getOperationOptions();
+  const workstationOptions = await getWorkstationOptions();
+  const plantOptions = await getPlantOptions();
+  
+  // Create operation dropdown
+  let operationSelect = `<select class="form-select form-select-sm" id="edit_operation">`;
+  operationOptions.forEach(opt => {
+    const selected = opt === currentOperation ? 'selected' : '';
+    operationSelect += `<option value="${opt}" ${selected}>${opt}</option>`;
+  });
+  operationSelect += `</select>`;
+  
+  // Create workstation dropdown
+  let workstationSelect = `<select class="form-select form-select-sm" id="edit_workstation">`;
+  workstationOptions.forEach(opt => {
+    const selected = opt === currentWorkstation ? 'selected' : '';
+    workstationSelect += `<option value="${opt}" ${selected}>${opt}</option>`;
+  });
+  workstationSelect += `</select>`;
+  
+  // Create plant floor dropdown
+  let plantInput;
+  if (plantOptions.length > 0) {
+    plantInput = `<select class="form-select form-select-sm" id="edit_plant">
+      <option value="">-- Select Plant Floor --</option>`;
+    plantOptions.forEach(opt => {
+      const selected = opt === currentPlant ? 'selected' : '';
+      plantInput += `<option value="${opt}" ${selected}>${opt}</option>`;
+    });
+    plantInput += `</select>`;
+  } else {
+    plantInput = `<input type="text" class="form-control form-control-sm" id="edit_plant" value="${currentPlant}" placeholder="Enter plant floor">`;
+  }
+  
+  // Replace editable cells with inputs
+  cells[offset].innerHTML = operationSelect;
+  cells[offset + 1].innerHTML = workstationSelect;
+  cells[offset + 2].innerHTML = `<input type="number" class="form-control form-control-sm" id="edit_time" value="${currentTime}">`;
+  cells[offset + 3].innerHTML = plantInput;
+  // Leave qty columns unchanged (offset + 4 and offset + 5)
+  
+  // Replace action buttons
+  cells[offset + 6].innerHTML = `
+    <button class="btn btn-sm btn-success me-1" onclick="saveEditOperation('${operationName}', '${workOrderId}')">
+      <i class="bi bi-check"></i> Save
+    </button>
+    <button class="btn btn-sm btn-secondary" onclick="cancelEditOperation('${workOrderId}')">
+      <i class="bi bi-x"></i> Cancel
+    </button>
+  `;
+}
+
+
+
+
+
+
+
+
+
+
+async function saveEditOperation(operationName, workOrderId) {
+  const operation = document.getElementById('edit_operation').value;
+  const workstation = document.getElementById('edit_workstation').value;
+  const time = document.getElementById('edit_time').value;
+  const plant = document.getElementById('edit_plant').value;
+  
+  if (!operation) {
+    alert('Operation name is required');
+    return;
+  }
+  
+  try {
+    const response = await fetch(`${API_BASE}?action=update_work_order_operation`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        work_order: workOrderId,
+        operation_name: operationName,
+        operation: operation,
+        workstation: workstation,
+        time_in_mins: time,
+        custom_plant: plant
+      })
+    });
+    
+    const data = await response.json();
+    
+    if (data.success) {
+      alert('Operation updated successfully!');
+      // Reload operations
+      const operations = await fetchWorkOrderOperations(workOrderId);
+      const userEmail = localStorage.getItem("userEmail");
+      const config = reportConfig[currentReportData.reportName] || {};
+      const opPerms = config.operation_planning_permissions?.[userEmail] || {};
+      renderOperationsTable(operations, opPerms, workOrderId);
+    } else {
+      console.error('Update failed:', data);
+      alert('Error: ' + (data.message || 'Failed to update operation') + 
+            (data.response ? '\nDetails: ' + JSON.stringify(data.response) : ''));
+    }
+
+  } catch (error) {
+    alert('Error updating operation: ' + error.message);
+  }
+}
+
+
+
+
+
+
+
+
+
+async function cancelEditOperation(workOrderId) {
+  // Reload the table to cancel editing
+  const operations = await fetchWorkOrderOperations(workOrderId);
+  const userEmail = localStorage.getItem("userEmail");
+  const config = reportConfig[currentReportData.reportName] || {};
+  const opPerms = config.operation_planning_permissions?.[userEmail] || {};
+  renderOperationsTable(operations, opPerms, workOrderId);
+}
+
+
+
+
+
+
+
+
+
+
+
+
+async function deleteOperation(operationName, workOrderId) {
+  if (!confirm('Are you sure you want to delete this operation? This will also delete the linked job card.')) {
+    return;
+  }
+  
+  try {
+    const response = await fetch(`${API_BASE}?action=delete_work_order_operation`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        work_order: workOrderId,
+        operation_name: operationName
+      })
+    });
+    
+    const data = await response.json();
+    
+    if (data.success) {
+      alert(data.message || 'Operation deleted successfully!');
+      // Reload operations
+      const operations = await fetchWorkOrderOperations(workOrderId);
+      const userEmail = localStorage.getItem("userEmail");
+      const config = reportConfig[currentReportData.reportName] || {};
+      const opPerms = config.operation_planning_permissions?.[userEmail] || {};
+      renderOperationsTable(operations, opPerms, workOrderId);
+    } else {
+      console.error('Delete failed:', data);
+      alert('Error: ' + (data.message || 'Failed to delete operation'));
+    }
+  } catch (error) {
+    console.error('Delete error:', error);
+    alert('Error deleting operation: ' + error.message);
+  }
+}
+
+
+
+
+
+
+
+
+
+function enableOperationReordering(workOrderId) {
+  const tbody = document.getElementById('operationsTableBody');
+  
+  let draggedRow = null;
+  
+  tbody.querySelectorAll('tr').forEach(row => {
+    row.setAttribute('draggable', true);
+    
+    row.addEventListener('dragstart', (e) => {
+      draggedRow = row;
+      row.style.opacity = '0.5';
+    });
+    
+    row.addEventListener('dragend', (e) => {
+      row.style.opacity = '';
+    });
+    
+    row.addEventListener('dragover', (e) => {
+      e.preventDefault();
+    });
+    
+    row.addEventListener('drop', async (e) => {
+      e.preventDefault();
+      if (draggedRow !== row) {
+        const allRows = Array.from(tbody.querySelectorAll('tr'));
+        const draggedIndex = allRows.indexOf(draggedRow);
+        const targetIndex = allRows.indexOf(row);
+        
+        if (draggedIndex < targetIndex) {
+          row.after(draggedRow);
+        } else {
+          row.before(draggedRow);
+        }
+        
+        // Save new order to backend
+        await saveOperationOrder(workOrderId);
+      }
+    });
+  });
+}
+
+
+
+
+async function saveOperationOrder(workOrderId) {
+  const tbody = document.getElementById('operationsTableBody');
+  const rows = tbody.querySelectorAll('tr');
+  const newOrder = Array.from(rows).map((row, index) => ({
+    name: row.dataset.operationId,
+    idx: index + 1
+  }));
+  
+  try {
+    const response = await fetch(`${API_BASE}?action=reorder_work_order_operations`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        work_order: workOrderId,
+        operations_order: newOrder
+      })
+    });
+    
+        const data = await response.json();
+        if (!data.success) {
+          console.error('Reorder failed:', data);
+          alert('Error saving order: ' + (data.message || 'Unknown error') + 
+                (data.response ? '\nDetails: ' + JSON.stringify(data.response) : ''));
+        }
+
+  } catch (error) {
+    alert('Error saving operation order: ' + error.message);
+  }
+}
