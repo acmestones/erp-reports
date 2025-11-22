@@ -1020,8 +1020,11 @@ updateImageThumbnail(imageId, thumbnailUrl) {
             // Get current tags for the image
             const imageInfo = await this.apiCall('pwg.images.getInfo', { image_id: imageId });
             
+            // Handle case where image has no tags
+            const currentTags = imageInfo.tags || [];
+            
             // Filter out the tag to remove
-            const remainingTagIds = imageInfo.tags
+            const remainingTagIds = currentTags
                 .filter(t => t.id != parseInt(tagId))
                 .map(t => t.id)
                 .join(',');
@@ -1864,9 +1867,15 @@ async addTagToSelectedImages(tagName) {
         document.getElementById('tagInput').value = '';
         document.getElementById('tagAutocomplete').classList.remove('show');
 
+        // Refresh all tag displays
         await this.loadAllTags();
         await this.loadAlbumTags();
         await this.loadSelectedImagesTags();
+        
+        // Refresh tags for each affected image
+        for (const imageId of imageIds) {
+            await this.loadAndDisplayImageTags(imageId);
+        }
 
     } catch (error) {
         console.error('Failed to add tags:', error);
@@ -1968,7 +1977,7 @@ renderSelectedImagesTags(tags) {
 async getTagsForImage(imageId) {
     try {
         const imageInfo = await this.apiCall('pwg.images.getInfo', { image_id: imageId });
-        if (imageInfo && imageInfo.tags) {
+        if (imageInfo && imageInfo.tags && Array.isArray(imageInfo.tags)) {
             return imageInfo.tags.map(tag => tag.id);
         }
         return [];
@@ -2009,6 +2018,11 @@ async removeTagFromSelectedImages(tagId) {
         await this.loadAllTags();
         await this.loadAlbumTags();
         await this.loadSelectedImagesTags();
+        
+        // Refresh tags for each affected image
+        for (const imageId of imageIds) {
+            await this.loadAndDisplayImageTags(imageId);
+        }
 
     } catch (error) {
         console.error('Failed to remove tag:', error);
