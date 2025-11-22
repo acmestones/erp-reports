@@ -1796,6 +1796,11 @@ async getOrCreateTagId(tagName) {
     }
 }
 
+
+
+
+
+            
 // Add tag to selected images by tag name (create or use existing tag)
 async addTagToSelectedImages(tagName) {
     if (!tagName || this.selectedImages.size === 0) return;
@@ -1813,8 +1818,13 @@ async addTagToSelectedImages(tagName) {
                 multiple_value_mode: 'append'
             });
 
-            const response = await fetch(`${this.baseUrl}/ws.php?${params.toString()}`, {
+            const response = await fetch(`${this.baseUrl}/ws.php`, {
+                method: 'POST',
                 credentials: 'include',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: params.toString(),
             });
 
             const data = await response.json();
@@ -1827,7 +1837,7 @@ async addTagToSelectedImages(tagName) {
         document.getElementById('tagInput').value = '';
         document.getElementById('tagAutocomplete').classList.remove('show');
 
-        // Reload tags for UI refresh
+        // Reload tags UI
         await this.loadAllTags();
         await this.loadAlbumTags();
         await this.loadSelectedImagesTags();
