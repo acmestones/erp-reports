@@ -893,13 +893,13 @@ setupLazyThumbnailLoading(images) {
     });
 }
 
+
+            
+            
 async loadSingleThumbnail(imageId, imageItem) {
     try {
         const imageInfoUrl = `${this.baseUrl}/ws.php?format=json&method=pwg.images.getInfo&image_id=${imageId}&comments_page=0&comments_per_page=0`;
-        const response = await fetch(imageInfoUrl, {
-            credentials: 'include'
-        });
-        
+        const response = await fetch(imageInfoUrl, { credentials: 'include' });
         const data = await response.json();
         
         if (data.stat === 'ok' && data.result && data.result.derivatives) {
@@ -908,12 +908,16 @@ async loadSingleThumbnail(imageId, imageItem) {
             
             if (thumbnailUrl) {
                 this.updateImageThumbnail(imageId, thumbnailUrl);
+                
+                // ADD THIS LINE - Load and display tags for this image
+                await this.loadAndDisplayImageTags(imageId);
             }
         }
     } catch (e) {
         console.log('Failed to load thumbnail for image', imageId);
     }
 }
+
 
 
 
