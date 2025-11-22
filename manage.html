@@ -164,22 +164,29 @@
                 document.getElementById('clearSelectionBtn').addEventListener('click', () => this.clearSelection());
             }
 
-            checkStoredSession() {
-                const storedUrl = localStorage.getItem('piwigo_url');
-                const storedUsername = localStorage.getItem('piwigo_username');
-                const storedPassword = localStorage.getItem('piwigo_password');
-                
-                if (storedUrl && storedUsername && storedPassword) {
-                    document.getElementById('piwigoUrl').value = storedUrl;
-                    document.getElementById('username').value = storedUsername;
-                    document.getElementById('password').value = storedPassword;
-                    this.baseUrl = storedUrl.endsWith('/') ? storedUrl.slice(0, -1) : storedUrl;
-                     
-                    await this.loadAllTags();  // <-- Add this line here!
-                    setTimeout(() => this.connect(), 500);
-                }
-            }
 
+
+            
+                async checkStoredSession() {
+                    const storedUrl = localStorage.getItem('piwigourl');
+                    const storedUsername = localStorage.getItem('piwigousername');
+                    const storedPassword = localStorage.getItem('piwigopassword');
+                    if (storedUrl && storedUsername && storedPassword) {
+                        document.getElementById('piwigoUrl').value = storedUrl;
+                        document.getElementById('username').value = storedUsername;
+                        document.getElementById('password').value = storedPassword;
+                        this.baseUrl = storedUrl.endsWith('/') ? storedUrl.slice(0, -1) : storedUrl;
+                
+                        setTimeout(() => {
+                            this.connect().then(() => {
+                                this.loadAllTags().catch(console.error);
+                            });
+                        }, 500);
+                    }
+                }
+
+
+            
             toggleMode() {
                 this.isAssociateMode = !this.isAssociateMode;
                 const toggle = document.getElementById('modeToggle');
