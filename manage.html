@@ -908,8 +908,6 @@ async loadSingleThumbnail(imageId, imageItem) {
             
             if (thumbnailUrl) {
                 this.updateImageThumbnail(imageId, thumbnailUrl);
-                await this.loadAndDisplayImageTags(imageId);
-
             }
         }
     } catch (e) {
