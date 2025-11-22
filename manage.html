@@ -167,23 +167,28 @@
 
 
             
-                async checkStoredSession() {
-                    const storedUrl = localStorage.getItem('piwigourl');
-                    const storedUsername = localStorage.getItem('piwigousername');
-                    const storedPassword = localStorage.getItem('piwigopassword');
-                    if (storedUrl && storedUsername && storedPassword) {
-                        document.getElementById('piwigoUrl').value = storedUrl;
-                        document.getElementById('username').value = storedUsername;
-                        document.getElementById('password').value = storedPassword;
-                        this.baseUrl = storedUrl.endsWith('/') ? storedUrl.slice(0, -1) : storedUrl;
-                
-                        setTimeout(() => {
-                            this.connect().then(() => {
-                                this.loadAllTags().catch(console.error);
-                            });
-                        }, 500);
+                      async checkStoredSession() {
+                        const storedSession = localStorage.getItem('piwigoSession');
+                        if (storedSession) {
+                            this.session = JSON.parse(storedSession);
+                            this.baseUrl = this.session.baseUrl || '';
+                    
+                            // Update input fields with stored session data if present
+                            document.getElementById('piwigoUrl').value = this.session.baseUrl || '';
+                            document.getElementById('username').value = this.session.username || '';
+                            document.getElementById('password').value = this.session.password || '';
+                    
+                            // Update UI for logged-in user, e.g., show connected header (implement this in your UI logic)
+                            this.updateUIForLoggedInUser();
+                    
+                            // Load all tags if session has user info
+                            if (this.session.user && this.session.user.id) {
+                                await this.loadAllTags();
+                            }
+                            return true;
+                        }
+                        return false;
                     }
-                }
 
 
             
@@ -230,63 +235,68 @@
                 }
             }
 
-            async connect() {
-                const url = document.getElementById('piwigoUrl').value.trim();
-                const username = document.getElementById('username').value.trim();
-                const password = document.getElementById('password').value.trim();
+           
+            
+            
+            
+async connect() {
+    const urlInput = document.getElementById('piwigoUrl').value.trim();
+    const username = document.getElementById('username').value.trim();
+    const password = document.getElementById('password').value.trim();
 
-                if (!url || !username || !password) {
-                    this.showStatus('Please fill in all fields', 'error');
-                    return;
-                }
+    if (!urlInput || !username || !password) {
+        alert('Please enter Piwigo URL, username, and password');
+        return false;
+    }
 
-                this.baseUrl = url.endsWith('/') ? url.slice(0, -1) : url;
-                const connectBtn = document.getElementById('connectBtn');
-                connectBtn.disabled = true;
-                connectBtn.textContent = 'Connecting...';
+    this.baseUrl = urlInput.endsWith('/') ? urlInput.slice(0, -1) : urlInput;
 
-                try {
-                    const loginParams = new URLSearchParams();
-                    loginParams.append('method', 'pwg.session.login');
-                    loginParams.append('username', username);
-                    loginParams.append('password', password);
+    try {
+        // Example login request, replace with your actual API method
+        const loginUrl = `${this.baseUrl}/ws.php?format=json&method=pwg.session.login&username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}`;
+        const response = await fetch(loginUrl, { credentials: 'include' });
+        const data = await response.json();
 
-                    const loginResponse = await fetch(`${this.baseUrl}/ws.php`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                        body: loginParams,
-                        credentials: 'include'
-                    });
+        if (data.stat === 'ok' && data.result.session) {
+            // Save session info
+            this.session = {
+                baseUrl: this.baseUrl,
+                username,
+                password,
+                user: data.result.session
+            };
+            localStorage.setItem('piwigoSession', JSON.stringify(this.session));
 
-                    if (loginResponse.ok) {
-                        const statusResponse = await fetch(`${this.baseUrl}/ws.php?format=json&method=pwg.session.getStatus`, {
-                            method: 'GET',
-                            credentials: 'include'
-                        });
-                        
-                        const statusData = await statusResponse.json();
-                        if (statusData.stat === 'ok' && (statusData.result.status === 'webmaster' || statusData.result.status === 'admin')) {
-                            this.sessionId = statusData.result.pwg_token || '';
-                            localStorage.setItem('piwigo_url', this.baseUrl);
-                            localStorage.setItem('piwigo_username', username);
-                            localStorage.setItem('piwigo_password', password);
-                            this.showConnectedState(statusData.result.username, statusData.result.status);
-                            await this.loadAlbums();
-                            await this.initTagging();
-                        } else {
-                            throw new Error('Insufficient privileges');
-                        }
-                    } else {
-                        throw new Error('Login failed');
-                    }
-                } catch (error) {
-                    this.showStatus(`Connection failed: ${error.message}`, 'error');
-                } finally {
-                    connectBtn.disabled = false;
-                    connectBtn.textContent = 'Connect to Piwigo';
-                }
-            }
+            // Update UI
+            this.updateUIForLoggedInUser();
 
+            // Load tags for autocomplete and display
+            await this.loadAllTags();
+
+            // Optionally load initial images or album here
+            await this.loadInitialData();
+
+            return true;
+        } else {
+            alert('Login failed: ' + (data.error ? data.error.message : 'Unknown error'));
+            this.session = null;
+            localStorage.removeItem('piwigoSession');
+            return false;
+        }
+    } catch (error) {
+        console.error('Error during login:', error);
+        alert('Login error: ' + error.message);
+        this.session = null;
+        localStorage.removeItem('piwigoSession');
+        return false;
+    }
+}
+
+
+
+
+
+            
             async apiCall(method, params = {}) {
                 const apiParams = new URLSearchParams();
                 apiParams.append('method', method);
