@@ -1767,49 +1767,77 @@ showTagAutocomplete(query) {
 
 
             
+// Get existing tag ID by name or create a new tag and return its ID
+async getOrCreateTagId(tagName) {
+    // Check if tag exists in cached allTags (case-insensitive)
+    const existingTag = this.allTags.find(t => t.name.toLowerCase() === tagName.toLowerCase());
+    if (existingTag) {
+        return existingTag.id;
+    }
+
+    // Tag doesn't exist: create it via pwg.tags.add
+    const params = new URLSearchParams({
+        method: 'pwg.tags.add',
+        format: 'json',
+        name: tagName
+    });
+
+    const response = await fetch(`${this.baseUrl}/ws.php?${params.toString()}`, {
+        credentials: 'include',
+    });
+    const data = await response.json();
+
+    if (data.stat === 'ok' && data.result && data.result.tag_id) {
+        // Add new tag to local allTags cache
+        this.allTags.push({ id: data.result.tag_id, name: tagName });
+        return data.result.tag_id;
+    } else {
+        throw new Error(data.error ? data.error.message : "Failed to create tag");
+    }
+}
+
+// Add tag to selected images by tag name (create or use existing tag)
 async addTagToSelectedImages(tagName) {
     if (!tagName || this.selectedImages.size === 0) return;
 
-    const imageIds = Array.from(this.selectedImages);
     try {
-        for (const imageId of imageIds) {
-            const url = new URL(`${this.baseUrl}/ws.php`);
-            url.searchParams.append('method', 'pwg.tags.addImageTag');
-            url.searchParams.append('format', 'json');
-            url.searchParams.append('image_id', imageId);
-            url.searchParams.append('tag_name', tagName);
+        const tagId = await this.getOrCreateTagId(tagName);
+        const imageIds = Array.from(this.selectedImages);
 
-            const response = await fetch(url.toString(), {
-                method: 'GET',
-                credentials: 'include'
+        for (const imageId of imageIds) {
+            const params = new URLSearchParams({
+                method: 'pwg.images.setInfo',
+                format: 'json',
+                image_id: imageId,
+                tag_ids: tagId,
+                multiple_value_mode: 'append'
             });
 
-            const text = await response.text();
+            const response = await fetch(`${this.baseUrl}/ws.php?${params.toString()}`, {
+                credentials: 'include',
+            });
 
-            // Try parsing JSON but if invalid log raw response for debugging
-            let data;
-            try {
-                data = JSON.parse(text);
-            } catch (e) {
-                console.error('Invalid JSON response:', text);
-                throw new Error('Server returned invalid response');
-            }
-
+            const data = await response.json();
             if (data.stat !== 'ok') {
-                throw new Error(data.error ? data.error.message : 'Failed to add tag');
+                throw new Error(data.error ? data.error.message : "Failed to assign tag to image");
             }
         }
+
         this.showStatus(`Added tag "${tagName}" to ${imageIds.length} images`, 'success');
         document.getElementById('tagInput').value = '';
         document.getElementById('tagAutocomplete').classList.remove('show');
+
+        // Reload tags for UI refresh
         await this.loadAllTags();
         await this.loadAlbumTags();
         await this.loadSelectedImagesTags();
+
     } catch (error) {
         console.error('Failed to add tags', error);
         this.showStatus('Failed to add tags: ' + error.message, 'error');
     }
 }
+
 
 
 
