@@ -362,6 +362,66 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 
 
 
+/* Image Tags Under Each Image */
+.image-tags {
+    padding: 4px 6px 6px 6px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    min-height: 20px;
+}
+
+.image-tag-pill {
+    display: inline-flex;
+    align-items: center;
+    background: #e3f2fd;
+    border: 1px solid #90caf9;
+    color: #1976d2;
+    padding: 2px 6px;
+    border-radius: 12px;
+    font-size: 10px;
+    font-weight: 500;
+    cursor: default;
+    transition: all 0.2s ease;
+    max-width: 100%;
+    overflow: hidden;
+}
+
+.image-tag-pill:hover {
+    background: #bbdefb;
+    border-color: #64b5f6;
+}
+
+.image-tag-pill span:first-child {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100px;
+}
+
+.image-tag-remove {
+    margin-left: 4px;
+    cursor: pointer;
+    font-weight: bold;
+    color: #1976d2;
+    opacity: 0.7;
+    font-size: 14px;
+    line-height: 1;
+    padding: 0 2px;
+}
+
+.image-tag-remove:hover {
+    opacity: 1;
+    color: #d32f2f;
+}
+
+.no-tags {
+    font-size: 10px;
+    color: #999;
+    font-style: italic;
+}
+
+
 
 
 
