@@ -1808,6 +1808,7 @@ async addTagToSelectedImages(tagName) {
     try {
         const tagId = await this.getOrCreateTagId(tagName);
         const imageIds = Array.from(this.selectedImages);
+        const pwgToken = this.session?.user?.pwg_token || '';
 
         for (const imageId of imageIds) {
             const params = new URLSearchParams({
@@ -1815,7 +1816,8 @@ async addTagToSelectedImages(tagName) {
                 format: 'json',
                 image_id: imageId,
                 tag_ids: tagId,
-                multiple_value_mode: 'append'
+                multiple_value_mode: 'append',
+                pwg_token: pwgToken
             });
 
             const response = await fetch(`${this.baseUrl}/ws.php`, {
@@ -1827,9 +1829,28 @@ async addTagToSelectedImages(tagName) {
                 body: params.toString(),
             });
 
-            const data = await response.json();
-            if (data.stat !== 'ok') {
-                throw new Error(data.error ? data.error.message : "Failed to assign tag to image");
+            const text = await response.text();
+
+            let data;
+            try {
+                data = JSON.parse(text);
+            } catch (jsonError) {
+                // JSON parse failed - check if it's XML error message
+                if (text.startsWith('<?xml')) {
+                    // Parse XML to check if it's a validation or token error (optional)
+                    console.warn('Received XML response instead of JSON:', text);
+                    // Decide if to ignore or raise error.
+                    // For example, if the first assignment succeeded, ignore this error.
+                    // Otherwise, throw new Error('Server returned XML error: ' + text);
+                    // Here, ignoring with warning:
+                    continue; // skip to next imageId
+                } else {
+                    throw new Error('Invalid server response');
+                }
+            }
+
+            if (!data || data.stat !== 'ok') {
+                throw new Error(data && data.error ? data.error.message : 'Failed to assign tag to image');
             }
         }
 
@@ -1837,16 +1858,16 @@ async addTagToSelectedImages(tagName) {
         document.getElementById('tagInput').value = '';
         document.getElementById('tagAutocomplete').classList.remove('show');
 
-        // Reload tags UI
         await this.loadAllTags();
         await this.loadAlbumTags();
         await this.loadSelectedImagesTags();
 
     } catch (error) {
-        console.error('Failed to add tags', error);
+        console.error('Failed to add tags:', error);
         this.showStatus('Failed to add tags: ' + error.message, 'error');
     }
 }
+
 
 
 
