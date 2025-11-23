@@ -1625,6 +1625,10 @@ async loadAlbumTags() {
     }
     
     document.getElementById('tagsPanel').classList.add('show');
+    
+    // Show loading state
+    const container = document.getElementById('albumTagsContainer');
+    container.innerHTML = '<span class="tag-empty-state">Loading tags...</span>';
     try {
         const imageIds = this.currentImages.map(img => img.id);
         if (imageIds.length === 0) {
@@ -1733,33 +1737,56 @@ renderAlbumTags(tags) {
     });
 }
 
+
+
+
+
+            
+
 // Filter images in current album by tag
 async filterImagesByTag(tagId, tagName) {
     if (!this.currentAlbumId) return;
     
+    this.showStatus(`Filtering by tag: ${tagName}...`, 'success');
     console.log(`Filtering by tag: ${tagName} (ID: ${tagId})`);
     
-    // Get all images with their tags
+    // Show loading state
+    const imageGrid = document.getElementById('imageGrid');
+    imageGrid.innerHTML = '<div class="loading"><div class="spinner"></div>Filtering images...</div>';
+    
+    // Filter images that have this tag
     const imagesWithTag = [];
-    for (const image of this.allImages) {
-        try {
-            const response = await fetch(
-                `${this.baseUrl}/ws.php?format=json&method=pwg.images.getInfo&image_id=${image.id}`,
-                { credentials: 'include' }
-            );
-            const data = await response.json();
-            const imageTags = data.result?.tags || [];
-            const hasTag = imageTags.some(t => String(t.id) === String(tagId));
-            if (hasTag) {
-                imagesWithTag.push(image);
+    const batchSize = 10;
+    
+for (let i = 0; i < this.allImages.length; i += batchSize) {
+    const batch = this.allImages.slice(i, i + batchSize);
+    
+    // Update progress
+    this.updateFilterProgress(i, this.allImages.length);
+    
+    await Promise.all(batch.map(async (image) => {
+            try {
+                const response = await fetch(
+                    `${this.baseUrl}/ws.php?format=json&method=pwg.images.getInfo&image_id=${image.id}`,
+                    { credentials: 'include' }
+                );
+                const data = await response.json();
+                const imageTags = data.result?.tags || [];
+                const hasTag = imageTags.some(t => String(t.id) === String(tagId));
+                if (hasTag) {
+                    imagesWithTag.push(image);
+                }
+            } catch (e) {
+                console.error(`Failed to check tags for image ${image.id}:`, e);
             }
-        } catch (e) {
-            console.error(`Failed to check tags for image ${image.id}:`, e);
-        }
+        }));
     }
     
     this.currentImages = imagesWithTag;
     this.renderImages();
+    
+    // Load thumbnails and tags for filtered images
+    await this.startThumbnailLoading();
     
     // Update the current album text to show filter
     const albumName = this.albums.find(a => a.id === this.currentAlbumId)?.name || 'Album';
@@ -1772,10 +1799,34 @@ async filterImagesByTag(tagId, tagName) {
     this.showStatus(`Showing ${imagesWithTag.length} images with tag: ${tagName}`, 'success');
 }
 
+
+
+
+
+
+// Show progress while filtering
+updateFilterProgress(current, total) {
+    const imageGrid = document.getElementById('imageGrid');
+    const percent = Math.round((current / total) * 100);
+    imageGrid.innerHTML = `<div class="loading"><div class="spinner"></div>Checking images... ${current}/${total} (${percent}%)</div>`;
+}
+
+  
+
+
+
+
+
+
+
+            
 // Clear tag filter
-clearTagFilter() {
+async clearTagFilter() {
     this.currentImages = this.allImages;
     this.renderImages();
+    
+    // Reload thumbnails and tags
+    await this.startThumbnailLoading();
     
     const albumName = this.albums.find(a => a.id === this.currentAlbumId)?.name || 'Album';
     document.getElementById('currentAlbum').textContent = albumName;
@@ -1786,6 +1837,13 @@ clearTagFilter() {
 
 
 
+
+
+
+
+
+
+            
 
 
 // Add this debugging function
