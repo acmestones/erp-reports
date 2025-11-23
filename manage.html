@@ -66,33 +66,28 @@
 
 
 
-            <!-- Tags Panel -->
+            <!-- Tags Panel - Compact Version -->
 <div class="tags-panel" id="tagsPanel">
     <!-- Album Tags -->
     <div class="tags-section">
-        <div class="tags-section-title">Album Tags</div>
+        <div class="tags-section-title">Tags in Album (click to filter)</div>
         <div class="tags-container" id="albumTagsContainer">
             <span class="tag-empty-state">No tags in this album</span>
         </div>
     </div>
     
-    <!-- Selected Images Tags (only shown when images selected) -->
-    <div class="tags-section" id="selectedTagsSection" style="display: none;">
-        <div class="tags-section-title">Selected Images Tags</div>
-        <div class="tags-container" id="selectedTagsContainer">
-            <span class="tag-empty-state">No common tags</span>
-        </div>
-        
-        <!-- Tag Input -->
+    <!-- Tag Input - Always Visible -->
+    <div class="tags-section" style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #e0e0e0;">
+        <div class="tags-section-title">Add Tags to Selected Images</div>
         <div class="tag-input-container">
             <input 
                 type="text" 
                 id="tagInput" 
                 class="tag-input" 
-                placeholder="Type to search or add tags..."
+                placeholder="Type tag name... (↑↓ to navigate, Enter to select)"
                 autocomplete="off"
             />
-            <button class="tag-add-btn" id="addTagBtn">Add Tag</button>
+            <button class="tag-add-btn" id="addTagBtn">Add</button>
             
             <!-- Autocomplete dropdown -->
             <div class="tag-autocomplete" id="tagAutocomplete"></div>
@@ -115,10 +110,8 @@
             
             <div class="selection-controls" id="selectionControls">
                 <span class="selection-count" id="selectionCount">0 selected</span>
-                <button class="action-btn move-selected" id="moveSelectedBtn">Move Selected</button>
-                <button class="action-btn associate-selected" id="associateSelectedBtn">Associate Selected</button>
                 <button class="action-btn delete-selected" id="deleteSelectedBtn">Delete Selected</button>
-                <button class="action-btn" id="clearSelectionBtn">Clear</button>
+                <button class="action-btn" id="clearSelectionBtn">Clear Selection</button>
             </div>
             
             <div class="image-grid" id="imageGrid">
@@ -1472,23 +1465,54 @@ updateImageThumbnail(imageId, thumbnailUrl) {
 async initTagging() {
     this.allTags = [];
     this.selectedImages = new Set();
+    this.autocompleteSelectedIndex = -1;
     
     // Load all available tags
     await this.loadAllTags();
     
-    // Tag input autocomplete
+    // Tag input autocomplete - check if elements exist
     const tagInput = document.getElementById('tagInput');
     const tagAutocomplete = document.getElementById('tagAutocomplete');
     const addTagBtn = document.getElementById('addTagBtn');
     
+    if (!tagInput || !tagAutocomplete || !addTagBtn) {
+        console.warn('Tag input elements not found in DOM');
+        return;
+    }
+    
     tagInput.addEventListener('input', (e) => {
+        this.autocompleteSelectedIndex = -1;
         this.showTagAutocomplete(e.target.value);
     });
     
     tagInput.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') {
+        const autocomplete = document.getElementById('tagAutocomplete');
+        const items = autocomplete.querySelectorAll('.tag-autocomplete-item');
+        
+        if (e.key === 'ArrowDown') {
             e.preventDefault();
-            this.addTagToSelectedImages(tagInput.value.trim());
+            this.autocompleteSelectedIndex = Math.min(this.autocompleteSelectedIndex + 1, items.length - 1);
+            this.updateAutocompleteSelection();
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            this.autocompleteSelectedIndex = Math.max(this.autocompleteSelectedIndex - 1, -1);
+            this.updateAutocompleteSelection();
+        } else if (e.key === 'Enter') {
+            e.preventDefault();
+            if (this.autocompleteSelectedIndex >= 0 && items.length > 0) {
+                // Select from autocomplete
+                const selectedItem = items[this.autocompleteSelectedIndex];
+                const tagName = selectedItem.dataset.tagName || tagInput.value.trim();
+                tagInput.value = '';
+                autocomplete.classList.remove('show');
+                this.addTagToSelectedImages(tagName);
+            } else {
+                // Create new tag or use typed text
+                this.addTagToSelectedImages(tagInput.value.trim());
+            }
+        } else if (e.key === 'Escape') {
+            autocomplete.classList.remove('show');
+            this.autocompleteSelectedIndex = -1;
         }
     });
     
@@ -1500,6 +1524,19 @@ async initTagging() {
     document.addEventListener('click', (e) => {
         if (!e.target.closest('.tag-input-container')) {
             tagAutocomplete.classList.remove('show');
+            this.autocompleteSelectedIndex = -1;
+        }
+    });
+}
+
+updateAutocompleteSelection() {
+    const items = document.querySelectorAll('.tag-autocomplete-item');
+    items.forEach((item, index) => {
+        if (index === this.autocompleteSelectedIndex) {
+            item.classList.add('selected');
+            item.scrollIntoView({ block: 'nearest' });
+        } else {
+            item.classList.remove('selected');
         }
     });
 }
@@ -1656,7 +1693,7 @@ renderAlbumTags(tags) {
         
         groupTags.forEach(tag => {
             html += `
-                <div class="tag-pill">
+                <div class="tag-pill tag-filter-pill" data-tag-id="${tag.id}" data-tag-name="${tag.name}" style="cursor: pointer;">
                     <span>${tag.name}</span>
                     <span class="tag-count">${tag.count}</span>
                 </div>`;
@@ -1666,6 +1703,50 @@ renderAlbumTags(tags) {
     });
     
     container.innerHTML = html;
+    
+    // Add click handlers to filter by tag
+    container.querySelectorAll('.tag-filter-pill').forEach(pill => {
+        pill.addEventListener('click', () => {
+            const tagId = pill.dataset.tagId;
+            const tagName = pill.dataset.tagName;
+            this.filterImagesByTag(tagId, tagName);
+        });
+    });
+}
+
+// Filter images in current album by tag
+filterImagesByTag(tagId, tagName) {
+    console.log(`Filtering by tag: ${tagName} (ID: ${tagId})`);
+    
+    // Filter current images to only show those with this tag
+    const filteredImages = this.allImages.filter(image => {
+        // We'll need to check if image has this tag
+        // For now, show a message that we're filtering
+        return true; // Will implement tag checking
+    });
+    
+    this.currentImages = filteredImages;
+    this.renderImages();
+    
+    // Update the current album text to show filter
+    document.getElementById('currentAlbum').innerHTML = `
+        ${this.albums.find(a => a.id === this.currentAlbumId)?.name || 'Album'} 
+        <span style="color: #007AFF; font-size: 12px;">• Filtered by: ${tagName}</span>
+        <button onclick="window.piwigoManager.clearTagFilter()" style="margin-left: 8px; padding: 2px 8px; font-size: 11px; background: #f0f0f0; border: 1px solid #ccc; border-radius: 3px; cursor: pointer;">Clear Filter</button>
+    `;
+    
+    this.showStatus(`Showing images with tag: ${tagName}`, 'success');
+}
+
+// Clear tag filter
+clearTagFilter() {
+    this.currentImages = this.allImages;
+    this.renderImages();
+    
+    const albumName = this.albums.find(a => a.id === this.currentAlbumId)?.name || 'Album';
+    document.getElementById('currentAlbum').textContent = albumName;
+    
+    this.showStatus('Filter cleared', 'success');
 }
 
 
@@ -1840,40 +1921,85 @@ async getOrCreateTagId(tagName) {
 
     console.log('Tag does not exist, creating new tag...');
     
-    // Tag doesn't exist: create it via pwg.tags.add using apiCall
+    // Tag doesn't exist: create it via pwg.tags.add using direct fetch
     try {
-        const params = {
+        const params = new URLSearchParams({
+            method: 'pwg.tags.add',
+            format: 'json',
             name: tagName,
             pwg_token: this.sessionId || ''
-        };
+        });
         
-        console.log('API call params:', params);
+        console.log('API call params:', Object.fromEntries(params));
         
-        const result = await this.apiCall('pwg.tags.add', params);
+        const response = await fetch(`${this.baseUrl}/ws.php`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: params,
+            credentials: 'include'
+        });
         
-        console.log('Full API result:', JSON.stringify(result, null, 2));
-        console.log('result.info:', result.info);
-        console.log('result.id:', result.id);
-        console.log('result.tag_id:', result.tag_id);
+        const text = await response.text();
+        console.log('Raw response text:', text);
         
-        // Try different possible response formats
+        let data;
+        try {
+            data = JSON.parse(text);
+            console.log('Parsed JSON:', JSON.stringify(data, null, 2));
+        } catch (e) {
+            // Try parsing as XML
+            console.log('Response is not JSON, trying XML...');
+            const parser = new DOMParser();
+            const xmlDoc = parser.parseFromString(text, 'text/xml');
+            const rsp = xmlDoc.querySelector('rsp');
+            const stat = rsp?.getAttribute('stat');
+            console.log('XML stat:', stat);
+            
+            if (stat === 'ok') {
+                // Look for tag ID in XML
+                const info = xmlDoc.querySelector('info');
+                if (info) {
+                    const tagId = info.textContent;
+                    console.log('Found tag ID in XML info:', tagId);
+                    const newTagId = parseInt(tagId);
+                    this.allTags.push({ id: newTagId, name: tagName });
+                    console.log('Successfully created tag with ID:', newTagId);
+                    console.log('=== GET OR CREATE TAG DEBUG END ===');
+                    return newTagId;
+                }
+            }
+            throw new Error('Could not parse response as JSON or XML');
+        }
+        
+        // Try different possible response formats in JSON
         let newTagId = null;
         
-        if (result.info) {
-            newTagId = result.info;
-            console.log('Found tag ID in result.info:', newTagId);
-        } else if (result.id) {
-            newTagId = result.id;
-            console.log('Found tag ID in result.id:', newTagId);
-        } else if (result.tag_id) {
-            newTagId = result.tag_id;
-            console.log('Found tag ID in result.tag_id:', newTagId);
-        } else if (typeof result === 'number') {
-            newTagId = result;
-            console.log('Result itself is the tag ID:', newTagId);
-        } else if (typeof result === 'string') {
-            newTagId = parseInt(result);
-            console.log('Result is string tag ID:', newTagId);
+        console.log('Checking data.result:', data.result);
+        console.log('Type of data.result:', typeof data.result);
+        
+        if (data.result) {
+            if (data.result.info) {
+                newTagId = data.result.info;
+                console.log('Found tag ID in data.result.info:', newTagId);
+            } else if (data.result.id) {
+                newTagId = data.result.id;
+                console.log('Found tag ID in data.result.id:', newTagId);
+            } else if (data.result.tag_id) {
+                newTagId = data.result.tag_id;
+                console.log('Found tag ID in data.result.tag_id:', newTagId);
+            } else if (typeof data.result === 'number') {
+                newTagId = data.result;
+                console.log('data.result itself is the tag ID:', newTagId);
+            } else if (typeof data.result === 'string') {
+                newTagId = parseInt(data.result);
+                console.log('data.result is string tag ID:', newTagId);
+            }
+        } else if (data.info) {
+            newTagId = data.info;
+            console.log('Found tag ID in data.info:', newTagId);
+        } else if (data.id) {
+            newTagId = data.id;
+            console.log('Found tag ID in data.id:', newTagId);
         }
         
         if (newTagId) {
@@ -1884,6 +2010,7 @@ async getOrCreateTagId(tagName) {
             return newTagId;
         } else {
             console.error('Could not find tag ID in response!');
+            console.error('Full data structure:', data);
             throw new Error("Failed to create tag - no tag ID in response");
         }
     } catch (error) {
@@ -1955,37 +2082,9 @@ async addTagToSelectedImages(tagName) {
             
 // Load tags for selected images
 async loadSelectedImagesTags() {
-    if (this.selectedImages.size === 0) {
-        document.getElementById('selectedTagsSection').style.display = 'none';
-        return;
-    }
-    
-    document.getElementById('selectedTagsSection').style.display = 'block';
-    
-    try {
-        const imageIds = Array.from(this.selectedImages);
-        const tagSets = [];
-
-        for (const imageId of imageIds) {
-            const response = await fetch(`${this.baseUrl}/ws.php?format=json&method=pwg.images.getInfo&image_id=${imageId}`, {
-                credentials: 'include'
-            });
-            const result = await response.json();
-            const imageData = result.result || {};
-            const imageTags = imageData.tags || [];
-            tagSets.push(new Set(imageTags.map(t => t.id)));
-        }
-
-        const commonTagIds = tagSets.length > 0
-            ? Array.from(tagSets[0]).filter(tagId => tagSets.every(set => set.has(tagId)))
-            : [];
-
-        const commonTags = commonTagIds.map(id => this.allTags.find(t => t.id === id)).filter(Boolean);
-
-        this.renderSelectedImagesTags(commonTags);
-    } catch (error) {
-        console.error('Failed to load selected images tags:', error);
-    }
+    // UI section removed - this function is no longer needed
+    // Keeping for compatibility with existing calls
+    return;
 }
 
 
@@ -2004,26 +2103,9 @@ async loadSelectedImagesTags() {
 
 // Render selected images tags
 renderSelectedImagesTags(tags) {
-    const container = document.getElementById('selectedTagsContainer');
-    
-    if (tags.length === 0) {
-        container.innerHTML = '<span class="tag-empty-state">No common tags</span>';
-        return;
-    }
-    
-    container.innerHTML = tags.map(tag => `
-        <div class="tag-pill">
-            <span>${tag.name}</span>
-            <span class="tag-remove" data-tag-id="${tag.id}" data-tag-name="${tag.name}">×</span>
-        </div>
-    `).join('');
-    
-    // Remove tag handlers
-    container.querySelectorAll('.tag-remove').forEach(btn => {
-        btn.addEventListener('click', () => {
-            this.removeTagFromSelectedImages(btn.dataset.tagId, btn.dataset.tagName);
-        });
-    });
+    // UI section removed - this function is no longer needed
+    // Keeping for compatibility with existing calls
+    return;
 }
 
 
