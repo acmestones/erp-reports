@@ -1022,10 +1022,21 @@ updateImageThumbnail(imageId, thumbnailUrl) {
             console.log('Tag ID to remove:', tagId, 'Type:', typeof tagId);
             console.log('Tag name:', tagName);
             
-            // Get current tags for the image
-            const imageInfo = await this.apiCall('pwg.images.getInfo', { image_id: imageId });
+            // Get current tags for the image using direct fetch (not apiCall)
+            const response = await fetch(
+                `${this.baseUrl}/ws.php?format=json&method=pwg.images.getInfo&image_id=${imageId}`,
+                { credentials: 'include' }
+            );
+            const data = await response.json();
             
-            console.log('Full imageInfo:', imageInfo);
+            console.log('Full API response:', data);
+            
+            if (data.stat !== 'ok' || !data.result) {
+                throw new Error('Failed to get image info');
+            }
+            
+            const imageInfo = data.result;
+            console.log('Image info:', imageInfo);
             
             // Handle case where image has no tags
             const currentTags = imageInfo.tags || [];
@@ -1034,10 +1045,11 @@ updateImageThumbnail(imageId, thumbnailUrl) {
             
             if (currentTags.length === 0) {
                 console.log('No tags to remove!');
+                this.showStatus('Image has no tags', 'error');
                 return;
             }
             
-            // Filter out the tag to remove - try multiple comparison methods
+            // Filter out the tag to remove
             const remainingTags = currentTags.filter(t => {
                 const tagIdStr = String(t.id);
                 const removeIdStr = String(tagId);
@@ -1894,49 +1906,22 @@ async addTagToSelectedImages(tagName) {
     try {
         const tagId = await this.getOrCreateTagId(tagName);
         const imageIds = Array.from(this.selectedImages);
-        const pwgToken = this.sessionId || ''; // Fix: use this.sessionId instead of this.session?.user?.pwg_token
+        const pwgToken = this.sessionId || '';
+
+        console.log(`Adding tag "${tagName}" (ID: ${tagId}) to ${imageIds.length} images`);
 
         for (const imageId of imageIds) {
-            const params = new URLSearchParams({
-                method: 'pwg.images.setInfo',
-                format: 'json',
-                image_id: imageId,
-                tag_ids: tagId,
-                multiple_value_mode: 'append',
-                pwg_token: pwgToken
-            });
-
-            const response = await fetch(`${this.baseUrl}/ws.php`, {
-                method: 'POST',
-                credentials: 'include',
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                },
-                body: params.toString(),
-            });
-
-            const text = await response.text();
-
-            let data;
             try {
-                data = JSON.parse(text);
-            } catch (jsonError) {
-                // JSON parse failed - check if it's XML error message
-                if (text.startsWith('<?xml')) {
-                    // Parse XML to check if it's a validation or token error (optional)
-                    console.warn('Received XML response instead of JSON:', text);
-                    // Decide if to ignore or raise error.
-                    // For example, if the first assignment succeeded, ignore this error.
-                    // Otherwise, throw new Error('Server returned XML error: ' + text);
-                    // Here, ignoring with warning:
-                    continue; // skip to next imageId
-                } else {
-                    throw new Error('Invalid server response');
-                }
-            }
-
-            if (!data || data.stat !== 'ok') {
-                throw new Error(data && data.error ? data.error.message : 'Failed to assign tag to image');
+                await this.apiCall('pwg.images.setInfo', {
+                    image_id: imageId,
+                    tag_ids: tagId,
+                    multiple_value_mode: 'append',
+                    pwg_token: pwgToken
+                });
+                console.log(`Successfully added tag to image ${imageId}`);
+            } catch (error) {
+                console.error(`Failed to add tag to image ${imageId}:`, error);
+                // Continue with other images even if one fails
             }
         }
 
@@ -2053,9 +2038,14 @@ renderSelectedImagesTags(tags) {
 // Helper function to get tag IDs for an image
 async getTagsForImage(imageId) {
     try {
-        const imageInfo = await this.apiCall('pwg.images.getInfo', { image_id: imageId });
-        if (imageInfo && imageInfo.tags && Array.isArray(imageInfo.tags)) {
-            return imageInfo.tags.map(tag => tag.id);
+        const response = await fetch(
+            `${this.baseUrl}/ws.php?format=json&method=pwg.images.getInfo&image_id=${imageId}`,
+            { credentials: 'include' }
+        );
+        const data = await response.json();
+        
+        if (data.stat === 'ok' && data.result && data.result.tags && Array.isArray(data.result.tags)) {
+            return data.result.tags.map(tag => tag.id);
         }
         return [];
     } catch (error) {
@@ -2075,19 +2065,28 @@ async removeTagFromSelectedImages(tagId) {
         const imageIds = Array.from(this.selectedImages);
         const pwgToken = this.sessionId || '';
 
-        for (const imageId of imageIds) {
-            // Get current tags
-            const currentTags = await this.getTagsForImage(imageId);
+        console.log(`Removing tag ID ${tagId} from ${imageIds.length} images`);
 
-            // Filter out the tag to remove - convert both to strings for comparison
-            const updatedTags = currentTags.filter(id => String(id) !== String(tagId));
-            
-            await this.apiCall('pwg.images.setInfo', {
-                image_id: imageId,
-                tag_ids: updatedTags.join(',') || '',
-                multiple_value_mode: 'replace',
-                pwg_token: pwgToken
-            });
+        for (const imageId of imageIds) {
+            try {
+                // Get current tags
+                const currentTags = await this.getTagsForImage(imageId);
+
+                // Filter out the tag to remove - convert both to strings for comparison
+                const updatedTags = currentTags.filter(id => String(id) !== String(tagId));
+                
+                console.log(`Image ${imageId}: ${currentTags.length} tags -> ${updatedTags.length} tags`);
+                
+                await this.apiCall('pwg.images.setInfo', {
+                    image_id: imageId,
+                    tag_ids: updatedTags.join(',') || '',
+                    multiple_value_mode: 'replace',
+                    pwg_token: pwgToken
+                });
+            } catch (error) {
+                console.error(`Failed to remove tag from image ${imageId}:`, error);
+                // Continue with other images even if one fails
+            }
         }
 
         this.showStatus(`Removed tag from ${imageIds.length} images`, 'success');
