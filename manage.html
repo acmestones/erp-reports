@@ -142,6 +142,7 @@
                 this.selectedImages = new Set();
                 this.filterMode = 'all';
                 this.albumScrollPosition = 0;
+                this.currentTagLoadAlbumId = null; // Track which album's tags are being loaded
                 
                 this.initEventListeners();
                 this.checkStoredSession();
@@ -1617,12 +1618,17 @@ async initializeTagsAfterLogin() {
 
 
             
+
 // Load tags for current album
 async loadAlbumTags() {
     if (!this.currentAlbumId || this.currentAlbumId === 'no_virtual') {
         document.getElementById('tagsPanel').classList.remove('show');
         return;
     }
+    
+    // Track which album we're loading tags for
+    const loadingAlbumId = this.currentAlbumId;
+    this.currentTagLoadAlbumId = loadingAlbumId;
     
     document.getElementById('tagsPanel').classList.add('show');
     
@@ -1639,7 +1645,13 @@ async loadAlbumTags() {
         const tagMap = new Map();
         const batchSize = 10;
         
-        for (let i = 0; i < imageIds.length; i += batchSize) {
+            for (let i = 0; i < imageIds.length; i += batchSize) {
+            // Check if we've switched albums
+            if (this.currentTagLoadAlbumId !== loadingAlbumId) {
+                console.log('Album changed during tag loading, aborting...');
+                return;
+            }
+            
             const batch = imageIds.slice(i, i + batchSize);
             await Promise.all(batch.map(async (imageId) => {
                 try {
@@ -1664,6 +1676,12 @@ async loadAlbumTags() {
                     console.log('Failed to get tags for image', imageId, e);
                 }
             }));
+            }
+        
+        // Final check before rendering - ensure we're still on the same album
+        if (this.currentTagLoadAlbumId !== loadingAlbumId) {
+            console.log('Album changed before rendering tags, aborting...');
+            return;
         }
         
         const albumTags = Array.from(tagMap.values());
@@ -1786,15 +1804,24 @@ for (let i = 0; i < this.allImages.length; i += batchSize) {
     this.renderImages();
     
     // Load thumbnails and tags for filtered images
-    await this.startThumbnailLoading();
+    this.setupLazyThumbnailLoading(this.currentImages);
     
-    // Update the current album text to show filter
+       
+ 
+// Update the current album text to show filter
     const albumName = this.albums.find(a => a.id === this.currentAlbumId)?.name || 'Album';
-    document.getElementById('currentAlbum').innerHTML = `
-        ${albumName} 
-        <span style="color: #007AFF; font-size: 12px;">• Filtered by: ${tagName}</span>
-        <button onclick="window.piwigoManager.clearTagFilter()" style="margin-left: 8px; padding: 2px 8px; font-size: 11px; background: #f0f0f0; border: 1px solid #ccc; border-radius: 3px; cursor: pointer;">Clear Filter</button>
+    const currentAlbumEl = document.getElementById('currentAlbum');
+    currentAlbumEl.innerHTML = `
+        <span>${albumName}</span>
+        <span style="color: #007AFF; font-size: 12px; margin-left: 8px;">• Filtered by: ${tagName}</span>
     `;
+    
+    // Add clear filter button with proper event listener
+    const clearBtn = document.createElement('button');
+    clearBtn.textContent = 'Clear Filter';
+    clearBtn.style.cssText = 'margin-left: 8px; padding: 4px 10px; font-size: 11px; background: #f0f0f0; border: 1px solid #ccc; border-radius: 4px; cursor: pointer;';
+    clearBtn.addEventListener('click', () => this.clearTagFilter());
+    currentAlbumEl.appendChild(clearBtn);
     
     this.showStatus(`Showing ${imagesWithTag.length} images with tag: ${tagName}`, 'success');
 }
@@ -1822,11 +1849,11 @@ updateFilterProgress(current, total) {
             
 // Clear tag filter
 async clearTagFilter() {
-    this.currentImages = this.allImages;
+this.currentImages = this.allImages;
     this.renderImages();
     
     // Reload thumbnails and tags
-    await this.startThumbnailLoading();
+    this.setupLazyThumbnailLoading(this.currentImages);
     
     const albumName = this.albums.find(a => a.id === this.currentAlbumId)?.name || 'Album';
     document.getElementById('currentAlbum').textContent = albumName;
