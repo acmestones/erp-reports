@@ -151,13 +151,11 @@
                 document.getElementById('connectBtn').addEventListener('click', () => this.connect());
                 document.getElementById('disconnectBtn').addEventListener('click', () => this.disconnect());
                 document.getElementById('modeToggle').addEventListener('click', () => this.toggleMode());
-                document.getElementById('moveSelectedBtn').addEventListener('click', () => this.prepareSelectedAction('move'));
-                document.getElementById('associateSelectedBtn').addEventListener('click', () => this.prepareSelectedAction('associate'));
                 document.getElementById('deleteSelectedBtn').addEventListener('click', () => this.deleteSelectedImages());
                 document.getElementById('clearSelectionBtn').addEventListener('click', () => this.clearSelection());
             }
 
-            checkStoredSession() {
+            async checkStoredSession() {
                 const storedUrl = localStorage.getItem('piwigo_url');
                 const storedUsername = localStorage.getItem('piwigo_username');
                 const storedPassword = localStorage.getItem('piwigo_password');
@@ -167,6 +165,29 @@
                     document.getElementById('username').value = storedUsername;
                     document.getElementById('password').value = storedPassword;
                     this.baseUrl = storedUrl.endsWith('/') ? storedUrl.slice(0, -1) : storedUrl;
+                    
+                    // Try to check if session is still valid first
+                    try {
+                        const statusResponse = await fetch(`${this.baseUrl}/ws.php?format=json&method=pwg.session.getStatus`, {
+                            method: 'GET',
+                            credentials: 'include'
+                        });
+                        const statusData = await statusResponse.json();
+                        
+                        if (statusData.stat === 'ok' && (statusData.result.status === 'webmaster' || statusData.result.status === 'admin')) {
+                            // Session still valid
+                            this.sessionId = statusData.result.pwg_token || '';
+                            this.session = statusData.result;
+                            this.showConnectedState(statusData.result.username, statusData.result.status);
+                            await this.loadAlbums();
+                            await this.initTagging();
+                            return;
+                        }
+                    } catch (e) {
+                        console.log('Session expired, reconnecting...');
+                    }
+                    
+                    // Session expired or invalid, reconnect
                     setTimeout(() => this.connect(), 500);
                 }
             }
@@ -507,7 +528,7 @@ async loadAlbums() {
                     let html = `
                         <div class="album-item ${albumType}" data-album-id="${album.id}" title="${album.name} (${totalImages} images)" style="padding-left: ${15 + indent}px;">
                             <svg class="album-expand ${hasChildren ? '' : 'no-children'} ${isExpanded ? 'expanded' : ''}" 
-                                 viewBox="0 0 24 24" onclick="event.stopPropagation(); window.piwigoManager.toggleAlbum('${album.id}')">
+                                 viewBox="0 0 24 24" data-album-id="${album.id}">
                                 <path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"/>
                             </svg>
                             <svg class="album-icon" viewBox="0 0 24 24">
@@ -534,7 +555,7 @@ async loadAlbums() {
 
                 document.querySelectorAll('.album-item').forEach(item => {
                     item.addEventListener('click', (e) => {
-                        if (!e.target.classList.contains('album-expand')) {
+                        if (!e.target.classList.contains('album-expand') && !e.target.closest('.album-expand')) {
                             this.selectAlbum(item.dataset.albumId);
                         }
                     });
@@ -559,6 +580,16 @@ async loadAlbums() {
                         }
                     });
                 });
+                
+                // Add expand button handlers
+                document.querySelectorAll('.album-expand').forEach(expandBtn => {
+                    if (!expandBtn.classList.contains('no-children')) {
+                        expandBtn.addEventListener('click', (e) => {
+                            e.stopPropagation();
+                            this.toggleAlbum(expandBtn.dataset.albumId);
+                        });
+                    }
+                });
             }
 
             toggleAlbum(albumId) {
@@ -575,6 +606,11 @@ async loadAlbums() {
 
             
 async selectAlbum(albumId) {
+    // Cancel any ongoing load
+    if (this.currentLoadingController) {
+        this.currentLoadingController.abort();
+    }
+    
     // Handle special "no virtual album" album
     if (albumId === 'no_virtual') {
         await this.loadNoVirtualAlbumImages();
@@ -615,18 +651,6 @@ async selectAlbum(albumId) {
     this.updateLoadProgress(0, 0);
     await this.loadAllImages(albumId);
     await this.loadAlbumTags();
-
-
-    await this.loadAllImages(albumId);
-    await this.loadAlbumTags();
-    
-    // Add this debug call
-    if (this.currentImages.length > 0) {
-        await this.debugTagIssue();
-    }
-
-
-    
 }
 
 
@@ -1465,20 +1489,15 @@ updateImageThumbnail(imageId, thumbnailUrl) {
 async initTagging() {
     this.allTags = [];
     this.selectedImages = new Set();
-    this.autocompleteSelectedIndex = -1;
+    this.autocompleteSelectedIndex = -1; // Track selected item in autocomplete
     
     // Load all available tags
     await this.loadAllTags();
     
-    // Tag input autocomplete - check if elements exist
+    // Tag input autocomplete
     const tagInput = document.getElementById('tagInput');
     const tagAutocomplete = document.getElementById('tagAutocomplete');
     const addTagBtn = document.getElementById('addTagBtn');
-    
-    if (!tagInput || !tagAutocomplete || !addTagBtn) {
-        console.warn('Tag input elements not found in DOM');
-        return;
-    }
     
     tagInput.addEventListener('input', (e) => {
         this.autocompleteSelectedIndex = -1;
@@ -1715,27 +1734,42 @@ renderAlbumTags(tags) {
 }
 
 // Filter images in current album by tag
-filterImagesByTag(tagId, tagName) {
+async filterImagesByTag(tagId, tagName) {
+    if (!this.currentAlbumId) return;
+    
     console.log(`Filtering by tag: ${tagName} (ID: ${tagId})`);
     
-    // Filter current images to only show those with this tag
-    const filteredImages = this.allImages.filter(image => {
-        // We'll need to check if image has this tag
-        // For now, show a message that we're filtering
-        return true; // Will implement tag checking
-    });
+    // Get all images with their tags
+    const imagesWithTag = [];
+    for (const image of this.allImages) {
+        try {
+            const response = await fetch(
+                `${this.baseUrl}/ws.php?format=json&method=pwg.images.getInfo&image_id=${image.id}`,
+                { credentials: 'include' }
+            );
+            const data = await response.json();
+            const imageTags = data.result?.tags || [];
+            const hasTag = imageTags.some(t => String(t.id) === String(tagId));
+            if (hasTag) {
+                imagesWithTag.push(image);
+            }
+        } catch (e) {
+            console.error(`Failed to check tags for image ${image.id}:`, e);
+        }
+    }
     
-    this.currentImages = filteredImages;
+    this.currentImages = imagesWithTag;
     this.renderImages();
     
     // Update the current album text to show filter
+    const albumName = this.albums.find(a => a.id === this.currentAlbumId)?.name || 'Album';
     document.getElementById('currentAlbum').innerHTML = `
-        ${this.albums.find(a => a.id === this.currentAlbumId)?.name || 'Album'} 
+        ${albumName} 
         <span style="color: #007AFF; font-size: 12px;">• Filtered by: ${tagName}</span>
         <button onclick="window.piwigoManager.clearTagFilter()" style="margin-left: 8px; padding: 2px 8px; font-size: 11px; background: #f0f0f0; border: 1px solid #ccc; border-radius: 3px; cursor: pointer;">Clear Filter</button>
     `;
     
-    this.showStatus(`Showing images with tag: ${tagName}`, 'success');
+    this.showStatus(`Showing ${imagesWithTag.length} images with tag: ${tagName}`, 'success');
 }
 
 // Clear tag filter
@@ -1956,16 +1990,18 @@ async getOrCreateTagId(tagName) {
             console.log('XML stat:', stat);
             
             if (stat === 'ok') {
-                // Look for tag ID in XML
-                const info = xmlDoc.querySelector('info');
-                if (info) {
-                    const tagId = info.textContent;
-                    console.log('Found tag ID in XML info:', tagId);
+                // Look for tag ID in XML - check <id> tag first
+                const idElement = xmlDoc.querySelector('id');
+                if (idElement) {
+                    const tagId = idElement.textContent;
+                    console.log('Found tag ID in XML <id>:', tagId);
                     const newTagId = parseInt(tagId);
-                    this.allTags.push({ id: newTagId, name: tagName });
-                    console.log('Successfully created tag with ID:', newTagId);
-                    console.log('=== GET OR CREATE TAG DEBUG END ===');
-                    return newTagId;
+                    if (!isNaN(newTagId)) {
+                        this.allTags.push({ id: newTagId, name: tagName });
+                        console.log('Successfully created tag with ID:', newTagId);
+                        console.log('=== GET OR CREATE TAG DEBUG END ===');
+                        return newTagId;
+                    }
                 }
             }
             throw new Error('Could not parse response as JSON or XML');
