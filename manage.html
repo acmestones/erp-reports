@@ -1231,7 +1231,7 @@ updateImageThumbnail(imageId, thumbnailUrl) {
                 this.showStatus(`Click on an album to ${action} ${this.selectedImages.size} selected images`, 'success');
             }
 
-            updateAlbumCounts() {
+updateAlbumCounts() {
                 // Simple approach: update the current album's count in the UI
                 const currentAlbumElement = document.querySelector(`[data-album-id="${this.currentAlbumId}"] .album-count`);
                 if (currentAlbumElement) {
@@ -1243,6 +1243,53 @@ updateImageThumbnail(imageId, thumbnailUrl) {
                 if (currentAlbum) {
                     currentAlbum.nb_images = this.currentImages.length;
                     currentAlbum.total_nb_images = this.currentImages.length;
+                }
+            }
+
+            updateTargetAlbumCount(targetAlbumId, movedCount) {
+                // Update target album's count in UI
+                const targetAlbumElement = document.querySelector(`[data-album-id="${targetAlbumId}"] .album-count`);
+                const targetAlbum = this.albums.find(a => a.id == targetAlbumId);
+                
+                if (targetAlbum) {
+                    // For associate mode, increment count. For move mode, count was already updated by updateAlbumCounts
+                    if (movedCount > 0) {
+                        targetAlbum.nb_images += movedCount;
+                        targetAlbum.total_nb_images += movedCount;
+                        
+                        if (targetAlbumElement) {
+                            targetAlbumElement.textContent = targetAlbum.total_nb_images;
+                        }
+                    } else {
+                        // For associate mode, refresh the count from server to be accurate
+                        this.refreshAlbumCount(targetAlbumId);
+                    }
+                }
+            }
+
+            async refreshAlbumCount(albumId) {
+                try {
+                    const result = await this.apiCall('pwg.categories.getImages', {
+                        cat_id: albumId,
+                        per_page: 0,
+                        page: 0
+                    });
+                    
+                    const album = this.albums.find(a => a.id == albumId);
+                    const paging = result.paging;
+                    
+                    if (album && paging) {
+                        const totalImages = paging.total_count || 0;
+                        album.nb_images = totalImages;
+                        album.total_nb_images = totalImages;
+                        
+                        const albumElement = document.querySelector(`[data-album-id="${albumId}"] .album-count`);
+                        if (albumElement) {
+                            albumElement.textContent = totalImages;
+                        }
+                    }
+                } catch (error) {
+                    console.error('Failed to refresh album count:', error);
                 }
             }
 
@@ -1279,6 +1326,7 @@ updateImageThumbnail(imageId, thumbnailUrl) {
                     
                     // Update album counts manually instead of full reload
                     this.updateAlbumCounts();
+                    this.updateTargetAlbumCount(targetAlbumId, mode === 'move' ? imageIds.length : 0);
                     
                 } catch (error) {
                     this.showStatus(`Failed to ${mode} selected images`, 'error');
@@ -1364,7 +1412,7 @@ updateImageThumbnail(imageId, thumbnailUrl) {
                         
                         await this.apiCall('pwg.images.setInfo', {
                             image_id: imageId,
-                            categories: updatedCategories.join(';'),
+                            categories: updatedCategories.join(','),
                             multiple_value_mode: 'replace'
                         });
                         
@@ -1428,6 +1476,7 @@ updateImageThumbnail(imageId, thumbnailUrl) {
                     
                     // Update album counts manually instead of full reload
                     this.updateAlbumCounts();
+                    this.updateTargetAlbumCount(targetAlbumId, this.isAssociateMode ? 1 : 0);
                     
                 } catch (error) {
                     this.showStatus('Failed to process image', 'error');
