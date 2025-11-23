@@ -1023,19 +1023,32 @@ updateImageThumbnail(imageId, thumbnailUrl) {
             // Handle case where image has no tags
             const currentTags = imageInfo.tags || [];
             
-            // Filter out the tag to remove
-            const remainingTagIds = currentTags
-                .filter(t => t.id != parseInt(tagId))
-                .map(t => t.id)
-                .join(',');
+            console.log('Current tags:', currentTags);
+            console.log('Tag to remove:', tagId, 'Type:', typeof tagId);
+            
+            // Filter out the tag to remove - convert both to strings for comparison
+            const remainingTags = currentTags.filter(t => String(t.id) !== String(tagId));
+            const remainingTagIds = remainingTags.map(t => t.id).join(',');
+            
+            console.log('Remaining tags:', remainingTags);
+            console.log('Remaining tag IDs:', remainingTagIds);
 
-            // Update image with remaining tags - include pwg_token
-            await this.apiCall('pwg.images.setInfo', {
+            // Update image with remaining tags
+            const updateParams = {
                 image_id: imageId,
-                tag_ids: remainingTagIds || '', // Empty string if no tags left
                 multiple_value_mode: 'replace',
-                pwg_token: this.sessionId || '' // Fix: include pwg_token
-            });
+                pwg_token: this.sessionId || ''
+            };
+            
+            // Only add tag_ids if there are remaining tags
+            if (remainingTagIds) {
+                updateParams.tag_ids = remainingTagIds;
+            } else {
+                // If no tags remain, set to empty to clear all tags
+                updateParams.tag_ids = '';
+            }
+            
+            await this.apiCall('pwg.images.setInfo', updateParams);
 
             this.showStatus(`Removed tag "${tagName}" from image`, 'success');
 
@@ -1784,24 +1797,25 @@ async getOrCreateTagId(tagName) {
         return existingTag.id;
     }
 
-    // Tag doesn't exist: create it via pwg.tags.add
-    const params = new URLSearchParams({
-        method: 'pwg.tags.add',
-        format: 'json',
-        name: tagName
-    });
-
-    const response = await fetch(`${this.baseUrl}/ws.php?${params.toString()}`, {
-        credentials: 'include',
-    });
-    const data = await response.json();
-
-    if (data.stat === 'ok' && data.result && data.result.tag_id) {
-        // Add new tag to local allTags cache
-        this.allTags.push({ id: data.result.tag_id, name: tagName });
-        return data.result.tag_id;
-    } else {
-        throw new Error(data.error ? data.error.message : "Failed to create tag");
+    // Tag doesn't exist: create it via pwg.tags.add using apiCall
+    try {
+        const result = await this.apiCall('pwg.tags.add', {
+            name: tagName,
+            pwg_token: this.sessionId || ''
+        });
+        
+        if (result && result.info) {
+            // The result.info contains the new tag ID
+            const newTagId = result.info;
+            // Add new tag to local allTags cache
+            this.allTags.push({ id: newTagId, name: tagName });
+            return newTagId;
+        } else {
+            throw new Error("Failed to create tag - no tag ID returned");
+        }
+    } catch (error) {
+        console.error('Error creating tag:', error);
+        throw new Error(error.message || "Failed to create tag");
     }
 }
 
@@ -1996,17 +2010,18 @@ async removeTagFromSelectedImages(tagId) {
 
     try {
         const imageIds = Array.from(this.selectedImages);
-        const pwgToken = this.sessionId || ''; // Fix: use this.sessionId
+        const pwgToken = this.sessionId || '';
 
         for (const imageId of imageIds) {
             // Get current tags
             const currentTags = await this.getTagsForImage(imageId);
 
-            const updatedTags = currentTags.filter(id => id !== parseInt(tagId));
+            // Filter out the tag to remove - convert both to strings for comparison
+            const updatedTags = currentTags.filter(id => String(id) !== String(tagId));
             
             await this.apiCall('pwg.images.setInfo', {
                 image_id: imageId,
-                tag_ids: updatedTags.join(',') || '', // Empty string if no tags left
+                tag_ids: updatedTags.join(',') || '',
                 multiple_value_mode: 'replace',
                 pwg_token: pwgToken
             });
