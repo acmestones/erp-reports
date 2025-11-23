@@ -1017,38 +1017,62 @@ updateImageThumbnail(imageId, thumbnailUrl) {
 
     async removeTagFromImage(imageId, tagId, tagName) {
         try {
+            console.log('=== REMOVE TAG DEBUG START ===');
+            console.log('Image ID:', imageId, 'Type:', typeof imageId);
+            console.log('Tag ID to remove:', tagId, 'Type:', typeof tagId);
+            console.log('Tag name:', tagName);
+            
             // Get current tags for the image
             const imageInfo = await this.apiCall('pwg.images.getInfo', { image_id: imageId });
+            
+            console.log('Full imageInfo:', imageInfo);
             
             // Handle case where image has no tags
             const currentTags = imageInfo.tags || [];
             
-            console.log('Current tags:', currentTags);
-            console.log('Tag to remove:', tagId, 'Type:', typeof tagId);
+            console.log('Current tags on image:', JSON.stringify(currentTags, null, 2));
             
-            // Filter out the tag to remove - convert both to strings for comparison
-            const remainingTags = currentTags.filter(t => String(t.id) !== String(tagId));
+            if (currentTags.length === 0) {
+                console.log('No tags to remove!');
+                return;
+            }
+            
+            // Filter out the tag to remove - try multiple comparison methods
+            const remainingTags = currentTags.filter(t => {
+                const tagIdStr = String(t.id);
+                const removeIdStr = String(tagId);
+                const tagIdInt = parseInt(t.id);
+                const removeIdInt = parseInt(tagId);
+                
+                console.log(`Comparing tag ${t.name} (id: ${t.id}, type: ${typeof t.id})`);
+                console.log(`  String compare: "${tagIdStr}" !== "${removeIdStr}" = ${tagIdStr !== removeIdStr}`);
+                console.log(`  Int compare: ${tagIdInt} !== ${removeIdInt} = ${tagIdInt !== removeIdInt}`);
+                
+                // Keep the tag if IDs don't match
+                return tagIdStr !== removeIdStr;
+            });
+            
+            console.log('Tags after filtering:', JSON.stringify(remainingTags, null, 2));
+            console.log('Number of tags: Before =', currentTags.length, 'After =', remainingTags.length);
+            
             const remainingTagIds = remainingTags.map(t => t.id).join(',');
             
-            console.log('Remaining tags:', remainingTags);
-            console.log('Remaining tag IDs:', remainingTagIds);
+            console.log('Remaining tag IDs string:', remainingTagIds);
 
             // Update image with remaining tags
             const updateParams = {
                 image_id: imageId,
+                tag_ids: remainingTagIds || '',
                 multiple_value_mode: 'replace',
                 pwg_token: this.sessionId || ''
             };
             
-            // Only add tag_ids if there are remaining tags
-            if (remainingTagIds) {
-                updateParams.tag_ids = remainingTagIds;
-            } else {
-                // If no tags remain, set to empty to clear all tags
-                updateParams.tag_ids = '';
-            }
+            console.log('API call params:', updateParams);
             
-            await this.apiCall('pwg.images.setInfo', updateParams);
+            const result = await this.apiCall('pwg.images.setInfo', updateParams);
+            
+            console.log('API result:', result);
+            console.log('=== REMOVE TAG DEBUG END ===');
 
             this.showStatus(`Removed tag "${tagName}" from image`, 'success');
 
@@ -1791,30 +1815,69 @@ showTagAutocomplete(query) {
             
 // Get existing tag ID by name or create a new tag and return its ID
 async getOrCreateTagId(tagName) {
+    console.log('=== GET OR CREATE TAG DEBUG START ===');
+    console.log('Looking for tag:', tagName);
+    
     // Check if tag exists in cached allTags (case-insensitive)
     const existingTag = this.allTags.find(t => t.name.toLowerCase() === tagName.toLowerCase());
     if (existingTag) {
+        console.log('Found existing tag:', existingTag);
+        console.log('=== GET OR CREATE TAG DEBUG END ===');
         return existingTag.id;
     }
 
+    console.log('Tag does not exist, creating new tag...');
+    
     // Tag doesn't exist: create it via pwg.tags.add using apiCall
     try {
-        const result = await this.apiCall('pwg.tags.add', {
+        const params = {
             name: tagName,
             pwg_token: this.sessionId || ''
-        });
+        };
         
-        if (result && result.info) {
-            // The result.info contains the new tag ID
-            const newTagId = result.info;
+        console.log('API call params:', params);
+        
+        const result = await this.apiCall('pwg.tags.add', params);
+        
+        console.log('Full API result:', JSON.stringify(result, null, 2));
+        console.log('result.info:', result.info);
+        console.log('result.id:', result.id);
+        console.log('result.tag_id:', result.tag_id);
+        
+        // Try different possible response formats
+        let newTagId = null;
+        
+        if (result.info) {
+            newTagId = result.info;
+            console.log('Found tag ID in result.info:', newTagId);
+        } else if (result.id) {
+            newTagId = result.id;
+            console.log('Found tag ID in result.id:', newTagId);
+        } else if (result.tag_id) {
+            newTagId = result.tag_id;
+            console.log('Found tag ID in result.tag_id:', newTagId);
+        } else if (typeof result === 'number') {
+            newTagId = result;
+            console.log('Result itself is the tag ID:', newTagId);
+        } else if (typeof result === 'string') {
+            newTagId = parseInt(result);
+            console.log('Result is string tag ID:', newTagId);
+        }
+        
+        if (newTagId) {
             // Add new tag to local allTags cache
             this.allTags.push({ id: newTagId, name: tagName });
+            console.log('Successfully created tag with ID:', newTagId);
+            console.log('=== GET OR CREATE TAG DEBUG END ===');
             return newTagId;
         } else {
-            throw new Error("Failed to create tag - no tag ID returned");
+            console.error('Could not find tag ID in response!');
+            throw new Error("Failed to create tag - no tag ID in response");
         }
     } catch (error) {
         console.error('Error creating tag:', error);
+        console.error('Error stack:', error.stack);
+        console.log('=== GET OR CREATE TAG DEBUG END ===');
         throw new Error(error.message || "Failed to create tag");
     }
 }
