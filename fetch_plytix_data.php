@@ -1,29 +1,28 @@
 <?php
-@unlink($cacheFile);
-@unlink($timestampFile);
-@unlink($callCountFile);
+// Immediately unlink cache files to force fresh fetch on every request for debug/testing
+@unlink(__DIR__ . '/plytix_cache.json');
+@unlink(__DIR__ . '/plytix_lastsync.txt');
+@unlink(__DIR__ . '/plytix_apicount.txt');
 
-
-// Set max execution time and memory to handle large data safely
+// Set max execution time and memory for heavy fetches
 set_time_limit(300);
 ini_set('memory_limit', '256M');
 
-// Enable detailed error logging to a specific file
+// Configure PHP error logging explicitly
 ini_set('log_errors', 'On');
 ini_set('error_log', __DIR__ . '/php-error.log');
-error_log("PHP script executed at " . date('Y-m-d H:i:s'));
 
-// Use absolute paths for cache files for consistency
+// Use absolute paths for files
 $cacheFile = __DIR__ . '/plytix_cache.json';
 $timestampFile = __DIR__ . '/plytix_lastsync.txt';
 $callCountFile = __DIR__ . '/plytix_apicount.txt';
 
+error_log("PHP script executed at " . date('Y-m-d H:i:s'));
 error_log("Cache file path: $cacheFile");
 error_log("Timestamp file path: $timestampFile");
 
-// Cache lifetime in seconds
-$cacheTime = 10;
-$limit = 25; // products per page
+$cacheTime = 10;  // seconds
+$limit = 25;      // products per page
 
 $currentTime = time();
 if (file_exists($cacheFile) && ($currentTime - filemtime($cacheFile) < $cacheTime)) {
@@ -43,11 +42,13 @@ error_log("Cache expired or missing. Fetching fresh data from API.");
 
 $callCount = 0;
 
-// Your Plytix API credentials here
+// Update these with your valid API credentials
 $apiKey = "DQ1TBOXSRPE196ER4018";
 $apiPassword = "0&0eqfaSvwb1iGdHRWL0nJZ9heuDJA3y@J;37S8z";
 
-// Authenticate
+error_log("Starting authentication with Plytix API.");
+
+// Authenticate to get access token
 $authCh = curl_init();
 curl_setopt($authCh, CURLOPT_URL, "https://auth.plytix.com/auth/api/get-token");
 curl_setopt($authCh, CURLOPT_RETURNTRANSFER, 1);
@@ -62,6 +63,9 @@ curl_setopt($authCh, CURLOPT_SSL_VERIFYPEER, false);
 $authResponse = curl_exec($authCh);
 $authHttpCode = curl_getinfo($authCh, CURLINFO_HTTP_CODE);
 curl_close($authCh);
+
+error_log("Authentication HTTP code: $authHttpCode");
+error_log("Authentication response: $authResponse");
 
 if ($authHttpCode != 200) {
     error_log("Authentication failed: HTTP $authHttpCode");
@@ -98,6 +102,8 @@ $allProducts = [];
 $page = 1;
 
 while (true) {
+    error_log("Fetching page $page from API...");
+
     $postData = [
         "limit" => $limit,
         "page" => $page,
@@ -150,7 +156,6 @@ while (true) {
     usleep(100000); // slight delay
 }
 
-// Write cache files
 if (count($allProducts) > 0) {
     error_log("Encoding JSON for " . count($allProducts) . " products.");
     $jsonOutput = json_encode($allProducts);
