@@ -1,4 +1,6 @@
 <?php
+ini_set('log_errors', 'On');
+ini_set('error_log', __DIR__ . '/php-error.log');
 
 
 header('Content-Type: application/json');
