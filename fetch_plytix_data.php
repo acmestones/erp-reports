@@ -39,8 +39,8 @@ error_log("Cache expired or missing. Fetching fresh data from API.");
 $callCount = 0;
 
 // Your Plytix API credentials here
-$apiKey = "YOUR_API_KEY_HERE";
-$apiPassword = "YOUR_API_PASSWORD_HERE";
+$apiKey = "DQ1TBOXSRPE196ER4018";
+$apiPassword = "0&0eqfaSvwb1iGdHRWL0nJZ9heuDJA3y@J;37S8z";
 
 // Authenticate
 $authCh = curl_init();
