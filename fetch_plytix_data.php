@@ -35,8 +35,8 @@ if (file_exists($cacheFile) && ($currentTime - filemtime($cacheFile) < $cacheTim
 $callCount = 0;
 
 // Your Plytix API credentials
-$apiKey = "YOUR_API_KEY_HERE";
-$apiPassword = "YOUR_API_PASSWORD_HERE";
+$apiKey = "DQ1TBOXSRPE196ER4018";
+$apiPassword = "0&0eqfaSvwb1iGdHRWL0nJZ9heuDJA3y@J;37S8z";
 
 // Step 1: Authenticate and get access token
 $authCh = curl_init();
