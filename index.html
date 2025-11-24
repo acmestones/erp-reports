@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ACM Stonemart — Internal Product Catalog</title>
+
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+
+  <script>
+    if (!localStorage.getItem("user")) window.location.replace("login.html");
+  </script>
+</head>
+<body class="bg-light">
+
+<div class="container py-3">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h3>🪨 ACM Stonemart — Product Catalog</h3>
+    <div>
+      <span id="loggedUserBadge" class="me-2 text-muted small"></span>
+      <button id="logoutBtn" class="btn btn-outline-danger btn-sm">Logout</button>
+    </div>
+  </div>
+
+  <!-- Filters -->
+  <div class="row g-2 mb-3 align-items-center">
+    <div class="col-md-3"><input id="searchBox" class="form-control" placeholder="Search by SKU, Name..." /></div>
+    <div class="col-md-3">
+      <div class="dropdown">
+        <button class="btn btn-outline-secondary dropdown-toggle w-100" type="button" id="categoryFilterDropdown" data-bs-toggle="dropdown" aria-expanded="false" data-bs-auto-close="outside">
+          Categories
+        </button>
+        <ul id="categoryFilter" class="dropdown-menu" aria-labelledby="categoryFilterDropdown">
+          <!-- Content populated by script.js -->
+        </ul>
+      </div>
+    </div>
+    <div class="col-md-2">
+      <select id="statusFilter" class="form-select">
+        <option value="all">All Products</option>
+        <option value="enabled" selected>Enabled Only</option>
+        <option value="disabled">Disabled Only</option>
+      </select>
+    </div>
+     <div class="col-md-2">
+      <select id="variantFilter" class="form-select">
+        <option value="all" selected>All Product Types</option>
+        <option value="parents">Parents with Variants</option>
+        <option value="variants">Variants Only</option>
+        <option value="singles">Singles (No Variants)</option>
+        <option value="variants-and-singles">Variants & Singles</option> <!-- NEW OPTION -->
+      </select>
+    </div>
+    <div class="col-md-2">
+      <select id="sortFilter" class="form-select">
+        <option value="sku-asc">Sort by SKU (A-Z)</option>
+        <option value="sku-desc">Sort by SKU (Z-A)</option>
+        <option value="label-asc">Sort by Name (A-Z)</option>
+        <option value="label-desc">Sort by Name (Z-A)</option>
+        <!-- Price sort options are added dynamically by script.js -->
+      </select>
+    </div>
+  </div>
+
+  <div id="catalogStatus" class="text-muted small mb-2"></div>
+  <div id="productGrid" class="row g-3"></div>
+</div>
+
+<!-- Product Detail Modal -->
+<div class="modal fade" id="productModal" tabindex="-1">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 id="modalTitle" class="modal-title"></h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div id="modalBody" class="row g-3"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="script.js"></script>
+<script>document.getElementById("logoutBtn").onclick = logout;</script>
+</body>
+</html>
