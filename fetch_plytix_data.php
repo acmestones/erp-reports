@@ -19,7 +19,7 @@ ini_set('memory_limit', '256M'); // Increase PHP memory limit
 header('Content-Type: application/json');
 
 
-$cacheTime = 3600; // Cache lifetime in seconds
+$cacheTime = 0; // Cache lifetime in seconds
 $limit = 20;
 
 $currentTime = time();
