@@ -1,29 +1,29 @@
 <?php
 header('Content-Type: application/json');
 
-$cacheFile = __DIR__ . '/plytix_cache.json';
-$timestampFile = __DIR__ . '/plytix_lastsync.txt';
-$callCountFile = __DIR__ . '/plytix_apicount.txt';
-$cacheTime = 3600; // 1 hour cache lifetime in seconds
-$limit = 20;
-
-$currentTime = time();
-if (file_exists($cacheFile) && ($currentTime - filemtime($cacheFile) < $cacheTime)) {
-    $data = file_get_contents($cacheFile);
-    $callCount = file_exists($callCountFile) ? intval(file_get_contents($callCountFile)) : 0;
-    echo json_encode([
-        "cached" => true,
-        "data" => json_decode($data, true),
-        "api_calls_made" => $callCount
-    ]);
-    exit;
-}
-
-$callCount = 0;
+// Paste your API credentials from accounts.plytix.com
 $apiKey = "DQ1TBOXSRPE196ER4018";
 $apiPassword = "0&0eqfaSvwb1iGdHRWL0nJZ9heuDJA3y@J;37S8z";
 
-// Authenticate
+$cacheFile = 'plytix_cache.json';
+$timestampFile = 'plytix_lastsync.txt';
+$cacheTime = 3600; // 1 hour cache lifetime in seconds
+$limit = 20; // Plytix API capped limit per call
+
+// Get current time for cache expiration
+$currentTime = time();
+
+// Load last sync timestamp
+$lastSync = file_exists($timestampFile) ? file_get_contents($timestampFile) : null;
+
+// Decide if cache is expired or doesn't exist
+if (file_exists($cacheFile) && ($currentTime - filemtime($cacheFile) < $cacheTime)) {
+    // Serve cached data
+    echo file_get_contents($cacheFile);
+    exit;
+}
+
+// Step 1: Get access token
 $authCh = curl_init();
 curl_setopt($authCh, CURLOPT_URL, "https://auth.plytix.com/auth/api/get-token");
 curl_setopt($authCh, CURLOPT_RETURNTRANSFER, 1);
@@ -44,17 +44,17 @@ if ($authHttpCode != 200) {
     die(json_encode(["error" => "Auth failed", "code" => $authHttpCode, "response" => json_decode($authResponse, true)]));
 }
 
-$authData = json_decode($authResponse,true);
+$authData = json_decode($authResponse, true);
 if (!isset($authData['data'][0]['access_token'])) {
     http_response_code(500);
     die(json_encode(["error" => "No token received", "response" => $authData]));
 }
 $accessToken = $authData['data'][0]['access_token'];
-$callCount++;
 
-$lastSync = file_exists($timestampFile) ? trim(file_get_contents($timestampFile)) : null;
+// Step 2: Set up filters
 $filters = [];
 if ($lastSync) {
+    // Fetch only products modified after last sync
     $filters[] = [
         "key" => "modified_at",
         "operator" => ">",
@@ -69,10 +69,11 @@ do {
     $postData = [
         "limit" => $limit,
         "page" => $page,
-        "attributes" => [],   // empty array to fetch all attributes
-        "relationships" => [],// empty for all relationships
-        "assets" => []        // empty for all assets
+        "attributes" => true,
+        "relationships" => true,
+        "assets" => true,
     ];
+
     if (!empty($filters)) {
         $postData["filters"] = $filters;
     }
@@ -94,11 +95,10 @@ do {
 
     if ($httpcode != 200) {
         http_response_code(500);
-        die(json_encode(["error" => "API fetch failed", "code" => $httpcode, "response" => $response]));
+        die(json_encode(["error" => "API fetch failed", "code" => $httpcode]));
     }
 
     $data = json_decode($response, true);
-    $callCount++;
 
     if (isset($data['data']) && count($data['data']) > 0) {
         $allProducts = array_merge($allProducts, $data['data']);
@@ -107,19 +107,18 @@ do {
         break;
     }
 
-    usleep(100000);
-
+    usleep(100000); // Slight delay to avoid hitting rate limits
 } while (count($data['data']) == $limit);
 
+// Step 3: Update cache and last sync timestamp
+
 if (count($allProducts) > 0) {
-    file_put_contents($cacheFile, json_encode($allProducts));
-    file_put_contents($timestampFile, date('c'));
+    $jsonOutput = json_encode($allProducts);
+    file_put_contents($cacheFile, $jsonOutput);
+    file_put_contents($timestampFile, date('c')); // ISO 8601 timestamp for last sync
 }
 
-file_put_contents($callCountFile, $callCount);
+// Serve the cached or fresh data
+echo file_get_contents($cacheFile);
 
-echo json_encode([
-    "cached" => false,
-    "data" => $allProducts,
-    "api_calls_made" => $callCount
-]);
+?>
