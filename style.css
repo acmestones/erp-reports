@@ -1,0 +1,81 @@
+body { font-family: "Inter", sans-serif; }
+.card { border-radius: 12px; transition: 0.2s; }
+.card:hover { transform: scale(1.02); box-shadow: 0 4px 14px rgba(0,0,0,0.1); }
+.card img { border-top-left-radius: 12px; border-top-right-radius: 12px; }
+.modal-body img { cursor: pointer; transition: 0.2s; }
+.modal-body img:hover { transform: scale(1.05); }
+.table th { background: #f8f9fa; width: 40%; }
+
+#scrollSentinel {
+  text-align: center;
+  color: #999;
+}
+
+/* Styles for Category Filter Dropdown */
+#categoryFilter {
+  max-height: 300px;
+  overflow-y: auto;
+  padding: 0.5rem;
+}
+#categoryFilter .dropdown-item {
+  display: flex;
+  align-items: center;
+}
+#categoryFilter .dropdown-item input {
+  margin-right: 10px;
+}
+.category-actions {
+  padding: 0.25rem 0.5rem;
+  display: flex;
+  justify-content: space-between;
+  border-bottom: 1px solid #dee2e6;
+  margin-bottom: 5px;
+}
+.category-actions button {
+  font-size: 0.8rem;
+  padding: 0.2rem 0.4rem;
+}
+
+
+/* Styles for Progressive Image Loading */
+.image-placeholder {
+  position: relative;
+  width: 100%;
+  height: 200px; /* Must match final image height */
+  background-color: #f0f0f0;
+  overflow: hidden;
+}
+.image-placeholder .img-thumb {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter: blur(10px);
+  transform: scale(1.1);
+  transition: opacity 0.3s ease-in-out;
+}
+.image-placeholder .img-full {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+  transition: opacity 0.3s ease-in-out;
+  border-top-left-radius: 12px;
+  border-top-right-radius: 12px;
+}
+.image-placeholder .img-full.loaded {
+  opacity: 1;
+}
+
+/* NEW: Style for disabled product cards */
+.card.disabled-product {
+  opacity: 0.65;
+  filter: grayscale(60%);
+  transition: opacity 0.3s ease, filter 0.3s ease;
+}
+.card.disabled-product:hover {
+  opacity: 1;
+  filter: grayscale(0%);
+}
