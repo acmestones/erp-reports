@@ -2,8 +2,8 @@
 header('Content-Type: application/json');
 
 // Paste your API credentials from accounts.plytix.com
-$apiKey = "YOUR_API_KEY_HERE";
-$apiPassword = "YOUR_API_PASSWORD_HERE";
+$apiKey = "DQ1TBOXSRPE196ER4018";
+$apiPassword = "0&0eqfaSvwb1iGdHRWL0nJZ9heuDJA3y@J;37S8z";
 
 // Step 1: Get access token with POST request
 $authCh = curl_init();
