@@ -5,20 +5,8 @@ $cacheFile = __DIR__ . '/plytix_cache.json';
 $timestampFile = __DIR__ . '/plytix_lastsync.txt';
 $callCountFile = __DIR__ . '/plytix_apicount.txt';
 $cacheTime = 3600; // 1 hour cache lifetime in seconds
-$limit = 20;       // Plytix API capped limit per call
+$limit = 20;
 
-// Test file write permission - uncomment to test and then comment out again
-/*
-$testFile = __DIR__ . '/test_write.txt';
-if (file_put_contents($testFile, 'test')) {
-    echo json_encode(["test_write" => "Success: File created at $testFile"]);
-} else {
-    echo json_encode(["test_write" => "Failed: Cannot write to $testFile"]);
-}
-exit;
-*/
-
-// Serve cached data if fresh
 $currentTime = time();
 if (file_exists($cacheFile) && ($currentTime - filemtime($cacheFile) < $cacheTime)) {
     $data = file_get_contents($cacheFile);
@@ -31,14 +19,11 @@ if (file_exists($cacheFile) && ($currentTime - filemtime($cacheFile) < $cacheTim
     exit;
 }
 
-// Reset API call counter for this run
 $callCount = 0;
+$apiKey = "YOUR_API_KEY_HERE";
+$apiPassword = "YOUR_API_PASSWORD_HERE";
 
-// Your Plytix API credentials
-$apiKey = "DQ1TBOXSRPE196ER4018";
-$apiPassword = "0&0eqfaSvwb1iGdHRWL0nJZ9heuDJA3y@J;37S8z";
-
-// Step 1: Authenticate and get access token
+// Authenticate
 $authCh = curl_init();
 curl_setopt($authCh, CURLOPT_URL, "https://auth.plytix.com/auth/api/get-token");
 curl_setopt($authCh, CURLOPT_RETURNTRANSFER, 1);
@@ -56,28 +41,18 @@ curl_close($authCh);
 
 if ($authHttpCode != 200) {
     http_response_code(500);
-    die(json_encode([
-        "error" => "Auth failed",
-        "code" => $authHttpCode,
-        "response" => json_decode($authResponse, true)
-    ]));
+    die(json_encode(["error" => "Auth failed", "code" => $authHttpCode, "response" => json_decode($authResponse, true)]));
 }
 
-$authData = json_decode($authResponse, true);
+$authData = json_decode($authResponse,true);
 if (!isset($authData['data'][0]['access_token'])) {
     http_response_code(500);
-    die(json_encode([
-        "error" => "No token received",
-        "response" => $authData
-    ]));
+    die(json_encode(["error" => "No token received", "response" => $authData]));
 }
 $accessToken = $authData['data'][0]['access_token'];
-$callCount++; // Count auth call
+$callCount++;
 
-// Load last sync timestamp if available
 $lastSync = file_exists($timestampFile) ? trim(file_get_contents($timestampFile)) : null;
-
-// Set filters: fetch only updated products if lastSync exists
 $filters = [];
 if ($lastSync) {
     $filters[] = [
@@ -87,7 +62,6 @@ if ($lastSync) {
     ];
 }
 
-// Step 2: Fetch products with pagination
 $allProducts = [];
 $page = 1;
 
@@ -95,9 +69,9 @@ do {
     $postData = [
         "limit" => $limit,
         "page" => $page,
-        "attributes" => [],
-        "relationships" => [],
-        "assets" => []
+        "attributes" => [],   // empty array to fetch all attributes
+        "relationships" => [],// empty for all relationships
+        "assets" => []        // empty for all assets
     ];
     if (!empty($filters)) {
         $postData["filters"] = $filters;
@@ -120,11 +94,7 @@ do {
 
     if ($httpcode != 200) {
         http_response_code(500);
-        die(json_encode([
-            "error" => "API fetch failed",
-            "code" => $httpcode,
-            "response" => $response
-        ]));
+        die(json_encode(["error" => "API fetch failed", "code" => $httpcode, "response" => $response]));
     }
 
     $data = json_decode($response, true);
@@ -137,26 +107,17 @@ do {
         break;
     }
 
-    usleep(100000); // Small delay between calls to avoid rate limiting
+    usleep(100000);
 
 } while (count($data['data']) == $limit);
 
-// Step 3: Cache data and update last sync timestamp
 if (count($allProducts) > 0) {
-    if (file_put_contents($cacheFile, json_encode($allProducts)) === false) {
-        error_log('Failed to write cache file: ' . $cacheFile);
-    }
-    if (file_put_contents($timestampFile, date('c')) === false) {
-        error_log('Failed to write timestamp file: ' . $timestampFile);
-    }
+    file_put_contents($cacheFile, json_encode($allProducts));
+    file_put_contents($timestampFile, date('c'));
 }
 
-// Save API call count for frontend display
-if (file_put_contents($callCountFile, $callCount) === false) {
-    error_log('Failed to write API call count file: ' . $callCountFile);
-}
+file_put_contents($callCountFile, $callCount);
 
-// Step 4: Serve fresh data with API call count
 echo json_encode([
     "cached" => false,
     "data" => $allProducts,
