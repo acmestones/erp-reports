@@ -107,10 +107,7 @@ while (true) {
 
     $postData = [
         "limit" => $limit,
-        "page" => $page,
-        "attributes" => [],
-        "relationships" => [],
-        "assets" => []
+        "page" => $page
     ];
     if (!empty($filters)) {
         $postData["filters"] = $filters;
