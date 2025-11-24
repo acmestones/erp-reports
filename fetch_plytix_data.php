@@ -5,8 +5,9 @@ header('Content-Type: application/json');
 $apiKey = "DQ1TBOXSRPE196ER4018";
 $apiPassword = "0&0eqfaSvwb1iGdHRWL0nJZ9heuDJA3y@J;37S8z";
 
-$cacheFile = 'plytix_cache.json';
-$timestampFile = 'plytix_lastsync.txt';
+$cacheFile = __DIR__ . '/plytix_cache.json';
+$timestampFile = __DIR__ . '/plytix_lastsync.txt';
+
 $cacheTime = 3600; // 1 hour cache lifetime in seconds
 $limit = 20; // Plytix API capped limit per call
 
@@ -69,9 +70,9 @@ do {
     $postData = [
         "limit" => $limit,
         "page" => $page,
-        "attributes" => true,
-        "relationships" => true,
-        "assets" => true,
+        "attributes" => [],
+        "relationships" => [],
+        "assets" => [],
     ];
 
     if (!empty($filters)) {
