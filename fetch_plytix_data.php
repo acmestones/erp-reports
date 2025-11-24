@@ -95,9 +95,9 @@ do {
     $postData = [
         "limit" => $limit,
         "page" => $page,
-        "attributes" => true,
-        "relationships" => true,
-        "assets" => true
+        "attributes" => [],
+        "relationships" => [],
+        "assets" => []
     ];
     if (!empty($filters)) {
         $postData["filters"] = $filters;
