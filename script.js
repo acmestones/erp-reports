@@ -77,30 +77,37 @@ function setStatus(text) {
 }
 
 function loadProducts() {
-  checkPermissions();
-  var user = (localStorage && localStorage.getItem("user")) || "unknown";
-  if (loggedUserBadge) loggedUserBadge.textContent = "Signed in as " + user;
-  setStatus("Loading…");
-
-  if (canViewPrices) {
-    sortFilter.innerHTML += '<option value="price-asc">Sort by Price (Low-High)</option>';
-    sortFilter.innerHTML += '<option value="price-desc">Sort by Price (High-Low)</option>';
-  }
-
-  fetch(PLYTIX_API_ENDPOINT + "?t=" + Date.now(), { cache: "no-store" })
-    .then(function(res) { if (!res.ok) throw new Error("HTTP " + res.status); return res.json(); })
-    .then(function(data) {
-      masterProducts = Array.isArray(data) ? data : [];
-      populateCategoryFilter();
-      applyFilters();
-      setStatus("Loaded " + masterProducts.length + " products");
-    })
-    .catch(function(err) {
-      console.error(err);
-      if (grid) grid.innerHTML = '<div class="text-danger">❌ Failed to load data. Check sharing settings.</div>';
-      setStatus("Failed to load data");
-    });
+    checkPermissions();
+    var user = (localStorage && localStorage.getItem("user")) || "unknown";
+    if (loggedUserBadge) loggedUserBadge.textContent = "Signed in as " + user;
+    
+    setStatus("Loading…");
+    
+    if (canViewPrices) {
+        sortFilter.innerHTML += '<option value="price_low">Price: Low to High</option>';
+        sortFilter.innerHTML += '<option value="price_high">Price: High to Low</option>';
+    }
+    
+    // Fetch from your PHP Plytix endpoint instead of Google Sheets
+    fetch("fetch_plytix_data.php?t=" + Date.now(), { cache: "no-store" })
+        .then(function(res) {
+            if (!res.ok) throw new Error("HTTP " + res.status);
+            return res.json();
+        })
+        .then(function(response) {
+            // Extract products from the 'data' property
+            masterProducts = Array.isArray(response.data) ? response.data : [];
+            populateCategoryFilter();
+            applyFilters();
+            setStatus("Loaded " + masterProducts.length + " products from Plytix");
+        })
+        .catch(function(err) {
+            console.error(err);
+            if (grid) grid.innerHTML = '<p style="color:red;">Error loading products. Please try again.</p>';
+            setStatus("Error: " + err.message);
+        });
 }
+
 
 /* --------------------- Category Checkbox Filter --------------------- */
 function populateCategoryFilter() {
