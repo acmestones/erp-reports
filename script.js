@@ -10,7 +10,7 @@ var USERS_WITH_PRICE_ACCESS = [
   "designacmestones@gmail.com",
   "satishguptajaipur@gmail.com"
 ];
-var OPENSHEET_URL_BASE = "https://opensheet.elk.sh/1GXk9QY__qS8k1T4GwLE1YYf0UOEJjRuyZs8uYhyJAzU/Sheet1";
+var PLYTIX_API_ENDPOINT = "fetch_plytix_data.php"; // PHP endpoint that fetches from Plytix
 // --- END CONFIGURATION ---
 
 var grid = document.getElementById("productGrid");
@@ -87,7 +87,7 @@ function loadProducts() {
     sortFilter.innerHTML += '<option value="price-desc">Sort by Price (High-Low)</option>';
   }
 
-  fetch(OPENSHEET_URL_BASE + "?t=" + Date.now(), { cache: "no-store" })
+  fetch(PLYTIX_API_ENDPOINT + "?t=" + Date.now(), { cache: "no-store" })
     .then(function(res) { if (!res.ok) throw new Error("HTTP " + res.status); return res.json(); })
     .then(function(data) {
       masterProducts = Array.isArray(data) ? data : [];
