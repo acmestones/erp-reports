@@ -4,20 +4,26 @@ header('Content-Type: application/json');
 $cacheFile = __DIR__ . '/plytix_cache.json';
 $timestampFile = __DIR__ . '/plytix_lastsync.txt';
 $callCountFile = __DIR__ . '/plytix_apicount.txt';
-$cacheTime = 0; // Cache lifetime in seconds
-$limit = 20;       // Plytix API capped limit per call
+$cacheTime = 3600; // Cache lifetime in seconds
+$limit = 20;
 
 $currentTime = time();
+
+// Debug log to trace cache usage
 if (file_exists($cacheFile) && ($currentTime - filemtime($cacheFile) < $cacheTime)) {
-    $data = file_get_contents($cacheFile);
+    error_log("Serving cached data. Cache age (seconds): " . ($currentTime - filemtime($cacheFile)));
+    $cacheData = file_get_contents($cacheFile);
     $callCount = file_exists($callCountFile) ? intval(file_get_contents($callCountFile)) : 0;
     echo json_encode([
         "cached" => true,
-        "data" => json_decode($data, true),
-        "api_calls_made" => $callCount
+        "data" => json_decode($cacheData, true),
+        "api_calls_made" => $callCount,
+        "debug" => "Served from cache, no api fetch."
     ]);
     exit;
 }
+
+error_log("Cache expired or missing. Fetching fresh data from API.");
 
 $callCount = 0;
 $apiKey = "DQ1TBOXSRPE196ER4018";
@@ -40,12 +46,14 @@ $authHttpCode = curl_getinfo($authCh, CURLINFO_HTTP_CODE);
 curl_close($authCh);
 
 if ($authHttpCode != 200) {
+    error_log("Authentication failed with HTTP code: $authHttpCode");
     http_response_code(500);
     die(json_encode(["error" => "Auth failed", "code" => $authHttpCode, "response" => json_decode($authResponse, true)]));
 }
 
 $authData = json_decode($authResponse,true);
 if (!isset($authData['data'][0]['access_token'])) {
+    error_log("No access token received in auth response.");
     http_response_code(500);
     die(json_encode(["error" => "No token received", "response" => $authData]));
 }
@@ -55,11 +63,14 @@ $callCount++;
 $lastSync = file_exists($timestampFile) ? trim(file_get_contents($timestampFile)) : null;
 $filters = [];
 if ($lastSync) {
+    error_log("Last sync timestamp loaded: $lastSync");
     $filters[] = [
         "key" => "modified_at",
         "operator" => ">",
         "value" => $lastSync
     ];
+} else {
+    error_log("No last sync timestamp available. Fetching all products.");
 }
 
 $allProducts = [];
@@ -93,6 +104,7 @@ while (true) {
     curl_close($ch);
 
     if ($httpcode != 200) {
+        error_log("API fetch failed with HTTP code: $httpcode");
         http_response_code(500);
         die(json_encode(["error" => "API fetch failed", "code" => $httpcode, "response" => $response]));
     }
@@ -101,13 +113,15 @@ while (true) {
     $callCount++;
 
     if (isset($data['data']) && count($data['data']) > 0) {
+        error_log("Fetched page $page with " . count($data['data']) . " products.");
         $allProducts = array_merge($allProducts, $data['data']);
-        error_log("Fetched page $page with " . count($data['data']) . " products");
         if (count($data['data']) < $limit) {
-            break; // No more pages
+            error_log("Last page reached at page $page.");
+            break; // Last page
         }
         $page++;
     } else {
+        error_log("No products data returned on page $page.");
         break;
     }
 
@@ -115,12 +129,15 @@ while (true) {
 }
 
 if (count($allProducts) > 0) {
+    error_log("Writing " . count($allProducts) . " products to cache file.");
     if (file_put_contents($cacheFile, json_encode($allProducts)) === false) {
         error_log("Failed to write cache file: $cacheFile");
     }
     if (file_put_contents($timestampFile, date('c')) === false) {
         error_log("Failed to write timestamp file: $timestampFile");
     }
+} else {
+    error_log("No products fetched; cache not updated.");
 }
 
 if (file_put_contents($callCountFile, $callCount) === false) {
@@ -130,5 +147,6 @@ if (file_put_contents($callCountFile, $callCount) === false) {
 echo json_encode([
     "cached" => false,
     "data" => $allProducts,
-    "api_calls_made" => $callCount
+    "api_calls_made" => $callCount,
+    "debug" => "Cache regenerated from API fetch"
 ]);
