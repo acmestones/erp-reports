@@ -1,4 +1,7 @@
 <?php
+set_time_limit(300); // 5 minutes max execution time
+ini_set('memory_limit', '256M'); // Increase PHP memory limit
+
 ini_set('log_errors', 'On');
 ini_set('error_log', __DIR__ . '/php-error.log');
 
@@ -132,18 +135,39 @@ while (true) {
     usleep(100000); // 0.1 sec delay
 }
 
+
+
 if (count($allProducts) > 0) {
-    error_log("Writing " . count($allProducts) . " products to cache file.");
-    if (file_put_contents($cacheFile, json_encode($allProducts)) === false) {
-        error_log("Failed to write cache file: $cacheFile");
-    }
-    if (file_put_contents($timestampFile, date('c')) === false) {
-        error_log("Failed to write timestamp file: $timestampFile");
+    error_log("Attempting to write " . count($allProducts) . " products to cache.");
+
+    // Test JSON encoding first
+    $jsonOutput = json_encode($allProducts);
+    if ($jsonOutput === false) {
+        error_log("JSON encoding failed: " . json_last_error_msg());
+    } else {
+        error_log("JSON encoding succeeded. Size: " . strlen($jsonOutput) . " bytes");
+
+        // Try to write cache file
+        $cacheWriteResult = file_put_contents($cacheFile, $jsonOutput);
+        if ($cacheWriteResult === false) {
+            error_log("FAILED to write cache file: $cacheFile");
+        } else {
+            error_log("Successfully wrote $cacheWriteResult bytes to cache file");
+        }
+
+        // Try to write timestamp file
+        $timestampWriteResult = file_put_contents($timestampFile, date('c'));
+        if ($timestampWriteResult === false) {
+            error_log("FAILED to write timestamp file: $timestampFile");
+        } else {
+            error_log("Successfully wrote timestamp file");
+        }
     }
 } else {
     error_log("No products fetched; cache not updated.");
 }
 
+// Write API call count as before
 if (file_put_contents($callCountFile, $callCount) === false) {
     error_log("Failed to write API call count file: $callCountFile");
 }
@@ -154,3 +178,4 @@ echo json_encode([
     "api_calls_made" => $callCount,
     "debug" => "Cache regenerated from API fetch"
 ]);
+
