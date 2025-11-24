@@ -1,6 +1,7 @@
 <?php
 ini_set('log_errors', 'On');
 ini_set('error_log', __DIR__ . '/php-error.log');
+error_log("PHP script executed at " . date('Y-m-d H:i:s'));
 
 set_time_limit(300); // 5 minutes max execution time
 ini_set('memory_limit', '256M'); // Increase PHP memory limit
