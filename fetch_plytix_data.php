@@ -1,10 +1,9 @@
 <?php
-set_time_limit(300); // 5 minutes max execution time
-ini_set('memory_limit', '256M'); // Increase PHP memory limit
-
 ini_set('log_errors', 'On');
 ini_set('error_log', __DIR__ . '/php-error.log');
 
+set_time_limit(300); // 5 minutes max execution time
+ini_set('memory_limit', '256M'); // Increase PHP memory limit
 
 header('Content-Type: application/json');
 
