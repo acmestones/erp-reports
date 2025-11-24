@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Login — ACM Stonemart Catalog</title>
+
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <style>
+    body { display:flex; align-items:center; justify-content:center; height:100vh; font-family: Inter, sans-serif; background:#f7f8fb; }
+    .box { text-align:center; max-width:420px; padding:28px; background:white; border-radius:10px; box-shadow:0 6px 20px rgba(0,0,0,0.06); }
+    .small { color:#666; margin-top:6px; }
+  </style>
+</head>
+<body>
+  <div class="box">
+    <h3>🔒 Acme Stones Internal Catalog</h3>
+    <p class="small">Sign in with Google to continue</p>
+
+    <div id="buttonDiv" style="margin:18px 0;"></div>
+    <div id="status"></div>
+    <p class="small" style="margin-top:10px;color:#999">If you don't have access, please contact the admin.</p>
+  </div>
+
+  <script>
+    // === CONFIG: replace CLIENT_ID and allowed emails ===
+    const CLIENT_ID = "979512358609-1ouc1qj18hcqghjbimu5npce8l8volhe.apps.googleusercontent.com";
+    const ALLOWED_USERS = [
+      "marblehouse@gmail.com",        // admin
+      "designacmestones@gmail.com",    // team
+      "satishguptajaipur@gmail.com"   // user
+      // add more emails here if needed
+    ];
+    const REDIRECT_PAGE = "index.html";
+
+    function parseJwt(token) {
+      const base64Url = token.split('.')[1];
+      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+      return JSON.parse(decodeURIComponent(atob(base64).split('').map(c =>
+        '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)
+      ).join('')));
+    }
+
+    function handleCredentialResponse(response) {
+      try {
+        const data = parseJwt(response.credential);
+        const email = data.email;
+        if (ALLOWED_USERS.includes(email)) {
+          // Save user and redirect
+          localStorage.setItem("user", email);
+          // store lastUser to allow index.js to clear caches if user changed
+          localStorage.setItem("lastUser", email);
+          window.location.replace(REDIRECT_PAGE);
+        } else {
+          document.getElementById("status").innerHTML = `<p style="color:crimson">❌ Access denied for ${email}</p>`;
+        }
+      } catch (e) {
+        document.getElementById("status").innerHTML = `<p style="color:crimson">Authentication error</p>`;
+        console.error(e);
+      }
+    }
+
+    window.onload = function () {
+      if (!CLIENT_ID || CLIENT_ID.includes("YOUR_GOOGLE_CLIENT_ID")) {
+        document.getElementById("status").innerHTML = `<p style="color:crimson">⚠️ CLIENT_ID is not configured. Please add your OAuth Client ID.</p>`;
+        // still render disabled button for appearance
+      }
+      google.accounts.id.initialize({
+        client_id: CLIENT_ID,
+        callback: handleCredentialResponse
+      });
+      google.accounts.id.renderButton(document.getElementById("buttonDiv"), { theme: "outline", size: "large" });
+      // optional auto prompt
+      // google.accounts.id.prompt();
+    };
+  </script>
+</body>
+</html>
