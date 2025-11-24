@@ -1,8 +1,8 @@
 <?php
 header('Content-Type: application/json');
 
-$apiKey = "YOUR_API_KEY";
-$apiSecret = "YOUR_API_SECRET";
+$apiKey = "DQ1TBOXSRPE196ER4018";
+$apiSecret = "0&0eqfaSvwb1iGdHRWL0nJZ9heuDJA3y@J;37S8z";
 
 // Step 1: Get access token
 $authCh = curl_init();
