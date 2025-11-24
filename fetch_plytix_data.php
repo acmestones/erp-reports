@@ -4,7 +4,7 @@ header('Content-Type: application/json');
 $cacheFile = __DIR__ . '/plytix_cache.json';
 $timestampFile = __DIR__ . '/plytix_lastsync.txt';
 $callCountFile = __DIR__ . '/plytix_apicount.txt';
-$cacheTime = 3600; // Cache lifetime in seconds
+$cacheTime = 0; // Cache lifetime in seconds
 $limit = 20;       // Plytix API capped limit per call
 
 $currentTime = time();
