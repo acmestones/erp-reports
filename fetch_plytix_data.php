@@ -23,6 +23,7 @@ error_log("Timestamp file path: $timestampFile");
 
 $cacheTime = 10;  // seconds
 $limit = 25;      // products per page
+$maxPages = 3;    // <-- Limit set to 3 pages for debugging
 
 $currentTime = time();
 if (file_exists($cacheFile) && ($currentTime - filemtime($cacheFile) < $cacheTime)) {
@@ -147,13 +148,17 @@ while (true) {
             error_log("Last page reached at page $page.");
             break;
         }
+        if ($page >= $maxPages) {
+            error_log("Max pages limit ($maxPages) reached. Halting fetch.");
+            break;
+        }
         $page++;
     } else {
         error_log("No products returned at page $page.");
         break;
     }
 
-    usleep(100000); // slight delay
+    usleep(100000); // slight delay to limit request rate
 }
 
 if (count($allProducts) > 0) {
