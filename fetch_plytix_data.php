@@ -1,29 +1,33 @@
 <?php
 header('Content-Type: application/json');
 
-// Paste your API credentials from accounts.plytix.com
-$apiKey = "DQ1TBOXSRPE196ER4018";
-$apiPassword = "0&0eqfaSvwb1iGdHRWL0nJZ9heuDJA3y@J;37S8z";
+$cacheFile = __DIR__ . '/plytix_cache.json';
+$timestampFile = __DIR__ . '/plytix_lastsync.txt';
+$callCountFile = __DIR__ . '/plytix_apicount.txt';
+$cacheTime = 3600; // cache lifetime in seconds
+$limit = 20;       // max products per Plytix API call
 
-$cacheFile = 'plytix_cache.json';
-$timestampFile = 'plytix_lastsync.txt';
-$cacheTime = 3600; // 1 hour cache lifetime in seconds
-$limit = 20; // Plytix API capped limit per call
-
-// Get current time for cache expiration
+// Serve cached data if fresh
 $currentTime = time();
-
-// Load last sync timestamp
-$lastSync = file_exists($timestampFile) ? file_get_contents($timestampFile) : null;
-
-// Decide if cache is expired or doesn't exist
 if (file_exists($cacheFile) && ($currentTime - filemtime($cacheFile) < $cacheTime)) {
-    // Serve cached data
-    echo file_get_contents($cacheFile);
+    $data = file_get_contents($cacheFile);
+    $callCount = file_exists($callCountFile) ? intval(file_get_contents($callCountFile)) : 0;
+    echo json_encode([
+        "cached" => true,
+        "data" => json_decode($data, true),
+        "api_calls_made" => $callCount
+    ]);
     exit;
 }
 
-// Step 1: Get access token
+// Reset API call counter for this run
+$callCount = 0;
+
+// Your Plytix API credentials
+$apiKey = "DQ1TBOXSRPE196ER4018";
+$apiPassword = "0&0eqfaSvwb1iGdHRWL0nJZ9heuDJA3y@J;37S8z";
+
+// Step 1: Authenticate and get access token
 $authCh = curl_init();
 curl_setopt($authCh, CURLOPT_URL, "https://auth.plytix.com/auth/api/get-token");
 curl_setopt($authCh, CURLOPT_RETURNTRANSFER, 1);
@@ -50,11 +54,14 @@ if (!isset($authData['data'][0]['access_token'])) {
     die(json_encode(["error" => "No token received", "response" => $authData]));
 }
 $accessToken = $authData['data'][0]['access_token'];
+$callCount++; // Count the auth call
 
-// Step 2: Set up filters
+// Load last sync timestamp if available
+$lastSync = file_exists($timestampFile) ? trim(file_get_contents($timestampFile)) : null;
+
+// Set filters: fetch only updated products if lastSync is set
 $filters = [];
 if ($lastSync) {
-    // Fetch only products modified after last sync
     $filters[] = [
         "key" => "modified_at",
         "operator" => ">",
@@ -62,6 +69,7 @@ if ($lastSync) {
     ];
 }
 
+// Step 2: Fetch all products with pagination
 $allProducts = [];
 $page = 1;
 
@@ -71,9 +79,8 @@ do {
         "page" => $page,
         "attributes" => true,
         "relationships" => true,
-        "assets" => true,
+        "assets" => true
     ];
-
     if (!empty($filters)) {
         $postData["filters"] = $filters;
     }
@@ -99,6 +106,7 @@ do {
     }
 
     $data = json_decode($response, true);
+    $callCount++;
 
     if (isset($data['data']) && count($data['data']) > 0) {
         $allProducts = array_merge($allProducts, $data['data']);
@@ -107,18 +115,23 @@ do {
         break;
     }
 
-    usleep(100000); // Slight delay to avoid hitting rate limits
+    usleep(100000); // 0.1 sec delay between calls
+
 } while (count($data['data']) == $limit);
 
-// Step 3: Update cache and last sync timestamp
-
+// Step 3: Cache data and update last sync timestamp
 if (count($allProducts) > 0) {
     $jsonOutput = json_encode($allProducts);
     file_put_contents($cacheFile, $jsonOutput);
-    file_put_contents($timestampFile, date('c')); // ISO 8601 timestamp for last sync
+    file_put_contents($timestampFile, date('c')); // ISO 8601 timestamp
 }
 
-// Serve the cached or fresh data
-echo file_get_contents($cacheFile);
+// Save API call count for frontend display
+file_put_contents($callCountFile, $callCount);
 
-?>
+// Step 4: Serve fresh data with API call count
+echo json_encode([
+    "cached" => false,
+    "data" => $allProducts,
+    "api_calls_made" => $callCount
+]);
