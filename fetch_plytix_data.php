@@ -1,7 +1,7 @@
 <?php
 // --- CONFIGURATION ---
 $apiKey = "DQ1TBOXSRPE196ER4018";
-$apiSecret = "00eqfaSvwb1iGdHRWL0nJZ9heuDJA3yJ37S8z";
+$apiSecret = "0&0eqfaSvwb1iGdHRWL0nJZ9heuDJA3y@J;37S8z";
 
 // --- FETCH FROM PLYTIX ---
 header('Content-Type: application/json');
