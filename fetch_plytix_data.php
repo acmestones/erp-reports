@@ -8,7 +8,7 @@ $cacheTime = 3600; // 1 hour cache lifetime in seconds
 $limit = 20;       // Plytix API capped limit per call
 
 // Test file write permission - uncomment to test and then comment out again
-
+/*
 $testFile = __DIR__ . '/test_write.txt';
 if (file_put_contents($testFile, 'test')) {
     echo json_encode(["test_write" => "Success: File created at $testFile"]);
@@ -16,7 +16,7 @@ if (file_put_contents($testFile, 'test')) {
     echo json_encode(["test_write" => "Failed: Cannot write to $testFile"]);
 }
 exit;
-
+*/
 
 // Serve cached data if fresh
 $currentTime = time();
