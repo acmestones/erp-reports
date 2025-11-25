@@ -4,6 +4,12 @@
  * - Retains all previous features.
  */
 
+
+console.log("Script version: Using PLYTIX endpoint");
+alert("Loading from: " + (typeof PLYTIX_API_ENDPOINT !== 'undefined' ? PLYTIX_API_ENDPOINT : 'GOOGLE SHEETS'));
+
+
+
 // --- CONFIGURATION ---
 var USERS_WITH_PRICE_ACCESS = [
   "marblehouse@gmail.com",
