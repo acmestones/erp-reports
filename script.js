@@ -1,5 +1,5 @@
 /**
- * script.js — v9 with Enhanced Variant Filter
+ * script.js — v10 with Enhanced Variant Filter
  * - Added "Variants & Singles" option to the product type filter.
  * - Retains all previous features.
  */
