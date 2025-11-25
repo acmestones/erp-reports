@@ -23,19 +23,16 @@ error_log("Timestamp file path: $timestampFile");
 
 $cacheTime = 10;  // seconds
 $limit = 25;      // products per page
-$maxPages = 3;    // <-- Limit set to 3 pages for debugging
+$maxPages = 3;    // Limit to 3 pages for debugging
 
 $currentTime = time();
 if (file_exists($cacheFile) && ($currentTime - filemtime($cacheFile) < $cacheTime)) {
     error_log("Serving cached data. Cache age (seconds): " . ($currentTime - filemtime($cacheFile)));
     $cacheData = file_get_contents($cacheFile);
     $callCount = file_exists($callCountFile) ? intval(file_get_contents($callCountFile)) : 0;
-    echo json_encode([
-        "cached" => true,
-        "data" => json_decode($cacheData, true),
-        "api_calls_made" => $callCount,
-        "debug" => "Served from cache, no API fetch"
-    ]);
+    
+    header('Content-Type: application/json');
+    echo $cacheData;
     exit;
 }
 
@@ -66,7 +63,6 @@ $authHttpCode = curl_getinfo($authCh, CURLINFO_HTTP_CODE);
 curl_close($authCh);
 
 error_log("Authentication HTTP code: $authHttpCode");
-error_log("Authentication response: $authResponse");
 
 if ($authHttpCode != 200) {
     error_log("Authentication failed: HTTP $authHttpCode");
@@ -107,8 +103,29 @@ while (true) {
 
     $postData = [
         "limit" => $limit,
-        "page" => $page
+        "page" => $page,
+        "attributes" => [
+            "label",                  // Product name
+            "sku",                    // SKU
+            "retail_price",           // Price field (adjust key name if different)
+            "product_enabled",        // Status
+            "thumbnail",              // Main image
+            "product_images",         // Additional images
+            "application_images",     // Application images
+            "production_images",      // Production images
+            "similar_images",         // Similar images
+            "assets",                 // General assets
+            "categories",             // Categories
+            "variant_of",             // Parent product (for variants)
+            "variants",               // Child variants (for parent)
+            "product_id",             // Plytix ID
+            "gtin",                   // Barcode
+            "status",                 // Publication status
+            "created",                // Created date
+            "last_modified"           // Modified date
+        ]
     ];
+    
     if (!empty($filters)) {
         $postData["filters"] = $filters;
     }
@@ -190,9 +207,5 @@ if (file_put_contents($callCountFile, $callCount) === false) {
     error_log("API call count file written");
 }
 
-echo json_encode([
-    "cached" => false,
-    "data" => $allProducts,
-    "api_calls_made" => $callCount,
-    "debug" => "Cache regenerated from API fetch"
-]);
+header('Content-Type: application/json');
+echo json_encode($allProducts);
