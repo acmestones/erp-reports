@@ -4,12 +4,6 @@
  * - Retains all previous features.
  */
 
-
-console.log("Script version: Using PLYTIX endpoint");
-alert("Loading from: " + (typeof PLYTIX_API_ENDPOINT !== 'undefined' ? PLYTIX_API_ENDPOINT : 'GOOGLE SHEETS'));
-
-
-
 // --- CONFIGURATION ---
 var USERS_WITH_PRICE_ACCESS = [
   "marblehouse@gmail.com",
@@ -40,14 +34,27 @@ var canViewPrices = false;
 /* --------------------- Helpers --------------------- */
 function getValue(row, key) {
   if (!row || !key) return "";
-  var foundKey = Object.keys(row).find(function(k) { return k.toLowerCase() === key.toLowerCase(); });
-  var val = foundKey ? row[foundKey] : "";
-  if (val && typeof val === 'object' && !Array.isArray(val)) {
-    // If an object (likely asset), try to extract URL
-    if (val.url) return val.url; // return URL if present
-    else return JSON.stringify(val); // fallback stringify
+  var foundKey = Object.keys(row).find(k => k.toLowerCase() === key.toLowerCase());
+  if (foundKey) return String(row[foundKey] || "").trim();
+
+  if (row.attributes && typeof row.attributes === 'object') {
+    var foundAttrKey = Object.keys(row.attributes).find(k => k.toLowerCase() === key.toLowerCase());
+    if (foundAttrKey) return String(row.attributes[foundAttrKey] || "").trim();
   }
-  return val ? String(val).trim() : "";
+
+  return "";
+}
+
+function getImageUrls(imgField) {
+  if (!imgField) return "";
+
+  if (Array.isArray(imgField)) {
+    return imgField.map(img => (typeof img === 'object' ? img.url || "" : img)).filter(Boolean).join(", ");
+  }
+  if (typeof imgField === 'object') {
+    return imgField.url || "";
+  }
+  return imgField;
 }
 
 function getPrice(product, priceType) {
@@ -116,7 +123,7 @@ function loadProducts() {
       console.log("Type:", Array.isArray(data) ? "Array" : typeof data);
       console.log("Length/Keys:", Array.isArray(data) ? data.length : Object.keys(data));
       console.log("First item:", data[0] || data);
-      
+
       masterProducts = Array.isArray(data) ? data : [];
       populateCategoryFilter();
       applyFilters();
@@ -128,8 +135,6 @@ function loadProducts() {
       setStatus("Failed to load data");
     });
 }
-
-
 
 /* --------------------- Category Checkbox Filter --------------------- */
 function populateCategoryFilter() {
@@ -144,7 +149,7 @@ function populateCategoryFilter() {
 
   var set = new Set();
   masterProducts.forEach(function(p) {
-    var catsString = getValue(p, "Categories") || "Uncategorized";
+    var catsString = getValue(p, "categories") || "Uncategorized";
     catsString.split(',').forEach(function(cat) {
       var trimmedCat = cat.trim();
       if (trimmedCat) set.add(trimmedCat);
@@ -170,14 +175,14 @@ function populateCategoryFilter() {
 
 /* --------------------- Card creation (DOM only) --------------------- */
 function createProductCard(product) {
-  var label = getValue(product, "Label") || getValue(product, "SKU") || "Unnamed";
-  var sku = getValue(product, "SKU") || "";
-  var retailPrice = getPrice(product, "Retail Price");
-  var isEnabled = getValue(product, "Product Enabled").toUpperCase() !== 'FALSE';
-  
-  var imgsRaw = getValue(product, "Thumbnail") || getValue(product, "Product Images") || "";
+  var label = getValue(product, "label") || getValue(product, "sku") || "Unnamed";
+  var sku = getValue(product, "sku") || "";
+  var retailPrice = getPrice(product, "retail_price");
+  var isEnabled = getValue(product, "product_enabled").toUpperCase() !== 'FALSE';
+
+  var imgsRaw = getImageUrls(getValue(product, "thumbnail")) || getImageUrls(getValue(product, "product_images")) || "";
   var mainImg = imgsRaw.split(",")[0].trim() || "https://via.placeholder.com/800";
-  
+
   var thumbSrc = optimizeImage(mainImg, 'thumb');
   var fullSrc = optimizeImage(mainImg, 'full');
 
@@ -193,7 +198,7 @@ function createProductCard(product) {
   var placeholder = document.createElement("div");
   placeholder.className = "image-placeholder";
   placeholder.innerHTML = '<img class="img-thumb" src="' + thumbSrc + '"><img class="img-full" data-src="' + fullSrc + '">';
-  
+
   var body = document.createElement("div");
   body.className = "card-body";
 
@@ -214,7 +219,7 @@ function createProductCard(product) {
     pPrice.innerHTML = "<strong>₹" + retailPrice.toLocaleString('en-IN') + "</strong>";
     body.appendChild(pPrice);
   }
-  
+
   card.appendChild(placeholder);
   card.appendChild(body);
   col.appendChild(card);
@@ -291,8 +296,8 @@ function applyFilters() {
   var selectedCats = Array.from(categoryFilter.querySelectorAll('input:checked')).map(function(cb) { return cb.value; });
   
   var filtered = masterProducts.filter(function(p) {
-    var isVariant = !!getValue(p, "Variant of");
-    var isParent = !!getValue(p, "Variants");
+    var isVariant = !!getValue(p, "variant_of");
+    var isParent = !!getValue(p, "variants");
     
     // Updated Variant/Parent Filter Logic
     if (variant === 'parents' && !isParent) return false;
@@ -300,14 +305,14 @@ function applyFilters() {
     if (variant === 'singles' && (isParent || isVariant)) return false;
     if (variant === 'variants-and-singles' && isParent) return false; // NEW filter condition
 
-    var isEnabled = getValue(p, "Product Enabled").toUpperCase() !== 'FALSE';
+    var isEnabled = getValue(p, "product_enabled").toUpperCase() !== 'FALSE';
     if (!((status === 'all') || (status === 'enabled' && isEnabled) || (status === 'disabled' && !isEnabled))) return false;
 
-    var productCats = (getValue(p, "Categories") || "Uncategorized").split(',').map(function(c) { return c.trim(); });
+    var productCats = (getValue(p, "categories") || "Uncategorized").split(',').map(function(c) { return c.trim(); });
     if (selectedCats.length > 0 && !selectedCats.some(function(sc) { return productCats.includes(sc); })) return false;
 
-    var label = getValue(p, "Label").toLowerCase();
-    var sku = getValue(p, "SKU").toLowerCase();
+    var label = getValue(p, "label").toLowerCase();
+    var sku = getValue(p, "sku").toLowerCase();
     if (term && !(label.includes(term) || sku.includes(term))) return false;
 
     return true;
@@ -316,12 +321,12 @@ function applyFilters() {
   var sortValue = sortFilter.value;
   filtered.sort(function(a, b) {
     switch (sortValue) {
-      case "price-asc": return getPrice(a, "Retail Price") - getPrice(b, "Retail Price");
-      case "price-desc": return getPrice(b, "Retail Price") - getPrice(a, "Retail Price");
-      case "label-asc": return getValue(a, "Label").localeCompare(getValue(b, "Label"));
-      case "label-desc": return getValue(b, "Label").localeCompare(getValue(a, "Label"));
-      case "sku-desc": return getValue(b, "SKU").localeCompare(getValue(a, "SKU"), undefined, { numeric: true });
-      default: return getValue(a, "SKU").localeCompare(getValue(b, "SKU"), undefined, { numeric: true });
+      case "price-asc": return getPrice(a, "retail_price") - getPrice(b, "retail_price");
+      case "price-desc": return getPrice(b, "retail_price") - getPrice(a, "retail_price");
+      case "label-asc": return getValue(a, "label").localeCompare(getValue(b, "label"));
+      case "label-desc": return getValue(b, "label").localeCompare(getValue(a, "label"));
+      case "sku-desc": return getValue(b, "sku").localeCompare(getValue(a, "sku"), undefined, { numeric: true });
+      default: return getValue(a, "sku").localeCompare(getValue(b, "sku"), undefined, { numeric: true });
     }
   });
 
@@ -335,13 +340,13 @@ function showProductDetail(product) {
   var title = document.getElementById("modalTitle");
   var body = document.getElementById("modalBody");
   
-  title.textContent = getValue(product, "Label") || getValue(product, "SKU") || "Product Details";
+  title.textContent = getValue(product, "label") || getValue(product, "sku") || "Product Details";
   body.innerHTML = "";
 
   var leftCol = document.createElement("div");
   leftCol.className = "col-md-6";
 
-  var imageFields = ["Thumbnail","Product Images","Application Images","Production Images","Similar Images","Assets"];
+  var imageFields = ["thumbnail","product_images","application_images","production_images","similar_images","assets"];
   imageFields.forEach(function(field) {
     var val = getValue(product, field);
     if (!val) return;
@@ -349,7 +354,7 @@ function showProductDetail(product) {
     if (!imgs.length) return;
 
     var h6 = document.createElement("h6");
-    h6.textContent = field;
+    h6.textContent = field.charAt(0).toUpperCase() + field.slice(1).replace(/_/g, " ");
     leftCol.appendChild(h6);
     
     imgs.forEach(function(imgUrl) {
@@ -379,7 +384,7 @@ function showProductDetail(product) {
     if (!v || !String(v).trim() || imageFields.indexOf(k) !== -1) return;
     
     var tr = table.insertRow();
-    tr.insertCell().textContent = k;
+    tr.insertCell().textContent = k.charAt(0).toUpperCase() + k.slice(1).replace(/_/g, " ");
     var td = tr.insertCell();
     
     if (urlRegex.test(v)) {
@@ -391,7 +396,7 @@ function showProductDetail(product) {
 
   rightCol.appendChild(table);
 
-  var sku = getValue(product, "SKU"), productId = getValue(product, "Product ID"), plytixLink = null;
+  var sku = getValue(product, "sku"), productId = getValue(product, "product_id"), plytixLink = null;
   if (productId) plytixLink = "https://pim.plytix.com/products/panel/" + encodeURIComponent(productId) + "/detail/attributes";
   else if (sku) plytixLink = "https://pim.plytix.com/products/" + encodeURIComponent(sku);
 
