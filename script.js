@@ -83,6 +83,9 @@ function setStatus(text) {
 }
 
 function loadProducts() {
+    console.log("=== LOADING PRODUCTS ===");
+  console.log("Endpoint:", PLYTIX_API_ENDPOINT || "NOT DEFINED");
+  console.log("Full URL:", PLYTIX_API_ENDPOINT + "?t=" + Date.now());
     checkPermissions();
     var user = (localStorage && localStorage.getItem("user")) || "unknown";
     if (loggedUserBadge) loggedUserBadge.textContent = "Signed in as " + user;
