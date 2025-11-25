@@ -40,8 +40,14 @@ var canViewPrices = false;
 /* --------------------- Helpers --------------------- */
 function getValue(row, key) {
   if (!row || !key) return "";
-  var found = Object.keys(row).find(function(k) { return k.toLowerCase() === key.toLowerCase(); });
-  return found ? String(row[found] || "").trim() : "";
+  var foundKey = Object.keys(row).find(function(k) { return k.toLowerCase() === key.toLowerCase(); });
+  var val = foundKey ? row[foundKey] : "";
+  if (val && typeof val === 'object' && !Array.isArray(val)) {
+    // If an object (likely asset), try to extract URL
+    if (val.url) return val.url; // return URL if present
+    else return JSON.stringify(val); // fallback stringify
+  }
+  return val ? String(val).trim() : "";
 }
 
 function getPrice(product, priceType) {
