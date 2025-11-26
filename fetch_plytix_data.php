@@ -114,28 +114,31 @@ if ($action === 'get_ids') {
         exit;
     }
     
-    error_log("Fetching all product IDs using GET /v1/products...");
+    error_log("Fetching all product IDs with correct pagination format...");
     
     $allProductIds = [];
-    $limit = 100; // GET endpoint supports higher limits
-    $cursor = null;
-    $iteration = 0;
-    $maxIterations = 50; // Safety limit (100 * 50 = 5000 products max)
+    $seenIds = [];
+    $page = 1;
+    $pageSize = 100; // Try 100 per page
+    $maxPages = 50; // Safety limit
     
-    while ($iteration < $maxIterations) {
-        $iteration++;
+    while ($page <= $maxPages) {
+        error_log("Fetching page $page...");
         
-        // Build URL with cursor
-        $url = "https://pim.plytix.com/api/v1/products?limit=$limit";
-        if ($cursor) {
-            $url .= "&cursor=" . urlencode($cursor);
-        }
-        
-        error_log("Iteration $iteration: Fetching from $url");
+        // CORRECT FORMAT: pagination object with page_size
+        $postData = [
+            "pagination" => [
+                "page" => $page,
+                "page_size" => $pageSize
+            ],
+            "sort" => [["field" => "id", "order" => "asc"]]
+        ];
         
         $ch = curl_init();
-        curl_setopt($ch, CURLOPT_URL, $url);
+        curl_setopt($ch, CURLOPT_URL, "https://pim.plytix.com/api/v1/products/search");
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+        curl_setopt($ch, CURLOPT_POST, 1);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($postData));
         curl_setopt($ch, CURLOPT_HTTPHEADER, [
             'Content-Type: application/json',
             'Authorization: Bearer ' . $accessToken
@@ -147,67 +150,43 @@ if ($action === 'get_ids') {
         curl_close($ch);
         
         if ($httpcode != 200) {
-            error_log("Failed on iteration $iteration (HTTP $httpcode)");
+            error_log("Failed on page $page (HTTP $httpcode)");
             error_log("Response: " . substr($response, 0, 500));
             break;
         }
         
         $data = json_decode($response, true);
         
-        // Log structure on first iteration
-        if ($iteration === 1) {
-            error_log("Response structure: " . json_encode(array_keys($data), JSON_PRETTY_PRINT));
-        }
-        
-        // Handle different response structures
-        $products = [];
-        if (isset($data['data'])) {
-            $products = $data['data'];
-        } elseif (isset($data['products'])) {
-            $products = $data['products'];
-        } elseif (is_array($data) && isset($data[0]['id'])) {
-            $products = $data;
-        }
-        
-        if (empty($products)) {
-            error_log("No products found in iteration $iteration");
+        if (!isset($data['data']) || count($data['data']) === 0) {
+            error_log("No data on page $page");
             break;
         }
         
-        foreach ($products as $product) {
-            $allProductIds[] = [
-                'id' => $product['id'],
-                'modified' => $product['modified'] ?? null
-            ];
+        $newCount = 0;
+        foreach ($data['data'] as $product) {
+            if (!isset($seenIds[$product['id']])) {
+                $seenIds[$product['id']] = true;
+                $allProductIds[] = [
+                    'id' => $product['id'],
+                    'modified' => $product['modified'] ?? null
+                ];
+                $newCount++;
+            }
         }
         
-        error_log("Iteration $iteration: Got " . count($products) . " products (Total: " . count($allProductIds) . ")");
+        error_log("Page $page: " . count($data['data']) . " returned, $newCount new (Total: " . count($allProductIds) . ")");
         
-        // Check for cursor/pagination
-        if (isset($data['pagination']['next_cursor'])) {
-            $cursor = $data['pagination']['next_cursor'];
-            error_log("Next cursor: $cursor");
-        } elseif (isset($data['next_cursor'])) {
-            $cursor = $data['next_cursor'];
-            error_log("Next cursor: $cursor");
-        } elseif (isset($data['pagination']['has_more']) && !$data['pagination']['has_more']) {
-            error_log("No more pages (has_more = false)");
-            break;
-        } else {
-            error_log("No cursor found, stopping");
+        // If no new products or fewer than pageSize, we're done
+        if ($newCount === 0 || count($data['data']) < $pageSize) {
+            error_log("Last page detected");
             break;
         }
         
-        // If we got fewer than limit, we're done
-        if (count($products) < $limit) {
-            error_log("Got fewer than limit ($products < $limit), stopping");
-            break;
-        }
-        
-        usleep(200000); // 200ms delay
+        $page++;
+        usleep(200000);
     }
     
-    error_log("Total product IDs fetched: " . count($allProductIds));
+    error_log("Total unique products fetched: " . count($allProductIds));
     
     echo json_encode([
         "success" => true,
