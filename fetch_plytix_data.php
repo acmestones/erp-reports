@@ -18,7 +18,7 @@ error_log("=== PHP START: " . date('Y-m-d H:i:s') . " ===");
 
 $cacheTime = 3600;
 $limit = 25;
-$maxPages = 3;
+$maxPages = 1;
 
 $currentTime = time();
 if (file_exists($cacheFile) && ($currentTime - filemtime($cacheFile) < $cacheTime)) {
