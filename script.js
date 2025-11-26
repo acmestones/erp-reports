@@ -1,5 +1,5 @@
 /**
- * script.js — v13 FIXED - Proper Plytix data handling
+ * script.js — v14 FIXED - Proper Plytix data handling
  */
 
 // --- CONFIGURATION ---
@@ -234,26 +234,24 @@ if (data.length > 0) {
 
 masterProducts = Array.isArray(data) ? data : [];
       
-      console.log("Total products loaded:", masterProducts.length);
+      console.log("=== PRODUCTS LOADED ===");
+      console.log("Total products from API:", masterProducts.length);
       
-      // Only deduplicate if we actually have duplicates
-      var uniqueProducts = [];
-      var seenIds = {};
-      var duplicateCount = 0;
-      
-      for (var i = 0; i < masterProducts.length; i++) {
-        var pid = masterProducts[i].id || masterProducts[i].sku || ("product_" + i);
-        if (!seenIds[pid]) {
-          seenIds[pid] = true;
-          uniqueProducts.push(masterProducts[i]);
-        } else {
-          duplicateCount++;
+      // DO NOT deduplicate - if there are dupes, it's a pagination bug in PHP
+      // Just log and show them all
+      var idMap = {};
+      var dupeCount = 0;
+      masterProducts.forEach(function(p, idx) {
+        var pid = p.id || p.sku || idx;
+        if (idMap[pid]) {
+          dupeCount++;
+          console.warn("Duplicate found at index " + idx + ":", pid);
         }
-      }
+        idMap[pid] = true;
+      });
       
-      if (duplicateCount > 0) {
-        console.log("Removed " + duplicateCount + " duplicates");
-        masterProducts = uniqueProducts;
+      if (dupeCount > 0) {
+        console.error("ERROR: Found " + dupeCount + " duplicates - pagination issue in PHP!");
       }
       
       console.log("Final product count:", masterProducts.length);
