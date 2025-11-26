@@ -41,37 +41,127 @@
 }
 
 
+
+
+  
   
 function loadProducts() {
-  // Show loading state
   const status = document.getElementById("catalogStatus");
   const grid = document.getElementById("productGrid");
-  status.innerHTML = '<span class="text-primary">⏳ Loading products from Plytix...</span>';
-  grid.innerHTML = '<div class="col-12 text-center py-5"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div><p class="mt-2">Loading products...</p></div>';
+  
+  status.innerHTML = '<span class="text-primary">⏳ Initializing...</span>';
+  grid.innerHTML = '<div class="col-12 text-center py-5"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div><p class="mt-2">Fetching product list...</p></div>';
   
   const forceRefresh = localStorage.getItem('forceRefresh') === 'true';
   localStorage.removeItem('forceRefresh');
   
-  const url = forceRefresh ? 'fetch_plytix_data.php?force_refresh=true' : 'fetch_plytix_data.php';
+  const forceParam = forceRefresh ? '?force_refresh=true' : '';
   
-  fetch(url)
+  // Step 1: Get all product IDs
+  fetch('fetch_plytix_data.php?action=get_ids' + (forceRefresh ? '&force_refresh=true' : ''))
+    .then(function(res) { return res.json(); })
+    .then(function(data) {
+      if (!data.success || !data.products) {
+        throw new Error("Failed to get product IDs");
+      }
+      
+      const totalProducts = data.total;
+      const productList = data.products;
+      
+      console.log("Total products to load:", totalProducts);
+      status.innerHTML = '<span class="text-primary">⏳ Loading ' + totalProducts + ' products...</span>';
+      
+      // Step 2: Check which products need updating (only if not force refresh)
+      if (!forceRefresh) {
+        fetch('fetch_plytix_data.php?action=check_updates&ids=' + encodeURIComponent(JSON.stringify(productList)))
+          .then(function(res) { return res.json(); })
+          .then(function(updateData) {
+            const needUpdate = updateData.needUpdate || [];
+            console.log("Products needing update:", needUpdate.length);
+            
+            // Fetch all products in batches (prioritize those needing update)
+            fetchProductsInBatches(productList, totalProducts, needUpdate);
+          })
+          .catch(function(err) {
+            console.error("Update check failed:", err);
+            // If check fails, just fetch all
+            fetchProductsInBatches(productList, totalProducts, []);
+          });
+      } else {
+        // Force refresh - fetch all
+        fetchProductsInBatches(productList, totalProducts, productList.map(function(p) { return p.id; }));
+      }
+    })
+    .catch(function(err) {
+      console.error("Failed to load product IDs:", err);
+      status.innerHTML = '<span class="text-danger">Failed to load products. Check console.</span>';
+      grid.innerHTML = '';
+    });
+}
+
+function fetchProductsInBatches(productList, totalProducts, needUpdateIds) {
+  const status = document.getElementById("catalogStatus");
+  const batchSize = 25;
+  let loadedCount = 0;
+  
+  // Split into batches
+  const allIds = productList.map(function(p) { return p.id; });
+  const batches = [];
+  
+  for (let i = 0; i < allIds.length; i += batchSize) {
+    batches.push(allIds.slice(i, i + batchSize));
+  }
+  
+  console.log("Total batches:", batches.length);
+  
+  // Fetch batches sequentially
+  function fetchNextBatch(index) {
+    if (index >= batches.length) {
+      status.innerHTML = '<span class="text-success">✓ Loaded all ' + totalProducts + ' products</span>';
+      console.log("All products loaded!");
+      return;
+    }
+    
+    const batch = batches[index];
+    const batchIds = batch.join(',');
+    
+    status.innerHTML = '<span class="text-primary">⏳ Loading ' + (loadedCount + batch.length) + ' / ' + totalProducts + ' products...</span>';
+    
+    fetch('fetch_plytix_data.php?action=fetch_batch&ids=' + batchIds)
       .then(function(res) { return res.json(); })
       .then(function(data) {
-        allProducts = data || [];
-        console.log("Loaded products:", allProducts.length);
-        if (allProducts.length > 0) {
-          console.log("First product:", allProducts[0]);
-          console.log("First product thumbnail:", allProducts[0].thumbnail);
+        if (data.success && data.products) {
+          // Add products to our collection
+          data.products.forEach(function(product) {
+            allProducts.push(product);
+          });
+          
+          loadedCount += data.products.length;
+          console.log("Batch " + (index + 1) + "/" + batches.length + " loaded: " + data.cached + " cached, " + data.fetched + " fetched");
+          
+          // Update display with current products
+          applyFilters();
+          
+          // Fetch next batch
+          fetchNextBatch(index + 1);
+        } else {
+          console.error("Batch failed:", data);
+          fetchNextBatch(index + 1); // Try next batch anyway
         }
-        applyFilters();
-        setupFilters();
       })
       .catch(function(err) {
-        console.error("Failed to load products:", err);
-        document.getElementById("catalogStatus").innerHTML = 
-          '<span class="text-danger">Failed to load products. Check console.</span>';
+        console.error("Batch fetch error:", err);
+        fetchNextBatch(index + 1); // Try next batch anyway
       });
   }
+  
+  fetchNextBatch(0);
+}
+
+
+
+
+  
 
   function setupFilters() {
     document.getElementById("searchBox").addEventListener("input", applyFilters);
