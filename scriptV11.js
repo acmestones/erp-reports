@@ -1,5 +1,5 @@
 /**
- * script.js — v12 FIXED - Bug fixes for logout and filter
+ * script.js — v12.1 FIXED - Proper Plytix data handling
  */
 
 // --- CONFIGURATION ---
@@ -33,69 +33,62 @@ var canViewPrices = false;
 function getValue(row, key) {
   if (!row || !key) return "";
   
-  // Direct key match
-  var foundKey = Object.keys(row).find(k => k.toLowerCase() === key.toLowerCase());
-  if (foundKey && row[foundKey]) return String(row[foundKey] || "").trim();
+  // Direct key match (case-insensitive)
+  var foundKey = Object.keys(row).find(function(k) { 
+    return k.toLowerCase() === key.toLowerCase(); 
+  });
+  if (foundKey && row[foundKey] != null && row[foundKey] !== "") {
+    return String(row[foundKey]).trim();
+  }
 
-  // Check in attributes
-  if (row.attributes && typeof row.attributes === 'object') {
-    var foundAttrKey = Object.keys(row.attributes).find(k => k.toLowerCase() === key.toLowerCase());
-    if (foundAttrKey && row.attributes[foundAttrKey]) return String(row.attributes[foundAttrKey] || "").trim();
+  // Check in attributes array - Plytix uses this structure
+  if (Array.isArray(row.attributes)) {
+    for (var i = 0; i < row.attributes.length; i++) {
+      var attr = row.attributes[i];
+      if (attr && attr.name && attr.name.toLowerCase() === key.toLowerCase()) {
+        if (attr.value != null && attr.value !== "") {
+          return String(attr.value).trim();
+        }
+      }
+    }
   }
 
   return "";
 }
 
-function getImageUrls(imgField) {
-  if (!imgField) return "";
-
-  // Handle array of image objects
-  if (Array.isArray(imgField)) {
-    return imgField
-      .map(function(img) {
-        if (typeof img === 'object' && img !== null) {
-          return img.url || img.original_url || img.thumbnail_url || "";
-        }
-        return String(img || "");
-      })
-      .filter(Boolean)
-      .join(", ");
-  }
-  
-  // Handle single image object
-  if (typeof imgField === 'object' && imgField !== null) {
-    return imgField.url || imgField.original_url || imgField.thumbnail_url || "";
-  }
-  
-  // Handle string
-  return String(imgField);
-}
-
 function getFirstImage(product) {
-  // Try multiple image field keys in priority order
+  // Plytix specific: check thumbnail first
+  if (product.thumbnail && product.thumbnail !== null && typeof product.thumbnail === 'string') {
+    return product.thumbnail;
+  }
+  
+  // Check common image field names
   var imageFields = [
-    "thumbnail",
     "product_images", 
     "images",
     "main_image",
     "primary_image",
-    "image"
+    "image",
+    "thumbnail_url",
+    "image_url"
   ];
   
   for (var i = 0; i < imageFields.length; i++) {
     var fieldValue = getValue(product, imageFields[i]);
     if (fieldValue) {
-      var urls = getImageUrls(fieldValue);
-      if (urls) {
-        var firstUrl = urls.split(",")[0].trim();
-        if (firstUrl && firstUrl !== "" && !firstUrl.includes("placeholder")) {
-          return firstUrl;
+      // Handle comma-separated URLs
+      var urls = fieldValue.split(',');
+      for (var j = 0; j < urls.length; j++) {
+        var url = urls[j].trim();
+        if (url && url.startsWith('http')) {
+          return url;
         }
       }
     }
   }
   
-  return "https://via.placeholder.com/800/CCCCCC/666666?text=No+Image";
+  // Return a data URI for a gray box instead of external placeholder
+  return "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Crect width='400' height='400' fill='%23ddd'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='monospace' font-size='20' fill='%23999'%3ENo Image%3C/text%3E%3C/svg%3E";
 }
 
 function getPrice(product, priceType) {
@@ -112,7 +105,7 @@ function escapeHtml(str) {
 }
 
 function optimizeImage(url, size) {
-  if (!url || url.indexOf("via.placeholder.com") !== -1) return url;
+  if (!url || url.startsWith("data:")) return url;
   
   var params = "fit=cover&output=webp";
   if (size === 'thumb') params += "&w=50&h=50&q=50";
@@ -146,7 +139,6 @@ function loadProducts() {
     sortFilter.innerHTML += '<option value="price-desc">Sort by Price (High-Low)</option>';
   }
 
-  // Check if force refresh is requested
   var forceRefresh = localStorage.getItem('forceRefresh') === 'true';
   if (forceRefresh) {
     localStorage.removeItem('forceRefresh');
@@ -167,24 +159,41 @@ function loadProducts() {
     .then(function(res) { 
       console.log("=== FETCH RESPONSE ===");
       console.log("Status:", res.status);
-      console.log("URL:", res.url);
       if (!res.ok) throw new Error("HTTP " + res.status); 
       return res.json(); 
     })
     .then(function(data) {
       console.log("=== RAW DATA RECEIVED ===");
-      console.log("Type:", Array.isArray(data) ? "Array" : typeof data);
+      console.log("Data type:", Array.isArray(data) ? "Array" : typeof data);
       console.log("Length:", Array.isArray(data) ? data.length : "N/A");
       
       if (data.length > 0) {
         console.log("First product sample:", data[0]);
-        console.log("Available keys in first product:", Object.keys(data[0]));
+        console.log("First product keys:", Object.keys(data[0]));
+        if (Array.isArray(data[0].attributes)) {
+          console.log("Attributes structure:", data[0].attributes);
+        }
       }
 
       masterProducts = Array.isArray(data) ? data : [];
+      
+      // Remove duplicates based on product ID
+      var uniqueProducts = [];
+      var seenIds = {};
+      for (var i = 0; i < masterProducts.length; i++) {
+        var pid = masterProducts[i].id || masterProducts[i].sku;
+        if (!seenIds[pid]) {
+          seenIds[pid] = true;
+          uniqueProducts.push(masterProducts[i]);
+        }
+      }
+      masterProducts = uniqueProducts;
+      
+      console.log("Unique products after deduplication:", masterProducts.length);
+      
       populateCategoryFilter();
       applyFilters();
-      setStatus("Loaded " + masterProducts.length + " products");
+      setStatus("Loaded " + masterProducts.length + " unique products");
     })
     .catch(function(err) {
       console.error("=== FETCH ERROR ===", err);
@@ -232,9 +241,9 @@ function populateCategoryFilter() {
 
 /* --------------------- Card creation (DOM only) --------------------- */
 function createProductCard(product) {
-  var label = getValue(product, "label") || getValue(product, "name") || getValue(product, "sku") || "Unnamed";
-  var sku = getValue(product, "sku") || "";
-  var retailPrice = getPrice(product, "retail_price");
+  var label = getValue(product, "label") || getValue(product, "name") || getValue(product, "product_name") || getValue(product, "sku") || "Unnamed";
+  var sku = getValue(product, "sku") || getValue(product, "product_code") || "";
+  var retailPrice = getPrice(product, "retail_price") || getPrice(product, "price");
   var isEnabled = getValue(product, "product_enabled").toUpperCase() !== 'FALSE';
 
   var mainImg = getFirstImage(product);
@@ -305,7 +314,8 @@ function renderNextBatch() {
           img.onload = function() { img.classList.add("loaded"); };
           img.onerror = function() { 
             console.warn("Failed to load image:", src);
-            img.src = "https://via.placeholder.com/800/CCCCCC/666666?text=Image+Error";
+            // Use data URI for error state too
+            img.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Crect width='400' height='400' fill='%23f88'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='monospace' font-size='16' fill='%23fff'%3EImage Error%3C/text%3E%3C/svg%3E";
           };
         }
         obs.unobserve(img);
@@ -355,8 +365,8 @@ function applyFilters() {
   var selectedCats = Array.from(categoryFilter.querySelectorAll('input:checked')).map(function(cb) { return cb.value; });
   
   var filtered = masterProducts.filter(function(p) {
-    var isVariant = !!getValue(p, "variant_of");
-    var isParent = !!getValue(p, "variants");
+    var isVariant = !!getValue(p, "variant_of") || !!p._parent_id;
+    var isParent = !!getValue(p, "variants") || (p.num_variations && p.num_variations > 0);
     
     if (variant === 'parents' && !isParent) return false;
     if (variant === 'variants' && !isVariant) return false;
@@ -369,7 +379,6 @@ function applyFilters() {
     var productCats = (getValue(p, "categories") || "Uncategorized").split(',').map(function(c) { return c.trim(); });
     if (selectedCats.length > 0 && !selectedCats.some(function(sc) { return productCats.includes(sc); })) return false;
 
-    // FIXED: Changed 'product' to 'p'
     var label = getValue(p, "label").toLowerCase();
     var name = getValue(p, "name").toLowerCase();
     var sku = getValue(p, "sku").toLowerCase();
@@ -406,70 +415,77 @@ function showProductDetail(product) {
   var leftCol = document.createElement("div");
   leftCol.className = "col-md-6";
 
-  // Collect all possible image fields
-  var imageFieldKeys = Object.keys(product).filter(function(k) {
-    return k.toLowerCase().includes('image') || k.toLowerCase().includes('thumbnail') || k.toLowerCase().includes('photo') || k.toLowerCase().includes('asset');
-  });
-
-  imageFieldKeys.forEach(function(field) {
-    var val = getValue(product, field);
-    if (!val) return;
-    var imgs = val.split(',').map(function(s) { return s.trim(); }).filter(Boolean);
-    if (!imgs.length) return;
-
+  // Show main image
+  var mainImg = getFirstImage(product);
+  if (mainImg) {
     var h6 = document.createElement("h6");
-    h6.textContent = field.charAt(0).toUpperCase() + field.slice(1).replace(/_/g, " ");
+    h6.textContent = "Product Image";
     leftCol.appendChild(h6);
     
-    imgs.forEach(function(imgUrl) {
-      var a = document.createElement("a");
-      a.href = optimizeImage(imgUrl, 'full').replace('w=800&h=800', 'w=1200&h=1200');
-      a.target = "_blank";
-      
-      var im = document.createElement("img");
-      im.src = optimizeImage(imgUrl, 'modal-thumb');
-      im.style.cssText = "height:100px; width:100px; object-fit:cover; margin:4px; border-radius:6px;";
-      im.onerror = function() {
-        this.src = "https://via.placeholder.com/100/CCCCCC/666666?text=Error";
-      };
-      a.appendChild(im);
-      leftCol.appendChild(a);
-    });
-  });
+    var a = document.createElement("a");
+    a.href = mainImg;
+    a.target = "_blank";
+    
+    var im = document.createElement("img");
+    im.src = optimizeImage(mainImg, 'modal-thumb');
+    im.style.cssText = "max-width:300px; max-height:300px; object-fit:cover; margin:4px; border-radius:6px;";
+    im.onerror = function() {
+      this.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Crect width='300' height='300' fill='%23ddd'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='monospace' font-size='16' fill='%23999'%3EImage Error%3C/text%3E%3C/svg%3E";
+    };
+    a.appendChild(im);
+    leftCol.appendChild(a);
+  }
 
   var rightCol = document.createElement("div");
   rightCol.className = "col-md-6";
   var table = document.createElement("table");
   table.className = "table table-sm table-bordered";
 
-  var urlRegex = /^(https?:\/\/[^\s]+)$/;
+  // Show all direct properties
   Object.keys(product).forEach(function(k) {
+    if (k === 'attributes' || k === 'thumbnail') return; // Skip these for now
+    
     var isPriceField = k.toLowerCase().includes("price");
     if (isPriceField && !canViewPrices) return;
 
     var v = product[k];
-    if (!v || !String(v).trim() || imageFieldKeys.indexOf(k) !== -1) return;
+    if (v == null || v === "") return;
     
     var tr = table.insertRow();
     tr.insertCell().textContent = k.charAt(0).toUpperCase() + k.slice(1).replace(/_/g, " ");
     var td = tr.insertCell();
-    
-    if (urlRegex.test(v)) {
-      td.innerHTML = '<a href="' + escapeHtml(v) + '" target="_blank" rel="noopener">' + escapeHtml(v) + '</a>';
-    } else {
-      td.textContent = v;
-    }
+    td.textContent = String(v);
   });
+
+  // Show all attributes from attributes array
+  if (Array.isArray(product.attributes)) {
+    product.attributes.forEach(function(attr) {
+      if (!attr || !attr.name) return;
+      
+      var isPriceField = attr.name.toLowerCase().includes("price");
+      if (isPriceField && !canViewPrices) return;
+      
+      var tr = table.insertRow();
+      tr.insertCell().textContent = attr.name;
+      var td = tr.insertCell();
+      
+      if (attr.value != null && attr.value !== "") {
+        td.textContent = String(attr.value);
+      } else {
+        td.textContent = "-";
+      }
+    });
+  }
 
   rightCol.appendChild(table);
 
-  var sku = getValue(product, "sku"), productId = getValue(product, "product_id"), plytixLink = null;
-  if (productId) plytixLink = "https://pim.plytix.com/products/panel/" + encodeURIComponent(productId) + "/detail/attributes";
-  else if (sku) plytixLink = "https://pim.plytix.com/products/" + encodeURIComponent(sku);
-
-  if (plytixLink) {
+  // Create correct Plytix edit link
+  var productId = product.id;
+  var sku = getValue(product, "sku");
+  
+  if (productId) {
     var plytixBtn = document.createElement("a");
-    plytixBtn.href = plytixLink;
+    plytixBtn.href = "https://pim.plytix.com/products/" + encodeURIComponent(productId);
     plytixBtn.target = "_blank";
     plytixBtn.rel = "noopener noreferrer";
     plytixBtn.className = "btn btn-outline-primary w-100 mt-3";
@@ -484,10 +500,10 @@ function showProductDetail(product) {
 
 /* --------------------- UI wiring --------------------- */
 function init() {
-  document.getElementById("searchBox").addEventListener("input", applyFilters);
-  document.getElementById("statusFilter").addEventListener("input", applyFilters);
-  document.getElementById("variantFilter").addEventListener("input", applyFilters);
-  document.getElementById("sortFilter").addEventListener("input", applyFilters);
+  searchBox.addEventListener("input", applyFilters);
+  statusFilter.addEventListener("input", applyFilters);
+  variantFilter.addEventListener("input", applyFilters);
+  sortFilter.addEventListener("input", applyFilters);
   
   categoryFilter.addEventListener("click", function(e) {
     if (e.target.classList.contains('category-checkbox')) {
