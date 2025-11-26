@@ -217,7 +217,20 @@ if (!matchesStatus) return false;
     img.style.objectFit = "cover";
     img.style.backgroundColor = "#f8f9fa";
     img.loading = "lazy";
-    img.src = imageUrl;
+    img.decoding = "async";
+    
+    // Use thumbnail URL if available for faster loading
+    let thumbUrl = imageUrl;
+    if (product.thumbnail && product.thumbnail.thumbnail) {
+      thumbUrl = product.thumbnail.thumbnail;
+    } else if (Array.isArray(product.assets) && product.assets[0] && product.assets[0].thumbnail) {
+      thumbUrl = product.assets[0].thumbnail;
+    } else if (product.attributes && Array.isArray(product.attributes.images) && 
+               product.attributes.images[0] && product.attributes.images[0].thumbnail) {
+      thumbUrl = product.attributes.images[0].thumbnail;
+    }
+    
+    img.src = thumbUrl;
     img.alt = getValue(product, "label") || product.sku;
     
     img.onerror = function() {
@@ -408,104 +421,168 @@ if (!matchesStatus) return false;
   }
 
 
+
+
+
+
+
+function formatValueForDisplay(value) {
+  if (value === null || value === undefined || value === "") {
+    return '<span class="text-muted">-</span>';
+  }
+  
+  if (typeof value === 'boolean') {
+    return value ? 'TRUE' : 'FALSE';
+  }
+  
+  if (Array.isArray(value)) {
+    if (value.length === 0) return '<span class="text-muted">-</span>';
+    
+    // Handle array of objects with names (categories)
+    if (value[0] && typeof value[0] === 'object' && value[0].name) {
+      return value.map(function(item) { return item.name; }).join(', ');
+    }
+    
+    // Handle array of primitives
+    return value.join(', ');
+  }
+  
+  if (typeof value === 'object') {
+    // Handle user audit objects
+    if (value.user_email) {
+      return value.user_email;
+    }
+    
+    // Handle objects with name
+    if (value.name) {
+      return value.name;
+    }
+    
+    // Generic object - show as JSON
+    return '<pre class="mb-0 small" style="max-height:100px;overflow:auto;">' + JSON.stringify(value, null, 2) + '</pre>';
+  }
+  
+  // URLs - show full URL as clickable link
+  if (typeof value === 'string' && (value.startsWith('http://') || value.startsWith('https://'))) {
+    return '<a href="' + value + '" target="_blank" class="text-break">' + value + '</a>';
+  }
+  
+  // HTML content - show as-is but escape dangerous tags
+  if (typeof value === 'string' && value.includes('<') && value.includes('>')) {
+    // Check if it looks like HTML
+    if (value.match(/<[a-z][\s\S]*>/i)) {
+      return '<code class="text-break">' + value.replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</code>';
+    }
+  }
+  
+  return '<span class="text-break">' + String(value) + '</span>';
+}
+
+
+
+
+
+
   
   
- function showProductDetail(product) {
+function showProductDetail(product) {
   const modalTitle = document.getElementById("modalTitle");
   const modalBody = document.getElementById("modalBody");
   
   modalTitle.textContent = getValue(product, "label") || product.sku || "Product Details";
   modalBody.innerHTML = "";
 
-  // Left column - All Images
+  // Left column - Images organized by field
   const leftCol = document.createElement("div");
   leftCol.className = "col-md-4";
   
-  const imageCard = document.createElement("div");
-  imageCard.className = "card mb-3";
-  imageCard.innerHTML = '<div class="card-header">Product Images</div>';
-  
-  const imageBody = document.createElement("div");
-  imageBody.className = "card-body";
-  
-  // Collect all image URLs
-  const allImages = [];
-  
-  // Add main thumbnail
+  // Thumbnail section
   if (product.thumbnail && product.thumbnail.thumbnail) {
-    allImages.push({
-      thumb: product.thumbnail.thumbnail,
-      full: product.thumbnail.url,
-      label: "Main Thumbnail"
-    });
+    const thumbCard = document.createElement("div");
+    thumbCard.className = "card mb-3";
+    thumbCard.innerHTML = '<div class="card-header"><strong>Thumbnail</strong></div>';
+    
+    const thumbBody = document.createElement("div");
+    thumbBody.className = "card-body p-2";
+    
+    const thumbImg = document.createElement("img");
+    thumbImg.src = product.thumbnail.thumbnail;
+    thumbImg.className = "img-fluid rounded";
+    thumbImg.style.cursor = "pointer";
+    thumbImg.loading = "lazy";
+    thumbImg.onclick = function() { window.open(product.thumbnail.url, '_blank'); };
+    
+    thumbBody.appendChild(thumbImg);
+    thumbCard.appendChild(thumbBody);
+    leftCol.appendChild(thumbCard);
   }
   
-  // Add assets
-  if (Array.isArray(product.assets)) {
-    product.assets.forEach(function(asset, index) {
-      if (asset.thumbnail && asset.url) {
-        allImages.push({
-          thumb: asset.thumbnail,
-          full: asset.url,
-          label: "Asset " + (index + 1)
+  // Find all image-type attributes
+  if (product.attributes && typeof product.attributes === 'object') {
+    Object.keys(product.attributes).forEach(function(attrKey) {
+      const attrValue = product.attributes[attrKey];
+      
+      // Check if this attribute contains images (array of objects with url property)
+      if (Array.isArray(attrValue) && attrValue.length > 0 && attrValue[0] && attrValue[0].url) {
+        const imgCard = document.createElement("div");
+        imgCard.className = "card mb-3";
+        
+        const fieldLabel = capitalizeWords(attrKey.replace(/_/g, ' '));
+        imgCard.innerHTML = '<div class="card-header"><strong>' + fieldLabel + '</strong></div>';
+        
+        const imgBody = document.createElement("div");
+        imgBody.className = "card-body p-2";
+        
+        attrValue.forEach(function(img) {
+          if (img.thumbnail && img.url) {
+            const imgElement = document.createElement("img");
+            imgElement.src = img.thumbnail;
+            imgElement.className = "img-fluid rounded mb-2";
+            imgElement.style.cursor = "pointer";
+            imgElement.loading = "lazy";
+            imgElement.onclick = function() { window.open(img.url, '_blank'); };
+            imgBody.appendChild(imgElement);
+          }
         });
+        
+        imgCard.appendChild(imgBody);
+        leftCol.appendChild(imgCard);
       }
     });
   }
   
-  // Add attributes.images
-  if (product.attributes && Array.isArray(product.attributes.images)) {
-    product.attributes.images.forEach(function(img, index) {
-      // Skip if already in allImages
-      const exists = allImages.some(function(existing) {
-        return existing.full === img.url;
+  // Assets section (only if not already shown in attributes)
+  if (Array.isArray(product.assets) && product.assets.length > 0) {
+    // Check if we already displayed these as attribute images
+    const alreadyShown = product.attributes && product.attributes.images && 
+      Array.isArray(product.attributes.images) && product.attributes.images.length > 0;
+    
+    if (!alreadyShown) {
+      const assetCard = document.createElement("div");
+      assetCard.className = "card mb-3";
+      assetCard.innerHTML = '<div class="card-header"><strong>Assets</strong></div>';
+      
+      const assetBody = document.createElement("div");
+      assetBody.className = "card-body p-2";
+      
+      product.assets.forEach(function(asset) {
+        if (asset.thumbnail && asset.url) {
+          const assetImg = document.createElement("img");
+          assetImg.src = asset.thumbnail;
+          assetImg.className = "img-fluid rounded mb-2";
+          assetImg.style.cursor = "pointer";
+          assetImg.loading = "lazy";
+          assetImg.onclick = function() { window.open(asset.url, '_blank'); };
+          assetBody.appendChild(assetImg);
+        }
       });
-      if (!exists && img.thumbnail && img.url) {
-        allImages.push({
-          thumb: img.thumbnail,
-          full: img.url,
-          label: "Image " + (index + 1)
-        });
-      }
-    });
+      
+      assetCard.appendChild(assetBody);
+      leftCol.appendChild(assetCard);
+    }
   }
-  
-  if (allImages.length === 0) {
-    imageBody.innerHTML = '<p class="text-muted text-center">No images available</p>';
-  } else {
-    // Display thumbnails in a grid
-    allImages.forEach(function(img) {
-      const imgContainer = document.createElement("div");
-      imgContainer.className = "mb-3";
-      
-      const imgElement = document.createElement("img");
-      imgElement.src = img.thumb; // Use thumbnail for fast loading
-      imgElement.className = "img-fluid rounded shadow-sm";
-      imgElement.style.cursor = "pointer";
-      imgElement.style.width = "100%";
-      imgElement.alt = img.label;
-      imgElement.title = "Click to view full size";
-      
-      // Click to open full size in new tab
-      imgElement.onclick = function() {
-        window.open(img.full, '_blank');
-      };
-      
-      imgContainer.appendChild(imgElement);
-      
-      const caption = document.createElement("small");
-      caption.className = "text-muted d-block text-center mt-1";
-      caption.textContent = img.label;
-      imgContainer.appendChild(caption);
-      
-      imageBody.appendChild(imgContainer);
-    });
-  }
-  
-  imageCard.appendChild(imageBody);
-  leftCol.appendChild(imageCard);
 
-  // Right column - Details (excluding image fields)
+  // Right column - All other attributes (excluding images)
   const rightCol = document.createElement("div");
   rightCol.className = "col-md-8";
   
@@ -514,39 +591,48 @@ if (!matchesStatus) return false;
   
   const tbody = document.createElement("tbody");
   
-  const allKeys = Object.keys(product).sort();
+  // Collect all non-image fields
+  const displayFields = [];
   
-  // Add attributes as separate rows
+  // System fields
+  Object.keys(product).forEach(function(key) {
+    if (key === 'attributes' || key === 'thumbnail' || key === 'assets') return;
+    
+    displayFields.push({
+      label: capitalizeWords(key.replace(/_/g, ' ')),
+      value: product[key],
+      key: key
+    });
+  });
+  
+  // Attribute fields (exclude image arrays)
   if (product.attributes && typeof product.attributes === 'object') {
-    const attrKeys = Object.keys(product.attributes).sort();
-    attrKeys.forEach(function(key) {
-      allKeys.push('attributes.' + key);
+    Object.keys(product.attributes).forEach(function(attrKey) {
+      const attrValue = product.attributes[attrKey];
+      
+      // Skip if it's an image array (already shown on left)
+      if (Array.isArray(attrValue) && attrValue.length > 0 && attrValue[0] && attrValue[0].url) {
+        return;
+      }
+      
+      displayFields.push({
+        label: capitalizeWords(attrKey.replace(/_/g, ' ')),
+        value: attrValue,
+        key: attrKey
+      });
     });
   }
   
-  // Image-related fields to skip (shown on left)
-  const imageFields = ['thumbnail', 'assets', 'attributes.images'];
+  // Sort fields alphabetically
+  displayFields.sort(function(a, b) {
+    return a.label.localeCompare(b.label);
+  });
   
-  allKeys.forEach(function(key) {
-    if (key === 'attributes') return; // Skip, we handle attributes separately
-    if (imageFields.includes(key)) return; // Skip image fields
-    
-    let displayKey = key;
-    let value;
-    
-    if (key.startsWith('attributes.')) {
-      const attrKey = key.substring(11);
-      if (attrKey === 'images') return; // Skip attributes.images
-      displayKey = capitalizeWords(attrKey.replace(/_/g, ' '));
-      value = product.attributes[attrKey];
-    } else {
-      displayKey = capitalizeWords(key.replace(/_/g, ' '));
-      value = product[key];
-    }
-    
+  // Render fields
+  displayFields.forEach(function(field) {
     // Skip price fields for non-authorized users
     if (!USERS_WITH_PRICE_ACCESS.includes(currentUser)) {
-      const keyLower = key.toLowerCase();
+      const keyLower = field.key.toLowerCase();
       if (keyLower.includes('price') || keyLower.includes('cost') || keyLower.includes('msrp')) {
         return;
       }
@@ -555,10 +641,10 @@ if (!matchesStatus) return false;
     const tr = document.createElement("tr");
     const th = document.createElement("th");
     th.style.width = "30%";
-    th.textContent = displayKey;
+    th.textContent = field.label;
     
     const td = document.createElement("td");
-    td.innerHTML = formatValue(value);
+    td.innerHTML = formatValueForDisplay(field.value);
     
     tr.appendChild(th);
     tr.appendChild(td);
