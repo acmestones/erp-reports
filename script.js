@@ -1,7 +1,3 @@
-/**
- * script.js — v17 FIXED - Proper Plytix data handling
- */
-
 (function() {
   "use strict";
 
