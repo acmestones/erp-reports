@@ -59,6 +59,11 @@ function cacheProduct($product, $cacheDir) {
     file_put_contents($cacheFile, json_encode($product, JSON_PRETTY_PRINT));
 }
 
+
+
+
+
+
 // Function to fetch product from API
 function fetchProductFromAPI($productId, $accessToken) {
     $ch = curl_init();
@@ -93,6 +98,13 @@ function fetchProductFromAPI($productId, $accessToken) {
 header('Content-Type: application/json');
 header('Cache-Control: no-cache, must-revalidate');
 
+
+
+
+
+
+
+
 // ACTION: Get all product IDs with modification dates
 if ($action === 'get_ids') {
     $accessToken = getAuthToken($apiKey, $apiPassword);
@@ -105,10 +117,15 @@ if ($action === 'get_ids') {
     error_log("Fetching all product IDs...");
     
     $allProductIds = [];
+    $seenIds = []; // Track IDs to detect duplicates
     $page = 1;
-    $limit = 100; // Get 100 IDs per page (fast, no full data)
+    $limit = 25; // Plytix API max limit per request
+    $maxPages = 200; // Safety limit (25 * 200 = 5000 products max)
+    $duplicateCount = 0;
     
-    while (true) {
+    while ($page <= $maxPages) {
+        error_log("Fetching page $page...");
+        
         $postData = [
             "limit" => $limit,
             "page" => $page,
@@ -131,42 +148,66 @@ if ($action === 'get_ids') {
         curl_close($ch);
         
         if ($httpcode != 200) {
-            error_log("Failed to fetch product IDs on page $page");
+            error_log("Failed to fetch product IDs on page $page (HTTP $httpcode)");
             break;
         }
         
         $data = json_decode($response, true);
         
         if (!isset($data['data']) || count($data['data']) === 0) {
+            error_log("No data on page $page - ending");
             break;
         }
         
+        $newProductsThisPage = 0;
+        
         foreach ($data['data'] as $product) {
+            $productId = $product['id'];
+            
+            // Check for duplicates (pagination bug in Plytix)
+            if (isset($seenIds[$productId])) {
+                $duplicateCount++;
+                continue; // Skip duplicate
+            }
+            
+            $seenIds[$productId] = true;
             $allProductIds[] = [
-                'id' => $product['id'],
+                'id' => $productId,
                 'modified' => $product['modified'] ?? null
             ];
+            $newProductsThisPage++;
         }
         
-        error_log("Page $page: " . count($data['data']) . " IDs (Total: " . count($allProductIds) . ")");
+        error_log("Page $page: " . count($data['data']) . " returned, $newProductsThisPage new (Total unique: " . count($allProductIds) . ", Duplicates: $duplicateCount)");
         
-        if (count($data['data']) < $limit) {
+        // If we got fewer than the limit, or no new products, we're done
+        if (count($data['data']) < $limit || $newProductsThisPage === 0) {
+            error_log("Last page detected");
             break;
         }
         
         $page++;
-        usleep(100000); // 100ms delay between pages
+        usleep(200000); // 200ms delay between pages
     }
     
-    error_log("Total product IDs fetched: " . count($allProductIds));
+    error_log("Total unique product IDs fetched: " . count($allProductIds) . " (Duplicates skipped: $duplicateCount)");
     
     echo json_encode([
         "success" => true,
         "total" => count($allProductIds),
-        "products" => $allProductIds
+        "products" => $allProductIds,
+        "duplicates_skipped" => $duplicateCount
     ]);
     exit;
 }
+
+
+
+
+
+
+
+
 
 // ACTION: Fetch batch of products
 if ($action === 'fetch_batch') {
