@@ -1,5 +1,7 @@
 /**
- * script.js — v16 FIXED - Proper Plytix data handling
+ * script.js — v10 with Enhanced Variant Filter
+ * - Added "Variants & Singles" option to the product type filter.
+ * - Retains all previous features.
  */
 
 // --- CONFIGURATION ---
@@ -8,7 +10,7 @@ var USERS_WITH_PRICE_ACCESS = [
   "designacmestones@gmail.com",
   "satishguptajaipur@gmail.com"
 ];
-var PLYTIX_API_ENDPOINT = "fetch_plytix_data.php";
+var PLYTIX_API_ENDPOINT = "fetch_plytix_data.php"; // PHP endpoint that fetches from Plytix
 // --- END CONFIGURATION ---
 
 var grid = document.getElementById("productGrid");
@@ -32,107 +34,28 @@ var canViewPrices = false;
 /* --------------------- Helpers --------------------- */
 function getValue(row, key) {
   if (!row || !key) return "";
-  
-  // Direct key match (case-insensitive)
-  var foundKey = Object.keys(row).find(function(k) { 
-    return k.toLowerCase() === key.toLowerCase(); 
-  });
-  if (foundKey && row[foundKey] != null && row[foundKey] !== "") {
-    var val = row[foundKey];
-    // Handle arrays (like images)
-    if (Array.isArray(val)) {
-      return val.map(function(v) {
-        if (typeof v === 'object' && v.url) return v.url;
-        return String(v);
-      }).filter(Boolean).join(', ');
-    }
-    return String(val).trim();
-  }
+  var foundKey = Object.keys(row).find(k => k.toLowerCase() === key.toLowerCase());
+  if (foundKey) return String(row[foundKey] || "").trim();
 
-  // Check in attributes object (Plytix structure: attributes is an OBJECT, not array)
-  if (row.attributes && typeof row.attributes === 'object' && !Array.isArray(row.attributes)) {
-    var attrKey = Object.keys(row.attributes).find(function(k) {
-      return k.toLowerCase() === key.toLowerCase();
-    });
-    if (attrKey && row.attributes[attrKey] != null && row.attributes[attrKey] !== "") {
-      var attrVal = row.attributes[attrKey];
-      // Handle arrays
-      if (Array.isArray(attrVal)) {
-        return attrVal.map(function(v) {
-          if (typeof v === 'object' && v.url) return v.url;
-          return String(v);
-        }).filter(Boolean).join(', ');
-      }
-      return String(attrVal).trim();
-    }
-  }
-
-  // ALSO check if attributes is an array (different API responses)
-  if (Array.isArray(row.attributes)) {
-    for (var i = 0; i < row.attributes.length; i++) {
-      var attr = row.attributes[i];
-      if (attr && attr.name && attr.name.toLowerCase() === key.toLowerCase()) {
-        if (attr.value != null && attr.value !== "") {
-          return String(attr.value).trim();
-        }
-      }
-    }
+  if (row.attributes && typeof row.attributes === 'object') {
+    var foundAttrKey = Object.keys(row.attributes).find(k => k.toLowerCase() === key.toLowerCase());
+    if (foundAttrKey) return String(row.attributes[foundAttrKey] || "").trim();
   }
 
   return "";
 }
 
+function getImageUrls(imgField) {
+  if (!imgField) return "";
 
-
-
-
-
-
-
-
-function getFirstImage(product) {
-  // Check for thumbnail_url added by PHP
-  if (product.thumbnail_url) {
-    return product.thumbnail_url;
+  if (Array.isArray(imgField)) {
+    return imgField.map(img => (typeof img === 'object' ? img.url || "" : img)).filter(Boolean).join(", ");
   }
-  
-  // Check for asset_urls array added by PHP
-  if (Array.isArray(product.asset_urls) && product.asset_urls.length > 0) {
-    return product.asset_urls[0];
+  if (typeof imgField === 'object') {
+    return imgField.url || "";
   }
-  
-  // Fallback: check for direct image URLs in attributes
-  var imageFields = [
-    "product_images",
-    "application_images", 
-    "production_images",
-    "similar_images"
-  ];
-  
-  for (var i = 0; i < imageFields.length; i++) {
-    var fieldValue = getValue(product, imageFields[i]);
-    if (fieldValue && fieldValue !== "") {
-      var urls = fieldValue.split(',').map(function(u) { return u.trim(); });
-      for (var j = 0; j < urls.length; j++) {
-        var url = urls[j];
-        if (url && (url.startsWith('http://') || url.startsWith('https://'))) {
-          return url;
-        }
-      }
-    }
-  }
-  
-  // Return placeholder
-  return "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Crect width='400' height='400' fill='%23ddd'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='monospace' font-size='20' fill='%23999'%3ENo Image%3C/text%3E%3C/svg%3E";
+  return imgField;
 }
-
-
-
-
-
-
-
-
 
 function getPrice(product, priceType) {
   var priceStr = getValue(product, priceType);
@@ -148,13 +71,11 @@ function escapeHtml(str) {
 }
 
 function optimizeImage(url, size) {
-  if (!url || url.startsWith("data:")) return url;
-  
+  if (!url || url.indexOf("via.placeholder.com") !== -1) return url;
   var params = "fit=cover&output=webp";
   if (size === 'thumb') params += "&w=50&h=50&q=50";
   else if (size === 'modal-thumb') params += "&w=150&h=150&q=75";
   else params += "&w=800&h=800&q=80";
-  
   return "https://wsrv.nl/?url=" + encodeURIComponent(url) + "&" + params;
 }
 
@@ -164,6 +85,11 @@ function checkPermissions() {
   canViewPrices = USERS_WITH_PRICE_ACCESS.includes(currentUser);
 }
 
+function logout() {
+  try { localStorage.removeItem("user"); } catch (e) {}
+  window.location.replace("login.html");
+}
+
 /* --------------------- Load products --------------------- */
 function setStatus(text) {
   if (statusBar) statusBar.textContent = text;
@@ -171,6 +97,8 @@ function setStatus(text) {
 
 function loadProducts() {
   console.log("=== LOADING PRODUCTS ===");
+  console.log("Endpoint defined?", typeof PLYTIX_API_ENDPOINT !== 'undefined');
+  console.log("Endpoint value:", PLYTIX_API_ENDPOINT);
   
   checkPermissions();
   var user = (localStorage && localStorage.getItem("user")) || "unknown";
@@ -182,90 +110,28 @@ function loadProducts() {
     sortFilter.innerHTML += '<option value="price-desc">Sort by Price (High-Low)</option>';
   }
 
-  var forceRefresh = localStorage.getItem('forceRefresh') === 'true';
-  if (forceRefresh) {
-    localStorage.removeItem('forceRefresh');
-  }
-  
-  var apiUrl = PLYTIX_API_ENDPOINT + "?t=" + Date.now();
-  if (forceRefresh) {
-    apiUrl += "&force_refresh=true";
-  }
-
-  fetch(apiUrl, { 
-    cache: "no-store",
-    headers: {
-      'Cache-Control': 'no-cache',
-      'Pragma': 'no-cache'
-    }
-  })
+  fetch(PLYTIX_API_ENDPOINT + "?t=" + Date.now(), { cache: "no-store" })
     .then(function(res) { 
       console.log("=== FETCH RESPONSE ===");
       console.log("Status:", res.status);
+      console.log("URL:", res.url);
       if (!res.ok) throw new Error("HTTP " + res.status); 
       return res.json(); 
     })
     .then(function(data) {
       console.log("=== RAW DATA RECEIVED ===");
-      console.log("Data type:", Array.isArray(data) ? "Array" : typeof data);
-      console.log("Length:", Array.isArray(data) ? data.length : "N/A");
-      
-if (data.length > 0) {
-        console.log("=== FIRST PRODUCT ANALYSIS ===");
-        console.log("Full product object:", data[0]);
-        console.log("Product keys:", Object.keys(data[0]));
-        
-        console.log("\n=== ATTRIBUTES ANALYSIS ===");
-        console.log("Attributes type:", typeof data[0].attributes);
-        console.log("Attributes value:", data[0].attributes);
-        console.log("Is array?", Array.isArray(data[0].attributes));
-        if (data[0].attributes) {
-          console.log("Attributes keys:", Object.keys(data[0].attributes));
-        }
-        
-        console.log("\n=== FIELD VALUES ===");
-        console.log("Direct SKU:", data[0].sku);
-        console.log("Direct thumbnail:", data[0].thumbnail);
-        console.log("Direct categories:", data[0].categories);
-        
-        console.log("\n=== getValue() TESTS ===");
-        console.log("Label:", getValue(data[0], "label"));
-        console.log("SKU:", getValue(data[0], "sku"));
-        console.log("product_images:", getValue(data[0], "product_images"));
-        console.log("thumbnail:", getValue(data[0], "thumbnail"));
-      }
+      console.log("Type:", Array.isArray(data) ? "Array" : typeof data);
+      console.log("Length/Keys:", Array.isArray(data) ? data.length : Object.keys(data));
+      console.log("First item:", data[0] || data);
 
-masterProducts = Array.isArray(data) ? data : [];
-      
-      console.log("=== PRODUCTS LOADED ===");
-      console.log("Total products from API:", masterProducts.length);
-      
-      // DO NOT deduplicate - if there are dupes, it's a pagination bug in PHP
-      // Just log and show them all
-      var idMap = {};
-      var dupeCount = 0;
-      masterProducts.forEach(function(p, idx) {
-        var pid = p.id || p.sku || idx;
-        if (idMap[pid]) {
-          dupeCount++;
-          console.warn("Duplicate found at index " + idx + ":", pid);
-        }
-        idMap[pid] = true;
-      });
-      
-      if (dupeCount > 0) {
-        console.error("ERROR: Found " + dupeCount + " duplicates - pagination issue in PHP!");
-      }
-      
-      console.log("Final product count:", masterProducts.length);
-      
+      masterProducts = Array.isArray(data) ? data : [];
       populateCategoryFilter();
       applyFilters();
-      setStatus("Loaded " + masterProducts.length + " unique products");
+      setStatus("Loaded " + masterProducts.length + " products");
     })
     .catch(function(err) {
       console.error("=== FETCH ERROR ===", err);
-      if (grid) grid.innerHTML = '<div class="text-danger">❌ Failed to load data: ' + err.message + '</div>';
+      if (grid) grid.innerHTML = '<div class="text-danger">❌ Failed to load data. Check sharing settings.</div>';
       setStatus("Failed to load data");
     });
 }
@@ -309,12 +175,14 @@ function populateCategoryFilter() {
 
 /* --------------------- Card creation (DOM only) --------------------- */
 function createProductCard(product) {
-  var label = getValue(product, "label") || getValue(product, "name") || getValue(product, "product_name") || getValue(product, "sku") || "Unnamed";
-  var sku = getValue(product, "sku") || getValue(product, "product_code") || "";
-  var retailPrice = getPrice(product, "retail_price") || getPrice(product, "price");
+  var label = getValue(product, "label") || getValue(product, "sku") || "Unnamed";
+  var sku = getValue(product, "sku") || "";
+  var retailPrice = getPrice(product, "retail_price");
   var isEnabled = getValue(product, "product_enabled").toUpperCase() !== 'FALSE';
 
-  var mainImg = getFirstImage(product);
+  var imgsRaw = getImageUrls(getValue(product, "thumbnail")) || getImageUrls(getValue(product, "product_images")) || "";
+  var mainImg = imgsRaw.split(",")[0].trim() || "https://via.placeholder.com/800";
+
   var thumbSrc = optimizeImage(mainImg, 'thumb');
   var fullSrc = optimizeImage(mainImg, 'full');
 
@@ -329,7 +197,7 @@ function createProductCard(product) {
 
   var placeholder = document.createElement("div");
   placeholder.className = "image-placeholder";
-  placeholder.innerHTML = '<img class="img-thumb" src="' + escapeHtml(thumbSrc) + '" alt="thumbnail"><img class="img-full" data-src="' + escapeHtml(fullSrc) + '" alt="product">';
+  placeholder.innerHTML = '<img class="img-thumb" src="' + thumbSrc + '"><img class="img-full" data-src="' + fullSrc + '">';
 
   var body = document.createElement("div");
   body.className = "card-body";
@@ -380,11 +248,6 @@ function renderNextBatch() {
         if (src) {
           img.src = src;
           img.onload = function() { img.classList.add("loaded"); };
-          img.onerror = function() { 
-            console.warn("Failed to load image:", src);
-            // Use data URI for error state too
-            img.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Crect width='400' height='400' fill='%23f88'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='monospace' font-size='16' fill='%23fff'%3EImage Error%3C/text%3E%3C/svg%3E";
-          };
         }
         obs.unobserve(img);
       }
@@ -433,13 +296,14 @@ function applyFilters() {
   var selectedCats = Array.from(categoryFilter.querySelectorAll('input:checked')).map(function(cb) { return cb.value; });
   
   var filtered = masterProducts.filter(function(p) {
-    var isVariant = !!getValue(p, "variant_of") || !!p._parent_id;
-    var isParent = !!getValue(p, "variants") || (p.num_variations && p.num_variations > 0);
+    var isVariant = !!getValue(p, "variant_of");
+    var isParent = !!getValue(p, "variants");
     
+    // Updated Variant/Parent Filter Logic
     if (variant === 'parents' && !isParent) return false;
     if (variant === 'variants' && !isVariant) return false;
     if (variant === 'singles' && (isParent || isVariant)) return false;
-    if (variant === 'variants-and-singles' && isParent) return false;
+    if (variant === 'variants-and-singles' && isParent) return false; // NEW filter condition
 
     var isEnabled = getValue(p, "product_enabled").toUpperCase() !== 'FALSE';
     if (!((status === 'all') || (status === 'enabled' && isEnabled) || (status === 'disabled' && !isEnabled))) return false;
@@ -448,9 +312,8 @@ function applyFilters() {
     if (selectedCats.length > 0 && !selectedCats.some(function(sc) { return productCats.includes(sc); })) return false;
 
     var label = getValue(p, "label").toLowerCase();
-    var name = getValue(p, "name").toLowerCase();
     var sku = getValue(p, "sku").toLowerCase();
-    if (term && !(label.includes(term) || name.includes(term) || sku.includes(term))) return false;
+    if (term && !(label.includes(term) || sku.includes(term))) return false;
 
     return true;
   });
@@ -460,8 +323,8 @@ function applyFilters() {
     switch (sortValue) {
       case "price-asc": return getPrice(a, "retail_price") - getPrice(b, "retail_price");
       case "price-desc": return getPrice(b, "retail_price") - getPrice(a, "retail_price");
-      case "label-asc": return (getValue(a, "label") || getValue(a, "name")).localeCompare(getValue(b, "label") || getValue(b, "name"));
-      case "label-desc": return (getValue(b, "label") || getValue(b, "name")).localeCompare(getValue(a, "label") || getValue(a, "name"));
+      case "label-asc": return getValue(a, "label").localeCompare(getValue(b, "label"));
+      case "label-desc": return getValue(b, "label").localeCompare(getValue(a, "label"));
       case "sku-desc": return getValue(b, "sku").localeCompare(getValue(a, "sku"), undefined, { numeric: true });
       default: return getValue(a, "sku").localeCompare(getValue(b, "sku"), undefined, { numeric: true });
     }
@@ -477,112 +340,69 @@ function showProductDetail(product) {
   var title = document.getElementById("modalTitle");
   var body = document.getElementById("modalBody");
   
-  title.textContent = getValue(product, "label") || getValue(product, "name") || getValue(product, "sku") || "Product Details";
+  title.textContent = getValue(product, "label") || getValue(product, "sku") || "Product Details";
   body.innerHTML = "";
 
   var leftCol = document.createElement("div");
   leftCol.className = "col-md-6";
 
-  // Show main image
-  var mainImg = getFirstImage(product);
-  if (mainImg) {
+  var imageFields = ["thumbnail","product_images","application_images","production_images","similar_images","assets"];
+  imageFields.forEach(function(field) {
+    var val = getValue(product, field);
+    if (!val) return;
+    var imgs = val.split(',').map(function(s) { return s.trim(); }).filter(Boolean);
+    if (!imgs.length) return;
+
     var h6 = document.createElement("h6");
-    h6.textContent = "Product Image";
+    h6.textContent = field.charAt(0).toUpperCase() + field.slice(1).replace(/_/g, " ");
     leftCol.appendChild(h6);
     
-    var a = document.createElement("a");
-    a.href = mainImg;
-    a.target = "_blank";
-    
-    var im = document.createElement("img");
-    im.src = optimizeImage(mainImg, 'modal-thumb');
-    im.style.cssText = "max-width:300px; max-height:300px; object-fit:cover; margin:4px; border-radius:6px;";
-    im.onerror = function() {
-      this.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Crect width='300' height='300' fill='%23ddd'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='monospace' font-size='16' fill='%23999'%3EImage Error%3C/text%3E%3C/svg%3E";
-    };
-    a.appendChild(im);
-    leftCol.appendChild(a);
-  }
+    imgs.forEach(function(imgUrl) {
+      var a = document.createElement("a");
+      a.href = optimizeImage(imgUrl, 'full').replace('w=800&h=800', 'w=1200&h=1200');
+      a.target = "_blank";
+      
+      var im = document.createElement("img");
+      im.src = optimizeImage(imgUrl, 'modal-thumb');
+      im.style.cssText = "height:100px; width:100px; object-fit:cover; margin:4px; border-radius:6px;";
+      a.appendChild(im);
+      leftCol.appendChild(a);
+    });
+  });
 
   var rightCol = document.createElement("div");
   rightCol.className = "col-md-6";
   var table = document.createElement("table");
   table.className = "table table-sm table-bordered";
 
-  // Show all direct properties
+  var urlRegex = /^(https?:\/\/[^\s]+)$/;
   Object.keys(product).forEach(function(k) {
-    if (k === 'attributes' || k === 'thumbnail') return; // Skip these for now
-    
     var isPriceField = k.toLowerCase().includes("price");
     if (isPriceField && !canViewPrices) return;
 
     var v = product[k];
-    if (v == null || v === "") return;
+    if (!v || !String(v).trim() || imageFields.indexOf(k) !== -1) return;
     
     var tr = table.insertRow();
     tr.insertCell().textContent = k.charAt(0).toUpperCase() + k.slice(1).replace(/_/g, " ");
     var td = tr.insertCell();
-    td.textContent = String(v);
+    
+    if (urlRegex.test(v)) {
+      td.innerHTML = '<a href="' + escapeHtml(v) + '" target="_blank" rel="noopener">' + escapeHtml(v) + '</a>';
+    } else {
+      td.textContent = v;
+    }
   });
-
-// Show attributes from attributes object
-  if (product.attributes && typeof product.attributes === 'object') {
-    var attrKeys = Object.keys(product.attributes);
-    attrKeys.forEach(function(attrName) {
-      var isPriceField = attrName.toLowerCase().includes("price");
-      if (isPriceField && !canViewPrices) return;
-      
-      var attrValue = product.attributes[attrName];
-      if (attrValue == null || attrValue === "") return;
-      
-      var tr = table.insertRow();
-      tr.insertCell().textContent = attrName.charAt(0).toUpperCase() + attrName.slice(1).replace(/_/g, " ");
-      var td = tr.insertCell();
-      
-      // Handle arrays (like multiple images)
-      if (Array.isArray(attrValue)) {
-        var displayVal = attrValue.map(function(v) {
-          if (typeof v === 'object' && v.url) return v.url;
-          return String(v);
-        }).join(', ');
-        td.textContent = displayVal;
-      } else if (typeof attrValue === 'object') {
-        td.textContent = JSON.stringify(attrValue);
-      } else {
-        td.textContent = String(attrValue);
-      }
-    });
-  }
-  
-  // ALSO handle if attributes is an array (fallback)
-  if (Array.isArray(product.attributes)) {
-    product.attributes.forEach(function(attr) {
-      if (!attr || !attr.name) return;
-      
-      var isPriceField = attr.name.toLowerCase().includes("price");
-      if (isPriceField && !canViewPrices) return;
-      
-      var tr = table.insertRow();
-      tr.insertCell().textContent = attr.name;
-      var td = tr.insertCell();
-      
-      if (attr.value != null && attr.value !== "") {
-        td.textContent = String(attr.value);
-      } else {
-        td.textContent = "-";
-      }
-    });
-  }
 
   rightCol.appendChild(table);
 
-  // Create correct Plytix edit link
-  var productId = product.id;
-  var sku = getValue(product, "sku");
-  
-  if (productId) {
+  var sku = getValue(product, "sku"), productId = getValue(product, "product_id"), plytixLink = null;
+  if (productId) plytixLink = "https://pim.plytix.com/products/panel/" + encodeURIComponent(productId) + "/detail/attributes";
+  else if (sku) plytixLink = "https://pim.plytix.com/products/" + encodeURIComponent(sku);
+
+  if (plytixLink) {
     var plytixBtn = document.createElement("a");
-    plytixBtn.href = "https://pim.plytix.com/products/" + encodeURIComponent(productId);
+    plytixBtn.href = plytixLink;
     plytixBtn.target = "_blank";
     plytixBtn.rel = "noopener noreferrer";
     plytixBtn.className = "btn btn-outline-primary w-100 mt-3";
@@ -597,10 +417,10 @@ function showProductDetail(product) {
 
 /* --------------------- UI wiring --------------------- */
 function init() {
-  searchBox.addEventListener("input", applyFilters);
-  statusFilter.addEventListener("input", applyFilters);
-  variantFilter.addEventListener("input", applyFilters);
-  sortFilter.addEventListener("input", applyFilters);
+  document.getElementById("searchBox").addEventListener("input", applyFilters);
+  document.getElementById("statusFilter").addEventListener("input", applyFilters);
+  document.getElementById("variantFilter").addEventListener("input", applyFilters);
+  document.getElementById("sortFilter").addEventListener("input", applyFilters);
   
   categoryFilter.addEventListener("click", function(e) {
     if (e.target.classList.contains('category-checkbox')) {
