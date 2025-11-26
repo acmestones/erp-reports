@@ -18,7 +18,7 @@ error_log("=== PHP EXECUTION START: " . date('Y-m-d H:i:s') . " ===");
 
 $cacheTime = 3600;
 $limit = 25;
-$maxProducts = 75; // Fetch 75 products total (3 pages worth)
+$maxProducts = 75;
 
 $currentTime = time();
 if (file_exists($cacheFile) && ($currentTime - filemtime($cacheFile) < $cacheTime)) {
@@ -63,26 +63,23 @@ $accessToken = $authData['data'][0]['access_token'];
 $callCount = 1;
 
 $allProducts = [];
-$offset = 0;
-$page = 1;
+$lastId = null; // For cursor-based pagination
 
 while (count($allProducts) < $maxProducts) {
-    error_log("--- Fetching OFFSET $offset (page equivalent $page) ---");
+    $attempt = floor(count($allProducts) / $limit) + 1;
+    error_log("--- Fetching batch $attempt (have " . count($allProducts) . " products) ---");
 
-    // Try OFFSET-based pagination instead of page
-    $postData = [
-        "limit" => $limit,
-        "offset" => $offset,
-        "relationship_data" => true  // Try to get related data
-    ];
+    // Try GET endpoint with query parameters for pagination
+    $url = "https://pim.plytix.com/api/v1/products?limit=$limit";
+    if ($lastId) {
+        $url .= "&after_id=$lastId"; // Cursor-based pagination
+    }
 
-    error_log("Request: " . json_encode($postData));
+    error_log("Request URL: $url");
 
     $ch = curl_init();
-    curl_setopt($ch, CURLOPT_URL, "https://pim.plytix.com/api/v1/products/search");
+    curl_setopt($ch, CURLOPT_URL, $url);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
-    curl_setopt($ch, CURLOPT_POST, 1);
-    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($postData));
     curl_setopt($ch, CURLOPT_HTTPHEADER, [
         'Content-Type: application/json',
         'Authorization: Bearer ' . $accessToken
@@ -102,65 +99,69 @@ while (count($allProducts) < $maxProducts) {
     $data = json_decode($response, true);
     $callCount++;
 
-    if (!isset($data['data']) || count($data['data']) === 0) {
-        error_log("No more products at offset $offset");
+    // Check different response structures
+    $products = [];
+    if (isset($data['data'])) {
+        $products = $data['data'];
+    } elseif (is_array($data)) {
+        $products = $data;
+    }
+
+    if (count($products) === 0) {
+        error_log("No more products returned");
         break;
     }
 
-    $pageCount = count($data['data']);
+    $pageCount = count($products);
     error_log("Received $pageCount products");
 
     // Log first product structure on first call
-    if ($offset === 0) {
+    if (count($allProducts) === 0) {
         error_log("=== FIRST PRODUCT STRUCTURE ===");
-        error_log(json_encode($data['data'][0], JSON_PRETTY_PRINT));
+        error_log(json_encode($products[0], JSON_PRETTY_PRINT));
     }
 
-    // Check if we're getting new products or duplicates
-    $newProducts = 0;
-    foreach ($data['data'] as $product) {
+    // Check for duplicates
+    $newCount = 0;
+    foreach ($products as $product) {
         $pid = $product['id'] ?? $product['sku'] ?? null;
-        $isDupe = false;
         
         // Check if already exists
+        $exists = false;
         foreach ($allProducts as $existing) {
             $eid = $existing['id'] ?? $existing['sku'] ?? null;
             if ($eid === $pid) {
-                $isDupe = true;
-                error_log("DUPLICATE: $pid at offset $offset");
+                $exists = true;
+                error_log("DUPLICATE: $pid");
                 break;
             }
         }
         
-        if (!$isDupe) {
+        if (!$exists) {
             $allProducts[] = $product;
-            $newProducts++;
+            $newCount++;
+            $lastId = $pid; // Update cursor
         }
     }
 
-    error_log("New products added: $newProducts");
-    error_log("Total unique products: " . count($allProducts));
+    error_log("New products: $newCount, Total: " . count($allProducts));
 
-    // If we got no new products, pagination isn't working
-    if ($newProducts === 0) {
-        error_log("ERROR: Got 0 new products - pagination not working!");
+    if ($newCount === 0) {
+        error_log("ERROR: Got 0 new products - stopping");
         break;
     }
 
-    // Stop if we got fewer products than requested
     if ($pageCount < $limit) {
-        error_log("Last batch (got $pageCount, expected $limit)");
+        error_log("Last batch (got $pageCount < $limit)");
         break;
     }
 
-    $offset += $limit;
-    $page++;
-    usleep(200000); // 200ms delay
+    usleep(200000);
 }
 
 error_log("=== FETCH COMPLETE ===");
 error_log("Total API calls: $callCount");
-error_log("Total unique products: " . count($allProducts));
+error_log("Total products: " . count($allProducts));
 
 if (count($allProducts) > 0) {
     $jsonOutput = json_encode($allProducts, JSON_PRETTY_PRINT);
