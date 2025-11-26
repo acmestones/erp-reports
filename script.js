@@ -38,10 +38,36 @@ function getValue(row, key) {
     return k.toLowerCase() === key.toLowerCase(); 
   });
   if (foundKey && row[foundKey] != null && row[foundKey] !== "") {
-    return String(row[foundKey]).trim();
+    var val = row[foundKey];
+    // Handle arrays (like images)
+    if (Array.isArray(val)) {
+      return val.map(function(v) {
+        if (typeof v === 'object' && v.url) return v.url;
+        return String(v);
+      }).filter(Boolean).join(', ');
+    }
+    return String(val).trim();
   }
 
-  // Check in attributes array - Plytix uses this structure
+  // Check in attributes object (Plytix structure: attributes is an OBJECT, not array)
+  if (row.attributes && typeof row.attributes === 'object' && !Array.isArray(row.attributes)) {
+    var attrKey = Object.keys(row.attributes).find(function(k) {
+      return k.toLowerCase() === key.toLowerCase();
+    });
+    if (attrKey && row.attributes[attrKey] != null && row.attributes[attrKey] !== "") {
+      var attrVal = row.attributes[attrKey];
+      // Handle arrays
+      if (Array.isArray(attrVal)) {
+        return attrVal.map(function(v) {
+          if (typeof v === 'object' && v.url) return v.url;
+          return String(v);
+        }).filter(Boolean).join(', ');
+      }
+      return String(attrVal).trim();
+    }
+  }
+
+  // ALSO check if attributes is an array (different API responses)
   if (Array.isArray(row.attributes)) {
     for (var i = 0; i < row.attributes.length; i++) {
       var attr = row.attributes[i];
@@ -56,40 +82,54 @@ function getValue(row, key) {
   return "";
 }
 
+
+
+
+
+
+
+
+
 function getFirstImage(product) {
-  // Plytix specific: check thumbnail first
-  if (product.thumbnail && product.thumbnail !== null && typeof product.thumbnail === 'string') {
-    return product.thumbnail;
-  }
-  
-  // Check common image field names
+  // Priority order for image fields
   var imageFields = [
+    "thumbnail",
     "product_images", 
+    "application_images",
+    "production_images",
+    "similar_images",
     "images",
+    "assets",
     "main_image",
     "primary_image",
-    "image",
-    "thumbnail_url",
-    "image_url"
+    "image"
   ];
   
   for (var i = 0; i < imageFields.length; i++) {
     var fieldValue = getValue(product, imageFields[i]);
-    if (fieldValue) {
-      // Handle comma-separated URLs
-      var urls = fieldValue.split(',');
+    if (fieldValue && fieldValue !== "") {
+      // Handle comma-separated URLs or single URL
+      var urls = fieldValue.split(',').map(function(u) { return u.trim(); });
       for (var j = 0; j < urls.length; j++) {
-        var url = urls[j].trim();
-        if (url && url.startsWith('http')) {
+        var url = urls[j];
+        if (url && (url.startsWith('http://') || url.startsWith('https://'))) {
           return url;
         }
       }
     }
   }
   
-  // Return a data URI for a gray box instead of external placeholder
+  // Return a data URI for gray box
   return "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Crect width='400' height='400' fill='%23ddd'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='monospace' font-size='20' fill='%23999'%3ENo Image%3C/text%3E%3C/svg%3E";
 }
+
+
+
+
+
+
+
+
 
 function getPrice(product, priceType) {
   var priceStr = getValue(product, priceType);
@@ -167,12 +207,16 @@ function loadProducts() {
       console.log("Data type:", Array.isArray(data) ? "Array" : typeof data);
       console.log("Length:", Array.isArray(data) ? data.length : "N/A");
       
-      if (data.length > 0) {
+if (data.length > 0) {
         console.log("First product sample:", data[0]);
         console.log("First product keys:", Object.keys(data[0]));
-        if (Array.isArray(data[0].attributes)) {
-          console.log("Attributes structure:", data[0].attributes);
-        }
+        console.log("Attributes type:", typeof data[0].attributes);
+        console.log("Attributes structure:", data[0].attributes);
+        
+        // Log specific field values for debugging
+        console.log("Label via getValue:", getValue(data[0], "label"));
+        console.log("SKU via getValue:", getValue(data[0], "sku"));
+        console.log("Images via getValue:", getValue(data[0], "product_images"));
       }
 
       masterProducts = Array.isArray(data) ? data : [];
@@ -457,7 +501,36 @@ function showProductDetail(product) {
     td.textContent = String(v);
   });
 
-  // Show all attributes from attributes array
+// Show attributes from attributes object
+  if (product.attributes && typeof product.attributes === 'object') {
+    var attrKeys = Object.keys(product.attributes);
+    attrKeys.forEach(function(attrName) {
+      var isPriceField = attrName.toLowerCase().includes("price");
+      if (isPriceField && !canViewPrices) return;
+      
+      var attrValue = product.attributes[attrName];
+      if (attrValue == null || attrValue === "") return;
+      
+      var tr = table.insertRow();
+      tr.insertCell().textContent = attrName.charAt(0).toUpperCase() + attrName.slice(1).replace(/_/g, " ");
+      var td = tr.insertCell();
+      
+      // Handle arrays (like multiple images)
+      if (Array.isArray(attrValue)) {
+        var displayVal = attrValue.map(function(v) {
+          if (typeof v === 'object' && v.url) return v.url;
+          return String(v);
+        }).join(', ');
+        td.textContent = displayVal;
+      } else if (typeof attrValue === 'object') {
+        td.textContent = JSON.stringify(attrValue);
+      } else {
+        td.textContent = String(attrValue);
+      }
+    });
+  }
+  
+  // ALSO handle if attributes is an array (fallback)
   if (Array.isArray(product.attributes)) {
     product.attributes.forEach(function(attr) {
       if (!attr || !attr.name) return;
