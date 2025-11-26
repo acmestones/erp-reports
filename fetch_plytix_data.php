@@ -114,25 +114,15 @@ if ($action === 'get_ids') {
         exit;
     }
     
-    error_log("Fetching all product IDs using ID cursor approach...");
+    error_log("=== DIAGNOSTIC: Testing Plytix pagination ===");
     
-    $allProductIds = [];
-    $limit = 25;
-    $maxIterations = 200; // Safety limit
-    $lastId = null;
-    
-    for ($i = 0; $i < $maxIterations; $i++) {
-        error_log("Iteration " . ($i + 1) . ", last ID: " . ($lastId ?? 'none'));
-        
+    // Test with page parameter
+    for ($page = 1; $page <= 3; $page++) {
         $postData = [
-            "limit" => $limit,
+            "limit" => 25,
+            "page" => $page,
             "sort" => [["field" => "id", "order" => "asc"]]
         ];
-        
-        // If we have a last ID, try to get products after it
-        if ($lastId !== null) {
-            $postData["after_id"] = $lastId;
-        }
         
         $ch = curl_init();
         curl_setopt($ch, CURLOPT_URL, "https://pim.plytix.com/api/v1/products/search");
@@ -146,59 +136,20 @@ if ($action === 'get_ids') {
         curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
         
         $response = curl_exec($ch);
-        $httpcode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         curl_close($ch);
-        
-        if ($httpcode != 200) {
-            error_log("Failed on iteration " . ($i + 1) . " (HTTP $httpcode)");
-            error_log("Response: " . substr($response, 0, 500));
-            break;
-        }
         
         $data = json_decode($response, true);
         
-        if (!isset($data['data']) || count($data['data']) === 0) {
-            error_log("No more products found");
-            break;
+        error_log("PAGE $page Full Response: " . json_encode($data, JSON_PRETTY_PRINT));
+        
+        if (isset($data['data']) && count($data['data']) > 0) {
+            error_log("PAGE $page First ID: " . $data['data'][0]['id'] . ", Last ID: " . end($data['data'])['id']);
         }
         
-        $receivedCount = count($data['data']);
-        $newLastId = null;
-        
-        foreach ($data['data'] as $product) {
-            $allProductIds[] = [
-                'id' => $product['id'],
-                'modified' => $product['modified'] ?? null
-            ];
-            $newLastId = $product['id'];
-        }
-        
-        error_log("Iteration " . ($i + 1) . ": Received $receivedCount products (Total: " . count($allProductIds) . ")");
-        
-        // If we got the same last ID, we're stuck in a loop
-        if ($lastId === $newLastId) {
-            error_log("Same last ID detected - pagination not working, stopping");
-            break;
-        }
-        
-        $lastId = $newLastId;
-        
-        // If we got fewer than limit, we're done
-        if ($receivedCount < $limit) {
-            error_log("Last batch (received $receivedCount < $limit)");
-            break;
-        }
-        
-        usleep(200000);
+        usleep(300000);
     }
     
-    error_log("Total products fetched: " . count($allProductIds));
-    
-    echo json_encode([
-        "success" => true,
-        "total" => count($allProductIds),
-        "products" => $allProductIds
-    ]);
+    echo json_encode(["diagnostic" => "Check php-error.log for full API responses"]);
     exit;
 }
 
