@@ -208,32 +208,55 @@ function loadProducts() {
       console.log("Length:", Array.isArray(data) ? data.length : "N/A");
       
 if (data.length > 0) {
-        console.log("First product sample:", data[0]);
-        console.log("First product keys:", Object.keys(data[0]));
-        console.log("Attributes type:", typeof data[0].attributes);
-        console.log("Attributes structure:", data[0].attributes);
+        console.log("=== FIRST PRODUCT ANALYSIS ===");
+        console.log("Full product object:", data[0]);
+        console.log("Product keys:", Object.keys(data[0]));
         
-        // Log specific field values for debugging
-        console.log("Label via getValue:", getValue(data[0], "label"));
-        console.log("SKU via getValue:", getValue(data[0], "sku"));
-        console.log("Images via getValue:", getValue(data[0], "product_images"));
+        console.log("\n=== ATTRIBUTES ANALYSIS ===");
+        console.log("Attributes type:", typeof data[0].attributes);
+        console.log("Attributes value:", data[0].attributes);
+        console.log("Is array?", Array.isArray(data[0].attributes));
+        if (data[0].attributes) {
+          console.log("Attributes keys:", Object.keys(data[0].attributes));
+        }
+        
+        console.log("\n=== FIELD VALUES ===");
+        console.log("Direct SKU:", data[0].sku);
+        console.log("Direct thumbnail:", data[0].thumbnail);
+        console.log("Direct categories:", data[0].categories);
+        
+        console.log("\n=== getValue() TESTS ===");
+        console.log("Label:", getValue(data[0], "label"));
+        console.log("SKU:", getValue(data[0], "sku"));
+        console.log("product_images:", getValue(data[0], "product_images"));
+        console.log("thumbnail:", getValue(data[0], "thumbnail"));
       }
 
-      masterProducts = Array.isArray(data) ? data : [];
+masterProducts = Array.isArray(data) ? data : [];
       
-      // Remove duplicates based on product ID
+      console.log("Total products loaded:", masterProducts.length);
+      
+      // Only deduplicate if we actually have duplicates
       var uniqueProducts = [];
       var seenIds = {};
+      var duplicateCount = 0;
+      
       for (var i = 0; i < masterProducts.length; i++) {
-        var pid = masterProducts[i].id || masterProducts[i].sku;
+        var pid = masterProducts[i].id || masterProducts[i].sku || ("product_" + i);
         if (!seenIds[pid]) {
           seenIds[pid] = true;
           uniqueProducts.push(masterProducts[i]);
+        } else {
+          duplicateCount++;
         }
       }
-      masterProducts = uniqueProducts;
       
-      console.log("Unique products after deduplication:", masterProducts.length);
+      if (duplicateCount > 0) {
+        console.log("Removed " + duplicateCount + " duplicates");
+        masterProducts = uniqueProducts;
+      }
+      
+      console.log("Final product count:", masterProducts.length);
       
       populateCategoryFilter();
       applyFilters();
