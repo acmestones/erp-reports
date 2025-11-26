@@ -1,7 +1,5 @@
 /**
- * script.js — v10 with Enhanced Variant Filter
- * - Added "Variants & Singles" option to the product type filter.
- * - Retains all previous features.
+ * script.js — v11 with Image Fix and Force Refresh
  */
 
 // --- CONFIGURATION ---
@@ -10,7 +8,7 @@ var USERS_WITH_PRICE_ACCESS = [
   "designacmestones@gmail.com",
   "satishguptajaipur@gmail.com"
 ];
-var PLYTIX_API_ENDPOINT = "fetch_plytix_data.php"; // PHP endpoint that fetches from Plytix
+var PLYTIX_API_ENDPOINT = "fetch_plytix_data.php";
 // --- END CONFIGURATION ---
 
 var grid = document.getElementById("productGrid");
@@ -34,12 +32,15 @@ var canViewPrices = false;
 /* --------------------- Helpers --------------------- */
 function getValue(row, key) {
   if (!row || !key) return "";
+  
+  // Direct key match
   var foundKey = Object.keys(row).find(k => k.toLowerCase() === key.toLowerCase());
-  if (foundKey) return String(row[foundKey] || "").trim();
+  if (foundKey && row[foundKey]) return String(row[foundKey] || "").trim();
 
+  // Check in attributes
   if (row.attributes && typeof row.attributes === 'object') {
     var foundAttrKey = Object.keys(row.attributes).find(k => k.toLowerCase() === key.toLowerCase());
-    if (foundAttrKey) return String(row.attributes[foundAttrKey] || "").trim();
+    if (foundAttrKey && row.attributes[foundAttrKey]) return String(row.attributes[foundAttrKey] || "").trim();
   }
 
   return "";
@@ -48,13 +49,53 @@ function getValue(row, key) {
 function getImageUrls(imgField) {
   if (!imgField) return "";
 
+  // Handle array of image objects
   if (Array.isArray(imgField)) {
-    return imgField.map(img => (typeof img === 'object' ? img.url || "" : img)).filter(Boolean).join(", ");
+    return imgField
+      .map(function(img) {
+        if (typeof img === 'object' && img !== null) {
+          return img.url || img.original_url || img.thumbnail_url || "";
+        }
+        return String(img || "");
+      })
+      .filter(Boolean)
+      .join(", ");
   }
-  if (typeof imgField === 'object') {
-    return imgField.url || "";
+  
+  // Handle single image object
+  if (typeof imgField === 'object' && imgField !== null) {
+    return imgField.url || imgField.original_url || imgField.thumbnail_url || "";
   }
-  return imgField;
+  
+  // Handle string
+  return String(imgField);
+}
+
+function getFirstImage(product) {
+  // Try multiple image field keys in priority order
+  var imageFields = [
+    "thumbnail",
+    "product_images", 
+    "images",
+    "main_image",
+    "primary_image",
+    "image"
+  ];
+  
+  for (var i = 0; i < imageFields.length; i++) {
+    var fieldValue = getValue(product, imageFields[i]);
+    if (fieldValue) {
+      var urls = getImageUrls(fieldValue);
+      if (urls) {
+        var firstUrl = urls.split(",")[0].trim();
+        if (firstUrl && firstUrl !== "" && !firstUrl.includes("placeholder")) {
+          return firstUrl;
+        }
+      }
+    }
+  }
+  
+  return "https://via.placeholder.com/800/CCCCCC/666666?text=No+Image";
 }
 
 function getPrice(product, priceType) {
@@ -72,10 +113,12 @@ function escapeHtml(str) {
 
 function optimizeImage(url, size) {
   if (!url || url.indexOf("via.placeholder.com") !== -1) return url;
+  
   var params = "fit=cover&output=webp";
   if (size === 'thumb') params += "&w=50&h=50&q=50";
   else if (size === 'modal-thumb') params += "&w=150&h=150&q=75";
   else params += "&w=800&h=800&q=80";
+  
   return "https://wsrv.nl/?url=" + encodeURIComponent(url) + "&" + params;
 }
 
@@ -86,7 +129,10 @@ function checkPermissions() {
 }
 
 function logout() {
-  try { localStorage.removeItem("user"); } catch (e) {}
+  try { 
+    localStorage.removeItem("user");
+    localStorage.removeItem("forceRefresh");
+  } catch (e) {}
   window.location.replace("login.html");
 }
 
@@ -97,8 +143,6 @@ function setStatus(text) {
 
 function loadProducts() {
   console.log("=== LOADING PRODUCTS ===");
-  console.log("Endpoint defined?", typeof PLYTIX_API_ENDPOINT !== 'undefined');
-  console.log("Endpoint value:", PLYTIX_API_ENDPOINT);
   
   checkPermissions();
   var user = (localStorage && localStorage.getItem("user")) || "unknown";
@@ -110,7 +154,24 @@ function loadProducts() {
     sortFilter.innerHTML += '<option value="price-desc">Sort by Price (High-Low)</option>';
   }
 
-  fetch(PLYTIX_API_ENDPOINT + "?t=" + Date.now(), { cache: "no-store" })
+  // Check if force refresh is requested
+  var forceRefresh = localStorage.getItem('forceRefresh') === 'true';
+  if (forceRefresh) {
+    localStorage.removeItem('forceRefresh');
+  }
+  
+  var apiUrl = PLYTIX_API_ENDPOINT + "?t=" + Date.now();
+  if (forceRefresh) {
+    apiUrl += "&force_refresh=true";
+  }
+
+  fetch(apiUrl, { 
+    cache: "no-store",
+    headers: {
+      'Cache-Control': 'no-cache',
+      'Pragma': 'no-cache'
+    }
+  })
     .then(function(res) { 
       console.log("=== FETCH RESPONSE ===");
       console.log("Status:", res.status);
@@ -121,8 +182,12 @@ function loadProducts() {
     .then(function(data) {
       console.log("=== RAW DATA RECEIVED ===");
       console.log("Type:", Array.isArray(data) ? "Array" : typeof data);
-      console.log("Length/Keys:", Array.isArray(data) ? data.length : Object.keys(data));
-      console.log("First item:", data[0] || data);
+      console.log("Length:", Array.isArray(data) ? data.length : "N/A");
+      
+      if (data.length > 0) {
+        console.log("First product sample:", data[0]);
+        console.log("Available keys in first product:", Object.keys(data[0]));
+      }
 
       masterProducts = Array.isArray(data) ? data : [];
       populateCategoryFilter();
@@ -131,7 +196,7 @@ function loadProducts() {
     })
     .catch(function(err) {
       console.error("=== FETCH ERROR ===", err);
-      if (grid) grid.innerHTML = '<div class="text-danger">❌ Failed to load data. Check sharing settings.</div>';
+      if (grid) grid.innerHTML = '<div class="text-danger">❌ Failed to load data: ' + err.message + '</div>';
       setStatus("Failed to load data");
     });
 }
@@ -175,14 +240,12 @@ function populateCategoryFilter() {
 
 /* --------------------- Card creation (DOM only) --------------------- */
 function createProductCard(product) {
-  var label = getValue(product, "label") || getValue(product, "sku") || "Unnamed";
+  var label = getValue(product, "label") || getValue(product, "name") || getValue(product, "sku") || "Unnamed";
   var sku = getValue(product, "sku") || "";
   var retailPrice = getPrice(product, "retail_price");
   var isEnabled = getValue(product, "product_enabled").toUpperCase() !== 'FALSE';
 
-  var imgsRaw = getImageUrls(getValue(product, "thumbnail")) || getImageUrls(getValue(product, "product_images")) || "";
-  var mainImg = imgsRaw.split(",")[0].trim() || "https://via.placeholder.com/800";
-
+  var mainImg = getFirstImage(product);
   var thumbSrc = optimizeImage(mainImg, 'thumb');
   var fullSrc = optimizeImage(mainImg, 'full');
 
@@ -197,7 +260,7 @@ function createProductCard(product) {
 
   var placeholder = document.createElement("div");
   placeholder.className = "image-placeholder";
-  placeholder.innerHTML = '<img class="img-thumb" src="' + thumbSrc + '"><img class="img-full" data-src="' + fullSrc + '">';
+  placeholder.innerHTML = '<img class="img-thumb" src="' + escapeHtml(thumbSrc) + '" alt="thumbnail"><img class="img-full" data-src="' + escapeHtml(fullSrc) + '" alt="product">';
 
   var body = document.createElement("div");
   body.className = "card-body";
@@ -248,6 +311,10 @@ function renderNextBatch() {
         if (src) {
           img.src = src;
           img.onload = function() { img.classList.add("loaded"); };
+          img.onerror = function() { 
+            console.warn("Failed to load image:", src);
+            img.src = "https://via.placeholder.com/800/CCCCCC/666666?text=Image+Error";
+          };
         }
         obs.unobserve(img);
       }
@@ -299,11 +366,10 @@ function applyFilters() {
     var isVariant = !!getValue(p, "variant_of");
     var isParent = !!getValue(p, "variants");
     
-    // Updated Variant/Parent Filter Logic
     if (variant === 'parents' && !isParent) return false;
     if (variant === 'variants' && !isVariant) return false;
     if (variant === 'singles' && (isParent || isVariant)) return false;
-    if (variant === 'variants-and-singles' && isParent) return false; // NEW filter condition
+    if (variant === 'variants-and-singles' && isParent) return false;
 
     var isEnabled = getValue(p, "product_enabled").toUpperCase() !== 'FALSE';
     if (!((status === 'all') || (status === 'enabled' && isEnabled) || (status === 'disabled' && !isEnabled))) return false;
@@ -311,9 +377,10 @@ function applyFilters() {
     var productCats = (getValue(p, "categories") || "Uncategorized").split(',').map(function(c) { return c.trim(); });
     if (selectedCats.length > 0 && !selectedCats.some(function(sc) { return productCats.includes(sc); })) return false;
 
-    var label = getValue(p, "label").toLowerCase();
+    var label = getValue(product, "label").toLowerCase();
+    var name = getValue(p, "name").toLowerCase();
     var sku = getValue(p, "sku").toLowerCase();
-    if (term && !(label.includes(term) || sku.includes(term))) return false;
+    if (term && !(label.includes(term) || name.includes(term) || sku.includes(term))) return false;
 
     return true;
   });
@@ -323,8 +390,8 @@ function applyFilters() {
     switch (sortValue) {
       case "price-asc": return getPrice(a, "retail_price") - getPrice(b, "retail_price");
       case "price-desc": return getPrice(b, "retail_price") - getPrice(a, "retail_price");
-      case "label-asc": return getValue(a, "label").localeCompare(getValue(b, "label"));
-      case "label-desc": return getValue(b, "label").localeCompare(getValue(a, "label"));
+      case "label-asc": return (getValue(a, "label") || getValue(a, "name")).localeCompare(getValue(b, "label") || getValue(b, "name"));
+      case "label-desc": return (getValue(b, "label") || getValue(b, "name")).localeCompare(getValue(a, "label") || getValue(a, "name"));
       case "sku-desc": return getValue(b, "sku").localeCompare(getValue(a, "sku"), undefined, { numeric: true });
       default: return getValue(a, "sku").localeCompare(getValue(b, "sku"), undefined, { numeric: true });
     }
@@ -340,14 +407,18 @@ function showProductDetail(product) {
   var title = document.getElementById("modalTitle");
   var body = document.getElementById("modalBody");
   
-  title.textContent = getValue(product, "label") || getValue(product, "sku") || "Product Details";
+  title.textContent = getValue(product, "label") || getValue(product, "name") || getValue(product, "sku") || "Product Details";
   body.innerHTML = "";
 
   var leftCol = document.createElement("div");
   leftCol.className = "col-md-6";
 
-  var imageFields = ["thumbnail","product_images","application_images","production_images","similar_images","assets"];
-  imageFields.forEach(function(field) {
+  // Collect all possible image fields
+  var imageFieldKeys = Object.keys(product).filter(function(k) {
+    return k.toLowerCase().includes('image') || k.toLowerCase().includes('thumbnail') || k.toLowerCase().includes('photo') || k.toLowerCase().includes('asset');
+  });
+
+  imageFieldKeys.forEach(function(field) {
     var val = getValue(product, field);
     if (!val) return;
     var imgs = val.split(',').map(function(s) { return s.trim(); }).filter(Boolean);
@@ -365,6 +436,9 @@ function showProductDetail(product) {
       var im = document.createElement("img");
       im.src = optimizeImage(imgUrl, 'modal-thumb');
       im.style.cssText = "height:100px; width:100px; object-fit:cover; margin:4px; border-radius:6px;";
+      im.onerror = function() {
+        this.src = "https://via.placeholder.com/100/CCCCCC/666666?text=Error";
+      };
       a.appendChild(im);
       leftCol.appendChild(a);
     });
@@ -381,7 +455,7 @@ function showProductDetail(product) {
     if (isPriceField && !canViewPrices) return;
 
     var v = product[k];
-    if (!v || !String(v).trim() || imageFields.indexOf(k) !== -1) return;
+    if (!v || !String(v).trim() || imageFieldKeys.indexOf(k) !== -1) return;
     
     var tr = table.insertRow();
     tr.insertCell().textContent = k.charAt(0).toUpperCase() + k.slice(1).replace(/_/g, " ");
