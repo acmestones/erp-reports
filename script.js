@@ -42,13 +42,19 @@
 
 
   
-  function loadProducts() {
-    const forceRefresh = localStorage.getItem('forceRefresh') === 'true';
-    localStorage.removeItem('forceRefresh');
-    
-    const url = forceRefresh ? 'fetch_plytix_data.php?force_refresh=true' : 'fetch_plytix_data.php';
-    
-    fetch(url)
+function loadProducts() {
+  // Show loading state
+  const status = document.getElementById("catalogStatus");
+  const grid = document.getElementById("productGrid");
+  status.innerHTML = '<span class="text-primary">⏳ Loading products from Plytix...</span>';
+  grid.innerHTML = '<div class="col-12 text-center py-5"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div><p class="mt-2">Loading products...</p></div>';
+  
+  const forceRefresh = localStorage.getItem('forceRefresh') === 'true';
+  localStorage.removeItem('forceRefresh');
+  
+  const url = forceRefresh ? 'fetch_plytix_data.php?force_refresh=true' : 'fetch_plytix_data.php';
+  
+  fetch(url)
       .then(function(res) { return res.json(); })
       .then(function(data) {
         allProducts = data || [];
@@ -401,111 +407,188 @@ if (!matchesStatus) return false;
     return String(value);
   }
 
-  function showProductDetail(product) {
-    const modalTitle = document.getElementById("modalTitle");
-    const modalBody = document.getElementById("modalBody");
-    
-    modalTitle.textContent = getValue(product, "label") || product.sku || "Product Details";
-    modalBody.innerHTML = "";
 
-    // Left column - Image
-    const leftCol = document.createElement("div");
-    leftCol.className = "col-md-4";
-    
-    const imageCard = document.createElement("div");
-    imageCard.className = "card mb-3";
-    imageCard.innerHTML = '<div class="card-header">Product Image</div>';
-    
-    const imageBody = document.createElement("div");
-    imageBody.className = "card-body text-center";
-    
-    const mainImg = document.createElement("img");
-    mainImg.src = getFirstImage(product);
-    mainImg.className = "img-fluid rounded";
-    mainImg.style.maxHeight = "400px";
-    mainImg.alt = getValue(product, "label");
-    
-    mainImg.onerror = function() {
-      this.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Crect width='400' height='400' fill='%23ddd'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='monospace' font-size='20' fill='%23999'%3ENo Image%3C/text%3E%3C/svg%3E";
-    };
-    
-    imageBody.appendChild(mainImg);
-    imageCard.appendChild(imageBody);
-    leftCol.appendChild(imageCard);
+  
+  
+ function showProductDetail(product) {
+  const modalTitle = document.getElementById("modalTitle");
+  const modalBody = document.getElementById("modalBody");
+  
+  modalTitle.textContent = getValue(product, "label") || product.sku || "Product Details";
+  modalBody.innerHTML = "";
 
-    // Right column - Details
-    const rightCol = document.createElement("div");
-    rightCol.className = "col-md-8";
-    
-    const table = document.createElement("table");
-    table.className = "table table-sm table-bordered";
-    
-    const tbody = document.createElement("tbody");
-    
-    const allKeys = Object.keys(product).sort();
-    
-    // Add attributes as separate rows
-    if (product.attributes && typeof product.attributes === 'object') {
-      const attrKeys = Object.keys(product.attributes).sort();
-      attrKeys.forEach(function(key) {
-        allKeys.push('attributes.' + key);
+  // Left column - All Images
+  const leftCol = document.createElement("div");
+  leftCol.className = "col-md-4";
+  
+  const imageCard = document.createElement("div");
+  imageCard.className = "card mb-3";
+  imageCard.innerHTML = '<div class="card-header">Product Images</div>';
+  
+  const imageBody = document.createElement("div");
+  imageBody.className = "card-body";
+  
+  // Collect all image URLs
+  const allImages = [];
+  
+  // Add main thumbnail
+  if (product.thumbnail && product.thumbnail.thumbnail) {
+    allImages.push({
+      thumb: product.thumbnail.thumbnail,
+      full: product.thumbnail.url,
+      label: "Main Thumbnail"
+    });
+  }
+  
+  // Add assets
+  if (Array.isArray(product.assets)) {
+    product.assets.forEach(function(asset, index) {
+      if (asset.thumbnail && asset.url) {
+        allImages.push({
+          thumb: asset.thumbnail,
+          full: asset.url,
+          label: "Asset " + (index + 1)
+        });
+      }
+    });
+  }
+  
+  // Add attributes.images
+  if (product.attributes && Array.isArray(product.attributes.images)) {
+    product.attributes.images.forEach(function(img, index) {
+      // Skip if already in allImages
+      const exists = allImages.some(function(existing) {
+        return existing.full === img.url;
       });
+      if (!exists && img.thumbnail && img.url) {
+        allImages.push({
+          thumb: img.thumbnail,
+          full: img.url,
+          label: "Image " + (index + 1)
+        });
+      }
+    });
+  }
+  
+  if (allImages.length === 0) {
+    imageBody.innerHTML = '<p class="text-muted text-center">No images available</p>';
+  } else {
+    // Display thumbnails in a grid
+    allImages.forEach(function(img) {
+      const imgContainer = document.createElement("div");
+      imgContainer.className = "mb-3";
+      
+      const imgElement = document.createElement("img");
+      imgElement.src = img.thumb; // Use thumbnail for fast loading
+      imgElement.className = "img-fluid rounded shadow-sm";
+      imgElement.style.cursor = "pointer";
+      imgElement.style.width = "100%";
+      imgElement.alt = img.label;
+      imgElement.title = "Click to view full size";
+      
+      // Click to open full size in new tab
+      imgElement.onclick = function() {
+        window.open(img.full, '_blank');
+      };
+      
+      imgContainer.appendChild(imgElement);
+      
+      const caption = document.createElement("small");
+      caption.className = "text-muted d-block text-center mt-1";
+      caption.textContent = img.label;
+      imgContainer.appendChild(caption);
+      
+      imageBody.appendChild(imgContainer);
+    });
+  }
+  
+  imageCard.appendChild(imageBody);
+  leftCol.appendChild(imageCard);
+
+  // Right column - Details (excluding image fields)
+  const rightCol = document.createElement("div");
+  rightCol.className = "col-md-8";
+  
+  const table = document.createElement("table");
+  table.className = "table table-sm table-bordered";
+  
+  const tbody = document.createElement("tbody");
+  
+  const allKeys = Object.keys(product).sort();
+  
+  // Add attributes as separate rows
+  if (product.attributes && typeof product.attributes === 'object') {
+    const attrKeys = Object.keys(product.attributes).sort();
+    attrKeys.forEach(function(key) {
+      allKeys.push('attributes.' + key);
+    });
+  }
+  
+  // Image-related fields to skip (shown on left)
+  const imageFields = ['thumbnail', 'assets', 'attributes.images'];
+  
+  allKeys.forEach(function(key) {
+    if (key === 'attributes') return; // Skip, we handle attributes separately
+    if (imageFields.includes(key)) return; // Skip image fields
+    
+    let displayKey = key;
+    let value;
+    
+    if (key.startsWith('attributes.')) {
+      const attrKey = key.substring(11);
+      if (attrKey === 'images') return; // Skip attributes.images
+      displayKey = capitalizeWords(attrKey.replace(/_/g, ' '));
+      value = product.attributes[attrKey];
+    } else {
+      displayKey = capitalizeWords(key.replace(/_/g, ' '));
+      value = product[key];
     }
     
-    allKeys.forEach(function(key) {
-      if (key === 'attributes') return; // Skip, we handle attributes separately
-      
-      let displayKey = key;
-      let value;
-      
-      if (key.startsWith('attributes.')) {
-        const attrKey = key.substring(11);
-        displayKey = capitalizeWords(attrKey.replace(/_/g, ' '));
-        value = product.attributes[attrKey];
-      } else {
-        displayKey = capitalizeWords(key.replace(/_/g, ' '));
-        value = product[key];
+    // Skip price fields for non-authorized users
+    if (!USERS_WITH_PRICE_ACCESS.includes(currentUser)) {
+      const keyLower = key.toLowerCase();
+      if (keyLower.includes('price') || keyLower.includes('cost') || keyLower.includes('msrp')) {
+        return;
       }
-      
-      // Skip price fields for non-authorized users
-      if (!USERS_WITH_PRICE_ACCESS.includes(currentUser)) {
-        const keyLower = key.toLowerCase();
-        if (keyLower.includes('price') || keyLower.includes('cost') || keyLower.includes('msrp')) {
-          return;
-        }
-      }
-      
-      const tr = document.createElement("tr");
-      const th = document.createElement("th");
-      th.style.width = "30%";
-      th.textContent = displayKey;
-      
-      const td = document.createElement("td");
-      td.innerHTML = formatValue(value);
-      
-      tr.appendChild(th);
-      tr.appendChild(td);
-      tbody.appendChild(tr);
-    });
+    }
     
-    table.appendChild(tbody);
-    rightCol.appendChild(table);
+    const tr = document.createElement("tr");
+    const th = document.createElement("th");
+    th.style.width = "30%";
+    th.textContent = displayKey;
     
-    // Edit link
-    const editLink = document.createElement("a");
-    editLink.href = "https://pim.plytix.com/product/" + product.id;
-    editLink.target = "_blank";
-    editLink.className = "btn btn-outline-primary w-100 mt-2";
-    editLink.innerHTML = '✏️ Edit in Plytix';
-    rightCol.appendChild(editLink);
+    const td = document.createElement("td");
+    td.innerHTML = formatValue(value);
     
-    modalBody.appendChild(leftCol);
-    modalBody.appendChild(rightCol);
-    
-    const modal = new bootstrap.Modal(document.getElementById("productModal"));
-    modal.show();
-  }
+    tr.appendChild(th);
+    tr.appendChild(td);
+    tbody.appendChild(tr);
+  });
+  
+  table.appendChild(tbody);
+  rightCol.appendChild(table);
+  
+  // Edit link
+  const editLink = document.createElement("a");
+  editLink.href = "https://pim.plytix.com/products/" + product.id + "/edit";
+  editLink.target = "_blank";
+  editLink.className = "btn btn-outline-primary w-100 mt-2";
+  editLink.innerHTML = '✏️ Edit in Plytix';
+  rightCol.appendChild(editLink);
+  
+  modalBody.appendChild(leftCol);
+  modalBody.appendChild(rightCol);
+  
+  const modal = new bootstrap.Modal(document.getElementById("productModal"));
+  modal.show();
+}
 
+
+
+
+
+
+  
   function capitalizeWords(str) {
     return str.replace(/\b\w/g, function(char) { return char.toUpperCase(); });
   }
