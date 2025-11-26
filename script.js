@@ -13,16 +13,35 @@
 
   init();
 
-  function init() {
-    const userObj = JSON.parse(localStorage.getItem("user") || "{}");
-    currentUser = userObj.email || "";
-    
-    const badge = document.getElementById("loggedUserBadge");
-    if (badge) badge.textContent = "Signed in as " + currentUser;
 
-    loadProducts();
+  
+ function init() {
+  let userObj;
+  const userData = localStorage.getItem("user") || "{}";
+  
+  // Handle both string and JSON object formats
+  try {
+    userObj = JSON.parse(userData);
+    // If it's already an object with email, use it
+    if (typeof userObj === 'string') {
+      // If JSON.parse returned a string, it was stored as plain string
+      currentUser = userObj;
+    } else {
+      currentUser = userObj.email || "";
+    }
+  } catch (e) {
+    // If parsing fails, treat it as plain email string
+    currentUser = userData;
   }
+  
+  const badge = document.getElementById("loggedUserBadge");
+  if (badge) badge.textContent = "Signed in as " + currentUser;
 
+  loadProducts();
+}
+
+
+  
   function loadProducts() {
     const forceRefresh = localStorage.getItem('forceRefresh') === 'true';
     localStorage.removeItem('forceRefresh');
