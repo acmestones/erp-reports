@@ -67,32 +67,13 @@ while (true) {
     error_log("--- Fetching PAGE $page ---");
 
     // CRITICAL FIX: Add sort order to make pagination work!
-    $postData = [
+$postData = [
         "limit" => $limit,
         "page" => $page,
         "sort" => [
-            ["field" => "id", "order" => "asc"]  // Sort by ID ascending
-        ],
-        "attributes" => [
-            "label",
-            "sku",
-            "retail_price",
-            "product_enabled",
-            "thumbnail",
-            "product_images",
-            "application_images",
-            "production_images",
-            "similar_images",
-            "assets",
-            "categories",
-            "variant_of",
-            "variants",
-            "product_id",
-            "gtin",
-            "status",
-            "created",
-            "last_modified"
+            ["field" => "id", "order" => "asc"]
         ]
+        // DO NOT specify attributes - let API return all attribute values
     ];
 
     error_log("Request: " . json_encode($postData));
