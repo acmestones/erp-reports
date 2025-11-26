@@ -123,14 +123,16 @@
       
       if (!matchesSearch) return false;
       
-      const status = getValue(p, "status").toLowerCase();
-      const isEnabled = getValue(p, "enable_disable_product");
-      const matchesStatus = 
-        statusFilter === "all" ||
-        (statusFilter === "enabled" && (status === "enabled" || isEnabled === true || isEnabled === "true")) ||
-        (statusFilter === "disabled" && (status === "disabled" || isEnabled === false || isEnabled === "false"));
-      
-      if (!matchesStatus) return false;
+// Get raw boolean value, not formatted string
+const status = getValue(p, "status").toLowerCase();
+const isEnabledRaw = p.enable_disable_product || (p.attributes && p.attributes.enable_disable_product);
+
+const matchesStatus = 
+  statusFilter === "all" ||
+  (statusFilter === "enabled" && (status === "enabled" || status === "draft" || isEnabledRaw === true)) ||
+  (statusFilter === "disabled" && (status === "disabled" || isEnabledRaw === false));
+
+if (!matchesStatus) return false;
       
       const numVariations = p.num_variations || 0;
       const parentId = p._parent_id || null;
