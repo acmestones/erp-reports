@@ -114,98 +114,85 @@ if ($action === 'get_ids') {
         exit;
     }
     
-    error_log("Fetching all product IDs using workaround...");
+    error_log("Fetching all product IDs using ID cursor approach...");
     
     $allProductIds = [];
-    $seenIds = [];
     $limit = 25;
+    $maxIterations = 200; // Safety limit
+    $lastId = null;
     
-    // Strategy: Use date-based filtering to get different batches
-    // Fetch products created in different time periods
-    $dateRanges = [
-        ['start' => '2020-01-01', 'end' => '2021-12-31'],
-        ['start' => '2022-01-01', 'end' => '2022-12-31'],
-        ['start' => '2023-01-01', 'end' => '2023-12-31'],
-        ['start' => '2024-01-01', 'end' => '2024-12-31'],
-        ['start' => '2025-01-01', 'end' => '2025-12-31'],
-    ];
-    
-    foreach ($dateRanges as $range) {
-        error_log("Fetching products created between {$range['start']} and {$range['end']}");
+    for ($i = 0; $i < $maxIterations; $i++) {
+        error_log("Iteration " . ($i + 1) . ", last ID: " . ($lastId ?? 'none'));
         
-        $page = 1;
-        $maxPages = 50; // 50 pages per date range
+        $postData = [
+            "limit" => $limit,
+            "sort" => [["field" => "id", "order" => "asc"]]
+        ];
         
-        while ($page <= $maxPages) {
-            $postData = [
-                "limit" => $limit,
-                "page" => $page,
-                "sort" => [["field" => "created", "order" => "asc"]],
-                "filters" => [
-                    [
-                        "field" => "created",
-                        "operator" => "gte",
-                        "value" => $range['start'] . "T00:00:00Z"
-                    ],
-                    [
-                        "field" => "created",
-                        "operator" => "lte",
-                        "value" => $range['end'] . "T23:59:59Z"
-                    ]
-                ]
-            ];
-            
-            $ch = curl_init();
-            curl_setopt($ch, CURLOPT_URL, "https://pim.plytix.com/api/v1/products/search");
-            curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
-            curl_setopt($ch, CURLOPT_POST, 1);
-            curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($postData));
-            curl_setopt($ch, CURLOPT_HTTPHEADER, [
-                'Content-Type: application/json',
-                'Authorization: Bearer ' . $accessToken
-            ]);
-            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-            
-            $response = curl_exec($ch);
-            $httpcode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-            curl_close($ch);
-            
-            if ($httpcode != 200) {
-                error_log("Failed on page $page for range {$range['start']} (HTTP $httpcode)");
-                break;
-            }
-            
-            $data = json_decode($response, true);
-            
-            if (!isset($data['data']) || count($data['data']) === 0) {
-                error_log("No more products in range {$range['start']}");
-                break;
-            }
-            
-            $newCount = 0;
-            foreach ($data['data'] as $product) {
-                if (!isset($seenIds[$product['id']])) {
-                    $seenIds[$product['id']] = true;
-                    $allProductIds[] = [
-                        'id' => $product['id'],
-                        'modified' => $product['modified'] ?? null
-                    ];
-                    $newCount++;
-                }
-            }
-            
-            error_log("Range {$range['start']}, Page $page: $newCount new products (Total: " . count($allProductIds) . ")");
-            
-            if ($newCount === 0 || count($data['data']) < $limit) {
-                break;
-            }
-            
-            $page++;
-            usleep(200000);
+        // If we have a last ID, try to get products after it
+        if ($lastId !== null) {
+            $postData["after_id"] = $lastId;
         }
+        
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL, "https://pim.plytix.com/api/v1/products/search");
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+        curl_setopt($ch, CURLOPT_POST, 1);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($postData));
+        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+            'Content-Type: application/json',
+            'Authorization: Bearer ' . $accessToken
+        ]);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        
+        $response = curl_exec($ch);
+        $httpcode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+        
+        if ($httpcode != 200) {
+            error_log("Failed on iteration " . ($i + 1) . " (HTTP $httpcode)");
+            error_log("Response: " . substr($response, 0, 500));
+            break;
+        }
+        
+        $data = json_decode($response, true);
+        
+        if (!isset($data['data']) || count($data['data']) === 0) {
+            error_log("No more products found");
+            break;
+        }
+        
+        $receivedCount = count($data['data']);
+        $newLastId = null;
+        
+        foreach ($data['data'] as $product) {
+            $allProductIds[] = [
+                'id' => $product['id'],
+                'modified' => $product['modified'] ?? null
+            ];
+            $newLastId = $product['id'];
+        }
+        
+        error_log("Iteration " . ($i + 1) . ": Received $receivedCount products (Total: " . count($allProductIds) . ")");
+        
+        // If we got the same last ID, we're stuck in a loop
+        if ($lastId === $newLastId) {
+            error_log("Same last ID detected - pagination not working, stopping");
+            break;
+        }
+        
+        $lastId = $newLastId;
+        
+        // If we got fewer than limit, we're done
+        if ($receivedCount < $limit) {
+            error_log("Last batch (received $receivedCount < $limit)");
+            break;
+        }
+        
+        usleep(200000);
     }
     
-    error_log("Total unique products fetched: " . count($allProductIds));
+    error_log("Total products fetched: " . count($allProductIds));
     
     echo json_encode([
         "success" => true,
