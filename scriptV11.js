@@ -1,5 +1,5 @@
 /**
- * script.js — v11 with Image Fix and Force Refresh
+ * script.js — v12 FIXED - Bug fixes for logout and filter
  */
 
 // --- CONFIGURATION ---
@@ -126,14 +126,6 @@ function optimizeImage(url, size) {
 function checkPermissions() {
   var currentUser = localStorage.getItem("user");
   canViewPrices = USERS_WITH_PRICE_ACCESS.includes(currentUser);
-}
-
-function logout() {
-  try { 
-    localStorage.removeItem("user");
-    localStorage.removeItem("forceRefresh");
-  } catch (e) {}
-  window.location.replace("login.html");
 }
 
 /* --------------------- Load products --------------------- */
@@ -377,7 +369,8 @@ function applyFilters() {
     var productCats = (getValue(p, "categories") || "Uncategorized").split(',').map(function(c) { return c.trim(); });
     if (selectedCats.length > 0 && !selectedCats.some(function(sc) { return productCats.includes(sc); })) return false;
 
-    var label = getValue(product, "label").toLowerCase();
+    // FIXED: Changed 'product' to 'p'
+    var label = getValue(p, "label").toLowerCase();
     var name = getValue(p, "name").toLowerCase();
     var sku = getValue(p, "sku").toLowerCase();
     if (term && !(label.includes(term) || name.includes(term) || sku.includes(term))) return false;
