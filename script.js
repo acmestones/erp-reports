@@ -88,51 +88,27 @@ function getValue(row, key) {
 
 
 
-// Function to fetch asset URL by ID
-function getAssetUrl($assetId, $accessToken) {
-    $ch = curl_init();
-    curl_setopt($ch, CURLOPT_URL, "https://pim.plytix.com/api/v1/assets/" . $assetId);
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
-    curl_setopt($ch, CURLOPT_HTTPHEADER, [
-        'Content-Type: application/json',
-        'Authorization: Bearer ' . $accessToken
-    ]);
-    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-    
-    $response = curl_exec($ch);
-    $httpcode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
-    
-    if ($httpcode == 200) {
-        $assetData = json_decode($response, true);
-        // Return the URL from the asset data
-        if (isset($assetData['url'])) {
-            return $assetData['url'];
-        } elseif (isset($assetData['data']['url'])) {
-            return $assetData['data']['url'];
-        }
-    }
-    return null;
-}
-
-
-
-
-
 
 
 function getFirstImage(product) {
-  // Check for thumbnail_url added by PHP
-  if (product.thumbnail_url) {
-    return product.thumbnail_url;
+  // Plytix returns thumbnail as object with ID: {"id": "..."}
+  // We need to construct the image URL or fetch it separately
+  
+  // Check if thumbnail exists and has an ID
+  if (product.thumbnail && typeof product.thumbnail === 'object' && product.thumbnail.id) {
+    // Plytix image URL pattern (you may need to verify this)
+    return "https://assets.plytix.com/" + product.thumbnail.id;
   }
   
-  // Check for asset_urls array added by PHP
-  if (Array.isArray(product.asset_urls) && product.asset_urls.length > 0) {
-    return product.asset_urls[0];
+  // Check assets array
+  if (Array.isArray(product.assets) && product.assets.length > 0) {
+    var firstAsset = product.assets[0];
+    if (firstAsset && firstAsset.id) {
+      return "https://assets.plytix.com/" + firstAsset.id;
+    }
   }
   
-  // Fallback: check for direct image URLs in attributes
+  // Check for direct image URLs in attributes
   var imageFields = [
     "product_images",
     "application_images", 
