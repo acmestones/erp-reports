@@ -1,5 +1,5 @@
 /**
- * script.js — v15 FIXED - Proper Plytix data handling
+ * script.js — v16 FIXED - Proper Plytix data handling
  */
 
 // --- CONFIGURATION ---
