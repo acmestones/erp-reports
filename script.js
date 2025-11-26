@@ -1,5 +1,5 @@
 /**
- * script.js — v14 FIXED - Proper Plytix data handling
+ * script.js — v15 FIXED - Proper Plytix data handling
  */
 
 // --- CONFIGURATION ---
@@ -91,24 +91,34 @@ function getValue(row, key) {
 
 
 function getFirstImage(product) {
-  // Priority order for image fields
+  // Plytix returns thumbnail as object with ID: {"id": "..."}
+  // We need to construct the image URL or fetch it separately
+  
+  // Check if thumbnail exists and has an ID
+  if (product.thumbnail && typeof product.thumbnail === 'object' && product.thumbnail.id) {
+    // Plytix image URL pattern (you may need to verify this)
+    return "https://assets.plytix.com/" + product.thumbnail.id;
+  }
+  
+  // Check assets array
+  if (Array.isArray(product.assets) && product.assets.length > 0) {
+    var firstAsset = product.assets[0];
+    if (firstAsset && firstAsset.id) {
+      return "https://assets.plytix.com/" + firstAsset.id;
+    }
+  }
+  
+  // Check for direct image URLs in attributes
   var imageFields = [
-    "thumbnail",
-    "product_images", 
-    "application_images",
+    "product_images",
+    "application_images", 
     "production_images",
-    "similar_images",
-    "images",
-    "assets",
-    "main_image",
-    "primary_image",
-    "image"
+    "similar_images"
   ];
   
   for (var i = 0; i < imageFields.length; i++) {
     var fieldValue = getValue(product, imageFields[i]);
     if (fieldValue && fieldValue !== "") {
-      // Handle comma-separated URLs or single URL
       var urls = fieldValue.split(',').map(function(u) { return u.trim(); });
       for (var j = 0; j < urls.length; j++) {
         var url = urls[j];
@@ -119,7 +129,7 @@ function getFirstImage(product) {
     }
   }
   
-  // Return a data URI for gray box
+  // Return placeholder
   return "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Crect width='400' height='400' fill='%23ddd'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='monospace' font-size='20' fill='%23999'%3ENo Image%3C/text%3E%3C/svg%3E";
 }
 
