@@ -1,9 +1,4 @@
 <?php
-// Immediately unlink cache files to force fresh fetch on every request for debug/testing
-@unlink(__DIR__ . '/plytix_cache.json');
-@unlink(__DIR__ . '/plytix_lastsync.txt');
-@unlink(__DIR__ . '/plytix_apicount.txt');
-
 // Set max execution time and memory for heavy fetches
 set_time_limit(300);
 ini_set('memory_limit', '256M');
@@ -17,21 +12,27 @@ $cacheFile = __DIR__ . '/plytix_cache.json';
 $timestampFile = __DIR__ . '/plytix_lastsync.txt';
 $callCountFile = __DIR__ . '/plytix_apicount.txt';
 
-error_log("PHP script executed at " . date('Y-m-d H:i:s'));
-error_log("Cache file path: $cacheFile");
-error_log("Timestamp file path: $timestampFile");
+// Force refresh parameter - only delete cache if explicitly requested
+if (isset($_GET['force_refresh']) && $_GET['force_refresh'] === 'true') {
+    @unlink($cacheFile);
+    @unlink($timestampFile);
+    error_log("Force refresh: Cache files deleted");
+}
 
-$cacheTime = 10;  // seconds
-$limit = 25;      // products per page
-$maxPages = 3;    // Limit to 3 pages for debugging
+error_log("PHP script executed at " . date('Y-m-d H:i:s'));
+
+$cacheTime = 3600;  // 1 hour cache (change to suit your needs)
+$limit = 25;        // products per page
+$maxPages = 3;      // Limit to 3 pages for debugging
 
 $currentTime = time();
 if (file_exists($cacheFile) && ($currentTime - filemtime($cacheFile) < $cacheTime)) {
     error_log("Serving cached data. Cache age (seconds): " . ($currentTime - filemtime($cacheFile)));
     $cacheData = file_get_contents($cacheFile);
-    $callCount = file_exists($callCountFile) ? intval(file_get_contents($callCountFile)) : 0;
     
     header('Content-Type: application/json');
+    header('Cache-Control: no-cache, must-revalidate');
+    header('Expires: 0');
     echo $cacheData;
     exit;
 }
@@ -80,14 +81,9 @@ $accessToken = $authData['data'][0]['access_token'];
 $callCount++;
 
 $lastSync = file_exists($timestampFile) ? trim(file_get_contents($timestampFile)) : null;
-if ($lastSync) {
-    error_log("Last sync timestamp: $lastSync");
-} else {
-    error_log("No last sync timestamp found. Fetching all products.");
-}
 
 $filters = [];
-if ($lastSync) {
+if ($lastSync && !isset($_GET['force_refresh'])) {
     $filters[] = [
         "key" => "modified_at",
         "operator" => ">",
@@ -101,29 +97,10 @@ $page = 1;
 while (true) {
     error_log("Fetching page $page from API...");
 
+    // FETCH ALL ATTRIBUTES - Don't specify attributes array to get everything
     $postData = [
         "limit" => $limit,
-        "page" => $page,
-        "attributes" => [
-            "label",                  // Product name
-            "sku",                    // SKU
-            "retail_price",           // Price field (adjust key name if different)
-            "product_enabled",        // Status
-            "thumbnail",              // Main image
-            "product_images",         // Additional images
-            "application_images",     // Application images
-            "production_images",      // Production images
-            "similar_images",         // Similar images
-            "assets",                 // General assets
-            "categories",             // Categories
-            "variant_of",             // Parent product (for variants)
-            "variants",               // Child variants (for parent)
-            "product_id",             // Plytix ID
-            "gtin",                   // Barcode
-            "status",                 // Publication status
-            "created",                // Created date
-            "last_modified"           // Modified date
-        ]
+        "page" => $page
     ];
     
     if (!empty($filters)) {
@@ -148,7 +125,7 @@ while (true) {
     if ($httpcode != 200) {
         error_log("API fetch failed at page $page with HTTP $httpcode");
         http_response_code(500);
-        die(json_encode(["error" => "API fetch failed", "code" => $httpcode]));
+        die(json_encode(["error" => "API fetch failed", "code" => $httpcode, "response" => $response]));
     }
 
     $data = json_decode($response, true);
@@ -172,40 +149,36 @@ while (true) {
         break;
     }
 
-    usleep(100000); // slight delay to limit request rate
+    usleep(200000); // 200ms delay between requests
 }
 
 if (count($allProducts) > 0) {
     error_log("Encoding JSON for " . count($allProducts) . " products.");
-    $jsonOutput = json_encode($allProducts);
+    $jsonOutput = json_encode($allProducts, JSON_PRETTY_PRINT);
+    
     if ($jsonOutput === false) {
         error_log("JSON encoding error: " . json_last_error_msg());
     } else {
         error_log("JSON encoding successful. Size: " . strlen($jsonOutput) . " bytes");
 
-        $cacheWrite = file_put_contents($cacheFile, $jsonOutput);
-        if ($cacheWrite === false) {
+        if (file_put_contents($cacheFile, $jsonOutput) === false) {
             error_log("Failed writing cache file: $cacheFile");
         } else {
-            error_log("Cache file written: $cacheWrite bytes");
+            error_log("Cache file written successfully");
         }
 
-        $timestampWrite = file_put_contents($timestampFile, date('c'));
-        if ($timestampWrite === false) {
+        if (file_put_contents($timestampFile, date('c')) === false) {
             error_log("Failed writing timestamp file: $timestampFile");
         } else {
             error_log("Timestamp file written");
         }
     }
-} else {
-    error_log("No products to cache");
 }
 
-if (file_put_contents($callCountFile, $callCount) === false) {
-    error_log("Failed writing API call count file: $callCountFile");
-} else {
-    error_log("API call count file written");
-}
+file_put_contents($callCountFile, $callCount);
 
 header('Content-Type: application/json');
+header('Cache-Control: no-cache, must-revalidate');
+header('Expires: 0');
 echo json_encode($allProducts);
+?>
