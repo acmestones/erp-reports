@@ -10,6 +10,15 @@
 
   <script>
     if (!localStorage.getItem("user")) window.location.replace("login.html");
+    
+    // Define logout function globally BEFORE any other scripts load
+    function logout() {
+      try { 
+        localStorage.removeItem("user");
+        localStorage.removeItem("forceRefresh");
+      } catch (e) {}
+      window.location.replace("login.html");
+    }
   </script>
 </head>
 <body class="bg-light">
@@ -20,7 +29,7 @@
     <div>
       <span id="loggedUserBadge" class="me-2 text-muted small"></span>
       <button id="refreshBtn" class="btn btn-outline-primary btn-sm me-2" title="Force refresh data from API">🔄 Refresh</button>
-      <button id="logoutBtn" class="btn btn-outline-danger btn-sm">Logout</button>
+      <button id="logoutBtn" class="btn btn-outline-danger btn-sm" onclick="logout()">Logout</button>
     </div>
   </div>
 
@@ -90,7 +99,7 @@
   document.body.appendChild(script);
 </script>
 <script>
-  document.getElementById("logoutBtn").onclick = logout;
+  // Refresh button handler
   document.getElementById("refreshBtn").onclick = function() {
     if (confirm("Force refresh data from Plytix API? This will bypass the cache.")) {
       localStorage.setItem('forceRefresh', 'true');
