@@ -126,14 +126,18 @@ foreach ($productIds as $index => $productId) {
     curl_close($ch);
     $callCount++;
     
-    if ($httpcode == 200) {
+if ($httpcode == 200) {
         $productData = json_decode($response, true);
         
-        // Extract product from response
-        if (isset($productData['data'])) {
-            $allProducts[] = $productData['data'];
-        } elseif (isset($productData['data'][0])) {
-            $allProducts[] = $productData['data'][0];
+        // Extract product from response - handle different structures
+        if (isset($productData['data']) && is_array($productData['data'])) {
+            // If data is an array with one element, unwrap it
+            if (isset($productData['data'][0]) && count($productData['data']) == 1) {
+                $allProducts[] = $productData['data'][0];
+            } else {
+                // Otherwise just use data as-is
+                $allProducts[] = $productData['data'];
+            }
         } else {
             $allProducts[] = $productData;
         }
