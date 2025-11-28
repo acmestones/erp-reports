@@ -170,22 +170,48 @@ header('Cache-Control: no-cache, must-revalidate');
 if ($action === 'get_status') {
     error_log("Getting cache status...");
     
+    // Quick check: if consolidated cache exists and is recent, use it
+    $consolidatedFile = $cacheDir . '/all_products_consolidated.json';
+    if (file_exists($consolidatedFile)) {
+        $fileTime = filemtime($consolidatedFile);
+        $currentTime = time();
+        
+        // If consolidated cache is less than 5 minutes old, skip full check
+        if (($currentTime - $fileTime) < 300) {
+            error_log("Using recent consolidated cache, skipping full status check");
+            
+            $metadata = loadMetadata($metadataFile);
+            $totalProducts = count($metadata['products'] ?? []);
+            
+            echo json_encode([
+                "success" => true,
+                "total" => $totalProducts,
+                "cached" => $totalProducts,
+                "needUpdate" => 0,
+                "cachedIds" => [],
+                "needUpdateIds" => [],
+                "hasConsolidated" => true,
+                "fromCache" => true
+            ]);
+            exit;
+        }
+    }
+    
+    // Full status check (only runs if cache is old or doesn't exist)
+    error_log("Performing full status check...");
     $accessToken = getAuthToken($apiKey, $apiPassword);
     if (!$accessToken) {
         http_response_code(500);
         echo json_encode(["error" => "Authentication failed"]);
         exit;
     }
-    
+
     $allProductIds = [];
     $page = 1;
     $maxPages = 50;
-    
     error_log("Fetching product list...");
-    
     while ($page <= $maxPages) {
         $products = fetchProductList($accessToken, $page, 25);
-        
         if (!$products || count($products) === 0) {
             break;
         }
@@ -204,14 +230,13 @@ if ($action === 'get_status') {
         $page++;
         usleep(100000);
     }
-    
+
     error_log("Found " . count($allProductIds) . " products");
     
     $metadata = loadMetadata($metadataFile);
-    
     $needUpdate = [];
     $cached = [];
-    
+
     foreach ($allProductIds as $productInfo) {
         $productId = $productInfo['id'];
         $productFile = $cacheDir . '/product_' . $productId . '.json';
@@ -230,12 +255,11 @@ if ($action === 'get_status') {
             }
         }
     }
-    
+
     error_log("Cached: " . count($cached) . ", Need update: " . count($needUpdate));
     
-    $consolidatedFile = $cacheDir . '/all_products_consolidated.json';
     $hasConsolidated = file_exists($consolidatedFile);
-    
+
     echo json_encode([
         "success" => true,
         "total" => count($allProductIds),
@@ -243,11 +267,12 @@ if ($action === 'get_status') {
         "needUpdate" => count($needUpdate),
         "cachedIds" => $cached,
         "needUpdateIds" => $needUpdate,
-        "hasConsolidated" => $hasConsolidated && count($needUpdate) === 0
+        "hasConsolidated" => $hasConsolidated && count($needUpdate) === 0,
+        "fromCache" => false
     ]);
     exit;
-
 }
+
 
 
 
