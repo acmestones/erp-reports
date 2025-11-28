@@ -240,25 +240,14 @@ if ($action === 'load_cached') {
             }
         }
     }
-
     error_log("Loaded " . count($products) . " cached products from " . count($ids) . " requested");
     
-    // Send response with compression
-    header('Content-Type: application/json');
-    
-    $jsonResponse = json_encode([
+    echo json_encode([
         "success" => true,
         "products" => $products
     ]);
-    
-    // Enable gzip if not already enabled by server
-    if (!headers_sent() && extension_loaded('zlib') && !ini_get('zlib.output_compression')) {
-        header('Content-Encoding: gzip');
-        echo gzencode($jsonResponse, 6); // Level 6 is good balance
-    } else {
-        echo $jsonResponse;
-    }
     exit;
+
 }
 
 
