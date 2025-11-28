@@ -134,6 +134,7 @@ function buildConsolidatedCache($cacheDir) {
     
     $files = glob($cacheDir . '/product_*.json');
     if (!$files) {
+        error_log("No product files found in cache directory");
         return false;
     }
     
@@ -145,6 +146,11 @@ function buildConsolidatedCache($cacheDir) {
                 $allProducts[] = $product;
             }
         }
+    }
+    
+    if (count($allProducts) === 0) {
+        error_log("No products loaded from cache files");
+        return false;
     }
     
     file_put_contents($consolidatedFile, json_encode([
