@@ -17,6 +17,8 @@
   init();
 
   function init() {
+    console.time("Total Load Time"); // ADD THIS LINE
+    
     let userObj;
     const userData = localStorage.getItem("user") || "{}";
     
@@ -264,6 +266,9 @@ function loadCachedProducts(cachedIds, needUpdateIds, totalProducts, startTime) 
     });
   }
 
+
+
+  
   function populateFamilyFilter() {
     const familyMap = new Map();
     
@@ -291,11 +296,12 @@ function loadCachedProducts(cachedIds, needUpdateIds, totalProducts, startTime) 
     
     ul.innerHTML = "";
     
-    if (familyMap.size === 0) {
-      ul.innerHTML = '<li class="dropdown-item text-muted">No families found</li>';
-      console.log("No product families found in data");
-      return;
-    }
+if (familyMap.size === 0) {
+    ul.innerHTML = '<li class="dropdown-item text-muted">No families found</li>';
+    // Removed excessive console logging
+    return;
+}
+
     
     const sortedFamilies = Array.from(familyMap.entries()).sort(function(a, b) {
       return a[1].localeCompare(b[1]);
