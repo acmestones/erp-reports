@@ -39,7 +39,11 @@
     loadProducts();
   }
 
-  function loadProducts() {
+
+
+
+  
+function loadProducts() {
     const status = document.getElementById("catalogStatus");
     const grid = document.getElementById("productGrid");
     
@@ -48,40 +52,43 @@
     
     const startTime = Date.now();
     
-    fetch('fetch_plytix_data.php?action=get_status')
-      .then(function(res) {
-        if (!res.ok) {
-          throw new Error('HTTP ' + res.status);
-        }
-        return res.json();
-      })
-      .then(function(statusData) {
-        if (!statusData.success) {
-          throw new Error("Failed to get status");
-        }
-        
-        console.log("Status:", statusData.cached, "cached,", statusData.needUpdate, "need update");
-        
-        const totalProducts = statusData.total;
-        const cachedIds = statusData.cachedIds || [];
-        const needUpdateIds = statusData.needUpdateIds || [];
-        
-        // Check if we should use consolidated cache
-        if (statusData.hasConsolidated && statusData.quickLoad) {
-            loadCachedProducts(cachedIds, needUpdateIds, totalProducts, startTime);
-        } else if (cachedIds.length > 0) {
-            loadCachedProducts(cachedIds, needUpdateIds, totalProducts, startTime);
-        } else if (needUpdateIds.length > 0) {
-            fetchUpdatedProducts(needUpdateIds, totalProducts, startTime);
-        }
+    // Check if forcerefresh parameter exists in URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const forceRefresh = urlParams.get('forcerefresh');
+    const fetchUrl = forceRefresh 
+        ? "fetch_plytix_data.php?action=get_status&forcerefresh=1"
+        : "fetch_plytix_data.php?action=get_status";
+    
+    fetch(fetchUrl)
+        .then(function(res) {
+            if (!res.ok) throw new Error('HTTP ' + res.status);
+            return res.json();
+        })
+        .then(function(statusData) {
+            if (!statusData.success) throw new Error('Failed to get status');
+            
+            console.log("Status:", statusData.cached, "cached,", statusData.needUpdate, "need update");
+            
+            const totalProducts = statusData.total;
+            const cachedIds = statusData.cachedIds;
+            const needUpdateIds = statusData.needUpdateIds;
+            
+            // Check if we should use consolidated cache
+            if (statusData.hasConsolidated && statusData.quickLoad) {
+                loadCachedProducts(cachedIds, needUpdateIds, totalProducts, startTime);
+            } else if (cachedIds.length > 0) {
+                loadCachedProducts(cachedIds, needUpdateIds, totalProducts, startTime);
+            } else if (needUpdateIds.length > 0) {
+                fetchUpdatedProducts(needUpdateIds, totalProducts, startTime);
+            }
+        })
+        .catch(function(err) {
+            console.error("Failed to load products:", err);
+            status.innerHTML = '<span class="text-danger">Error loading products</span>';
+            grid.innerHTML = '';
+        });
+}
 
-      })
-      .catch(function(err) {
-        console.error("Failed to load products:", err);
-        status.innerHTML = '<span class="text-danger">Error loading products</span>';
-        grid.innerHTML = '';
-      });
-  }
 
 
 
