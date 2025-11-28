@@ -85,25 +85,49 @@
 function loadCachedProducts(cachedIds, needUpdateIds, totalProducts, startTime) {
     const status = document.getElementById("catalogStatus");
     
+    console.log("Starting consolidated cache load...");
+    const fetchStart = Date.now();
+    
     // Try consolidated cache first (single file read)
     fetch("fetch_plytix_data.php?action=load_consolidated", {
         method: "POST"
     })
-    .then(function(res) { 
+    .then(function(res) {
+        const fetchEnd = Date.now();
+        console.log(`Fetch completed in ${(fetchEnd - fetchStart) / 1000}s`);
+        
         if (!res.ok) throw new Error('HTTP ' + res.status);
         return res.json(); 
     })
     .then(function(data) {
+        const parseEnd = Date.now();
+        console.log(`JSON parsed in ${(parseEnd - fetchStart) / 1000}s`);
+        
         if (data.success && data.products) {
+            console.log(`Received ${data.products.length} products`);
+            
+            const assignStart = Date.now();
+            allProducts = data.products;
+            console.log(`Assigned to allProducts in ${(Date.now() - assignStart) / 1000}s`);
+            
+            const filterStart = Date.now();
+            setupFilters();
+            console.log(`setupFilters in ${(Date.now() - filterStart) / 1000}s`);
+            
+            const catStart = Date.now();
+            populateCategoryFilter();
+            console.log(`populateCategoryFilter in ${(Date.now() - catStart) / 1000}s`);
+            
+            const famStart = Date.now();
+            populateFamilyFilter();
+            console.log(`populateFamilyFilter in ${(Date.now() - famStart) / 1000}s`);
+            
+            const applyStart = Date.now();
+            applyFilters();
+            console.log(`applyFilters in ${(Date.now() - applyStart) / 1000}s`);
+
             const loadTime = ((Date.now() - startTime) / 1000).toFixed(2);
             console.log(`Loaded ${data.products.length} products from consolidated cache in ${loadTime}s`);
-            
-            allProducts = data.products;
-            
-            setupFilters();
-            populateCategoryFilter();
-            populateFamilyFilter();
-            applyFilters();
 
             if (needUpdateIds.length > 0) {
                 status.innerHTML = `<span class="text-success">✓ Loaded ${allProducts.length} products (${loadTime}s)</span>`;
@@ -122,6 +146,13 @@ function loadCachedProducts(cachedIds, needUpdateIds, totalProducts, startTime) 
     });
 }
 
+
+
+
+
+
+
+  
 function loadCachedProductsBatch(cachedIds, needUpdateIds, totalProducts, startTime) {
     const status = document.getElementById("catalogStatus");
     const batchSize = 250;
