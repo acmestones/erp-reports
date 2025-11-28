@@ -66,11 +66,15 @@
         const cachedIds = statusData.cachedIds || [];
         const needUpdateIds = statusData.needUpdateIds || [];
         
-        if (cachedIds.length > 0) {
-          loadCachedProducts(cachedIds, needUpdateIds, totalProducts, startTime);
+        // Check if we should use consolidated cache
+        if (statusData.hasConsolidated && statusData.quickLoad) {
+            loadCachedProducts(cachedIds, needUpdateIds, totalProducts, startTime);
+        } else if (cachedIds.length > 0) {
+            loadCachedProducts(cachedIds, needUpdateIds, totalProducts, startTime);
         } else if (needUpdateIds.length > 0) {
-          fetchUpdatedProducts(needUpdateIds, totalProducts, startTime);
+            fetchUpdatedProducts(needUpdateIds, totalProducts, startTime);
         }
+
       })
       .catch(function(err) {
         console.error("Failed to load products:", err);
