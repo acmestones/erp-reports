@@ -41,16 +41,13 @@
     const status = document.getElementById("catalogStatus");
     const grid = document.getElementById("productGrid");
     
-    status.innerHTML = '<span class="text-primary">⏳ Checking cache...</span>';
-    grid.innerHTML = '<div class="col-12 text-center py-5"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div><p class="mt-2">Please wait...</p></div>';
-    
-    const forceRefresh = localStorage.getItem('forceRefresh') === 'true';
-    localStorage.removeItem('forceRefresh');
+    status.innerHTML = '<span class="text-primary">⏳ Loading...</span>';
+    grid.innerHTML = '<div class="col-12 text-center py-5"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div></div>';
     
     const startTime = Date.now();
     
-    // STEP 1: Get status
-    fetch('fetch_plytix_data.php?action=get_status' + (forceRefresh ? '&force_refresh=true' : ''))
+    // Always check for updates (no force refresh needed)
+    fetch('fetch_plytix_data.php?action=get_status')
       .then(function(res) {
         if (!res.ok) {
           throw new Error('HTTP ' + res.status);
@@ -68,87 +65,78 @@
         const cachedIds = statusData.cachedIds || [];
         const needUpdateIds = statusData.needUpdateIds || [];
         
-        // STEP 2: Load cached products with LAZY LOADING
+        // Load cached products instantly
         if (cachedIds.length > 0) {
-          status.innerHTML = '<span class="text-primary">⚡ Loading cached products...</span>';
-          
-          // Split into smaller batches for progressive loading
-          const batchSize = 200;
-          const cachedBatches = [];
-          for (let i = 0; i < cachedIds.length; i += batchSize) {
-            cachedBatches.push(cachedIds.slice(i, i + batchSize));
-          }
-          
-          let loadedBatches = 0;
-          let firstBatchDisplayed = false;
-          
-          // Load batches one by one (not in parallel to avoid overwhelming)
-          function loadNextBatch(index) {
-            if (index >= cachedBatches.length) {
-              const totalLoadTime = ((Date.now() - startTime) / 1000).toFixed(2);
-              console.log("All " + allProducts.length + " products loaded in " + totalLoadTime + "s");
-              status.innerHTML = '<span class="text-success">✓ Loaded all ' + allProducts.length + ' products</span>';
-              
-              // Fetch updated products in background if needed
-              if (needUpdateIds.length > 0) {
-                fetchUpdatedProducts(needUpdateIds, totalProducts);
-              }
-              return;
-            }
-            
-            const batch = cachedBatches[index];
-            
-            fetch('fetch_plytix_data.php?action=load_cached&ids=' + encodeURIComponent(JSON.stringify(batch)))
-              .then(function(res) { return res.json(); })
-              .then(function(data) {
-                if (data.success && data.products) {
-                  allProducts = allProducts.concat(data.products);
-                  loadedBatches++;
-                  
-                  const currentLoadTime = ((Date.now() - startTime) / 1000).toFixed(1);
-                  status.innerHTML = '<span class="text-primary">⚡ Loaded ' + allProducts.length + ' / ' + totalProducts + ' products (' + currentLoadTime + 's)</span>';
-                  
-                  // Show first batch immediately
-                  if (!firstBatchDisplayed && allProducts.length >= INITIAL_LOAD) {
-                    firstBatchDisplayed = true;
-                    setupFilters();
-                    populateCategoryFilter();
-                    populateFamilyFilter();
-                    applyFilters();
-                    console.log("First " + allProducts.length + " products displayed in " + currentLoadTime + "s");
-                  } else if (firstBatchDisplayed) {
-                    // Update display progressively
-                    applyFilters();
-                  }
-                }
-                
-                // Load next batch
-                loadNextBatch(index + 1);
-              })
-              .catch(function(err) {
-                console.error("Batch load error:", err);
-                loadNextBatch(index + 1);
-              });
-          }
-          
-          loadNextBatch(0);
-          
-        } else {
+          loadCachedProductsOptimized(cachedIds, needUpdateIds, totalProducts, startTime);
+        } else if (needUpdateIds.length > 0) {
           // No cache, fetch everything
-          if (needUpdateIds.length > 0) {
-            fetchUpdatedProducts(needUpdateIds, totalProducts);
-          }
+          fetchUpdatedProducts(needUpdateIds, totalProducts, startTime);
         }
       })
       .catch(function(err) {
         console.error("Failed to load products:", err);
-        status.innerHTML = '<span class="text-danger">Failed to load products. Check console for details.</span>';
-        grid.innerHTML = '<div class="col-12 text-center py-3"><p class="text-danger">Error: ' + err.message + '</p></div>';
+        status.innerHTML = '<span class="text-danger">Error loading products</span>';
+        grid.innerHTML = '';
       });
   }
 
-  function fetchUpdatedProducts(productIds, totalProducts) {
+  function loadCachedProductsOptimized(cachedIds, needUpdateIds, totalProducts, startTime) {
     const status = document.getElementById("catalogStatus");
+    
+    // Split into 3 large batches to load in parallel
+    const batchSize = Math.ceil(cachedIds.length / 3);
+    const batches = [];
+    for (let i = 0; i < cachedIds.length; i += batchSize) {
+      batches.push(cachedIds.slice(i, i + batchSize));
+    }
+    
+    let loadedCount = 0;
+    let firstBatchShown = false;
+    
+    // Load all batches in PARALLEL for speed
+    Promise.all(batches.map(function(batch) {
+      return fetch('fetch_plytix_data.php?action=load_cached&ids=' + encodeURIComponent(JSON.stringify(batch)))
+        .then(function(res) { return res.json(); })
+        .then(function(data) {
+          if (data.success && data.products) {
+            return data.products;
+          }
+          return [];
+        })
+        .catch(function(err) {
+          console.error("Batch load error:", err);
+          return [];
+        });
+    }))
+    .then(function(results) {
+      // Flatten all results
+      results.forEach(function(batch) {
+        allProducts = allProducts.concat(batch);
+      });
+      
+      const loadTime = ((Date.now() - startTime) / 1000).toFixed(2);
+      console.log("Loaded " + allProducts.length + " cached products in " + loadTime + "s");
+      
+      // Setup and display immediately
+      setupFilters();
+      populateCategoryFilter();
+      populateFamilyFilter();
+      applyFilters();
+      
+      // Update status
+      if (needUpdateIds.length > 0) {
+        status.innerHTML = '<span class="text-success">✓ Loaded ' + allProducts.length + ' products (' + loadTime + 's) - Checking ' + needUpdateIds.length + ' for updates...</span>';
+        fetchUpdatedProducts(needUpdateIds, totalProducts, startTime);
+      } else {
+        status.innerHTML = '<span class="text-success">✓ Loaded ' + allProducts.length + ' products (' + loadTime + 's)</span>';
+      }
+    });
+  }
+
+  function fetchUpdatedProducts(productIds, totalProducts, startTime) {
+    const status = document.getElementById("catalogStatus");
+    
+    if (productIds.length === 0) return;
     
     console.log("Fetching " + productIds.length + " updated products...");
     
@@ -159,17 +147,17 @@
     }
     
     let fetchedCount = 0;
+    let needsFilterSetup = allProducts.length === 0;
     
     function fetchNextBatch(index) {
       if (index >= batches.length) {
-        status.innerHTML = '<span class="text-success">✓ All ' + totalProducts + ' products loaded</span>';
+        const totalTime = ((Date.now() - startTime) / 1000).toFixed(2);
+        status.innerHTML = '<span class="text-success">✓ All ' + totalProducts + ' products loaded (' + totalTime + 's)</span>';
         console.log("All products updated!");
         return;
       }
       
       const batch = batches[index];
-      
-      status.innerHTML = '<span class="text-primary">⏳ Updating ' + fetchedCount + ' / ' + productIds.length + ' products...</span>';
       
       fetch('fetch_plytix_data.php?action=fetch_products&ids=' + encodeURIComponent(JSON.stringify(batch)))
         .then(function(res) { return res.json(); })
@@ -189,7 +177,18 @@
               }
             });
             
+            // Setup filters on first batch if needed
+            if (needsFilterSetup && allProducts.length >= INITIAL_LOAD) {
+              needsFilterSetup = false;
+              setupFilters();
+              populateCategoryFilter();
+              populateFamilyFilter();
+            }
+            
             applyFilters();
+            
+            const currentTime = ((Date.now() - startTime) / 1000).toFixed(1);
+            status.innerHTML = '<span class="text-primary">⏳ Updated ' + fetchedCount + ' / ' + productIds.length + ' products (' + currentTime + 's)</span>';
             
             console.log("Batch " + (index + 1) + "/" + batches.length + " fetched (" + fetchedCount + " total)");
             
@@ -243,40 +242,54 @@
   }
 
   function populateFamilyFilter() {
-    const familySet = new Set();
+    const familyMap = new Map(); // Map to store family_id -> family_name
+    
     allProducts.forEach(function(p) {
-      // Check multiple possible locations for family info
-      const familyId = p.product_family_id;
-      const familyModelId = p.product_family_model_id;
-      const familyAttr = p.attributes && p.attributes.product_family;
-      
-      if (familyId) {
-        // Try to get family name from relationships or use ID
-        familySet.add(familyId);
+      // Look for family in relationships object
+      if (p.relationships && p.relationships.product_families && Array.isArray(p.relationships.product_families)) {
+        p.relationships.product_families.forEach(function(family) {
+          if (family.id && family.label) {
+            familyMap.set(family.id, family.label);
+          }
+        });
       }
-      if (familyAttr) {
-        familySet.add(familyAttr);
+      
+      // Also check if there's a product_family attribute
+      if (p.attributes && p.attributes.product_family) {
+        const familyAttr = p.attributes.product_family;
+        if (typeof familyAttr === 'string') {
+          familyMap.set(familyAttr, familyAttr);
+        } else if (familyAttr.id && familyAttr.label) {
+          familyMap.set(familyAttr.id, familyAttr.label);
+        }
       }
     });
     
     const ul = document.getElementById("familyFilter");
-    if (!ul) {
-      console.log("Family filter element not found - you need to add it to HTML");
-      return;
-    }
+    if (!ul) return;
     
     ul.innerHTML = "";
     
-    if (familySet.size === 0) {
-      ul.innerHTML = '<li class="dropdown-item text-muted">No families</li>';
+    if (familyMap.size === 0) {
+      ul.innerHTML = '<li class="dropdown-item text-muted">No families found</li>';
+      console.log("No product families found in data");
       return;
     }
     
-    const sortedFamilies = Array.from(familySet).sort();
-    sortedFamilies.forEach(function(family) {
+    // Sort by family name
+    const sortedFamilies = Array.from(familyMap.entries()).sort(function(a, b) {
+      return a[1].localeCompare(b[1]);
+    });
+    
+    console.log("Found " + sortedFamilies.length + " product families:", sortedFamilies);
+    
+    sortedFamilies.forEach(function(entry) {
+      const familyId = entry[0];
+      const familyName = entry[1];
+      
       const li = document.createElement("li");
       li.innerHTML = '<label class="dropdown-item"><input type="checkbox" class="form-check-input me-2" value="' + 
-        family + '">' + family + '</label>';
+        familyId + '">' + familyName + '</label>';
       ul.appendChild(li);
     });
     
@@ -307,13 +320,10 @@
       
       if (!matchesSearch) return false;
       
-      // FIX: Use the correct field for enabled/disabled status
-      // Field label in API: enable_disable_product
-      // Field name shown in Plytix UI: "Product Enabled"
+      // Check enabled/disabled using correct field
       const enableDisableField = p.enable_disable_product;
       const attrEnableDisable = p.attributes && p.attributes.enable_disable_product;
       
-      // TRUE = enabled, FALSE = disabled
       const isEnabled = enableDisableField === true || 
                        enableDisableField === "TRUE" ||
                        attrEnableDisable === true ||
@@ -350,10 +360,28 @@
       }
       
       if (selectedFamilies.length > 0) {
-        const productFamily = p.product_family_id || (p.attributes && p.attributes.product_family) || null;
-        if (!productFamily || !selectedFamilies.includes(String(productFamily))) {
-          return false;
+        let productFamilyIds = [];
+        
+        // Check relationships
+        if (p.relationships && p.relationships.product_families && Array.isArray(p.relationships.product_families)) {
+          productFamilyIds = p.relationships.product_families.map(function(f) { return f.id; });
         }
+        
+        // Check attributes
+        if (p.attributes && p.attributes.product_family) {
+          const familyAttr = p.attributes.product_family;
+          if (typeof familyAttr === 'string') {
+            productFamilyIds.push(familyAttr);
+          } else if (familyAttr.id) {
+            productFamilyIds.push(familyAttr.id);
+          }
+        }
+        
+        const hasFamily = selectedFamilies.some(function(famId) {
+          return productFamilyIds.includes(famId);
+        });
+        
+        if (!hasFamily) return false;
       }
       
       return true;
@@ -390,11 +418,11 @@
     }
     
     const currentStatus = status.innerHTML;
-    if (!currentStatus.includes('Loaded') && !currentStatus.includes('Loading')) {
+    if (!currentStatus.includes('Loaded') && !currentStatus.includes('Loading') && !currentStatus.includes('Updated')) {
       status.innerHTML = '<span class="text-success">Showing ' + filteredProducts.length + ' of ' + allProducts.length + ' products</span>';
     }
     
-    // LAZY RENDERING: Render in batches
+    // LAZY RENDERING
     displayedCount = 0;
     grid.innerHTML = "";
     
@@ -406,15 +434,19 @@
     const batchSize = displayedCount === 0 ? INITIAL_LOAD : BATCH_SIZE;
     const endIndex = Math.min(displayedCount + batchSize, filteredProducts.length);
     
+    // Use document fragment for better performance
+    const fragment = document.createDocumentFragment();
+    
     for (let i = displayedCount; i < endIndex; i++) {
-      grid.appendChild(createProductCard(filteredProducts[i]));
+      fragment.appendChild(createProductCard(filteredProducts[i]));
     }
     
+    grid.appendChild(fragment);
     displayedCount = endIndex;
     
-    // If more products to show, render next batch after a short delay
+    // Render next batch
     if (displayedCount < filteredProducts.length) {
-      setTimeout(renderNextBatch, 50);
+      requestAnimationFrame(renderNextBatch);
     }
   }
 
@@ -426,7 +458,7 @@
     card.className = "card h-100 shadow-sm product-card";
     card.style.cursor = "pointer";
     
-    // Check if product is disabled using CORRECT field
+    // Check if product is disabled
     const enableDisableField = product.enable_disable_product;
     const attrEnableDisable = product.attributes && product.attributes.enable_disable_product;
     
@@ -435,7 +467,6 @@
                      attrEnableDisable === true ||
                      attrEnableDisable === "TRUE";
     
-    // Apply dim effect if disabled
     if (!isEnabled) {
       card.style.opacity = "0.5";
       card.style.filter = "grayscale(40%)";
@@ -446,8 +477,9 @@
     const img = document.createElement("img");
     img.className = "card-img-top";
     img.style.height = "250px";
-    img.style.objectFit = "cover"; // This makes it zoom to fill
-    img.style.objectPosition = "center"; // Center the zoomed image
+    img.style.width = "100%";
+    img.style.objectFit = "cover"; // Zoom to fill completely
+    img.style.objectPosition = "center center"; // Center the image
     img.style.backgroundColor = "#f8f9fa";
     img.loading = "lazy";
     img.decoding = "async";
@@ -517,16 +549,13 @@
     return "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Crect width='400' height='400' fill='%23ddd'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='monospace' font-size='20' fill='%23999'%3ENo Image%3C/text%3E%3C/svg%3E";
   }
 
-  // Helper to get attribute value (uses label as key)
   function getAttributeValue(product, attributeLabel) {
     if (!product) return "";
     
-    // Check root level first
     if (product[attributeLabel] != null && product[attributeLabel] !== "") {
       return formatSimpleValue(product[attributeLabel]);
     }
     
-    // Check attributes object
     if (product.attributes && product.attributes[attributeLabel] != null && product.attributes[attributeLabel] !== "") {
       return formatSimpleValue(product.attributes[attributeLabel]);
     }
@@ -688,7 +717,7 @@
     const displayFields = [];
     
     Object.keys(product).forEach(function(key) {
-      if (key === 'attributes' || key === 'thumbnail' || key === 'assets') return;
+      if (key === 'attributes' || key === 'thumbnail' || key === 'assets' || key === 'relationships') return;
       
       displayFields.push({
         label: capitalizeWords(key.replace(/_/g, ' ')),
