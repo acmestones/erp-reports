@@ -59,7 +59,7 @@ function getAuthToken($apiKey, $apiPassword) {
     return $authData['data'][0]['access_token'];
 }
 
-function fetchProductList($accessToken, $page = 1, $pageSize = 100) {
+function fetchProductList($accessToken, $page = 1, $pageSize = 25) {
     $postData = [
         "pagination" => [
             "page" => $page,
@@ -142,7 +142,7 @@ if ($action === 'get_status') {
     error_log("Fetching product list...");
     
     while ($page <= $maxPages) {
-        $products = fetchProductList($accessToken, $page, 100);
+        $products = fetchProductList($accessToken, $page, 25);
         
         if (!$products || count($products) === 0) {
             break;
@@ -155,7 +155,7 @@ if ($action === 'get_status') {
             ];
         }
         
-        if (count($products) < 100) {
+        if (count($products) < 25) {
             break;
         }
         
