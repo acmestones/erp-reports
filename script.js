@@ -84,7 +84,7 @@
   
 function loadCachedProducts(cachedIds, needUpdateIds, totalProducts, startTime) {
     const status = document.getElementById("catalogStatus");
-    const batchSize = 200; // Increased from 50 to 200
+    const batchSize = 250; // Slightly larger batches
     const batches = [];
     for (let i = 0; i < cachedIds.length; i += batchSize) {
         batches.push(cachedIds.slice(i, i + batchSize));
@@ -92,62 +92,69 @@ function loadCachedProducts(cachedIds, needUpdateIds, totalProducts, startTime) 
     console.log(`Loading ${cachedIds.length} products in ${batches.length} batches`);
 
     let loadedCount = 0;
+    let completedBatches = 0;
+    let isFirstBatchRendered = false;
 
-    function loadNextBatch(index) {
-        if (index >= batches.length) {
-            const loadTime = ((Date.now() - startTime) / 1000).toFixed(2);
-            console.log(`Loaded ${allProducts.length} cached products in ${loadTime}s`);
-            
-            // Setup filters only ONCE after all batches loaded
-            setupFilters();
-            populateCategoryFilter();
-            populateFamilyFilter();
-            applyFilters();
-
-            if (needUpdateIds.length > 0) {
-                status.innerHTML = `<span class="text-success">✓ Loaded ${allProducts.length} products (${loadTime}s)</span>`;
-                fetchUpdatedProducts(needUpdateIds, totalProducts, startTime);
-            } else {
-                status.innerHTML = `<span class="text-success">✓ Loaded ${allProducts.length} products (${loadTime}s)</span>`;
-                console.timeEnd("Total Load Time"); // ADD THIS LINE
-
-            }
-            return;
-        }
-
-        const batch = batches[index];
-        fetch("fetch_plytix_data.php?action=load_cached", {
+    // Load all batches in parallel
+    Promise.all(batches.map(function(batch, index) {
+        return fetch("fetch_plytix_data.php?action=load_cached", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ ids: batch })
         })
-        .then(function(res) { return res.json(); })
+        .then(function(res) { 
+            if (!res.ok) throw new Error('HTTP ' + res.status);
+            return res.json(); 
+        })
         .then(function(data) {
             if (data.success && data.products) {
                 allProducts = allProducts.concat(data.products);
                 loadedCount += data.products.length;
+                completedBatches++;
+                
                 const currentTime = ((Date.now() - startTime) / 1000).toFixed(1);
                 status.innerHTML = `<span class="text-primary">⏳ Loaded ${loadedCount}/${cachedIds.length} (${currentTime}s)</span>`;
 
-                // Render products progressively on first batch
-                if (index === 0) {
+                // Render on first batch that completes
+                if (!isFirstBatchRendered && allProducts.length >= 40) {
+                    isFirstBatchRendered = true;
                     setupFilters();
                     populateCategoryFilter();
                     populateFamilyFilter();
                     applyFilters();
                 }
-
-                loadNextBatch(index + 1);
+                
+                return data.products;
             }
         })
         .catch(function(err) {
-            console.error("Batch load error:", err);
-            loadNextBatch(index + 1);
+            console.error("Batch " + index + " load error:", err);
+            completedBatches++;
+            return [];
         });
-    }
+    }))
+    .then(function() {
+        const loadTime = ((Date.now() - startTime) / 1000).toFixed(2);
+        console.log(`Loaded ${allProducts.length} cached products in ${loadTime}s`);
+        console.timeEnd("Total Load Time");
+        
+        // Final setup if not done yet
+        if (!isFirstBatchRendered) {
+            setupFilters();
+            populateCategoryFilter();
+            populateFamilyFilter();
+            applyFilters();
+        }
 
-    loadNextBatch(0);
+        if (needUpdateIds.length > 0) {
+            status.innerHTML = `<span class="text-success">✓ Loaded ${allProducts.length} products (${loadTime}s)</span>`;
+            fetchUpdatedProducts(needUpdateIds, totalProducts, startTime);
+        } else {
+            status.innerHTML = `<span class="text-success">✓ Loaded ${allProducts.length} products (${loadTime}s)</span>`;
+        }
+    });
 }
+
 
 
 
