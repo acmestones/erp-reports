@@ -10,6 +10,9 @@
   let allProducts = [];
   let filteredProducts = [];
   let currentUser = "";
+  let displayedCount = 0;
+  const INITIAL_LOAD = 40;
+  const BATCH_SIZE = 20;
 
   init();
 
@@ -46,7 +49,7 @@
     
     const startTime = Date.now();
     
-    // STEP 1: Get status - which products are cached vs need update
+    // STEP 1: Get status
     fetch('fetch_plytix_data.php?action=get_status' + (forceRefresh ? '&force_refresh=true' : ''))
       .then(function(res) {
         if (!res.ok) {
@@ -65,49 +68,71 @@
         const cachedIds = statusData.cachedIds || [];
         const needUpdateIds = statusData.needUpdateIds || [];
         
-        // STEP 2: Load cached products INSTANTLY
+        // STEP 2: Load cached products with LAZY LOADING
         if (cachedIds.length > 0) {
-          status.innerHTML = '<span class="text-primary">⚡ Loading ' + cachedIds.length + ' cached products...</span>';
+          status.innerHTML = '<span class="text-primary">⚡ Loading cached products...</span>';
           
-          // Split into batches for faster loading
+          // Split into smaller batches for progressive loading
           const batchSize = 200;
           const cachedBatches = [];
           for (let i = 0; i < cachedIds.length; i += batchSize) {
             cachedBatches.push(cachedIds.slice(i, i + batchSize));
           }
           
-          // Load all cached batches in parallel
-          Promise.all(cachedBatches.map(function(batch) {
-            return fetch('fetch_plytix_data.php?action=load_cached&ids=' + encodeURIComponent(JSON.stringify(batch)))
+          let loadedBatches = 0;
+          let firstBatchDisplayed = false;
+          
+          // Load batches one by one (not in parallel to avoid overwhelming)
+          function loadNextBatch(index) {
+            if (index >= cachedBatches.length) {
+              const totalLoadTime = ((Date.now() - startTime) / 1000).toFixed(2);
+              console.log("All " + allProducts.length + " products loaded in " + totalLoadTime + "s");
+              status.innerHTML = '<span class="text-success">✓ Loaded all ' + allProducts.length + ' products</span>';
+              
+              // Fetch updated products in background if needed
+              if (needUpdateIds.length > 0) {
+                fetchUpdatedProducts(needUpdateIds, totalProducts);
+              }
+              return;
+            }
+            
+            const batch = cachedBatches[index];
+            
+            fetch('fetch_plytix_data.php?action=load_cached&ids=' + encodeURIComponent(JSON.stringify(batch)))
               .then(function(res) { return res.json(); })
               .then(function(data) {
                 if (data.success && data.products) {
-                  return data.products;
+                  allProducts = allProducts.concat(data.products);
+                  loadedBatches++;
+                  
+                  const currentLoadTime = ((Date.now() - startTime) / 1000).toFixed(1);
+                  status.innerHTML = '<span class="text-primary">⚡ Loaded ' + allProducts.length + ' / ' + totalProducts + ' products (' + currentLoadTime + 's)</span>';
+                  
+                  // Show first batch immediately
+                  if (!firstBatchDisplayed && allProducts.length >= INITIAL_LOAD) {
+                    firstBatchDisplayed = true;
+                    setupFilters();
+                    populateCategoryFilter();
+                    populateFamilyFilter();
+                    applyFilters();
+                    console.log("First " + allProducts.length + " products displayed in " + currentLoadTime + "s");
+                  } else if (firstBatchDisplayed) {
+                    // Update display progressively
+                    applyFilters();
+                  }
                 }
-                return [];
+                
+                // Load next batch
+                loadNextBatch(index + 1);
+              })
+              .catch(function(err) {
+                console.error("Batch load error:", err);
+                loadNextBatch(index + 1);
               });
-          }))
-          .then(function(results) {
-            // Flatten all results
-            results.forEach(function(batch) {
-              allProducts = allProducts.concat(batch);
-            });
-            
-            const cacheLoadTime = ((Date.now() - startTime) / 1000).toFixed(2);
-            console.log("Loaded " + allProducts.length + " cached products in " + cacheLoadTime + "s");
-            
-            status.innerHTML = '<span class="text-success">✓ Loaded ' + allProducts.length + ' products (' + cacheLoadTime + 's)</span>';
-            
-            // Show cached products immediately
-            setupFilters();
-            populateCategoryFilter();
-            applyFilters();
-            
-            // STEP 3: Fetch updated products in background
-            if (needUpdateIds.length > 0) {
-              fetchUpdatedProducts(needUpdateIds, totalProducts);
-            }
-          });
+          }
+          
+          loadNextBatch(0);
+          
         } else {
           // No cache, fetch everything
           if (needUpdateIds.length > 0) {
@@ -135,7 +160,6 @@
     
     let fetchedCount = 0;
     
-    // Fetch batches sequentially to avoid rate limits
     function fetchNextBatch(index) {
       if (index >= batches.length) {
         status.innerHTML = '<span class="text-success">✓ All ' + totalProducts + ' products loaded</span>';
@@ -153,7 +177,6 @@
           if (data.success && data.products) {
             fetchedCount += data.products.length;
             
-            // Update or add products
             data.products.forEach(function(newProduct) {
               const existingIndex = allProducts.findIndex(function(p) {
                 return p.id === newProduct.id;
@@ -166,18 +189,15 @@
               }
             });
             
-            // Update display progressively
             applyFilters();
             
             console.log("Batch " + (index + 1) + "/" + batches.length + " fetched (" + fetchedCount + " total)");
             
-            // Fetch next batch
             fetchNextBatch(index + 1);
           }
         })
         .catch(function(err) {
           console.error("Batch fetch error:", err);
-          // Continue with next batch even if one fails
           fetchNextBatch(index + 1);
         });
     }
@@ -222,6 +242,49 @@
     });
   }
 
+  function populateFamilyFilter() {
+    const familySet = new Set();
+    allProducts.forEach(function(p) {
+      // Check multiple possible locations for family info
+      const familyId = p.product_family_id;
+      const familyModelId = p.product_family_model_id;
+      const familyAttr = p.attributes && p.attributes.product_family;
+      
+      if (familyId) {
+        // Try to get family name from relationships or use ID
+        familySet.add(familyId);
+      }
+      if (familyAttr) {
+        familySet.add(familyAttr);
+      }
+    });
+    
+    const ul = document.getElementById("familyFilter");
+    if (!ul) {
+      console.log("Family filter element not found - you need to add it to HTML");
+      return;
+    }
+    
+    ul.innerHTML = "";
+    
+    if (familySet.size === 0) {
+      ul.innerHTML = '<li class="dropdown-item text-muted">No families</li>';
+      return;
+    }
+    
+    const sortedFamilies = Array.from(familySet).sort();
+    sortedFamilies.forEach(function(family) {
+      const li = document.createElement("li");
+      li.innerHTML = '<label class="dropdown-item"><input type="checkbox" class="form-check-input me-2" value="' + 
+        family + '">' + family + '</label>';
+      ul.appendChild(li);
+    });
+    
+    ul.querySelectorAll('input[type="checkbox"]').forEach(function(cb) {
+      cb.addEventListener("change", applyFilters);
+    });
+  }
+
   function applyFilters() {
     const searchTerm = document.getElementById("searchBox").value.toLowerCase();
     const statusFilter = document.getElementById("statusFilter").value;
@@ -232,29 +295,29 @@
       document.querySelectorAll('#categoryFilter input[type="checkbox"]:checked')
     ).map(function(cb) { return cb.value; });
 
+    const familyFilterEl = document.getElementById("familyFilter");
+    const selectedFamilies = familyFilterEl ? Array.from(
+      familyFilterEl.querySelectorAll('input[type="checkbox"]:checked')
+    ).map(function(cb) { return cb.value; }) : [];
+
     filteredProducts = allProducts.filter(function(p) {
       const sku = (p.sku || "").toLowerCase();
-      const label = getValue(p, "label").toLowerCase();
+      const label = getAttributeValue(p, "label").toLowerCase();
       const matchesSearch = !searchTerm || sku.includes(searchTerm) || label.includes(searchTerm);
       
       if (!matchesSearch) return false;
       
-      // Check enabled/disabled status
-      const status = (p.status || "").toLowerCase();
-      const enableField = p.enable_disable_product;
-      const attrEnable = p.attributes && p.attributes.enable_disable_product;
-      const productEnabled = p.product_enabled;
-      const attrProductEnabled = p.attributes && p.attributes.product_enabled;
+      // FIX: Use the correct field for enabled/disabled status
+      // Field label in API: enable_disable_product
+      // Field name shown in Plytix UI: "Product Enabled"
+      const enableDisableField = p.enable_disable_product;
+      const attrEnableDisable = p.attributes && p.attributes.enable_disable_product;
       
-      const isEnabled = 
-        status === "enabled" || 
-        status === "draft" ||
-        enableField === true || 
-        attrEnable === true ||
-        productEnabled === true ||
-        attrProductEnabled === true ||
-        productEnabled === "TRUE" ||
-        attrProductEnabled === "TRUE";
+      // TRUE = enabled, FALSE = disabled
+      const isEnabled = enableDisableField === true || 
+                       enableDisableField === "TRUE" ||
+                       attrEnableDisable === true ||
+                       attrEnableDisable === "TRUE";
       
       const matchesStatus = 
         statusFilter === "all" ||
@@ -286,6 +349,13 @@
         if (!hasCategory) return false;
       }
       
+      if (selectedFamilies.length > 0) {
+        const productFamily = p.product_family_id || (p.attributes && p.attributes.product_family) || null;
+        if (!productFamily || !selectedFamilies.includes(String(productFamily))) {
+          return false;
+        }
+      }
+      
       return true;
     });
 
@@ -294,10 +364,10 @@
       if (sortFilter === "sku-asc") return (a.sku || "").localeCompare(b.sku || "");
       if (sortFilter === "sku-desc") return (b.sku || "").localeCompare(a.sku || "");
       if (sortFilter === "label-asc") {
-        return getValue(a, "label").localeCompare(getValue(b, "label"));
+        return getAttributeValue(a, "label").localeCompare(getAttributeValue(b, "label"));
       }
       if (sortFilter === "label-desc") {
-        return getValue(b, "label").localeCompare(getValue(a, "label"));
+        return getAttributeValue(b, "label").localeCompare(getAttributeValue(a, "label"));
       }
       return 0;
     });
@@ -309,9 +379,8 @@
     const grid = document.getElementById("productGrid");
     const status = document.getElementById("catalogStatus");
     
-    grid.innerHTML = "";
-    
     if (filteredProducts.length === 0) {
+      grid.innerHTML = "";
       if (allProducts.length === 0) {
         status.innerHTML = '<span class="text-muted">Loading products...</span>';
       } else {
@@ -321,15 +390,32 @@
     }
     
     const currentStatus = status.innerHTML;
-    if (currentStatus.includes('Showing')) {
-      // Don't overwrite loading status
-    } else {
+    if (!currentStatus.includes('Loaded') && !currentStatus.includes('Loading')) {
       status.innerHTML = '<span class="text-success">Showing ' + filteredProducts.length + ' of ' + allProducts.length + ' products</span>';
     }
     
-    filteredProducts.forEach(function(product) {
-      grid.appendChild(createProductCard(product));
-    });
+    // LAZY RENDERING: Render in batches
+    displayedCount = 0;
+    grid.innerHTML = "";
+    
+    renderNextBatch();
+  }
+
+  function renderNextBatch() {
+    const grid = document.getElementById("productGrid");
+    const batchSize = displayedCount === 0 ? INITIAL_LOAD : BATCH_SIZE;
+    const endIndex = Math.min(displayedCount + batchSize, filteredProducts.length);
+    
+    for (let i = displayedCount; i < endIndex; i++) {
+      grid.appendChild(createProductCard(filteredProducts[i]));
+    }
+    
+    displayedCount = endIndex;
+    
+    // If more products to show, render next batch after a short delay
+    if (displayedCount < filteredProducts.length) {
+      setTimeout(renderNextBatch, 50);
+    }
   }
 
   function createProductCard(product) {
@@ -340,22 +426,14 @@
     card.className = "card h-100 shadow-sm product-card";
     card.style.cursor = "pointer";
     
-    // Check if product is disabled
-    const status = (product.status || "").toLowerCase();
-    const enableField = product.enable_disable_product;
-    const attrEnable = product.attributes && product.attributes.enable_disable_product;
-    const productEnabled = product.product_enabled;
-    const attrProductEnabled = product.attributes && product.attributes.product_enabled;
+    // Check if product is disabled using CORRECT field
+    const enableDisableField = product.enable_disable_product;
+    const attrEnableDisable = product.attributes && product.attributes.enable_disable_product;
     
-    const isEnabled = 
-      status === "enabled" || 
-      status === "draft" ||
-      enableField === true || 
-      attrEnable === true ||
-      productEnabled === true ||
-      attrProductEnabled === true ||
-      productEnabled === "TRUE" ||
-      attrProductEnabled === "TRUE";
+    const isEnabled = enableDisableField === true || 
+                     enableDisableField === "TRUE" ||
+                     attrEnableDisable === true ||
+                     attrEnableDisable === "TRUE";
     
     // Apply dim effect if disabled
     if (!isEnabled) {
@@ -368,7 +446,8 @@
     const img = document.createElement("img");
     img.className = "card-img-top";
     img.style.height = "250px";
-    img.style.objectFit = "cover";
+    img.style.objectFit = "cover"; // This makes it zoom to fill
+    img.style.objectPosition = "center"; // Center the zoomed image
     img.style.backgroundColor = "#f8f9fa";
     img.loading = "lazy";
     img.decoding = "async";
@@ -384,7 +463,7 @@
     }
     
     img.src = thumbUrl;
-    img.alt = getValue(product, "label") || product.sku;
+    img.alt = getAttributeValue(product, "label") || product.sku;
     
     img.onerror = function() {
       this.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Crect width='400' height='400' fill='%23ddd'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='monospace' font-size='20' fill='%23999'%3ENo Image%3C/text%3E%3C/svg%3E";
@@ -395,7 +474,7 @@
     
     const title = document.createElement("h6");
     title.className = "card-title mb-2";
-    title.textContent = getValue(product, "label") || "Untitled";
+    title.textContent = getAttributeValue(product, "label") || "Untitled";
     
     const sku = document.createElement("p");
     sku.className = "card-text text-muted small mb-0";
@@ -438,52 +517,37 @@
     return "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Crect width='400' height='400' fill='%23ddd'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='monospace' font-size='20' fill='%23999'%3ENo Image%3C/text%3E%3C/svg%3E";
   }
 
-  function getValue(row, key) {
-    if (!row || !key) return "";
+  // Helper to get attribute value (uses label as key)
+  function getAttributeValue(product, attributeLabel) {
+    if (!product) return "";
     
-    const foundKey = Object.keys(row).find(function(k) { 
-      return k.toLowerCase() === key.toLowerCase(); 
-    });
+    // Check root level first
+    if (product[attributeLabel] != null && product[attributeLabel] !== "") {
+      return formatSimpleValue(product[attributeLabel]);
+    }
     
-    if (foundKey && row[foundKey] != null && row[foundKey] !== "") {
-      const val = row[foundKey];
-      
-      if (Array.isArray(val)) {
-        return val.map(function(v) {
-          if (typeof v === 'object' && v.url) return v.url;
-          return String(v);
-        }).filter(Boolean).join(', ');
-      }
-      
-      if (typeof val === 'object' && val.url) return val.url;
-      if (typeof val === 'boolean') return val ? 'Yes' : 'No';
-      
-      return String(val).trim();
+    // Check attributes object
+    if (product.attributes && product.attributes[attributeLabel] != null && product.attributes[attributeLabel] !== "") {
+      return formatSimpleValue(product.attributes[attributeLabel]);
     }
-
-    if (row.attributes && typeof row.attributes === 'object' && !Array.isArray(row.attributes)) {
-      const attrKey = Object.keys(row.attributes).find(function(k) {
-        return k.toLowerCase() === key.toLowerCase();
-      });
-      
-      if (attrKey && row.attributes[attrKey] != null && row.attributes[attrKey] !== "") {
-        const attrVal = row.attributes[attrKey];
-        
-        if (Array.isArray(attrVal)) {
-          return attrVal.map(function(v) {
-            if (typeof v === 'object' && v.url) return v.url;
-            return String(v);
-          }).filter(Boolean).join(', ');
-        }
-        
-        if (typeof attrVal === 'object' && attrVal.url) return attrVal.url;
-        if (typeof attrVal === 'boolean') return attrVal ? 'Yes' : 'No';
-        
-        return String(attrVal).trim();
-      }
-    }
-
+    
     return "";
+  }
+
+  function formatSimpleValue(value) {
+    if (value === null || value === undefined || value === "") return "";
+    if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+    if (Array.isArray(value)) {
+      return value.map(function(v) {
+        if (typeof v === 'object' && v.name) return v.name;
+        if (typeof v === 'object' && v.url) return v.url;
+        return String(v);
+      }).filter(Boolean).join(', ');
+    }
+    if (typeof value === 'object' && value.name) return value.name;
+    if (typeof value === 'object' && value.url) return value.url;
+    
+    return String(value).trim();
   }
 
   function formatValueForDisplay(value) {
@@ -526,7 +590,7 @@
     const modalTitle = document.getElementById("modalTitle");
     const modalBody = document.getElementById("modalBody");
     
-    modalTitle.textContent = getValue(product, "label") || product.sku || "Product Details";
+    modalTitle.textContent = getAttributeValue(product, "label") || product.sku || "Product Details";
     modalBody.innerHTML = "";
 
     const leftCol = document.createElement("div");
