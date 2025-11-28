@@ -183,20 +183,21 @@ if ($action === 'get_status') {
         error_log("Using consolidated cache, skipping API check");
         
         $metadata = loadMetadata($metadataFile);
-        $totalProducts = count($metadata['products'] ?? []);
+        $cachedIds = array_keys($metadata['products'] ?? []);
         
         echo json_encode([
             "success" => true,
-            "total" => $totalProducts,
-            "cached" => $totalProducts,
+            "total" => count($cachedIds),
+            "cached" => count($cachedIds),
             "needUpdate" => 0,
-            "cachedIds" => [],
+            "cachedIds" => $cachedIds,  // ← FIXED! Now has actual IDs
             "needUpdateIds" => [],
             "hasConsolidated" => true,
             "quickLoad" => true
         ]);
         exit;
     }
+
     
     // Full status check (only when forceRefresh=1 or no cache exists)
     error_log("Performing full API check...");
