@@ -214,7 +214,8 @@ if ($action === 'get_status') {
 
 // ACTION 2: Load cached products
 if ($action === 'load_cached') {
-    $ids = json_decode($_GET['ids'] ?? '[]', true);
+    // Get IDs from POST or GET
+    $ids = isset($_POST['ids']) ? json_decode($_POST['ids'], true) : json_decode($_GET['ids'] ?? '[]', true);
     
     if (!is_array($ids) || empty($ids)) {
         echo json_encode(["success" => true, "products" => []]);
@@ -240,7 +241,8 @@ if ($action === 'load_cached') {
 
 // ACTION 3: Fetch and cache specific products
 if ($action === 'fetch_products') {
-    $ids = json_decode($_GET['ids'] ?? '[]', true);
+    // Get IDs from POST or GET
+    $ids = isset($_POST['ids']) ? json_decode($_POST['ids'], true) : json_decode($_GET['ids'] ?? '[]', true);
     
     if (!is_array($ids) || empty($ids)) {
         echo json_encode(["success" => true, "products" => []]);
