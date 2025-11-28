@@ -382,16 +382,21 @@ if ($action === 'fetch_products') {
         usleep(100000);
     }
     
-    $metadata['last_full_sync'] = date('c');
-    saveMetadata($metadataFile, $metadata);
-    
-    error_log("Fetched and cached " . count($products) . " products");
-    
-    echo json_encode([
-        "success" => true,
-        "products" => $products
-    ]);
-    exit;
+        $metadata['last_full_sync'] = date('c');
+        saveMetadata($metadataFile, $metadata);
+        error_log("Fetched and cached " . count($products) . " products");
+        
+        // Rebuild consolidated cache after updates
+        if (count($products) > 0) {
+            buildConsolidatedCache($cacheDir);
+        }
+        
+        echo json_encode([
+            "success" => true,
+            "products" => $products
+        ]);
+        exit;
+
 }
 
 echo json_encode(["error" => "Invalid action"]);
