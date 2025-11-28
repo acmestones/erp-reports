@@ -94,6 +94,8 @@ function fetchProductList($accessToken, $page = 1, $pageSize = 25) {
     return $data['data'] ?? [];
 }
 
+
+
 function fetchProductDetails($productId, $accessToken) {
     $ch = curl_init();
     curl_setopt($ch, CURLOPT_URL, "https://pim.plytix.com/api/v1/products/" . $productId);
@@ -124,8 +126,45 @@ function fetchProductDetails($productId, $accessToken) {
     return null;
 }
 
+
+
+function buildConsolidatedCache($cacheDir) {
+    $consolidatedFile = $cacheDir . '/all_products_consolidated.json';
+    $allProducts = [];
+    
+    $files = glob($cacheDir . '/product_*.json');
+    if (!$files) {
+        return false;
+    }
+    
+    foreach ($files as $file) {
+        $content = file_get_contents($file);
+        if ($content !== false) {
+            $product = json_decode($content, true);
+            if ($product !== null) {
+                $allProducts[] = $product;
+            }
+        }
+    }
+    
+    file_put_contents($consolidatedFile, json_encode([
+        'success' => true,
+        'products' => $allProducts,
+        'timestamp' => time()
+    ]));
+    
+    error_log("Built consolidated cache with " . count($allProducts) . " products");
+    return true;
+}
+
+
+
+
 header('Content-Type: application/json');
 header('Cache-Control: no-cache, must-revalidate');
+
+
+
 
 // ACTION 1: Get cache status and product list
 if ($action === 'get_status') {
@@ -194,16 +233,60 @@ if ($action === 'get_status') {
     
     error_log("Cached: " . count($cached) . ", Need update: " . count($needUpdate));
     
+    $consolidatedFile = $cacheDir . '/all_products_consolidated.json';
+    $hasConsolidated = file_exists($consolidatedFile);
+    
     echo json_encode([
         "success" => true,
         "total" => count($allProductIds),
         "cached" => count($cached),
         "needUpdate" => count($needUpdate),
         "cachedIds" => $cached,
-        "needUpdateIds" => $needUpdate
+        "needUpdateIds" => $needUpdate,
+        "hasConsolidated" => $hasConsolidated && count($needUpdate) === 0
     ]);
     exit;
+
 }
+
+
+
+
+// ACTION 1.5: Load from consolidated cache (fast path)
+if ($action === 'load_consolidated') {
+    $consolidatedFile = $cacheDir . '/all_products_consolidated.json';
+    
+    if (file_exists($consolidatedFile)) {
+        // Check if file is recent (less than 1 hour old)
+        $fileTime = filemtime($consolidatedFile);
+        $currentTime = time();
+        
+        if (($currentTime - $fileTime) < 3600) {
+            // File is fresh, serve it directly
+            error_log("Serving from consolidated cache");
+            header('Content-Type: application/json');
+            readfile($consolidatedFile);
+            exit;
+        }
+    }
+    
+    // Build new consolidated cache
+    error_log("Building new consolidated cache");
+    if (buildConsolidatedCache($cacheDir)) {
+        header('Content-Type: application/json');
+        readfile($consolidatedFile);
+        exit;
+    }
+    
+    // Fallback
+    echo json_encode(["success" => false, "error" => "Could not build cache"]);
+    exit;
+}
+
+
+
+
+
 
 
 
