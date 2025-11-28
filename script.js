@@ -427,30 +427,36 @@ if (familyMap.size === 0) {
     renderProducts();
   }
 
-  function renderProducts() {
+
+
+  
+ function renderProducts() {
     const grid = document.getElementById("productGrid");
     const status = document.getElementById("catalogStatus");
     
     if (filteredProducts.length === 0) {
-      grid.innerHTML = "";
-      if (allProducts.length === 0) {
-        status.innerHTML = '<span class="text-muted">Loading products...</span>';
-      } else {
-        status.innerHTML = '<span class="text-muted">No products match your filters</span>';
-      }
-      return;
+        grid.innerHTML = "";
+        if (allProducts.length === 0) {
+            status.innerHTML = '<span class="text-muted">Loading products...</span>';
+        } else {
+            status.innerHTML = '<span class="text-muted">No products match your filters</span>';
+        }
+        return;
     }
-    
+
     const currentStatus = status.innerHTML;
-    if (!currentStatus.includes('Loaded') && !currentStatus.includes('Loading') && !currentStatus.includes('Updated')) {
-      status.innerHTML = '<span class="text-success">Showing ' + filteredProducts.length + ' of ' + allProducts.length + ' products</span>';
+    // Only update status if it's not already showing load progress
+    if (!currentStatus.includes("Loaded") && !currentStatus.includes("Loading") && !currentStatus.includes("Updated")) {
+        status.innerHTML = `<span class="text-success">Showing ${filteredProducts.length} of ${allProducts.length} products</span>`;
     }
     
     displayedCount = 0;
     grid.innerHTML = "";
     
+    // Start rendering immediately
     renderNextBatch();
-  }
+}
+
 
 
 
