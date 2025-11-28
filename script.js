@@ -898,4 +898,21 @@ if (familyMap.size === 0) {
     return str.replace(/\b\w/g, function(char) { return char.toUpperCase(); });
   }
 
+
+
+// Make this function globally accessible
+window.forceRefreshCache = function() {
+    const btn = document.getElementById("refreshCacheBtn");
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '⏳ Refreshing...';
+    }
+    
+    // Add forcerefresh parameter and reload
+    const url = new URL(window.location);
+    url.searchParams.set('forcerefresh', '1');
+    window.location.href = url.toString();
+};
+
+
 })();
