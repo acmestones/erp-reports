@@ -9,12 +9,10 @@ if (!file_exists($cacheDir)) {
     mkdir($cacheDir, 0755, true);
 }
 
-// Individual product cache files: cache/product_{id}.json
-// Metadata file: cache/metadata.json (stores last fetch time and product modification times)
-
 $metadataFile = $cacheDir . '/metadata.json';
 
-$action = $_GET['action'] ?? 'get_status';
+// Get action from GET or POST
+$action = $_GET['action'] ?? $_POST['action'] ?? 'get_status';
 $forceRefresh = isset($_GET['force_refresh']) && $_GET['force_refresh'] === 'true';
 
 error_log("=== PHP START: " . date('Y-m-d H:i:s') . " | Action: $action | Force: " . ($forceRefresh ? 'YES' : 'NO') . " ===");
@@ -22,14 +20,13 @@ error_log("=== PHP START: " . date('Y-m-d H:i:s') . " | Action: $action | Force:
 $apiKey = "DQ1TBOXSRPE196ER4018";
 $apiPassword = "0&0eqfaSvwb1iGdHRWL0nJZ9heuDJA3y@J;37S8z";
 
-// Load or initialize metadata
 function loadMetadata($metadataFile) {
     if (file_exists($metadataFile)) {
         return json_decode(file_get_contents($metadataFile), true);
     }
     return [
         'last_full_sync' => null,
-        'products' => [] // product_id => last_modified_time
+        'products' => []
     ];
 }
 
@@ -37,7 +34,6 @@ function saveMetadata($metadataFile, $metadata) {
     file_put_contents($metadataFile, json_encode($metadata, JSON_PRETTY_PRINT));
 }
 
-// Function to authenticate and get token
 function getAuthToken($apiKey, $apiPassword) {
     $authCh = curl_init();
     curl_setopt($authCh, CURLOPT_URL, "https://auth.plytix.com/auth/api/get-token");
@@ -63,14 +59,13 @@ function getAuthToken($apiKey, $apiPassword) {
     return $authData['data'][0]['access_token'];
 }
 
-// Function to fetch product IDs with modification times
 function fetchProductList($accessToken, $page = 1, $pageSize = 100) {
     $postData = [
         "pagination" => [
             "page" => $page,
             "page_size" => $pageSize
         ],
-        "sort" => [["field" => "modified", "order" => "desc"]] // Sort by modified date
+        "sort" => [["field" => "modified", "order" => "desc"]]
     ];
     
     $ch = curl_init();
@@ -96,7 +91,6 @@ function fetchProductList($accessToken, $page = 1, $pageSize = 100) {
     return $data['data'] ?? [];
 }
 
-// Function to fetch full product details
 function fetchProductDetails($productId, $accessToken) {
     $ch = curl_init();
     curl_setopt($ch, CURLOPT_URL, "https://pim.plytix.com/api/v1/products/" . $productId);
@@ -141,10 +135,9 @@ if ($action === 'get_status') {
         exit;
     }
     
-    // Fetch first page to get all product IDs with modification times
     $allProductIds = [];
     $page = 1;
-    $maxPages = 50; // Adjust based on your product count
+    $maxPages = 50;
     
     error_log("Fetching product list...");
     
@@ -167,12 +160,11 @@ if ($action === 'get_status') {
         }
         
         $page++;
-        usleep(100000); // 100ms delay
+        usleep(100000);
     }
     
     error_log("Found " . count($allProductIds) . " products");
     
-    // Load metadata to check which products are cached and which need updates
     $metadata = loadMetadata($metadataFile);
     
     $needUpdate = [];
@@ -182,11 +174,9 @@ if ($action === 'get_status') {
         $productId = $productInfo['id'];
         $productFile = $cacheDir . '/product_' . $productId . '.json';
         
-        // Check if product exists in cache
         if (!file_exists($productFile)) {
             $needUpdate[] = $productId;
         } else {
-            // Check if product was modified since last cache
             $cachedModified = $metadata['products'][$productId] ?? null;
             $currentModified = $productInfo['modified'];
             
@@ -214,8 +204,14 @@ if ($action === 'get_status') {
 
 // ACTION 2: Load cached products
 if ($action === 'load_cached') {
-    // Get IDs from POST or GET
-    $ids = isset($_POST['ids']) ? json_decode($_POST['ids'], true) : json_decode($_GET['ids'] ?? '[]', true);
+    // Handle POST data
+    $postData = file_get_contents('php://input');
+    if ($postData) {
+        $decoded = json_decode($postData, true);
+        $ids = $decoded['ids'] ?? [];
+    } else {
+        $ids = json_decode($_GET['ids'] ?? '[]', true);
+    }
     
     if (!is_array($ids) || empty($ids)) {
         echo json_encode(["success" => true, "products" => []]);
@@ -230,7 +226,7 @@ if ($action === 'load_cached') {
         }
     }
     
-    error_log("Loaded " . count($products) . " cached products");
+    error_log("Loaded " . count($products) . " cached products from " . count($ids) . " requested");
     
     echo json_encode([
         "success" => true,
@@ -241,8 +237,14 @@ if ($action === 'load_cached') {
 
 // ACTION 3: Fetch and cache specific products
 if ($action === 'fetch_products') {
-    // Get IDs from POST or GET
-    $ids = isset($_POST['ids']) ? json_decode($_POST['ids'], true) : json_decode($_GET['ids'] ?? '[]', true);
+    // Handle POST data
+    $postData = file_get_contents('php://input');
+    if ($postData) {
+        $decoded = json_decode($postData, true);
+        $ids = $decoded['ids'] ?? [];
+    } else {
+        $ids = json_decode($_GET['ids'] ?? '[]', true);
+    }
     
     if (!is_array($ids) || empty($ids)) {
         echo json_encode(["success" => true, "products" => []]);
@@ -265,20 +267,17 @@ if ($action === 'fetch_products') {
         $product = fetchProductDetails($productId, $accessToken);
         
         if ($product) {
-            // Cache the product
             $productFile = $cacheDir . '/product_' . $productId . '.json';
             file_put_contents($productFile, json_encode($product, JSON_PRETTY_PRINT));
             
-            // Update metadata
             $metadata['products'][$productId] = $product['modified'] ?? $product['created'] ?? date('c');
             
             $products[] = $product;
         }
         
-        usleep(100000); // 100ms delay
+        usleep(100000);
     }
     
-    // Save updated metadata
     $metadata['last_full_sync'] = date('c');
     saveMetadata($metadataFile, $metadata);
     
