@@ -46,7 +46,6 @@
     
     const startTime = Date.now();
     
-    // Always check for updates (no force refresh needed)
     fetch('fetch_plytix_data.php?action=get_status')
       .then(function(res) {
         if (!res.ok) {
@@ -65,11 +64,9 @@
         const cachedIds = statusData.cachedIds || [];
         const needUpdateIds = statusData.needUpdateIds || [];
         
-        // Load cached products instantly
         if (cachedIds.length > 0) {
-          loadCachedProductsOptimized(cachedIds, needUpdateIds, totalProducts, startTime);
+          loadCachedProducts(cachedIds, needUpdateIds, totalProducts, startTime);
         } else if (needUpdateIds.length > 0) {
-          // No cache, fetch everything
           fetchUpdatedProducts(needUpdateIds, totalProducts, startTime);
         }
       })
@@ -80,14 +77,10 @@
       });
   }
 
-
-
-  
-  function loadCachedProductsOptimized(cachedIds, needUpdateIds, totalProducts, startTime) {
+  function loadCachedProducts(cachedIds, needUpdateIds, totalProducts, startTime) {
     const status = document.getElementById("catalogStatus");
     
-    // Split into smaller batches - 100 per batch to avoid URI too long
-    const batchSize = 100;
+    const batchSize = 50;
     const batches = [];
     for (let i = 0; i < cachedIds.length; i += batchSize) {
       batches.push(cachedIds.slice(i, i + batchSize));
@@ -97,7 +90,6 @@
     
     let loadedCount = 0;
     
-    // Load batches sequentially
     function loadNextBatch(index) {
       if (index >= batches.length) {
         const loadTime = ((Date.now() - startTime) / 1000).toFixed(2);
@@ -109,7 +101,7 @@
         applyFilters();
         
         if (needUpdateIds.length > 0) {
-          status.innerHTML = '<span class="text-success">✓ Loaded ' + allProducts.length + ' products (' + loadTime + 's) - Checking ' + needUpdateIds.length + ' for updates...</span>';
+          status.innerHTML = '<span class="text-success">✓ Loaded ' + allProducts.length + ' products (' + loadTime + 's)</span>';
           fetchUpdatedProducts(needUpdateIds, totalProducts, startTime);
         } else {
           status.innerHTML = '<span class="text-success">✓ Loaded ' + allProducts.length + ' products (' + loadTime + 's)</span>';
@@ -119,13 +111,12 @@
       
       const batch = batches[index];
       
-      // Use POST request with smaller URL-safe batch
-      fetch('fetch_plytix_data.php', {
+      fetch('fetch_plytix_data.php?action=load_cached', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/x-www-form-urlencoded'
+          'Content-Type': 'application/json'
         },
-        body: 'action=load_cached&ids=' + encodeURIComponent(JSON.stringify(batch))
+        body: JSON.stringify({ ids: batch })
       })
       .then(function(res) { return res.json(); })
       .then(function(data) {
@@ -134,7 +125,7 @@
           loadedCount += data.products.length;
           
           const currentTime = ((Date.now() - startTime) / 1000).toFixed(1);
-          status.innerHTML = '<span class="text-primary">⚡ Loaded ' + loadedCount + ' / ' + cachedIds.length + ' products (' + currentTime + 's)</span>';
+          status.innerHTML = '<span class="text-primary">⚡ Loaded ' + loadedCount + ' / ' + cachedIds.length + ' (' + currentTime + 's)</span>';
           
           if (index === 0) {
             setupFilters();
@@ -157,13 +148,7 @@
     loadNextBatch(0);
   }
 
-
-
-
-
-
-  
-function fetchUpdatedProducts(productIds, totalProducts, startTime) {
+  function fetchUpdatedProducts(productIds, totalProducts, startTime) {
     const status = document.getElementById("catalogStatus");
     
     if (productIds.length === 0) return;
@@ -189,13 +174,12 @@ function fetchUpdatedProducts(productIds, totalProducts, startTime) {
       
       const batch = batches[index];
       
-      // Use POST request
-      fetch('fetch_plytix_data.php', {
+      fetch('fetch_plytix_data.php?action=fetch_products', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/x-www-form-urlencoded'
+          'Content-Type': 'application/json'
         },
-        body: 'action=fetch_products&ids=' + encodeURIComponent(JSON.stringify(batch))
+        body: JSON.stringify({ ids: batch })
       })
       .then(function(res) { return res.json(); })
       .then(function(data) {
@@ -224,7 +208,7 @@ function fetchUpdatedProducts(productIds, totalProducts, startTime) {
           applyFilters();
           
           const currentTime = ((Date.now() - startTime) / 1000).toFixed(1);
-          status.innerHTML = '<span class="text-primary">⏳ Updated ' + fetchedCount + ' / ' + productIds.length + ' products (' + currentTime + 's)</span>';
+          status.innerHTML = '<span class="text-primary">⏳ Updated ' + fetchedCount + ' / ' + productIds.length + ' (' + currentTime + 's)</span>';
           
           console.log("Batch " + (index + 1) + "/" + batches.length + " fetched (" + fetchedCount + " total)");
           
@@ -240,11 +224,6 @@ function fetchUpdatedProducts(productIds, totalProducts, startTime) {
     fetchNextBatch(0);
   }
 
-
-
-
-
-  
   function setupFilters() {
     document.getElementById("searchBox").addEventListener("input", applyFilters);
     document.getElementById("statusFilter").addEventListener("change", applyFilters);
@@ -283,10 +262,9 @@ function fetchUpdatedProducts(productIds, totalProducts, startTime) {
   }
 
   function populateFamilyFilter() {
-    const familyMap = new Map(); // Map to store family_id -> family_name
+    const familyMap = new Map();
     
     allProducts.forEach(function(p) {
-      // Look for family in relationships object
       if (p.relationships && p.relationships.product_families && Array.isArray(p.relationships.product_families)) {
         p.relationships.product_families.forEach(function(family) {
           if (family.id && family.label) {
@@ -295,7 +273,6 @@ function fetchUpdatedProducts(productIds, totalProducts, startTime) {
         });
       }
       
-      // Also check if there's a product_family attribute
       if (p.attributes && p.attributes.product_family) {
         const familyAttr = p.attributes.product_family;
         if (typeof familyAttr === 'string') {
@@ -317,7 +294,6 @@ function fetchUpdatedProducts(productIds, totalProducts, startTime) {
       return;
     }
     
-    // Sort by family name
     const sortedFamilies = Array.from(familyMap.entries()).sort(function(a, b) {
       return a[1].localeCompare(b[1]);
     });
@@ -361,7 +337,6 @@ function fetchUpdatedProducts(productIds, totalProducts, startTime) {
       
       if (!matchesSearch) return false;
       
-      // Check enabled/disabled using correct field
       const enableDisableField = p.enable_disable_product;
       const attrEnableDisable = p.attributes && p.attributes.enable_disable_product;
       
@@ -403,12 +378,10 @@ function fetchUpdatedProducts(productIds, totalProducts, startTime) {
       if (selectedFamilies.length > 0) {
         let productFamilyIds = [];
         
-        // Check relationships
         if (p.relationships && p.relationships.product_families && Array.isArray(p.relationships.product_families)) {
           productFamilyIds = p.relationships.product_families.map(function(f) { return f.id; });
         }
         
-        // Check attributes
         if (p.attributes && p.attributes.product_family) {
           const familyAttr = p.attributes.product_family;
           if (typeof familyAttr === 'string') {
@@ -428,7 +401,6 @@ function fetchUpdatedProducts(productIds, totalProducts, startTime) {
       return true;
     });
 
-    // Sort
     filteredProducts.sort(function(a, b) {
       if (sortFilter === "sku-asc") return (a.sku || "").localeCompare(b.sku || "");
       if (sortFilter === "sku-desc") return (b.sku || "").localeCompare(a.sku || "");
@@ -463,7 +435,6 @@ function fetchUpdatedProducts(productIds, totalProducts, startTime) {
       status.innerHTML = '<span class="text-success">Showing ' + filteredProducts.length + ' of ' + allProducts.length + ' products</span>';
     }
     
-    // LAZY RENDERING
     displayedCount = 0;
     grid.innerHTML = "";
     
@@ -475,7 +446,6 @@ function fetchUpdatedProducts(productIds, totalProducts, startTime) {
     const batchSize = displayedCount === 0 ? INITIAL_LOAD : BATCH_SIZE;
     const endIndex = Math.min(displayedCount + batchSize, filteredProducts.length);
     
-    // Use document fragment for better performance
     const fragment = document.createDocumentFragment();
     
     for (let i = displayedCount; i < endIndex; i++) {
@@ -485,7 +455,6 @@ function fetchUpdatedProducts(productIds, totalProducts, startTime) {
     grid.appendChild(fragment);
     displayedCount = endIndex;
     
-    // Render next batch
     if (displayedCount < filteredProducts.length) {
       requestAnimationFrame(renderNextBatch);
     }
@@ -499,7 +468,6 @@ function fetchUpdatedProducts(productIds, totalProducts, startTime) {
     card.className = "card h-100 shadow-sm product-card";
     card.style.cursor = "pointer";
     
-    // Check if product is disabled
     const enableDisableField = product.enable_disable_product;
     const attrEnableDisable = product.attributes && product.attributes.enable_disable_product;
     
@@ -519,8 +487,8 @@ function fetchUpdatedProducts(productIds, totalProducts, startTime) {
     img.className = "card-img-top";
     img.style.height = "250px";
     img.style.width = "100%";
-    img.style.objectFit = "cover"; // Zoom to fill completely
-    img.style.objectPosition = "center center"; // Center the image
+    img.style.objectFit = "cover";
+    img.style.objectPosition = "center center";
     img.style.backgroundColor = "#f8f9fa";
     img.loading = "lazy";
     img.decoding = "async";
