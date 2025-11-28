@@ -222,10 +222,13 @@ if ($action === 'load_cached') {
     }
 
     $products = [];
+    
+    // Read files with minimal overhead
     foreach ($ids as $productId) {
         $productFile = $cacheDir . '/product_' . $productId . '.json';
         if (file_exists($productFile)) {
-            $content = file_get_contents($productFile);
+            // Use file_get_contents without extra checks for speed
+            $content = @file_get_contents($productFile);
             if ($content !== false) {
                 $decoded = json_decode($content, true);
                 if ($decoded !== null) {
@@ -237,21 +240,24 @@ if ($action === 'load_cached') {
 
     error_log("Loaded " . count($products) . " cached products from " . count($ids) . " requested");
     
-    // Enable gzip compression if available
-    if (function_exists('gzencode') && !headers_sent()) {
+    // Send response with compression
+    header('Content-Type: application/json');
+    
+    $jsonResponse = json_encode([
+        "success" => true,
+        "products" => $products
+    ]);
+    
+    // Enable gzip if not already enabled by server
+    if (!headers_sent() && extension_loaded('zlib') && !ini_get('zlib.output_compression')) {
         header('Content-Encoding: gzip');
-        echo gzencode(json_encode([
-            "success" => true,
-            "products" => $products
-        ]));
+        echo gzencode($jsonResponse, 6); // Level 6 is good balance
     } else {
-        echo json_encode([
-            "success" => true,
-            "products" => $products
-        ]);
+        echo $jsonResponse;
     }
     exit;
 }
+
 
 
 
