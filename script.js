@@ -38,7 +38,7 @@
     const status = document.getElementById("catalogStatus");
     const grid = document.getElementById("productGrid");
     
-    status.innerHTML = '<span class="text-primary">⏳ Loading products...</span>';
+    status.innerHTML = '<span class="text-primary">⏳ Checking cache...</span>';
     grid.innerHTML = '<div class="col-12 text-center py-5"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div><p class="mt-2">Please wait...</p></div>';
     
     const forceRefresh = localStorage.getItem('forceRefresh') === 'true';
@@ -46,31 +46,143 @@
     
     const startTime = Date.now();
     
-    // SINGLE FETCH - instant if cached!
-    fetch('fetch_plytix_data.php?action=get_products' + (forceRefresh ? '&force_refresh=true' : ''))
-      .then(function(res) { return res.json(); })
-      .then(function(data) {
-        const loadTime = ((Date.now() - startTime) / 1000).toFixed(2);
-        
-        if (!data.success || !data.products) {
-          throw new Error("Failed to load products");
+    // STEP 1: Get status - which products are cached vs need update
+    fetch('fetch_plytix_data.php?action=get_status' + (forceRefresh ? '&force_refresh=true' : ''))
+      .then(function(res) {
+        if (!res.ok) {
+          throw new Error('HTTP ' + res.status);
+        }
+        return res.json();
+      })
+      .then(function(statusData) {
+        if (!statusData.success) {
+          throw new Error("Failed to get status");
         }
         
-        allProducts = data.products;
-        console.log("Loaded " + data.total + " products in " + loadTime + "s " + (data.cached ? "(from cache)" : "(fresh from API)"));
+        console.log("Status:", statusData.cached, "cached,", statusData.needUpdate, "need update");
         
-        status.innerHTML = '<span class="text-success">✓ Loaded ' + data.total + ' products in ' + loadTime + 's' + (data.cached ? ' (cached)' : '') + '</span>';
+        const totalProducts = statusData.total;
+        const cachedIds = statusData.cachedIds || [];
+        const needUpdateIds = statusData.needUpdateIds || [];
         
-        // Set up filters
-        setupFilters();
-        populateCategoryFilter();
-        applyFilters();
+        // STEP 2: Load cached products INSTANTLY
+        if (cachedIds.length > 0) {
+          status.innerHTML = '<span class="text-primary">⚡ Loading ' + cachedIds.length + ' cached products...</span>';
+          
+          // Split into batches for faster loading
+          const batchSize = 200;
+          const cachedBatches = [];
+          for (let i = 0; i < cachedIds.length; i += batchSize) {
+            cachedBatches.push(cachedIds.slice(i, i + batchSize));
+          }
+          
+          // Load all cached batches in parallel
+          Promise.all(cachedBatches.map(function(batch) {
+            return fetch('fetch_plytix_data.php?action=load_cached&ids=' + encodeURIComponent(JSON.stringify(batch)))
+              .then(function(res) { return res.json(); })
+              .then(function(data) {
+                if (data.success && data.products) {
+                  return data.products;
+                }
+                return [];
+              });
+          }))
+          .then(function(results) {
+            // Flatten all results
+            results.forEach(function(batch) {
+              allProducts = allProducts.concat(batch);
+            });
+            
+            const cacheLoadTime = ((Date.now() - startTime) / 1000).toFixed(2);
+            console.log("Loaded " + allProducts.length + " cached products in " + cacheLoadTime + "s");
+            
+            status.innerHTML = '<span class="text-success">✓ Loaded ' + allProducts.length + ' products (' + cacheLoadTime + 's)</span>';
+            
+            // Show cached products immediately
+            setupFilters();
+            populateCategoryFilter();
+            applyFilters();
+            
+            // STEP 3: Fetch updated products in background
+            if (needUpdateIds.length > 0) {
+              fetchUpdatedProducts(needUpdateIds, totalProducts);
+            }
+          });
+        } else {
+          // No cache, fetch everything
+          if (needUpdateIds.length > 0) {
+            fetchUpdatedProducts(needUpdateIds, totalProducts);
+          }
+        }
       })
       .catch(function(err) {
         console.error("Failed to load products:", err);
-        status.innerHTML = '<span class="text-danger">Failed to load products. Check console.</span>';
-        grid.innerHTML = '';
+        status.innerHTML = '<span class="text-danger">Failed to load products. Check console for details.</span>';
+        grid.innerHTML = '<div class="col-12 text-center py-3"><p class="text-danger">Error: ' + err.message + '</p></div>';
       });
+  }
+
+  function fetchUpdatedProducts(productIds, totalProducts) {
+    const status = document.getElementById("catalogStatus");
+    
+    console.log("Fetching " + productIds.length + " updated products...");
+    
+    const batchSize = 25;
+    const batches = [];
+    for (let i = 0; i < productIds.length; i += batchSize) {
+      batches.push(productIds.slice(i, i + batchSize));
+    }
+    
+    let fetchedCount = 0;
+    
+    // Fetch batches sequentially to avoid rate limits
+    function fetchNextBatch(index) {
+      if (index >= batches.length) {
+        status.innerHTML = '<span class="text-success">✓ All ' + totalProducts + ' products loaded</span>';
+        console.log("All products updated!");
+        return;
+      }
+      
+      const batch = batches[index];
+      
+      status.innerHTML = '<span class="text-primary">⏳ Updating ' + fetchedCount + ' / ' + productIds.length + ' products...</span>';
+      
+      fetch('fetch_plytix_data.php?action=fetch_products&ids=' + encodeURIComponent(JSON.stringify(batch)))
+        .then(function(res) { return res.json(); })
+        .then(function(data) {
+          if (data.success && data.products) {
+            fetchedCount += data.products.length;
+            
+            // Update or add products
+            data.products.forEach(function(newProduct) {
+              const existingIndex = allProducts.findIndex(function(p) {
+                return p.id === newProduct.id;
+              });
+              
+              if (existingIndex >= 0) {
+                allProducts[existingIndex] = newProduct;
+              } else {
+                allProducts.push(newProduct);
+              }
+            });
+            
+            // Update display progressively
+            applyFilters();
+            
+            console.log("Batch " + (index + 1) + "/" + batches.length + " fetched (" + fetchedCount + " total)");
+            
+            // Fetch next batch
+            fetchNextBatch(index + 1);
+          }
+        })
+        .catch(function(err) {
+          console.error("Batch fetch error:", err);
+          // Continue with next batch even if one fails
+          fetchNextBatch(index + 1);
+        });
+    }
+    
+    fetchNextBatch(0);
   }
 
   function setupFilters() {
@@ -127,14 +239,13 @@
       
       if (!matchesSearch) return false;
       
-      // FIX: Check multiple possible fields for enabled/disabled status
+      // Check enabled/disabled status
       const status = (p.status || "").toLowerCase();
       const enableField = p.enable_disable_product;
       const attrEnable = p.attributes && p.attributes.enable_disable_product;
       const productEnabled = p.product_enabled;
       const attrProductEnabled = p.attributes && p.attributes.product_enabled;
       
-      // Consider product enabled if ANY of these conditions are true:
       const isEnabled = 
         status === "enabled" || 
         status === "draft" ||
@@ -209,7 +320,12 @@
       return;
     }
     
-    status.innerHTML = '<span class="text-success">Showing ' + filteredProducts.length + ' of ' + allProducts.length + ' products</span>';
+    const currentStatus = status.innerHTML;
+    if (currentStatus.includes('Showing')) {
+      // Don't overwrite loading status
+    } else {
+      status.innerHTML = '<span class="text-success">Showing ' + filteredProducts.length + ' of ' + allProducts.length + ' products</span>';
+    }
     
     filteredProducts.forEach(function(product) {
       grid.appendChild(createProductCard(product));
@@ -224,11 +340,12 @@
     card.className = "card h-100 shadow-sm product-card";
     card.style.cursor = "pointer";
     
-    // Check if product is disabled for dimming effect
+    // Check if product is disabled
     const status = (product.status || "").toLowerCase();
     const enableField = product.enable_disable_product;
     const attrEnable = product.attributes && product.attributes.enable_disable_product;
-    const productEnabled = product.attributes && product.attributes.product_enabled;
+    const productEnabled = product.product_enabled;
+    const attrProductEnabled = product.attributes && product.attributes.product_enabled;
     
     const isEnabled = 
       status === "enabled" || 
@@ -236,7 +353,9 @@
       enableField === true || 
       attrEnable === true ||
       productEnabled === true ||
-      productEnabled === "TRUE";
+      attrProductEnabled === true ||
+      productEnabled === "TRUE" ||
+      attrProductEnabled === "TRUE";
     
     // Apply dim effect if disabled
     if (!isEnabled) {
@@ -249,12 +368,11 @@
     const img = document.createElement("img");
     img.className = "card-img-top";
     img.style.height = "250px";
-    img.style.objectFit = "cover"; // CHANGED from "contain" to "cover" for zoomed effect
+    img.style.objectFit = "cover";
     img.style.backgroundColor = "#f8f9fa";
     img.loading = "lazy";
     img.decoding = "async";
     
-    // Use thumbnail URL if available
     let thumbUrl = imageUrl;
     if (product.thumbnail && product.thumbnail.thumbnail) {
       thumbUrl = product.thumbnail.thumbnail;
@@ -283,7 +401,6 @@
     sku.className = "card-text text-muted small mb-0";
     sku.innerHTML = "<strong>SKU:</strong> " + (product.sku || "N/A");
     
-    // Add disabled badge if product is disabled
     if (!isEnabled) {
       const badge = document.createElement("span");
       badge.className = "badge bg-secondary mt-2";
@@ -304,29 +421,21 @@
 
   function getFirstImage(product) {
     if (product.thumbnail && typeof product.thumbnail === 'object') {
-      if (product.thumbnail.url) {
-        return product.thumbnail.url;
-      }
-      if (product.thumbnail.thumbnail) {
-        return product.thumbnail.thumbnail;
-      }
+      if (product.thumbnail.url) return product.thumbnail.url;
+      if (product.thumbnail.thumbnail) return product.thumbnail.thumbnail;
     }
     
     if (Array.isArray(product.assets) && product.assets.length > 0) {
       const firstAsset = product.assets[0];
-      if (firstAsset && firstAsset.url) {
-        return firstAsset.url;
-      }
+      if (firstAsset && firstAsset.url) return firstAsset.url;
     }
     
     if (product.attributes && Array.isArray(product.attributes.images) && product.attributes.images.length > 0) {
       const firstImg = product.attributes.images[0];
-      if (firstImg && firstImg.url) {
-        return firstImg.url;
-      }
+      if (firstImg && firstImg.url) return firstImg.url;
     }
     
-    return "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Crect width='400' height='400' fill='%23ddd'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='monospace' font-size='20' fill='%23999'%3ENo Image%3C/svg%3E";
+    return "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Crect width='400' height='400' fill='%23ddd'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='monospace' font-size='20' fill='%23999'%3ENo Image%3C/text%3E%3C/svg%3E";
   }
 
   function getValue(row, key) {
@@ -346,13 +455,8 @@
         }).filter(Boolean).join(', ');
       }
       
-      if (typeof val === 'object' && val.url) {
-        return val.url;
-      }
-      
-      if (typeof val === 'boolean') {
-        return val ? 'Yes' : 'No';
-      }
+      if (typeof val === 'object' && val.url) return val.url;
+      if (typeof val === 'boolean') return val ? 'Yes' : 'No';
       
       return String(val).trim();
     }
@@ -372,13 +476,8 @@
           }).filter(Boolean).join(', ');
         }
         
-        if (typeof attrVal === 'object' && attrVal.url) {
-          return attrVal.url;
-        }
-        
-        if (typeof attrVal === 'boolean') {
-          return attrVal ? 'Yes' : 'No';
-        }
+        if (typeof attrVal === 'object' && attrVal.url) return attrVal.url;
+        if (typeof attrVal === 'boolean') return attrVal ? 'Yes' : 'No';
         
         return String(attrVal).trim();
       }
@@ -392,9 +491,7 @@
       return '<span class="text-muted">-</span>';
     }
     
-    if (typeof value === 'boolean') {
-      return value ? 'TRUE' : 'FALSE';
-    }
+    if (typeof value === 'boolean') return value ? 'TRUE' : 'FALSE';
     
     if (Array.isArray(value)) {
       if (value.length === 0) return '<span class="text-muted">-</span>';
@@ -407,14 +504,8 @@
     }
     
     if (typeof value === 'object') {
-      if (value.user_email) {
-        return value.user_email;
-      }
-      
-      if (value.name) {
-        return value.name;
-      }
-      
+      if (value.user_email) return value.user_email;
+      if (value.name) return value.name;
       return '<pre class="mb-0 small" style="max-height:100px;overflow:auto;">' + JSON.stringify(value, null, 2) + '</pre>';
     }
     
