@@ -9,10 +9,13 @@ if (!file_exists($cacheDir)) {
     mkdir($cacheDir, 0755, true);
 }
 
-$action = $_GET['action'] ?? 'get_ids';
+// MASTER CACHE FILE - all products in one file for instant loading
+$masterCacheFile = $cacheDir . '/all_products.json';
+
+$action = $_GET['action'] ?? 'get_products';
 $forceRefresh = isset($_GET['force_refresh']) && $_GET['force_refresh'] === 'true';
 
-error_log("=== PHP START: " . date('Y-m-d H:i:s') . " | Action: $action ===");
+error_log("=== PHP START: " . date('Y-m-d H:i:s') . " | Action: $action | Force: " . ($forceRefresh ? 'YES' : 'NO') . " ===");
 
 $apiKey = "DQ1TBOXSRPE196ER4018";
 $apiPassword = "0&0eqfaSvwb1iGdHRWL0nJZ9heuDJA3y@J;37S8z";
@@ -43,29 +46,85 @@ function getAuthToken($apiKey, $apiPassword) {
     return $authData['data'][0]['access_token'];
 }
 
-// Function to get cached product
-function getCachedProduct($productId, $cacheDir) {
-    $cacheFile = $cacheDir . '/product_' . $productId . '.json';
-    if (file_exists($cacheFile)) {
-        $data = json_decode(file_get_contents($cacheFile), true);
-        return $data;
+// Function to fetch all products with full details
+function fetchAllProducts($accessToken) {
+    error_log("Fetching all products from Plytix API...");
+    
+    $allProducts = [];
+    $seenIds = [];
+    $page = 1;
+    $pageSize = 100;
+    $maxPages = 50;
+    
+    while ($page <= $maxPages) {
+        error_log("Fetching page $page...");
+        
+        $postData = [
+            "pagination" => [
+                "page" => $page,
+                "page_size" => $pageSize
+            ],
+            "sort" => [["field" => "id", "order" => "asc"]]
+        ];
+        
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL, "https://pim.plytix.com/api/v1/products/search");
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+        curl_setopt($ch, CURLOPT_POST, 1);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($postData));
+        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+            'Content-Type: application/json',
+            'Authorization: Bearer ' . $accessToken
+        ]);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        
+        $response = curl_exec($ch);
+        $httpcode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+        
+        if ($httpcode != 200) {
+            error_log("Failed on page $page (HTTP $httpcode)");
+            break;
+        }
+        
+        $data = json_decode($response, true);
+        
+        if (!isset($data['data']) || count($data['data']) === 0) {
+            error_log("No data on page $page");
+            break;
+        }
+        
+        $newCount = 0;
+        foreach ($data['data'] as $product) {
+            if (!isset($seenIds[$product['id']])) {
+                $seenIds[$product['id']] = true;
+                
+                // Fetch full product details
+                $fullProduct = fetchProductDetails($product['id'], $accessToken);
+                if ($fullProduct) {
+                    $allProducts[] = $fullProduct;
+                    $newCount++;
+                }
+            }
+        }
+        
+        error_log("Page $page: $newCount new products (Total: " . count($allProducts) . ")");
+        
+        if ($newCount === 0 || count($data['data']) < $pageSize) {
+            error_log("Last page detected");
+            break;
+        }
+        
+        $page++;
+        usleep(200000); // 200ms delay
     }
-    return null;
+    
+    error_log("Total unique products fetched: " . count($allProducts));
+    return $allProducts;
 }
 
-// Function to save product to cache
-function cacheProduct($product, $cacheDir) {
-    $cacheFile = $cacheDir . '/product_' . $product['id'] . '.json';
-    file_put_contents($cacheFile, json_encode($product, JSON_PRETTY_PRINT));
-}
-
-
-
-
-
-
-// Function to fetch product from API
-function fetchProductFromAPI($productId, $accessToken) {
+// Function to fetch full product details
+function fetchProductDetails($productId, $accessToken) {
     $ch = curl_init();
     curl_setopt($ch, CURLOPT_URL, "https://pim.plytix.com/api/v1/products/" . $productId);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
@@ -98,200 +157,44 @@ function fetchProductFromAPI($productId, $accessToken) {
 header('Content-Type: application/json');
 header('Cache-Control: no-cache, must-revalidate');
 
-
-
-
-
-
-
-
-// ACTION: Get all product IDs with modification dates
-if ($action === 'get_ids') {
-    $accessToken = getAuthToken($apiKey, $apiPassword);
-    if (!$accessToken) {
-        http_response_code(500);
-        echo json_encode(["error" => "Authentication failed"]);
-        exit;
-    }
+// ACTION: Get all products (instant from cache or fetch fresh)
+if ($action === 'get_products') {
     
-    error_log("Fetching all product IDs with correct pagination format...");
-    
-    $allProductIds = [];
-    $seenIds = [];
-    $page = 1;
-    $pageSize = 100; // Try 100 per page
-    $maxPages = 50; // Safety limit
-    
-    while ($page <= $maxPages) {
-        error_log("Fetching page $page...");
+    // If force refresh OR cache doesn't exist, fetch fresh
+    if ($forceRefresh || !file_exists($masterCacheFile)) {
+        error_log("Fetching fresh data from API...");
         
-        // CORRECT FORMAT: pagination object with page_size
-        $postData = [
-            "pagination" => [
-                "page" => $page,
-                "page_size" => $pageSize
-            ],
-            "sort" => [["field" => "id", "order" => "asc"]]
-        ];
+        $accessToken = getAuthToken($apiKey, $apiPassword);
+        if (!$accessToken) {
+            http_response_code(500);
+            echo json_encode(["error" => "Authentication failed"]);
+            exit;
+        }
         
-        $ch = curl_init();
-        curl_setopt($ch, CURLOPT_URL, "https://pim.plytix.com/api/v1/products/search");
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
-        curl_setopt($ch, CURLOPT_POST, 1);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($postData));
-        curl_setopt($ch, CURLOPT_HTTPHEADER, [
-            'Content-Type: application/json',
-            'Authorization: Bearer ' . $accessToken
+        $allProducts = fetchAllProducts($accessToken);
+        
+        // Save to master cache
+        file_put_contents($masterCacheFile, json_encode($allProducts, JSON_PRETTY_PRINT));
+        error_log("Saved " . count($allProducts) . " products to master cache");
+        
+        echo json_encode([
+            "success" => true,
+            "total" => count($allProducts),
+            "products" => $allProducts,
+            "cached" => false
         ]);
-        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-        
-        $response = curl_exec($ch);
-        $httpcode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
-        
-        if ($httpcode != 200) {
-            error_log("Failed on page $page (HTTP $httpcode)");
-            error_log("Response: " . substr($response, 0, 500));
-            break;
-        }
-        
-        $data = json_decode($response, true);
-        
-        if (!isset($data['data']) || count($data['data']) === 0) {
-            error_log("No data on page $page");
-            break;
-        }
-        
-        $newCount = 0;
-        foreach ($data['data'] as $product) {
-            if (!isset($seenIds[$product['id']])) {
-                $seenIds[$product['id']] = true;
-                $allProductIds[] = [
-                    'id' => $product['id'],
-                    'modified' => $product['modified'] ?? null
-                ];
-                $newCount++;
-            }
-        }
-        
-        error_log("Page $page: " . count($data['data']) . " returned, $newCount new (Total: " . count($allProductIds) . ")");
-        
-        // If no new products or fewer than pageSize, we're done
-        if ($newCount === 0 || count($data['data']) < $pageSize) {
-            error_log("Last page detected");
-            break;
-        }
-        
-        $page++;
-        usleep(200000);
+        exit;
     }
     
-    error_log("Total unique products fetched: " . count($allProductIds));
+    // Serve from cache - INSTANT!
+    error_log("Serving from master cache (instant load)");
+    $cachedProducts = json_decode(file_get_contents($masterCacheFile), true);
     
     echo json_encode([
         "success" => true,
-        "total" => count($allProductIds),
-        "products" => $allProductIds
-    ]);
-    exit;
-}
-
-
-
-
-
-
-
-
-// ACTION: Fetch batch of products
-if ($action === 'fetch_batch') {
-    $ids = $_GET['ids'] ?? '';
-    if (empty($ids)) {
-        echo json_encode(["error" => "No IDs provided"]);
-        exit;
-    }
-    
-    $productIds = explode(',', $ids);
-    $accessToken = getAuthToken($apiKey, $apiPassword);
-    
-    if (!$accessToken) {
-        http_response_code(500);
-        echo json_encode(["error" => "Authentication failed"]);
-        exit;
-    }
-    
-    $products = [];
-    $fetchedCount = 0;
-    $cachedCount = 0;
-    
-    foreach ($productIds as $productId) {
-        $productId = trim($productId);
-        if (empty($productId)) continue;
-        
-        // Check cache first (unless force refresh)
-        if (!$forceRefresh) {
-            $cached = getCachedProduct($productId, $cacheDir);
-            if ($cached) {
-                $products[] = $cached;
-                $cachedCount++;
-                error_log("Using cached: $productId");
-                continue;
-            }
-        }
-        
-        // Fetch from API
-        error_log("Fetching from API: $productId");
-        $product = fetchProductFromAPI($productId, $accessToken);
-        
-        if ($product) {
-            cacheProduct($product, $cacheDir);
-            $products[] = $product;
-            $fetchedCount++;
-        }
-        
-        usleep(100000); // 100ms delay between API calls
-    }
-    
-    error_log("Batch complete: $cachedCount cached, $fetchedCount fetched");
-    
-    echo json_encode([
-        "success" => true,
-        "products" => $products,
-        "cached" => $cachedCount,
-        "fetched" => $fetchedCount
-    ]);
-    exit;
-}
-
-// ACTION: Check which products need updating
-if ($action === 'check_updates') {
-    $idsParam = $_GET['ids'] ?? '';
-    if (empty($idsParam)) {
-        echo json_encode(["needUpdate" => []]);
-        exit;
-    }
-    
-    $products = json_decode($idsParam, true);
-    $needUpdate = [];
-    
-    foreach ($products as $product) {
-        $productId = $product['id'];
-        $apiModified = $product['modified'];
-        
-        $cached = getCachedProduct($productId, $cacheDir);
-        
-        if (!$cached) {
-            $needUpdate[] = $productId;
-        } else if ($apiModified && isset($cached['modified']) && $apiModified !== $cached['modified']) {
-            $needUpdate[] = $productId;
-            error_log("Product $productId needs update: API=$apiModified, Cache=$cached[modified]");
-        }
-    }
-    
-    error_log("Products needing update: " . count($needUpdate) . " / " . count($products));
-    
-    echo json_encode([
-        "needUpdate" => $needUpdate
+        "total" => count($cachedProducts),
+        "products" => $cachedProducts,
+        "cached" => true
     ]);
     exit;
 }
