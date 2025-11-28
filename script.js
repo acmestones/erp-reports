@@ -77,77 +77,80 @@
       });
   }
 
-  function loadCachedProducts(cachedIds, needUpdateIds, totalProducts, startTime) {
+
+
+  
+function loadCachedProducts(cachedIds, needUpdateIds, totalProducts, startTime) {
     const status = document.getElementById("catalogStatus");
-    
-    const batchSize = 50;
+    const batchSize = 200; // Increased from 50 to 200
     const batches = [];
     for (let i = 0; i < cachedIds.length; i += batchSize) {
-      batches.push(cachedIds.slice(i, i + batchSize));
+        batches.push(cachedIds.slice(i, i + batchSize));
     }
-    
-    console.log("Loading " + cachedIds.length + " products in " + batches.length + " batches");
-    
+    console.log(`Loading ${cachedIds.length} products in ${batches.length} batches`);
+
     let loadedCount = 0;
-    
+
     function loadNextBatch(index) {
-      if (index >= batches.length) {
-        const loadTime = ((Date.now() - startTime) / 1000).toFixed(2);
-        console.log("Loaded " + allProducts.length + " cached products in " + loadTime + "s");
-        
-        setupFilters();
-        populateCategoryFilter();
-        populateFamilyFilter();
-        applyFilters();
-        
-        if (needUpdateIds.length > 0) {
-          status.innerHTML = '<span class="text-success">✓ Loaded ' + allProducts.length + ' products (' + loadTime + 's)</span>';
-          fetchUpdatedProducts(needUpdateIds, totalProducts, startTime);
-        } else {
-          status.innerHTML = '<span class="text-success">✓ Loaded ' + allProducts.length + ' products (' + loadTime + 's)</span>';
-        }
-        return;
-      }
-      
-      const batch = batches[index];
-      
-      fetch('fetch_plytix_data.php?action=load_cached', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ ids: batch })
-      })
-      .then(function(res) { return res.json(); })
-      .then(function(data) {
-        if (data.success && data.products) {
-          allProducts = allProducts.concat(data.products);
-          loadedCount += data.products.length;
-          
-          const currentTime = ((Date.now() - startTime) / 1000).toFixed(1);
-          status.innerHTML = '<span class="text-primary">⚡ Loaded ' + loadedCount + ' / ' + cachedIds.length + ' (' + currentTime + 's)</span>';
-          
-          if (index === 0) {
+        if (index >= batches.length) {
+            const loadTime = ((Date.now() - startTime) / 1000).toFixed(2);
+            console.log(`Loaded ${allProducts.length} cached products in ${loadTime}s`);
+            
+            // Setup filters only ONCE after all batches loaded
             setupFilters();
             populateCategoryFilter();
             populateFamilyFilter();
             applyFilters();
-          } else {
-            applyFilters();
-          }
-        }
-        
-        loadNextBatch(index + 1);
-      })
-      .catch(function(err) {
-        console.error("Batch load error:", err);
-        loadNextBatch(index + 1);
-      });
-    }
-    
-    loadNextBatch(0);
-  }
 
+            if (needUpdateIds.length > 0) {
+                status.innerHTML = `<span class="text-success">✓ Loaded ${allProducts.length} products (${loadTime}s)</span>`;
+                fetchUpdatedProducts(needUpdateIds, totalProducts, startTime);
+            } else {
+                status.innerHTML = `<span class="text-success">✓ Loaded ${allProducts.length} products (${loadTime}s)</span>`;
+            }
+            return;
+        }
+
+        const batch = batches[index];
+        fetch("fetch_plytix_data.php?action=load_cached", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ids: batch })
+        })
+        .then(function(res) { return res.json(); })
+        .then(function(data) {
+            if (data.success && data.products) {
+                allProducts = allProducts.concat(data.products);
+                loadedCount += data.products.length;
+                const currentTime = ((Date.now() - startTime) / 1000).toFixed(1);
+                status.innerHTML = `<span class="text-primary">⏳ Loaded ${loadedCount}/${cachedIds.length} (${currentTime}s)</span>`;
+
+                // Render products progressively on first batch
+                if (index === 0) {
+                    setupFilters();
+                    populateCategoryFilter();
+                    populateFamilyFilter();
+                    applyFilters();
+                }
+
+                loadNextBatch(index + 1);
+            }
+        })
+        .catch(function(err) {
+            console.error("Batch load error:", err);
+            loadNextBatch(index + 1);
+        });
+    }
+
+    loadNextBatch(0);
+}
+
+
+
+
+
+
+  
   function fetchUpdatedProducts(productIds, totalProducts, startTime) {
     const status = document.getElementById("catalogStatus");
     
@@ -441,25 +444,39 @@
     renderNextBatch();
   }
 
-  function renderNextBatch() {
+
+
+
+
+  
+ function renderNextBatch() {
     const grid = document.getElementById("productGrid");
     const batchSize = displayedCount === 0 ? INITIAL_LOAD : BATCH_SIZE;
     const endIndex = Math.min(displayedCount + batchSize, filteredProducts.length);
     
     const fragment = document.createDocumentFragment();
-    
     for (let i = displayedCount; i < endIndex; i++) {
-      fragment.appendChild(createProductCard(filteredProducts[i]));
+        fragment.appendChild(createProductCard(filteredProducts[i]));
     }
     
     grid.appendChild(fragment);
     displayedCount = endIndex;
-    
-    if (displayedCount < filteredProducts.length) {
-      requestAnimationFrame(renderNextBatch);
-    }
-  }
 
+    if (displayedCount < filteredProducts.length) {
+        // Use requestIdleCallback if available for better performance
+        if ('requestIdleCallback' in window) {
+            requestIdleCallback(renderNextBatch);
+        } else {
+            requestAnimationFrame(renderNextBatch);
+        }
+    }
+}
+
+
+
+
+
+  
   function createProductCard(product) {
     const col = document.createElement("div");
     col.className = "col-md-6 col-lg-3";
