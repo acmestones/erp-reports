@@ -109,6 +109,8 @@ function loadCachedProducts(cachedIds, needUpdateIds, totalProducts, startTime) 
                 fetchUpdatedProducts(needUpdateIds, totalProducts, startTime);
             } else {
                 status.innerHTML = `<span class="text-success">✓ Loaded ${allProducts.length} products (${loadTime}s)</span>`;
+                console.timeEnd("Total Load Time"); // ADD THIS LINE
+
             }
             return;
         }
