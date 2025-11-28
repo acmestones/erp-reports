@@ -20,6 +20,9 @@
       window.location.replace("login.html");
     }
   </script>
+
+
+
 </head>
 <body class="bg-light">
 
@@ -28,6 +31,9 @@
     <h3>🪨 Acme Stonemart — Product Catalog</h3>
     <div>
       <span id="loggedUserBadge" class="me-2 text-muted small"></span>
+      <button id="refreshCacheBtn" class="btn btn-warning btn-sm me-2" onclick="forceRefreshCache()" title="Check for product updates from Plytix">
+        🔄 Refresh Cache
+      </button>
       <button id="logoutBtn" class="btn btn-outline-danger btn-sm" onclick="logout()">Logout</button>
     </div>
   </div>
