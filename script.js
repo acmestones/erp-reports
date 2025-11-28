@@ -516,13 +516,10 @@ if (familyMap.size === 0) {
     
     const img = document.createElement("img");
     img.className = "card-img-top";
-    img.style.height = "250px";
-    img.style.width = "100%";
-    img.style.objectFit = "cover";
-    img.style.objectPosition = "center center";
-    img.style.backgroundColor = "#f8f9fa";
+    img.cssText = "height:250px;width:100%;object-fit:cover;object-position:center center;background-color:#f8f9fa";
     img.loading = "lazy";
     img.decoding = "async";
+
     
     let thumbUrl = imageUrl;
     if (product.thumbnail && product.thumbnail.thumbnail) {
