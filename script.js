@@ -80,60 +80,90 @@
       });
   }
 
+
+
+  
   function loadCachedProductsOptimized(cachedIds, needUpdateIds, totalProducts, startTime) {
     const status = document.getElementById("catalogStatus");
     
-    // Split into 3 large batches to load in parallel
-    const batchSize = Math.ceil(cachedIds.length / 3);
+    // Split into smaller batches - 100 per batch to avoid URI too long
+    const batchSize = 100;
     const batches = [];
     for (let i = 0; i < cachedIds.length; i += batchSize) {
       batches.push(cachedIds.slice(i, i + batchSize));
     }
     
-    let loadedCount = 0;
-    let firstBatchShown = false;
+    console.log("Loading " + cachedIds.length + " products in " + batches.length + " batches");
     
-    // Load all batches in PARALLEL for speed
-    Promise.all(batches.map(function(batch) {
-      return fetch('fetch_plytix_data.php?action=load_cached&ids=' + encodeURIComponent(JSON.stringify(batch)))
-        .then(function(res) { return res.json(); })
-        .then(function(data) {
-          if (data.success && data.products) {
-            return data.products;
-          }
-          return [];
-        })
-        .catch(function(err) {
-          console.error("Batch load error:", err);
-          return [];
-        });
-    }))
-    .then(function(results) {
-      // Flatten all results
-      results.forEach(function(batch) {
-        allProducts = allProducts.concat(batch);
-      });
-      
-      const loadTime = ((Date.now() - startTime) / 1000).toFixed(2);
-      console.log("Loaded " + allProducts.length + " cached products in " + loadTime + "s");
-      
-      // Setup and display immediately
-      setupFilters();
-      populateCategoryFilter();
-      populateFamilyFilter();
-      applyFilters();
-      
-      // Update status
-      if (needUpdateIds.length > 0) {
-        status.innerHTML = '<span class="text-success">✓ Loaded ' + allProducts.length + ' products (' + loadTime + 's) - Checking ' + needUpdateIds.length + ' for updates...</span>';
-        fetchUpdatedProducts(needUpdateIds, totalProducts, startTime);
-      } else {
-        status.innerHTML = '<span class="text-success">✓ Loaded ' + allProducts.length + ' products (' + loadTime + 's)</span>';
+    let loadedCount = 0;
+    
+    // Load batches sequentially
+    function loadNextBatch(index) {
+      if (index >= batches.length) {
+        const loadTime = ((Date.now() - startTime) / 1000).toFixed(2);
+        console.log("Loaded " + allProducts.length + " cached products in " + loadTime + "s");
+        
+        setupFilters();
+        populateCategoryFilter();
+        populateFamilyFilter();
+        applyFilters();
+        
+        if (needUpdateIds.length > 0) {
+          status.innerHTML = '<span class="text-success">✓ Loaded ' + allProducts.length + ' products (' + loadTime + 's) - Checking ' + needUpdateIds.length + ' for updates...</span>';
+          fetchUpdatedProducts(needUpdateIds, totalProducts, startTime);
+        } else {
+          status.innerHTML = '<span class="text-success">✓ Loaded ' + allProducts.length + ' products (' + loadTime + 's)</span>';
+        }
+        return;
       }
-    });
+      
+      const batch = batches[index];
+      
+      // Use POST request with smaller URL-safe batch
+      fetch('fetch_plytix_data.php', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded'
+        },
+        body: 'action=load_cached&ids=' + encodeURIComponent(JSON.stringify(batch))
+      })
+      .then(function(res) { return res.json(); })
+      .then(function(data) {
+        if (data.success && data.products) {
+          allProducts = allProducts.concat(data.products);
+          loadedCount += data.products.length;
+          
+          const currentTime = ((Date.now() - startTime) / 1000).toFixed(1);
+          status.innerHTML = '<span class="text-primary">⚡ Loaded ' + loadedCount + ' / ' + cachedIds.length + ' products (' + currentTime + 's)</span>';
+          
+          if (index === 0) {
+            setupFilters();
+            populateCategoryFilter();
+            populateFamilyFilter();
+            applyFilters();
+          } else {
+            applyFilters();
+          }
+        }
+        
+        loadNextBatch(index + 1);
+      })
+      .catch(function(err) {
+        console.error("Batch load error:", err);
+        loadNextBatch(index + 1);
+      });
+    }
+    
+    loadNextBatch(0);
   }
 
-  function fetchUpdatedProducts(productIds, totalProducts, startTime) {
+
+
+
+
+
+  
+function fetchUpdatedProducts(productIds, totalProducts, startTime) {
     const status = document.getElementById("catalogStatus");
     
     if (productIds.length === 0) return;
@@ -159,51 +189,62 @@
       
       const batch = batches[index];
       
-      fetch('fetch_plytix_data.php?action=fetch_products&ids=' + encodeURIComponent(JSON.stringify(batch)))
-        .then(function(res) { return res.json(); })
-        .then(function(data) {
-          if (data.success && data.products) {
-            fetchedCount += data.products.length;
-            
-            data.products.forEach(function(newProduct) {
-              const existingIndex = allProducts.findIndex(function(p) {
-                return p.id === newProduct.id;
-              });
-              
-              if (existingIndex >= 0) {
-                allProducts[existingIndex] = newProduct;
-              } else {
-                allProducts.push(newProduct);
-              }
+      // Use POST request
+      fetch('fetch_plytix_data.php', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded'
+        },
+        body: 'action=fetch_products&ids=' + encodeURIComponent(JSON.stringify(batch))
+      })
+      .then(function(res) { return res.json(); })
+      .then(function(data) {
+        if (data.success && data.products) {
+          fetchedCount += data.products.length;
+          
+          data.products.forEach(function(newProduct) {
+            const existingIndex = allProducts.findIndex(function(p) {
+              return p.id === newProduct.id;
             });
             
-            // Setup filters on first batch if needed
-            if (needsFilterSetup && allProducts.length >= INITIAL_LOAD) {
-              needsFilterSetup = false;
-              setupFilters();
-              populateCategoryFilter();
-              populateFamilyFilter();
+            if (existingIndex >= 0) {
+              allProducts[existingIndex] = newProduct;
+            } else {
+              allProducts.push(newProduct);
             }
-            
-            applyFilters();
-            
-            const currentTime = ((Date.now() - startTime) / 1000).toFixed(1);
-            status.innerHTML = '<span class="text-primary">⏳ Updated ' + fetchedCount + ' / ' + productIds.length + ' products (' + currentTime + 's)</span>';
-            
-            console.log("Batch " + (index + 1) + "/" + batches.length + " fetched (" + fetchedCount + " total)");
-            
-            fetchNextBatch(index + 1);
+          });
+          
+          if (needsFilterSetup && allProducts.length >= INITIAL_LOAD) {
+            needsFilterSetup = false;
+            setupFilters();
+            populateCategoryFilter();
+            populateFamilyFilter();
           }
-        })
-        .catch(function(err) {
-          console.error("Batch fetch error:", err);
+          
+          applyFilters();
+          
+          const currentTime = ((Date.now() - startTime) / 1000).toFixed(1);
+          status.innerHTML = '<span class="text-primary">⏳ Updated ' + fetchedCount + ' / ' + productIds.length + ' products (' + currentTime + 's)</span>';
+          
+          console.log("Batch " + (index + 1) + "/" + batches.length + " fetched (" + fetchedCount + " total)");
+          
           fetchNextBatch(index + 1);
-        });
+        }
+      })
+      .catch(function(err) {
+        console.error("Batch fetch error:", err);
+        fetchNextBatch(index + 1);
+      });
     }
     
     fetchNextBatch(0);
   }
 
+
+
+
+
+  
   function setupFilters() {
     document.getElementById("searchBox").addEventListener("input", applyFilters);
     document.getElementById("statusFilter").addEventListener("change", applyFilters);
