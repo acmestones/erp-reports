@@ -13,163 +13,170 @@
 
   init();
 
-
-  
- function init() {
-  let userObj;
-  const userData = localStorage.getItem("user") || "{}";
-  
-  // Handle both string and JSON object formats
-  try {
-    userObj = JSON.parse(userData);
-    // If it's already an object with email, use it
-    if (typeof userObj === 'string') {
-      // If JSON.parse returned a string, it was stored as plain string
-      currentUser = userObj;
-    } else {
-      currentUser = userObj.email || "";
-    }
-  } catch (e) {
-    // If parsing fails, treat it as plain email string
-    currentUser = userData;
-  }
-  
-  const badge = document.getElementById("loggedUserBadge");
-  if (badge) badge.textContent = "Signed in as " + currentUser;
-
-  loadProducts();
-}
-
-
-
-
-  
-  
-function loadProducts() {
-  const status = document.getElementById("catalogStatus");
-  const grid = document.getElementById("productGrid");
-  
-  status.innerHTML = '<span class="text-primary">⏳ Initializing...</span>';
-  grid.innerHTML = '<div class="col-12 text-center py-5"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div><p class="mt-2">Fetching product list...</p></div>';
-  
-  const forceRefresh = localStorage.getItem('forceRefresh') === 'true';
-  localStorage.removeItem('forceRefresh');
-  
-  const forceParam = forceRefresh ? '?force_refresh=true' : '';
-  
-  // Step 1: Get all product IDs
-  fetch('fetch_plytix_data.php?action=get_ids' + (forceRefresh ? '&force_refresh=true' : ''))
-    .then(function(res) { return res.json(); })
-    .then(function(data) {
-      if (!data.success || !data.products) {
-        throw new Error("Failed to get product IDs");
-      }
-      
-      const totalProducts = data.total;
-      const productList = data.products;
-      
-      console.log("Total products to load:", totalProducts);
-      status.innerHTML = '<span class="text-primary">⏳ Loading ' + totalProducts + ' products...</span>';
-      
-      // Step 2: Check which products need updating (only if not force refresh)
-      if (!forceRefresh) {
-        fetch('fetch_plytix_data.php?action=check_updates&ids=' + encodeURIComponent(JSON.stringify(productList)))
-          .then(function(res) { return res.json(); })
-          .then(function(updateData) {
-            const needUpdate = updateData.needUpdate || [];
-            console.log("Products needing update:", needUpdate.length);
-            
-            // Fetch all products in batches (prioritize those needing update)
-            fetchProductsInBatches(productList, totalProducts, needUpdate);
-          })
-          .catch(function(err) {
-            console.error("Update check failed:", err);
-            // If check fails, just fetch all
-            fetchProductsInBatches(productList, totalProducts, []);
-          });
+  function init() {
+    let userObj;
+    const userData = localStorage.getItem("user") || "{}";
+    
+    // Handle both string and JSON object formats
+    try {
+      userObj = JSON.parse(userData);
+      // If it's already an object with email, use it
+      if (typeof userObj === 'string') {
+        // If JSON.parse returned a string, it was stored as plain string
+        currentUser = userObj;
       } else {
-        // Force refresh - fetch all
-        fetchProductsInBatches(productList, totalProducts, productList.map(function(p) { return p.id; }));
+        currentUser = userObj.email || "";
       }
-    })
-    .catch(function(err) {
-      console.error("Failed to load product IDs:", err);
-      status.innerHTML = '<span class="text-danger">Failed to load products. Check console.</span>';
-      grid.innerHTML = '';
-    });
-}
-
-function fetchProductsInBatches(productList, totalProducts, needUpdateIds) {
-  const status = document.getElementById("catalogStatus");
-  const batchSize = 25;
-  let loadedCount = 0;
-  
-  // Split into batches
-  const allIds = productList.map(function(p) { return p.id; });
-  const batches = [];
-  
-  for (let i = 0; i < allIds.length; i += batchSize) {
-    batches.push(allIds.slice(i, i + batchSize));
-  }
-  
-  console.log("Total batches:", batches.length);
-  
-  // Fetch batches sequentially
-  function fetchNextBatch(index) {
-    if (index >= batches.length) {
-      status.innerHTML = '<span class="text-success">✓ Loaded all ' + totalProducts + ' products</span>';
-      console.log("All products loaded!");
-      return;
+    } catch (e) {
+      // If parsing fails, treat it as plain email string
+      currentUser = userData;
     }
     
-    const batch = batches[index];
-    const batchIds = batch.join(',');
+    const badge = document.getElementById("loggedUserBadge");
+    if (badge) badge.textContent = "Signed in as " + currentUser;
+
+    loadProducts();
+  }
+
+  function loadProducts() {
+    const status = document.getElementById("catalogStatus");
+    const grid = document.getElementById("productGrid");
     
-    status.innerHTML = '<span class="text-primary">⏳ Loading ' + (loadedCount + batch.length) + ' / ' + totalProducts + ' products...</span>';
+    status.innerHTML = '<span class="text-primary">⏳ Initializing...</span>';
+    grid.innerHTML = '<div class="col-12 text-center py-5"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div><p class="mt-2">Fetching product list...</p></div>';
     
-    fetch('fetch_plytix_data.php?action=fetch_batch&ids=' + batchIds)
+    const forceRefresh = localStorage.getItem('forceRefresh') === 'true';
+    localStorage.removeItem('forceRefresh');
+    
+    // Step 1: Get all product IDs
+    fetch('fetch_plytix_data.php?action=get_ids' + (forceRefresh ? '&force_refresh=true' : ''))
       .then(function(res) { return res.json(); })
       .then(function(data) {
-        if (data.success && data.products) {
-          // Add products to our collection
-          data.products.forEach(function(product) {
-            allProducts.push(product);
-          });
-          
-          loadedCount += data.products.length;
-          console.log("Batch " + (index + 1) + "/" + batches.length + " loaded: " + data.cached + " cached, " + data.fetched + " fetched");
-          
-          // Update display with current products
-          applyFilters();
-          
-          // Fetch next batch
-          fetchNextBatch(index + 1);
+        if (!data.success || !data.products) {
+          throw new Error("Failed to get product IDs");
+        }
+        
+        const totalProducts = data.total;
+        const productList = data.products;
+        
+        console.log("Total products to load:", totalProducts);
+        status.innerHTML = '<span class="text-primary">⏳ Loading ' + totalProducts + ' products...</span>';
+        
+        // Step 2: Check which products need updating (only if not force refresh)
+        if (!forceRefresh) {
+          fetch('fetch_plytix_data.php?action=check_updates&ids=' + encodeURIComponent(JSON.stringify(productList)))
+            .then(function(res) { return res.json(); })
+            .then(function(updateData) {
+              const needUpdate = updateData.needUpdate || [];
+              console.log("Products needing update:", needUpdate.length);
+              
+              // Fetch all products in batches (prioritize those needing update)
+              fetchProductsInBatches(productList, totalProducts, needUpdate);
+            })
+            .catch(function(err) {
+              console.error("Update check failed:", err);
+              // If check fails, just fetch all
+              fetchProductsInBatches(productList, totalProducts, []);
+            });
         } else {
-          console.error("Batch failed:", data);
-          fetchNextBatch(index + 1); // Try next batch anyway
+          // Force refresh - fetch all
+          fetchProductsInBatches(productList, totalProducts, productList.map(function(p) { return p.id; }));
         }
       })
       .catch(function(err) {
-        console.error("Batch fetch error:", err);
-        fetchNextBatch(index + 1); // Try next batch anyway
+        console.error("Failed to load product IDs:", err);
+        status.innerHTML = '<span class="text-danger">Failed to load products. Check console.</span>';
+        grid.innerHTML = '';
       });
   }
-  
-  fetchNextBatch(0);
-}
 
-
-
-
-  
+  function fetchProductsInBatches(productList, totalProducts, needUpdateIds) {
+    const status = document.getElementById("catalogStatus");
+    const batchSize = 50; // Increased from 25 to 50 for faster loading
+    let loadedCount = 0;
+    let batchesInFlight = 0;
+    const maxConcurrentBatches = 3; // Load 3 batches simultaneously
+    
+    // Split into batches
+    const allIds = productList.map(function(p) { return p.id; });
+    const batches = [];
+    
+    for (let i = 0; i < allIds.length; i += batchSize) {
+      batches.push(allIds.slice(i, i + batchSize));
+    }
+    
+    console.log("Total batches:", batches.length);
+    
+    let currentBatchIndex = 0;
+    let allBatchesComplete = false;
+    
+    // Function to start next batch if slots available
+    function startNextBatch() {
+      while (batchesInFlight < maxConcurrentBatches && currentBatchIndex < batches.length) {
+        fetchBatch(currentBatchIndex);
+        currentBatchIndex++;
+      }
+      
+      // Check if all batches are complete
+      if (currentBatchIndex >= batches.length && batchesInFlight === 0 && !allBatchesComplete) {
+        allBatchesComplete = true;
+        status.innerHTML = '<span class="text-success">✓ Loaded all ' + totalProducts + ' products</span>';
+        console.log("All products loaded!");
+        
+        // Now that all products are loaded, set up filters
+        setupFilters();
+        populateCategoryFilter();
+        applyFilters();
+      }
+    }
+    
+    // Fetch a specific batch
+    function fetchBatch(index) {
+      const batch = batches[index];
+      const batchIds = batch.join(',');
+      
+      batchesInFlight++;
+      
+      fetch('fetch_plytix_data.php?action=fetch_batch&ids=' + batchIds)
+        .then(function(res) { return res.json(); })
+        .then(function(data) {
+          if (data.success && data.products) {
+            // Add products to our collection
+            data.products.forEach(function(product) {
+              allProducts.push(product);
+            });
+            
+            loadedCount += data.products.length;
+            console.log("Batch " + (index + 1) + "/" + batches.length + " loaded: " + data.cached + " cached, " + data.fetched + " fetched");
+            
+            // Update status
+            status.innerHTML = '<span class="text-primary">⏳ Loaded ' + loadedCount + ' / ' + totalProducts + ' products...</span>';
+            
+            // Update display with current products
+            applyFilters();
+          } else {
+            console.error("Batch failed:", data);
+          }
+          
+          batchesInFlight--;
+          startNextBatch();
+        })
+        .catch(function(err) {
+          console.error("Batch fetch error:", err);
+          batchesInFlight--;
+          startNextBatch();
+        });
+    }
+    
+    // Start initial batches
+    startNextBatch();
+  }
 
   function setupFilters() {
     document.getElementById("searchBox").addEventListener("input", applyFilters);
     document.getElementById("statusFilter").addEventListener("change", applyFilters);
     document.getElementById("variantFilter").addEventListener("change", applyFilters);
     document.getElementById("sortFilter").addEventListener("change", applyFilters);
-    
-    populateCategoryFilter();
   }
 
   function populateCategoryFilter() {
@@ -219,16 +226,16 @@ function fetchProductsInBatches(productList, totalProducts, needUpdateIds) {
       
       if (!matchesSearch) return false;
       
-// Get raw boolean value, not formatted string
-const status = getValue(p, "status").toLowerCase();
-const isEnabledRaw = p.enable_disable_product || (p.attributes && p.attributes.enable_disable_product);
+      // Get raw boolean value, not formatted string
+      const status = getValue(p, "status").toLowerCase();
+      const isEnabledRaw = p.enable_disable_product || (p.attributes && p.attributes.enable_disable_product);
 
-const matchesStatus = 
-  statusFilter === "all" ||
-  (statusFilter === "enabled" && (status === "enabled" || status === "draft" || isEnabledRaw === true)) ||
-  (statusFilter === "disabled" && (status === "disabled" || isEnabledRaw === false));
+      const matchesStatus = 
+        statusFilter === "all" ||
+        (statusFilter === "enabled" && (status === "enabled" || status === "draft" || isEnabledRaw === true)) ||
+        (statusFilter === "disabled" && (status === "disabled" || isEnabledRaw === false));
 
-if (!matchesStatus) return false;
+      if (!matchesStatus) return false;
       
       const numVariations = p.num_variations || 0;
       const parentId = p._parent_id || null;
@@ -279,11 +286,15 @@ if (!matchesStatus) return false;
     grid.innerHTML = "";
     
     if (filteredProducts.length === 0) {
-      status.textContent = "No products match your filters";
+      if (allProducts.length === 0) {
+        status.innerHTML = '<span class="text-muted">Loading products...</span>';
+      } else {
+        status.innerHTML = '<span class="text-muted">No products match your filters</span>';
+      }
       return;
     }
     
-    status.textContent = "Loaded " + filteredProducts.length + " unique products";
+    status.innerHTML = '<span class="text-success">Showing ' + filteredProducts.length + ' of ' + allProducts.length + ' products</span>';
     
     filteredProducts.forEach(function(product) {
       grid.appendChild(createProductCard(product));
@@ -299,7 +310,6 @@ if (!matchesStatus) return false;
     card.style.cursor = "pointer";
     
     const imageUrl = getFirstImage(product);
-    console.log("Card image for", product.sku, ":", imageUrl);
     
     const img = document.createElement("img");
     img.className = "card-img-top";
@@ -353,11 +363,9 @@ if (!matchesStatus) return false;
     // Priority 1: thumbnail.url (full size)
     if (product.thumbnail && typeof product.thumbnail === 'object') {
       if (product.thumbnail.url) {
-        console.log("Using thumbnail.url:", product.thumbnail.url);
         return product.thumbnail.url;
       }
       if (product.thumbnail.thumbnail) {
-        console.log("Using thumbnail.thumbnail:", product.thumbnail.thumbnail);
         return product.thumbnail.thumbnail;
       }
     }
@@ -366,7 +374,6 @@ if (!matchesStatus) return false;
     if (Array.isArray(product.assets) && product.assets.length > 0) {
       const firstAsset = product.assets[0];
       if (firstAsset && firstAsset.url) {
-        console.log("Using assets[0].url:", firstAsset.url);
         return firstAsset.url;
       }
     }
@@ -375,12 +382,10 @@ if (!matchesStatus) return false;
     if (product.attributes && Array.isArray(product.attributes.images) && product.attributes.images.length > 0) {
       const firstImg = product.attributes.images[0];
       if (firstImg && firstImg.url) {
-        console.log("Using attributes.images[0].url:", firstImg.url);
         return firstImg.url;
       }
     }
     
-    console.log("No image found for product", product.sku);
     return "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Crect width='400' height='400' fill='%23ddd'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='monospace' font-size='20' fill='%23999'%3ENo Image%3C/svg%3E";
   }
 
@@ -510,261 +515,242 @@ if (!matchesStatus) return false;
     return String(value);
   }
 
-
-
-
-
-
-
-function formatValueForDisplay(value) {
-  if (value === null || value === undefined || value === "") {
-    return '<span class="text-muted">-</span>';
-  }
-  
-  if (typeof value === 'boolean') {
-    return value ? 'TRUE' : 'FALSE';
-  }
-  
-  if (Array.isArray(value)) {
-    if (value.length === 0) return '<span class="text-muted">-</span>';
-    
-    // Handle array of objects with names (categories)
-    if (value[0] && typeof value[0] === 'object' && value[0].name) {
-      return value.map(function(item) { return item.name; }).join(', ');
+  function formatValueForDisplay(value) {
+    if (value === null || value === undefined || value === "") {
+      return '<span class="text-muted">-</span>';
     }
     
-    // Handle array of primitives
-    return value.join(', ');
-  }
-  
-  if (typeof value === 'object') {
-    // Handle user audit objects
-    if (value.user_email) {
-      return value.user_email;
+    if (typeof value === 'boolean') {
+      return value ? 'TRUE' : 'FALSE';
     }
     
-    // Handle objects with name
-    if (value.name) {
-      return value.name;
-    }
-    
-    // Generic object - show as JSON
-    return '<pre class="mb-0 small" style="max-height:100px;overflow:auto;">' + JSON.stringify(value, null, 2) + '</pre>';
-  }
-  
-  // URLs - show full URL as clickable link
-  if (typeof value === 'string' && (value.startsWith('http://') || value.startsWith('https://'))) {
-    return '<a href="' + value + '" target="_blank" class="text-break">' + value + '</a>';
-  }
-  
-  // HTML content - show as-is but escape dangerous tags
-  if (typeof value === 'string' && value.includes('<') && value.includes('>')) {
-    // Check if it looks like HTML
-    if (value.match(/<[a-z][\s\S]*>/i)) {
-      return '<code class="text-break">' + value.replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</code>';
-    }
-  }
-  
-  return '<span class="text-break">' + String(value) + '</span>';
-}
-
-
-
-
-
-
-  
-  
-function showProductDetail(product) {
-  const modalTitle = document.getElementById("modalTitle");
-  const modalBody = document.getElementById("modalBody");
-  
-  modalTitle.textContent = getValue(product, "label") || product.sku || "Product Details";
-  modalBody.innerHTML = "";
-
-  // Left column - Images organized by field
-  const leftCol = document.createElement("div");
-  leftCol.className = "col-md-4";
-  
-  // Thumbnail section
-  if (product.thumbnail && product.thumbnail.thumbnail) {
-    const thumbCard = document.createElement("div");
-    thumbCard.className = "card mb-3";
-    thumbCard.innerHTML = '<div class="card-header"><strong>Thumbnail</strong></div>';
-    
-    const thumbBody = document.createElement("div");
-    thumbBody.className = "card-body p-2";
-    
-    const thumbImg = document.createElement("img");
-    thumbImg.src = product.thumbnail.thumbnail;
-    thumbImg.className = "img-fluid rounded";
-    thumbImg.style.cursor = "pointer";
-    thumbImg.loading = "lazy";
-    thumbImg.onclick = function() { window.open(product.thumbnail.url, '_blank'); };
-    
-    thumbBody.appendChild(thumbImg);
-    thumbCard.appendChild(thumbBody);
-    leftCol.appendChild(thumbCard);
-  }
-  
-  // Find all image-type attributes
-  if (product.attributes && typeof product.attributes === 'object') {
-    Object.keys(product.attributes).forEach(function(attrKey) {
-      const attrValue = product.attributes[attrKey];
+    if (Array.isArray(value)) {
+      if (value.length === 0) return '<span class="text-muted">-</span>';
       
-      // Check if this attribute contains images (array of objects with url property)
-      if (Array.isArray(attrValue) && attrValue.length > 0 && attrValue[0] && attrValue[0].url) {
-        const imgCard = document.createElement("div");
-        imgCard.className = "card mb-3";
+      // Handle array of objects with names (categories)
+      if (value[0] && typeof value[0] === 'object' && value[0].name) {
+        return value.map(function(item) { return item.name; }).join(', ');
+      }
+      
+      // Handle array of primitives
+      return value.join(', ');
+    }
+    
+    if (typeof value === 'object') {
+      // Handle user audit objects
+      if (value.user_email) {
+        return value.user_email;
+      }
+      
+      // Handle objects with name
+      if (value.name) {
+        return value.name;
+      }
+      
+      // Generic object - show as JSON
+      return '<pre class="mb-0 small" style="max-height:100px;overflow:auto;">' + JSON.stringify(value, null, 2) + '</pre>';
+    }
+    
+    // URLs - show full URL as clickable link
+    if (typeof value === 'string' && (value.startsWith('http://') || value.startsWith('https://'))) {
+      return '<a href="' + value + '" target="_blank" class="text-break">' + value + '</a>';
+    }
+    
+    // HTML content - show as-is but escape dangerous tags
+    if (typeof value === 'string' && value.includes('<') && value.includes('>')) {
+      // Check if it looks like HTML
+      if (value.match(/<[a-z][\s\S]*>/i)) {
+        return '<code class="text-break">' + value.replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</code>';
+      }
+    }
+    
+    return '<span class="text-break">' + String(value) + '</span>';
+  }
+
+  function showProductDetail(product) {
+    const modalTitle = document.getElementById("modalTitle");
+    const modalBody = document.getElementById("modalBody");
+    
+    modalTitle.textContent = getValue(product, "label") || product.sku || "Product Details";
+    modalBody.innerHTML = "";
+
+    // Left column - Images organized by field
+    const leftCol = document.createElement("div");
+    leftCol.className = "col-md-4";
+    
+    // Thumbnail section
+    if (product.thumbnail && product.thumbnail.thumbnail) {
+      const thumbCard = document.createElement("div");
+      thumbCard.className = "card mb-3";
+      thumbCard.innerHTML = '<div class="card-header"><strong>Thumbnail</strong></div>';
+      
+      const thumbBody = document.createElement("div");
+      thumbBody.className = "card-body p-2";
+      
+      const thumbImg = document.createElement("img");
+      thumbImg.src = product.thumbnail.thumbnail;
+      thumbImg.className = "img-fluid rounded";
+      thumbImg.style.cursor = "pointer";
+      thumbImg.loading = "lazy";
+      thumbImg.onclick = function() { window.open(product.thumbnail.url, '_blank'); };
+      
+      thumbBody.appendChild(thumbImg);
+      thumbCard.appendChild(thumbBody);
+      leftCol.appendChild(thumbCard);
+    }
+    
+    // Find all image-type attributes
+    if (product.attributes && typeof product.attributes === 'object') {
+      Object.keys(product.attributes).forEach(function(attrKey) {
+        const attrValue = product.attributes[attrKey];
         
-        const fieldLabel = capitalizeWords(attrKey.replace(/_/g, ' '));
-        imgCard.innerHTML = '<div class="card-header"><strong>' + fieldLabel + '</strong></div>';
+        // Check if this attribute contains images (array of objects with url property)
+        if (Array.isArray(attrValue) && attrValue.length > 0 && attrValue[0] && attrValue[0].url) {
+          const imgCard = document.createElement("div");
+          imgCard.className = "card mb-3";
+          
+          const fieldLabel = capitalizeWords(attrKey.replace(/_/g, ' '));
+          imgCard.innerHTML = '<div class="card-header"><strong>' + fieldLabel + '</strong></div>';
+          
+          const imgBody = document.createElement("div");
+          imgBody.className = "card-body p-2";
+          
+          attrValue.forEach(function(img) {
+            if (img.thumbnail && img.url) {
+              const imgElement = document.createElement("img");
+              imgElement.src = img.thumbnail;
+              imgElement.className = "img-fluid rounded mb-2";
+              imgElement.style.cursor = "pointer";
+              imgElement.loading = "lazy";
+              imgElement.onclick = function() { window.open(img.url, '_blank'); };
+              imgBody.appendChild(imgElement);
+            }
+          });
+          
+          imgCard.appendChild(imgBody);
+          leftCol.appendChild(imgCard);
+        }
+      });
+    }
+    
+    // Assets section (only if not already shown in attributes)
+    if (Array.isArray(product.assets) && product.assets.length > 0) {
+      // Check if we already displayed these as attribute images
+      const alreadyShown = product.attributes && product.attributes.images && 
+        Array.isArray(product.attributes.images) && product.attributes.images.length > 0;
+      
+      if (!alreadyShown) {
+        const assetCard = document.createElement("div");
+        assetCard.className = "card mb-3";
+        assetCard.innerHTML = '<div class="card-header"><strong>Assets</strong></div>';
         
-        const imgBody = document.createElement("div");
-        imgBody.className = "card-body p-2";
+        const assetBody = document.createElement("div");
+        assetBody.className = "card-body p-2";
         
-        attrValue.forEach(function(img) {
-          if (img.thumbnail && img.url) {
-            const imgElement = document.createElement("img");
-            imgElement.src = img.thumbnail;
-            imgElement.className = "img-fluid rounded mb-2";
-            imgElement.style.cursor = "pointer";
-            imgElement.loading = "lazy";
-            imgElement.onclick = function() { window.open(img.url, '_blank'); };
-            imgBody.appendChild(imgElement);
+        product.assets.forEach(function(asset) {
+          if (asset.thumbnail && asset.url) {
+            const assetImg = document.createElement("img");
+            assetImg.src = asset.thumbnail;
+            assetImg.className = "img-fluid rounded mb-2";
+            assetImg.style.cursor = "pointer";
+            assetImg.loading = "lazy";
+            assetImg.onclick = function() { window.open(asset.url, '_blank'); };
+            assetBody.appendChild(assetImg);
           }
         });
         
-        imgCard.appendChild(imgBody);
-        leftCol.appendChild(imgCard);
+        assetCard.appendChild(assetBody);
+        leftCol.appendChild(assetCard);
       }
-    });
-  }
-  
-  // Assets section (only if not already shown in attributes)
-  if (Array.isArray(product.assets) && product.assets.length > 0) {
-    // Check if we already displayed these as attribute images
-    const alreadyShown = product.attributes && product.attributes.images && 
-      Array.isArray(product.attributes.images) && product.attributes.images.length > 0;
-    
-    if (!alreadyShown) {
-      const assetCard = document.createElement("div");
-      assetCard.className = "card mb-3";
-      assetCard.innerHTML = '<div class="card-header"><strong>Assets</strong></div>';
-      
-      const assetBody = document.createElement("div");
-      assetBody.className = "card-body p-2";
-      
-      product.assets.forEach(function(asset) {
-        if (asset.thumbnail && asset.url) {
-          const assetImg = document.createElement("img");
-          assetImg.src = asset.thumbnail;
-          assetImg.className = "img-fluid rounded mb-2";
-          assetImg.style.cursor = "pointer";
-          assetImg.loading = "lazy";
-          assetImg.onclick = function() { window.open(asset.url, '_blank'); };
-          assetBody.appendChild(assetImg);
-        }
-      });
-      
-      assetCard.appendChild(assetBody);
-      leftCol.appendChild(assetCard);
     }
-  }
 
-  // Right column - All other attributes (excluding images)
-  const rightCol = document.createElement("div");
-  rightCol.className = "col-md-8";
-  
-  const table = document.createElement("table");
-  table.className = "table table-sm table-bordered";
-  
-  const tbody = document.createElement("tbody");
-  
-  // Collect all non-image fields
-  const displayFields = [];
-  
-  // System fields
-  Object.keys(product).forEach(function(key) {
-    if (key === 'attributes' || key === 'thumbnail' || key === 'assets') return;
+    // Right column - All other attributes (excluding images)
+    const rightCol = document.createElement("div");
+    rightCol.className = "col-md-8";
     
-    displayFields.push({
-      label: capitalizeWords(key.replace(/_/g, ' ')),
-      value: product[key],
-      key: key
-    });
-  });
-  
-  // Attribute fields (exclude image arrays)
-  if (product.attributes && typeof product.attributes === 'object') {
-    Object.keys(product.attributes).forEach(function(attrKey) {
-      const attrValue = product.attributes[attrKey];
-      
-      // Skip if it's an image array (already shown on left)
-      if (Array.isArray(attrValue) && attrValue.length > 0 && attrValue[0] && attrValue[0].url) {
-        return;
-      }
+    const table = document.createElement("table");
+    table.className = "table table-sm table-bordered";
+    
+    const tbody = document.createElement("tbody");
+    
+    // Collect all non-image fields
+    const displayFields = [];
+    
+    // System fields
+    Object.keys(product).forEach(function(key) {
+      if (key === 'attributes' || key === 'thumbnail' || key === 'assets') return;
       
       displayFields.push({
-        label: capitalizeWords(attrKey.replace(/_/g, ' ')),
-        value: attrValue,
-        key: attrKey
+        label: capitalizeWords(key.replace(/_/g, ' ')),
+        value: product[key],
+        key: key
       });
     });
-  }
-  
-  // Sort fields alphabetically
-  displayFields.sort(function(a, b) {
-    return a.label.localeCompare(b.label);
-  });
-  
-  // Render fields
-  displayFields.forEach(function(field) {
-    // Skip price fields for non-authorized users
-    if (!USERS_WITH_PRICE_ACCESS.includes(currentUser)) {
-      const keyLower = field.key.toLowerCase();
-      if (keyLower.includes('price') || keyLower.includes('cost') || keyLower.includes('msrp')) {
-        return;
-      }
+    
+    // Attribute fields (exclude image arrays)
+    if (product.attributes && typeof product.attributes === 'object') {
+      Object.keys(product.attributes).forEach(function(attrKey) {
+        const attrValue = product.attributes[attrKey];
+        
+        // Skip if it's an image array (already shown on left)
+        if (Array.isArray(attrValue) && attrValue.length > 0 && attrValue[0] && attrValue[0].url) {
+          return;
+        }
+        
+        displayFields.push({
+          label: capitalizeWords(attrKey.replace(/_/g, ' ')),
+          value: attrValue,
+          key: attrKey
+        });
+      });
     }
     
-    const tr = document.createElement("tr");
-    const th = document.createElement("th");
-    th.style.width = "30%";
-    th.textContent = field.label;
+    // Sort fields alphabetically
+    displayFields.sort(function(a, b) {
+      return a.label.localeCompare(b.label);
+    });
     
-    const td = document.createElement("td");
-    td.innerHTML = formatValueForDisplay(field.value);
+    // Render fields
+    displayFields.forEach(function(field) {
+      // Skip price fields for non-authorized users
+      if (!USERS_WITH_PRICE_ACCESS.includes(currentUser)) {
+        const keyLower = field.key.toLowerCase();
+        if (keyLower.includes('price') || keyLower.includes('cost') || keyLower.includes('msrp')) {
+          return;
+        }
+      }
+      
+      const tr = document.createElement("tr");
+      const th = document.createElement("th");
+      th.style.width = "30%";
+      th.textContent = field.label;
+      
+      const td = document.createElement("td");
+      td.innerHTML = formatValueForDisplay(field.value);
+      
+      tr.appendChild(th);
+      tr.appendChild(td);
+      tbody.appendChild(tr);
+    });
     
-    tr.appendChild(th);
-    tr.appendChild(td);
-    tbody.appendChild(tr);
-  });
-  
-  table.appendChild(tbody);
-  rightCol.appendChild(table);
-  
-  // Edit link
-  const editLink = document.createElement("a");
-  editLink.href = "https://pim.plytix.com/products/" + product.id + "/edit";
-  editLink.target = "_blank";
-  editLink.className = "btn btn-outline-primary w-100 mt-2";
-  editLink.innerHTML = '✏️ Edit in Plytix';
-  rightCol.appendChild(editLink);
-  
-  modalBody.appendChild(leftCol);
-  modalBody.appendChild(rightCol);
-  
-  const modal = new bootstrap.Modal(document.getElementById("productModal"));
-  modal.show();
-}
+    table.appendChild(tbody);
+    rightCol.appendChild(table);
+    
+    // Edit link
+    const editLink = document.createElement("a");
+    editLink.href = "https://pim.plytix.com/products/" + product.id + "/edit";
+    editLink.target = "_blank";
+    editLink.className = "btn btn-outline-primary w-100 mt-2";
+    editLink.innerHTML = '✏️ Edit in Plytix';
+    rightCol.appendChild(editLink);
+    
+    modalBody.appendChild(leftCol);
+    modalBody.appendChild(rightCol);
+    
+    const modal = new bootstrap.Modal(document.getElementById("productModal"));
+    modal.show();
+  }
 
-
-
-
-
-
-  
   function capitalizeWords(str) {
     return str.replace(/\b\w/g, function(char) { return char.toUpperCase(); });
   }
