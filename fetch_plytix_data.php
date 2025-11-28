@@ -179,7 +179,7 @@ if ($action === 'get_status') {
     $consolidatedFile = $cacheDir . '/all_products_consolidated.json';
     
     // Skip full check unless explicitly requested
-    if (file_exists($consolidatedFile) && !$forceRefresh) {
+    if (!$forceRefresh) {
         error_log("Using consolidated cache, skipping API check");
         
         $metadata = loadMetadata($metadataFile);
