@@ -202,6 +202,9 @@ if ($action === 'get_status') {
     exit;
 }
 
+
+
+
 // ACTION 2: Load cached products
 if ($action === 'load_cached') {
     // Handle POST data
@@ -212,28 +215,48 @@ if ($action === 'load_cached') {
     } else {
         $ids = json_decode($_GET['ids'] ?? '[]', true);
     }
-    
+
     if (!is_array($ids) || empty($ids)) {
         echo json_encode(["success" => true, "products" => []]);
         exit;
     }
-    
+
     $products = [];
     foreach ($ids as $productId) {
         $productFile = $cacheDir . '/product_' . $productId . '.json';
         if (file_exists($productFile)) {
-            $products[] = json_decode(file_get_contents($productFile), true);
+            $content = file_get_contents($productFile);
+            if ($content !== false) {
+                $decoded = json_decode($content, true);
+                if ($decoded !== null) {
+                    $products[] = $decoded;
+                }
+            }
         }
     }
-    
+
     error_log("Loaded " . count($products) . " cached products from " . count($ids) . " requested");
     
-    echo json_encode([
-        "success" => true,
-        "products" => $products
-    ]);
+    // Enable gzip compression if available
+    if (function_exists('gzencode') && !headers_sent()) {
+        header('Content-Encoding: gzip');
+        echo gzencode(json_encode([
+            "success" => true,
+            "products" => $products
+        ]));
+    } else {
+        echo json_encode([
+            "success" => true,
+            "products" => $products
+        ]);
+    }
     exit;
 }
+
+
+
+
+
 
 // ACTION 3: Fetch and cache specific products
 if ($action === 'fetch_products') {
