@@ -1,4 +1,7 @@
 <?php
+// Enable output buffering for better performance
+ob_start();
+
 set_time_limit(600);
 ini_set('memory_limit', '512M');
 ini_set('log_errors', 'On');
@@ -320,4 +323,8 @@ if ($action === 'fetch_products') {
 }
 
 echo json_encode(["error" => "Invalid action"]);
+
+
+// Flush output buffer
+ob_end_flush();
 ?>
