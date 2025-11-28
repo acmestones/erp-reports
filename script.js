@@ -89,7 +89,7 @@ function loadCachedProducts(cachedIds, needUpdateIds, totalProducts, startTime) 
     const fetchStart = Date.now();
     
     // Try consolidated cache first (single file read)
-    fetch("fetch_plytix_data.php?action=load_consolidated", {
+    fetch("fetch_plytix_data.php?action=load_consolidated_disabled", {
         method: "POST"
     })
     .then(function(res) {
