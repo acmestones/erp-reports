@@ -17,18 +17,14 @@
     let userObj;
     const userData = localStorage.getItem("user") || "{}";
     
-    // Handle both string and JSON object formats
     try {
       userObj = JSON.parse(userData);
-      // If it's already an object with email, use it
       if (typeof userObj === 'string') {
-        // If JSON.parse returned a string, it was stored as plain string
         currentUser = userObj;
       } else {
         currentUser = userObj.email || "";
       }
     } catch (e) {
-      // If parsing fails, treat it as plain email string
       currentUser = userData;
     }
     
@@ -42,134 +38,39 @@
     const status = document.getElementById("catalogStatus");
     const grid = document.getElementById("productGrid");
     
-    status.innerHTML = '<span class="text-primary">⏳ Initializing...</span>';
-    grid.innerHTML = '<div class="col-12 text-center py-5"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div><p class="mt-2">Fetching product list...</p></div>';
+    status.innerHTML = '<span class="text-primary">⏳ Loading products...</span>';
+    grid.innerHTML = '<div class="col-12 text-center py-5"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div><p class="mt-2">Please wait...</p></div>';
     
     const forceRefresh = localStorage.getItem('forceRefresh') === 'true';
     localStorage.removeItem('forceRefresh');
     
-    // Step 1: Get all product IDs
-    fetch('fetch_plytix_data.php?action=get_ids' + (forceRefresh ? '&force_refresh=true' : ''))
+    const startTime = Date.now();
+    
+    // SINGLE FETCH - instant if cached!
+    fetch('fetch_plytix_data.php?action=get_products' + (forceRefresh ? '&force_refresh=true' : ''))
       .then(function(res) { return res.json(); })
       .then(function(data) {
+        const loadTime = ((Date.now() - startTime) / 1000).toFixed(2);
+        
         if (!data.success || !data.products) {
-          throw new Error("Failed to get product IDs");
+          throw new Error("Failed to load products");
         }
         
-        const totalProducts = data.total;
-        const productList = data.products;
+        allProducts = data.products;
+        console.log("Loaded " + data.total + " products in " + loadTime + "s " + (data.cached ? "(from cache)" : "(fresh from API)"));
         
-        console.log("Total products to load:", totalProducts);
-        status.innerHTML = '<span class="text-primary">⏳ Loading ' + totalProducts + ' products...</span>';
+        status.innerHTML = '<span class="text-success">✓ Loaded ' + data.total + ' products in ' + loadTime + 's' + (data.cached ? ' (cached)' : '') + '</span>';
         
-        // Step 2: Check which products need updating (only if not force refresh)
-        if (!forceRefresh) {
-          fetch('fetch_plytix_data.php?action=check_updates&ids=' + encodeURIComponent(JSON.stringify(productList)))
-            .then(function(res) { return res.json(); })
-            .then(function(updateData) {
-              const needUpdate = updateData.needUpdate || [];
-              console.log("Products needing update:", needUpdate.length);
-              
-              // Fetch all products in batches (prioritize those needing update)
-              fetchProductsInBatches(productList, totalProducts, needUpdate);
-            })
-            .catch(function(err) {
-              console.error("Update check failed:", err);
-              // If check fails, just fetch all
-              fetchProductsInBatches(productList, totalProducts, []);
-            });
-        } else {
-          // Force refresh - fetch all
-          fetchProductsInBatches(productList, totalProducts, productList.map(function(p) { return p.id; }));
-        }
-      })
-      .catch(function(err) {
-        console.error("Failed to load product IDs:", err);
-        status.innerHTML = '<span class="text-danger">Failed to load products. Check console.</span>';
-        grid.innerHTML = '';
-      });
-  }
-
-  function fetchProductsInBatches(productList, totalProducts, needUpdateIds) {
-    const status = document.getElementById("catalogStatus");
-    const batchSize = 50; // Increased from 25 to 50 for faster loading
-    let loadedCount = 0;
-    let batchesInFlight = 0;
-    const maxConcurrentBatches = 3; // Load 3 batches simultaneously
-    
-    // Split into batches
-    const allIds = productList.map(function(p) { return p.id; });
-    const batches = [];
-    
-    for (let i = 0; i < allIds.length; i += batchSize) {
-      batches.push(allIds.slice(i, i + batchSize));
-    }
-    
-    console.log("Total batches:", batches.length);
-    
-    let currentBatchIndex = 0;
-    let allBatchesComplete = false;
-    
-    // Function to start next batch if slots available
-    function startNextBatch() {
-      while (batchesInFlight < maxConcurrentBatches && currentBatchIndex < batches.length) {
-        fetchBatch(currentBatchIndex);
-        currentBatchIndex++;
-      }
-      
-      // Check if all batches are complete
-      if (currentBatchIndex >= batches.length && batchesInFlight === 0 && !allBatchesComplete) {
-        allBatchesComplete = true;
-        status.innerHTML = '<span class="text-success">✓ Loaded all ' + totalProducts + ' products</span>';
-        console.log("All products loaded!");
-        
-        // Now that all products are loaded, set up filters
+        // Set up filters
         setupFilters();
         populateCategoryFilter();
         applyFilters();
-      }
-    }
-    
-    // Fetch a specific batch
-    function fetchBatch(index) {
-      const batch = batches[index];
-      const batchIds = batch.join(',');
-      
-      batchesInFlight++;
-      
-      fetch('fetch_plytix_data.php?action=fetch_batch&ids=' + batchIds)
-        .then(function(res) { return res.json(); })
-        .then(function(data) {
-          if (data.success && data.products) {
-            // Add products to our collection
-            data.products.forEach(function(product) {
-              allProducts.push(product);
-            });
-            
-            loadedCount += data.products.length;
-            console.log("Batch " + (index + 1) + "/" + batches.length + " loaded: " + data.cached + " cached, " + data.fetched + " fetched");
-            
-            // Update status
-            status.innerHTML = '<span class="text-primary">⏳ Loaded ' + loadedCount + ' / ' + totalProducts + ' products...</span>';
-            
-            // Update display with current products
-            applyFilters();
-          } else {
-            console.error("Batch failed:", data);
-          }
-          
-          batchesInFlight--;
-          startNextBatch();
-        })
-        .catch(function(err) {
-          console.error("Batch fetch error:", err);
-          batchesInFlight--;
-          startNextBatch();
-        });
-    }
-    
-    // Start initial batches
-    startNextBatch();
+      })
+      .catch(function(err) {
+        console.error("Failed to load products:", err);
+        status.innerHTML = '<span class="text-danger">Failed to load products. Check console.</span>';
+        grid.innerHTML = '';
+      });
   }
 
   function setupFilters() {
@@ -226,14 +127,28 @@
       
       if (!matchesSearch) return false;
       
-      // Get raw boolean value, not formatted string
-      const status = getValue(p, "status").toLowerCase();
-      const isEnabledRaw = p.enable_disable_product || (p.attributes && p.attributes.enable_disable_product);
-
+      // FIX: Check multiple possible fields for enabled/disabled status
+      const status = (p.status || "").toLowerCase();
+      const enableField = p.enable_disable_product;
+      const attrEnable = p.attributes && p.attributes.enable_disable_product;
+      const productEnabled = p.product_enabled;
+      const attrProductEnabled = p.attributes && p.attributes.product_enabled;
+      
+      // Consider product enabled if ANY of these conditions are true:
+      const isEnabled = 
+        status === "enabled" || 
+        status === "draft" ||
+        enableField === true || 
+        attrEnable === true ||
+        productEnabled === true ||
+        attrProductEnabled === true ||
+        productEnabled === "TRUE" ||
+        attrProductEnabled === "TRUE";
+      
       const matchesStatus = 
         statusFilter === "all" ||
-        (statusFilter === "enabled" && (status === "enabled" || status === "draft" || isEnabledRaw === true)) ||
-        (statusFilter === "disabled" && (status === "disabled" || isEnabledRaw === false));
+        (statusFilter === "enabled" && isEnabled) ||
+        (statusFilter === "disabled" && !isEnabled);
 
       if (!matchesStatus) return false;
       
@@ -309,17 +224,37 @@
     card.className = "card h-100 shadow-sm product-card";
     card.style.cursor = "pointer";
     
+    // Check if product is disabled for dimming effect
+    const status = (product.status || "").toLowerCase();
+    const enableField = product.enable_disable_product;
+    const attrEnable = product.attributes && product.attributes.enable_disable_product;
+    const productEnabled = product.attributes && product.attributes.product_enabled;
+    
+    const isEnabled = 
+      status === "enabled" || 
+      status === "draft" ||
+      enableField === true || 
+      attrEnable === true ||
+      productEnabled === true ||
+      productEnabled === "TRUE";
+    
+    // Apply dim effect if disabled
+    if (!isEnabled) {
+      card.style.opacity = "0.5";
+      card.style.filter = "grayscale(40%)";
+    }
+    
     const imageUrl = getFirstImage(product);
     
     const img = document.createElement("img");
     img.className = "card-img-top";
     img.style.height = "250px";
-    img.style.objectFit = "cover";
+    img.style.objectFit = "cover"; // CHANGED from "contain" to "cover" for zoomed effect
     img.style.backgroundColor = "#f8f9fa";
     img.loading = "lazy";
     img.decoding = "async";
     
-    // Use thumbnail URL if available for faster loading
+    // Use thumbnail URL if available
     let thumbUrl = imageUrl;
     if (product.thumbnail && product.thumbnail.thumbnail) {
       thumbUrl = product.thumbnail.thumbnail;
@@ -348,6 +283,14 @@
     sku.className = "card-text text-muted small mb-0";
     sku.innerHTML = "<strong>SKU:</strong> " + (product.sku || "N/A");
     
+    // Add disabled badge if product is disabled
+    if (!isEnabled) {
+      const badge = document.createElement("span");
+      badge.className = "badge bg-secondary mt-2";
+      badge.textContent = "DISABLED";
+      cardBody.appendChild(badge);
+    }
+    
     cardBody.appendChild(title);
     cardBody.appendChild(sku);
     card.appendChild(img);
@@ -360,7 +303,6 @@
   }
 
   function getFirstImage(product) {
-    // Priority 1: thumbnail.url (full size)
     if (product.thumbnail && typeof product.thumbnail === 'object') {
       if (product.thumbnail.url) {
         return product.thumbnail.url;
@@ -370,7 +312,6 @@
       }
     }
     
-    // Priority 2: assets[0].url
     if (Array.isArray(product.assets) && product.assets.length > 0) {
       const firstAsset = product.assets[0];
       if (firstAsset && firstAsset.url) {
@@ -378,7 +319,6 @@
       }
     }
     
-    // Priority 3: attributes.images[0].url
     if (product.attributes && Array.isArray(product.attributes.images) && product.attributes.images.length > 0) {
       const firstImg = product.attributes.images[0];
       if (firstImg && firstImg.url) {
@@ -447,74 +387,6 @@
     return "";
   }
 
-  function formatValue(value) {
-    if (value === null || value === undefined || value === "") {
-      return '<span class="text-muted">-</span>';
-    }
-    
-    if (typeof value === 'boolean') {
-      return value ? 'Yes' : 'No';
-    }
-    
-    if (Array.isArray(value)) {
-      if (value.length === 0) return '<span class="text-muted">-</span>';
-      
-      // Handle array of objects with urls (images)
-      if (value[0] && typeof value[0] === 'object' && value[0].url) {
-        return value.map(function(item, index) {
-          return '<a href="' + item.url + '" target="_blank" class="me-2">Image ' + (index + 1) + '</a>';
-        }).join('');
-      }
-      
-      // Handle array of objects with names (categories)
-      if (value[0] && typeof value[0] === 'object' && value[0].name) {
-        return value.map(function(item) { return item.name; }).join(', ');
-      }
-      
-      // Handle array of objects (generic)
-      if (value[0] && typeof value[0] === 'object') {
-        return value.map(function(item) {
-          return JSON.stringify(item);
-        }).join('<br>');
-      }
-      
-      // Handle array of primitives
-      return value.join(', ');
-    }
-    
-    if (typeof value === 'object') {
-      // Handle user audit objects
-      if (value.user_email) {
-        return value.user_name && value.user_last_name 
-          ? value.user_name + ' ' + value.user_last_name + ' (' + value.user_email + ')'
-          : value.user_email;
-      }
-      
-      // Handle objects with url
-      if (value.url) {
-        return '<a href="' + value.url + '" target="_blank">View</a>';
-      }
-      
-      // Handle objects with name
-      if (value.name) {
-        return value.name;
-      }
-      
-      // Generic object - show as JSON
-      return '<pre class="mb-0 small">' + JSON.stringify(value, null, 2) + '</pre>';
-    }
-    
-    // URLs
-    if (typeof value === 'string' && (value.startsWith('http://') || value.startsWith('https://'))) {
-      if (value.match(/\.(jpg|jpeg|png|gif|webp)$/i)) {
-        return '<a href="' + value + '" target="_blank">View Image</a>';
-      }
-      return '<a href="' + value + '" target="_blank">View</a>';
-    }
-    
-    return String(value);
-  }
-
   function formatValueForDisplay(value) {
     if (value === null || value === undefined || value === "") {
       return '<span class="text-muted">-</span>';
@@ -527,38 +399,30 @@
     if (Array.isArray(value)) {
       if (value.length === 0) return '<span class="text-muted">-</span>';
       
-      // Handle array of objects with names (categories)
       if (value[0] && typeof value[0] === 'object' && value[0].name) {
         return value.map(function(item) { return item.name; }).join(', ');
       }
       
-      // Handle array of primitives
       return value.join(', ');
     }
     
     if (typeof value === 'object') {
-      // Handle user audit objects
       if (value.user_email) {
         return value.user_email;
       }
       
-      // Handle objects with name
       if (value.name) {
         return value.name;
       }
       
-      // Generic object - show as JSON
       return '<pre class="mb-0 small" style="max-height:100px;overflow:auto;">' + JSON.stringify(value, null, 2) + '</pre>';
     }
     
-    // URLs - show full URL as clickable link
     if (typeof value === 'string' && (value.startsWith('http://') || value.startsWith('https://'))) {
       return '<a href="' + value + '" target="_blank" class="text-break">' + value + '</a>';
     }
     
-    // HTML content - show as-is but escape dangerous tags
     if (typeof value === 'string' && value.includes('<') && value.includes('>')) {
-      // Check if it looks like HTML
       if (value.match(/<[a-z][\s\S]*>/i)) {
         return '<code class="text-break">' + value.replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</code>';
       }
@@ -574,11 +438,9 @@
     modalTitle.textContent = getValue(product, "label") || product.sku || "Product Details";
     modalBody.innerHTML = "";
 
-    // Left column - Images organized by field
     const leftCol = document.createElement("div");
     leftCol.className = "col-md-4";
     
-    // Thumbnail section
     if (product.thumbnail && product.thumbnail.thumbnail) {
       const thumbCard = document.createElement("div");
       thumbCard.className = "card mb-3";
@@ -599,12 +461,10 @@
       leftCol.appendChild(thumbCard);
     }
     
-    // Find all image-type attributes
     if (product.attributes && typeof product.attributes === 'object') {
       Object.keys(product.attributes).forEach(function(attrKey) {
         const attrValue = product.attributes[attrKey];
         
-        // Check if this attribute contains images (array of objects with url property)
         if (Array.isArray(attrValue) && attrValue.length > 0 && attrValue[0] && attrValue[0].url) {
           const imgCard = document.createElement("div");
           imgCard.className = "card mb-3";
@@ -633,9 +493,7 @@
       });
     }
     
-    // Assets section (only if not already shown in attributes)
     if (Array.isArray(product.assets) && product.assets.length > 0) {
-      // Check if we already displayed these as attribute images
       const alreadyShown = product.attributes && product.attributes.images && 
         Array.isArray(product.attributes.images) && product.attributes.images.length > 0;
       
@@ -664,7 +522,6 @@
       }
     }
 
-    // Right column - All other attributes (excluding images)
     const rightCol = document.createElement("div");
     rightCol.className = "col-md-8";
     
@@ -673,10 +530,8 @@
     
     const tbody = document.createElement("tbody");
     
-    // Collect all non-image fields
     const displayFields = [];
     
-    // System fields
     Object.keys(product).forEach(function(key) {
       if (key === 'attributes' || key === 'thumbnail' || key === 'assets') return;
       
@@ -687,12 +542,10 @@
       });
     });
     
-    // Attribute fields (exclude image arrays)
     if (product.attributes && typeof product.attributes === 'object') {
       Object.keys(product.attributes).forEach(function(attrKey) {
         const attrValue = product.attributes[attrKey];
         
-        // Skip if it's an image array (already shown on left)
         if (Array.isArray(attrValue) && attrValue.length > 0 && attrValue[0] && attrValue[0].url) {
           return;
         }
@@ -705,14 +558,11 @@
       });
     }
     
-    // Sort fields alphabetically
     displayFields.sort(function(a, b) {
       return a.label.localeCompare(b.label);
     });
     
-    // Render fields
     displayFields.forEach(function(field) {
-      // Skip price fields for non-authorized users
       if (!USERS_WITH_PRICE_ACCESS.includes(currentUser)) {
         const keyLower = field.key.toLowerCase();
         if (keyLower.includes('price') || keyLower.includes('cost') || keyLower.includes('msrp')) {
@@ -736,7 +586,6 @@
     table.appendChild(tbody);
     rightCol.appendChild(table);
     
-    // Edit link
     const editLink = document.createElement("a");
     editLink.href = "https://pim.plytix.com/products/" + product.id + "/edit";
     editLink.target = "_blank";
