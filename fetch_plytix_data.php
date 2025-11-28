@@ -16,7 +16,9 @@ $metadataFile = $cacheDir . '/metadata.json';
 
 // Get action from GET or POST
 $action = $_GET['action'] ?? $_POST['action'] ?? 'get_status';
-$forceRefresh = isset($_GET['force_refresh']) && $_GET['force_refresh'] === 'true';
+$forceRefresh = (isset($_GET['forcerefresh']) && $_GET['forcerefresh'] == '1');
+error_log("Force refresh value: " . ($forceRefresh ? 'TRUE' : 'FALSE'));
+
 
 error_log("=== PHP START: " . date('Y-m-d H:i:s') . " | Action: $action | Force: " . ($forceRefresh ? 'YES' : 'NO') . " ===");
 
