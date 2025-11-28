@@ -28,54 +28,60 @@
     <h3>🪨 Acme Stonemart — Product Catalog</h3>
     <div>
       <span id="loggedUserBadge" class="me-2 text-muted small"></span>
-      <button id="refreshBtn" class="btn btn-outline-primary btn-sm me-2" title="Force refresh data from API">🔄 Refresh</button>
       <button id="logoutBtn" class="btn btn-outline-danger btn-sm" onclick="logout()">Logout</button>
     </div>
   </div>
 
-  <!-- Filters -->
-  <div class="row g-2 mb-3 align-items-center">
-    <div class="col-md-3"><input id="searchBox" class="form-control" placeholder="Search by SKU, Name..." /></div>
-    <div class="col-md-3">
-      <div class="dropdown">
+
+
+  
+
+<!-- Filters -->
+  <div class="row g-2 mb-3 align-items-end">
+    <div class="col-md-2">
+      <input id="searchBox" class="form-control" placeholder="Search by SKU, Name..." />
+    </div>
+    
+    <div class="col-md-2">
+      <div class="dropdown w-100">
         <button class="btn btn-outline-secondary dropdown-toggle w-100" type="button" id="categoryFilterDropdown" data-bs-toggle="dropdown" aria-expanded="false" data-bs-auto-close="outside">
           Categories
         </button>
-        <ul id="categoryFilter" class="dropdown-menu" aria-labelledby="categoryFilterDropdown">
-          <!-- Content populated by script.js -->
+        <ul id="categoryFilter" class="dropdown-menu" aria-labelledby="categoryFilterDropdown" style="max-height: 300px; overflow-y: auto;">
+          <li class="dropdown-item text-muted">Loading...</li>
         </ul>
       </div>
     </div>
 
-        <!-- Product Family Filter -->
-    <div class="dropdown me-2 mb-2">
-      <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
-        Product Family
-      </button>
-      <ul class="dropdown-menu" id="familyFilter" style="max-height: 300px; overflow-y: auto;">
-        <li class="dropdown-item text-muted">Loading...</li>
-      </ul>
+    <div class="col-md-2">
+      <div class="dropdown w-100">
+        <button class="btn btn-outline-secondary dropdown-toggle w-100" type="button" id="familyFilterDropdown" data-bs-toggle="dropdown" aria-expanded="false" data-bs-auto-close="outside">
+          Product Family
+        </button>
+        <ul id="familyFilter" class="dropdown-menu" aria-labelledby="familyFilterDropdown" style="max-height: 300px; overflow-y: auto;">
+          <li class="dropdown-item text-muted">Loading...</li>
+        </ul>
+      </div>
     </div>
-    
-
-
     
     <div class="col-md-2">
       <select id="statusFilter" class="form-select">
-      <option value="all" selected>All Products</option>
-      <option value="enabled">Enabled Only</option>
+        <option value="all" selected>All Products</option>
+        <option value="enabled">Enabled Only</option>
         <option value="disabled">Disabled Only</option>
       </select>
     </div>
-     <div class="col-md-2">
+    
+    <div class="col-md-2">
       <select id="variantFilter" class="form-select">
-        <option value="all" selected>All Product Types</option>
+        <option value="all" selected>All Types</option>
         <option value="parents">Parents with Variants</option>
         <option value="variants">Variants Only</option>
         <option value="singles">Singles (No Variants)</option>
         <option value="variants-and-singles">Variants & Singles</option>
       </select>
     </div>
+    
     <div class="col-md-2">
       <select id="sortFilter" class="form-select">
         <option value="sku-asc">Sort by SKU (A-Z)</option>
@@ -86,6 +92,11 @@
     </div>
   </div>
 
+
+
+
+
+  
   <div id="catalogStatus" class="text-muted small mb-2"></div>
   <div id="productGrid" class="row g-3"></div>
 </div>
@@ -112,14 +123,6 @@
   script.src = 'script.js?v=' + new Date().getTime();
   document.body.appendChild(script);
 </script>
-<script>
-  // Refresh button handler
-  document.getElementById("refreshBtn").onclick = function() {
-    if (confirm("Force refresh data from Plytix API? This will bypass the cache.")) {
-      localStorage.setItem('forceRefresh', 'true');
-      location.reload();
-    }
-  };
-</script>
+
 </body>
 </html>
