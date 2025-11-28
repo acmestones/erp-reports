@@ -84,7 +84,47 @@
   
 function loadCachedProducts(cachedIds, needUpdateIds, totalProducts, startTime) {
     const status = document.getElementById("catalogStatus");
-    const batchSize = 250; // Slightly larger batches
+    
+    // Try consolidated cache first (single file read)
+    fetch("fetch_plytix_data.php?action=load_consolidated", {
+        method: "POST"
+    })
+    .then(function(res) { 
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        return res.json(); 
+    })
+    .then(function(data) {
+        if (data.success && data.products) {
+            const loadTime = ((Date.now() - startTime) / 1000).toFixed(2);
+            console.log(`Loaded ${data.products.length} products from consolidated cache in ${loadTime}s`);
+            
+            allProducts = data.products;
+            
+            setupFilters();
+            populateCategoryFilter();
+            populateFamilyFilter();
+            applyFilters();
+
+            if (needUpdateIds.length > 0) {
+                status.innerHTML = `<span class="text-success">✓ Loaded ${allProducts.length} products (${loadTime}s)</span>`;
+                fetchUpdatedProducts(needUpdateIds, totalProducts, startTime);
+            } else {
+                status.innerHTML = `<span class="text-success">✓ Loaded ${allProducts.length} products (${loadTime}s)</span>`;
+                console.timeEnd("Total Load Time");
+            }
+        } else {
+            throw new Error("Consolidated cache failed");
+        }
+    })
+    .catch(function(err) {
+        console.error("Consolidated load failed, using batch method:", err);
+        loadCachedProductsBatch(cachedIds, needUpdateIds, totalProducts, startTime);
+    });
+}
+
+function loadCachedProductsBatch(cachedIds, needUpdateIds, totalProducts, startTime) {
+    const status = document.getElementById("catalogStatus");
+    const batchSize = 250;
     const batches = [];
     for (let i = 0; i < cachedIds.length; i += batchSize) {
         batches.push(cachedIds.slice(i, i + batchSize));
@@ -92,10 +132,8 @@ function loadCachedProducts(cachedIds, needUpdateIds, totalProducts, startTime) 
     console.log(`Loading ${cachedIds.length} products in ${batches.length} batches`);
 
     let loadedCount = 0;
-    let completedBatches = 0;
     let isFirstBatchRendered = false;
 
-    // Load all batches in parallel
     Promise.all(batches.map(function(batch, index) {
         return fetch("fetch_plytix_data.php?action=load_cached", {
             method: "POST",
@@ -110,12 +148,10 @@ function loadCachedProducts(cachedIds, needUpdateIds, totalProducts, startTime) 
             if (data.success && data.products) {
                 allProducts = allProducts.concat(data.products);
                 loadedCount += data.products.length;
-                completedBatches++;
                 
                 const currentTime = ((Date.now() - startTime) / 1000).toFixed(1);
                 status.innerHTML = `<span class="text-primary">⏳ Loaded ${loadedCount}/${cachedIds.length} (${currentTime}s)</span>`;
 
-                // Render on first batch that completes
                 if (!isFirstBatchRendered && allProducts.length >= 40) {
                     isFirstBatchRendered = true;
                     setupFilters();
@@ -129,7 +165,6 @@ function loadCachedProducts(cachedIds, needUpdateIds, totalProducts, startTime) 
         })
         .catch(function(err) {
             console.error("Batch " + index + " load error:", err);
-            completedBatches++;
             return [];
         });
     }))
@@ -138,7 +173,6 @@ function loadCachedProducts(cachedIds, needUpdateIds, totalProducts, startTime) 
         console.log(`Loaded ${allProducts.length} cached products in ${loadTime}s`);
         console.timeEnd("Total Load Time");
         
-        // Final setup if not done yet
         if (!isFirstBatchRendered) {
             setupFilters();
             populateCategoryFilter();
@@ -154,6 +188,7 @@ function loadCachedProducts(cachedIds, needUpdateIds, totalProducts, startTime) 
         }
     });
 }
+
 
 
 
