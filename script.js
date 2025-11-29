@@ -19,13 +19,17 @@
 function init() {
     console.time("Total Load Time");
     
-    // Clean up URL after force refresh
+    // Check for force refresh BEFORE cleaning URL
     const urlParams = new URLSearchParams(window.location.search);
-    if (urlParams.has('forcerefresh')) {
-        // Remove the parameter after the page loads
+    const shouldForceRefresh = urlParams.has('forcerefresh');
+    
+    // Store it globally so loadProducts can access it
+    window.isForceRefresh = shouldForceRefresh;
+    
+    // Clean up URL after reading the parameter
+    if (shouldForceRefresh) {
         urlParams.delete('forcerefresh');
         const newUrl = window.location.pathname + (urlParams.toString() ? '?' + urlParams.toString() : '');
-        // Use replaceState to update URL without reloading
         window.history.replaceState({}, '', newUrl);
     }
     
@@ -52,6 +56,7 @@ function init() {
 
 
 
+
   
 function loadProducts() {
     const status = document.getElementById("catalogStatus");
@@ -62,10 +67,8 @@ function loadProducts() {
     
     const startTime = Date.now();
     
-    // Check if forcerefresh parameter exists in URL
-    const urlParams = new URLSearchParams(window.location.search);
-    const forceRefresh = urlParams.get('forcerefresh');
-    const fetchUrl = forceRefresh 
+    // Use the stored force refresh flag
+    const fetchUrl = window.isForceRefresh
         ? "fetch_plytix_data.php?action=get_status&forcerefresh=1"
         : "fetch_plytix_data.php?action=get_status";
     
