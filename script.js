@@ -66,27 +66,38 @@ function loadProducts() {
     grid.innerHTML = '<div class="col-12 text-center py-5"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div></div>';
     
     const startTime = Date.now();
+    let progressTimer = null;
     
-    // Check if this is a force refresh
+    // Show timer for force refresh
     if (window.isForceRefresh) {
-        // Use batch checking for progress updates
-        checkProductsInBatches(startTime);
-    } else {
-        // Quick load from cache
-        loadProductsQuick(startTime);
+        progressTimer = startProgressTimer("catalogStatus", "Checking for updates from Plytix API");
     }
-}
-
-function loadProductsQuick(startTime) {
-    const status = document.getElementById("catalogStatus");
     
-    fetch("fetch_plytix_data.php?action=get_status")
+    // Use the stored force refresh flag
+    const fetchUrl = window.isForceRefresh
+        ? "fetch_plytix_data.php?action=get_status&forcerefresh=1"
+        : "fetch_plytix_data.php?action=get_status";
+    
+    fetch(fetchUrl)
         .then(function(res) {
             if (!res.ok) throw new Error('HTTP ' + res.status);
             return res.json();
         })
         .then(function(statusData) {
+            // Stop the progress timer
+            if (progressTimer) {
+                clearInterval(progressTimer);
+                progressTimer = null;
+            }
+            
             if (!statusData.success) throw new Error('Failed to get status');
+            
+            const checkTime = ((Date.now() - startTime) / 1000).toFixed(1);
+            
+            if (window.isForceRefresh) {
+                console.log(`API check completed in ${checkTime}s`);
+                status.innerHTML = `<span class="text-info">✓ API check complete (${checkTime}s)</span>`;
+            }
             
             console.log("Status:", statusData.cached, "cached,", statusData.needUpdate, "need update");
             
@@ -94,6 +105,7 @@ function loadProductsQuick(startTime) {
             const cachedIds = statusData.cachedIds;
             const needUpdateIds = statusData.needUpdateIds;
             
+            // Check if we should use consolidated cache
             if (statusData.hasConsolidated && statusData.quickLoad) {
                 loadCachedProducts(cachedIds, needUpdateIds, totalProducts, startTime);
             } else if (cachedIds.length > 0) {
@@ -103,71 +115,13 @@ function loadProductsQuick(startTime) {
             }
         })
         .catch(function(err) {
+            if (progressTimer) {
+                clearInterval(progressTimer);
+            }
             console.error("Failed to load products:", err);
             status.innerHTML = '<span class="text-danger">Error loading products</span>';
-            document.getElementById("productGrid").innerHTML = '';
+            grid.innerHTML = '';
         });
-}
-
-function checkProductsInBatches(startTime) {
-    const status = document.getElementById("catalogStatus");
-    
-    let page = 1;
-    let allCached = [];
-    let allNeedUpdate = [];
-    let totalChecked = 0;
-    
-    function checkNextBatch() {
-        const batchStartTime = Date.now();
-        
-        fetch("fetch_plytix_data.php?action=get_status_batch&page=" + page)
-            .then(function(res) {
-                if (!res.ok) throw new Error('HTTP ' + res.status);
-                return res.json();
-            })
-            .then(function(data) {
-                if (!data.success) throw new Error('Batch check failed');
-                
-                // Process results
-                data.products.forEach(function(product) {
-                    totalChecked++;
-                    if (product.needsUpdate) {
-                        allNeedUpdate.push(product.id);
-                    } else {
-                        allCached.push(product.id);
-                    }
-                });
-                
-                const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-                status.innerHTML = `<span class="text-warning">🔄 Checked ${totalChecked} products (${elapsed}s)...</span>`;
-                console.log(`Batch ${page}: checked ${data.products.length} products in ${((Date.now() - batchStartTime) / 1000).toFixed(2)}s`);
-                
-                // Check if there are more batches
-                if (data.hasMore) {
-                    page++;
-                    setTimeout(checkNextBatch, 100); // Small delay between batches
-                } else {
-                    // All batches complete
-                    const checkTime = ((Date.now() - startTime) / 1000).toFixed(1);
-                    console.log(`API check completed: ${allCached.length} cached, ${allNeedUpdate.length} need update (${checkTime}s)`);
-                    
-                    status.innerHTML = `<span class="text-info">✓ Checked ${totalChecked} products (${checkTime}s)</span>`;
-                    
-                    // Now load the products
-                    if (allCached.length > 0) {
-                        loadCachedProducts(allCached, allNeedUpdate, totalChecked, startTime);
-                    } else if (allNeedUpdate.length > 0) {
-                        fetchUpdatedProducts(allNeedUpdate, totalChecked, startTime);
-                    }
-                }
-            })
-            .catch(function(err) {
-                console.error("Batch check error:", err);
-                status.innerHTML = '<span class="text-danger">Error checking products</span>';
-            });
-    }
-    
-    checkNextBatch();
 }
 
 
