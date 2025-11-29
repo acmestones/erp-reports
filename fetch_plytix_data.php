@@ -244,24 +244,26 @@ if ($action === 'get_status') {
     $needUpdate = [];
     $cached = [];
 
-    foreach ($allProductIds as $productInfo) {
-        $productId = $productInfo['id'];
-        $productFile = $cacheDir . '/product_' . $productId . '.json';
+foreach ($allProductIds as $productInfo) {
+    $productId = $productInfo['id'];
+    $productFile = $cacheDir . '/product_' . $productId . '.json';
+    
+    if (!file_exists($productFile)) {
+        $needUpdate[] = $productId;
+    } else {
+        $cachedModified = $metadata['products'][$productId] ?? null;
+        $currentModified = $productInfo['modified'];
         
-        if (!file_exists($productFile)) {
+        // Only refetch if timestamps actually differ
+        if ($currentModified && $cachedModified && $currentModified !== $cachedModified) {
             $needUpdate[] = $productId;
+            error_log("Product $productId needs update: cached=$cachedModified, current=$currentModified");
         } else {
-            $cachedModified = $metadata['products'][$productId] ?? null;
-            $currentModified = $productInfo['modified'];
-            
-            if ($forceRefresh || ($currentModified && $cachedModified && $currentModified !== $cachedModified)) {
-                $needUpdate[] = $productId;
-                error_log("Product $productId needs update: cached=$cachedModified, current=$currentModified");
-            } else {
-                $cached[] = $productId;
-            }
+            $cached[] = $productId;
         }
     }
+}
+
 
     error_log("Cached: " . count($cached) . ", Need update: " . count($needUpdate));
     
