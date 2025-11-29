@@ -16,28 +16,38 @@
 
   init();
 
-  function init() {
-    console.time("Total Load Time"); // ADD THIS LINE
+function init() {
+    console.time("Total Load Time");
+    
+    // Clean up URL after force refresh
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.has('forcerefresh')) {
+        // Remove the parameter after the page loads
+        urlParams.delete('forcerefresh');
+        const newUrl = window.location.pathname + (urlParams.toString() ? '?' + urlParams.toString() : '');
+        // Use replaceState to update URL without reloading
+        window.history.replaceState({}, '', newUrl);
+    }
     
     let userObj;
     const userData = localStorage.getItem("user") || "{}";
-    
     try {
-      userObj = JSON.parse(userData);
-      if (typeof userObj === 'string') {
-        currentUser = userObj;
-      } else {
-        currentUser = userObj.email || "";
-      }
+        userObj = JSON.parse(userData);
+        if (typeof userObj === 'string') {
+            currentUser = userObj;
+        } else {
+            currentUser = userObj.email || "";
+        }
     } catch (e) {
-      currentUser = userData;
+        currentUser = userData;
     }
     
     const badge = document.getElementById("loggedUserBadge");
     if (badge) badge.textContent = "Signed in as " + currentUser;
-
+    
     loadProducts();
-  }
+}
+
 
 
 
