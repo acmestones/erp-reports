@@ -66,6 +66,12 @@ function loadProducts() {
     grid.innerHTML = '<div class="col-12 text-center py-5"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div></div>';
     
     const startTime = Date.now();
+    let progressTimer = null;
+    
+    // Show timer for force refresh
+    if (window.isForceRefresh) {
+        progressTimer = startProgressTimer("catalogStatus", "Checking for updates from Plytix API");
+    }
     
     // Use the stored force refresh flag
     const fetchUrl = window.isForceRefresh
@@ -78,7 +84,20 @@ function loadProducts() {
             return res.json();
         })
         .then(function(statusData) {
+            // Stop the progress timer
+            if (progressTimer) {
+                clearInterval(progressTimer);
+                progressTimer = null;
+            }
+            
             if (!statusData.success) throw new Error('Failed to get status');
+            
+            const checkTime = ((Date.now() - startTime) / 1000).toFixed(1);
+            
+            if (window.isForceRefresh) {
+                console.log(`API check completed in ${checkTime}s`);
+                status.innerHTML = `<span class="text-info">✓ API check complete (${checkTime}s)</span>`;
+            }
             
             console.log("Status:", statusData.cached, "cached,", statusData.needUpdate, "need update");
             
@@ -96,11 +115,15 @@ function loadProducts() {
             }
         })
         .catch(function(err) {
+            if (progressTimer) {
+                clearInterval(progressTimer);
+            }
             console.error("Failed to load products:", err);
             status.innerHTML = '<span class="text-danger">Error loading products</span>';
             grid.innerHTML = '';
         });
 }
+
 
 
 
@@ -877,6 +900,19 @@ window.forceRefreshCache = function() {
     url.searchParams.set('forcerefresh', '1');
     window.location.href = url.toString();
 };
+
+function startProgressTimer(statusElementId, messagePrefix) {
+    const statusEl = document.getElementById(statusElementId);
+    const startTime = Date.now();
+    
+    const interval = setInterval(function() {
+        const elapsed = ((Date.now() - startTime) / 1000).toFixed(0);
+        statusEl.innerHTML = `<span class="text-warning">🔄 ${messagePrefix} (${elapsed}s elapsed...)</span>`;
+    }, 1000);
+    
+    return interval;
+}
+
 
 
 })();
