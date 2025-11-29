@@ -66,11 +66,11 @@ function loadProducts() {
     grid.innerHTML = '<div class="col-12 text-center py-5"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div></div>';
     
     const startTime = Date.now();
-    let progressTimer = null;
     
     // Show timer for force refresh
+    let progressTimer = null;
     if (window.isForceRefresh) {
-        progressTimer = startProgressTimer("catalogStatus", "Checking for updates from Plytix API");
+        progressTimer = startProgressTimer("catalogStatus", "Checking 1022 products for updates");
     }
     
     // Use the stored force refresh flag
@@ -96,7 +96,7 @@ function loadProducts() {
             
             if (window.isForceRefresh) {
                 console.log(`API check completed in ${checkTime}s`);
-                status.innerHTML = `<span class="text-info">✓ API check complete (${checkTime}s)</span>`;
+                status.innerHTML = `<span class="text-success">✓ Check complete: ${statusData.cached} cached, ${statusData.needUpdate} need update (${checkTime}s)</span>`;
             }
             
             console.log("Status:", statusData.cached, "cached,", statusData.needUpdate, "need update");
@@ -105,7 +105,6 @@ function loadProducts() {
             const cachedIds = statusData.cachedIds;
             const needUpdateIds = statusData.needUpdateIds;
             
-            // Check if we should use consolidated cache
             if (statusData.hasConsolidated && statusData.quickLoad) {
                 loadCachedProducts(cachedIds, needUpdateIds, totalProducts, startTime);
             } else if (cachedIds.length > 0) {
@@ -907,8 +906,11 @@ function startProgressTimer(statusElementId, messagePrefix) {
     
     const interval = setInterval(function() {
         const elapsed = ((Date.now() - startTime) / 1000).toFixed(0);
-        statusEl.innerHTML = `<span class="text-warning">🔄 ${messagePrefix} (${elapsed}s elapsed...)</span>`;
-    }, 1000);
+        const estimated = 45; // Estimated total time
+        const percent = Math.min(95, Math.floor((elapsed / estimated) * 100));
+        
+        statusEl.innerHTML = `<span class="text-warning">🔄 ${messagePrefix}... ${elapsed}s / ~${estimated}s <span class="badge bg-info">${percent}%</span></span>`;
+    }, 500);
     
     return interval;
 }
