@@ -4882,13 +4882,12 @@ function openMobileReorderModal(reportName, primaryGroup, secondaryGroup) {
         });
     }
     
-    // ========== FIX: Destroy previous Sortable instance ==========
+    // Destroy previous Sortable instance
     if (mobileSortableInstance) {
         console.log('Destroying previous Sortable instance');
         mobileSortableInstance.destroy();
         mobileSortableInstance = null;
     }
-    // ========== END FIX ==========
     
     // Populate modal
     const listContainer = document.getElementById('mobileReorderList');
@@ -4937,7 +4936,7 @@ function openMobileReorderModal(reportName, primaryGroup, secondaryGroup) {
         listContainer.appendChild(item);
     });
     
-    // ========== FIX: Create NEW Sortable instance and store it ==========
+    // Create NEW Sortable instance and store it
     mobileSortableInstance = new Sortable(listContainer, {
         animation: 150,
         delay: 200,
@@ -4965,9 +4964,8 @@ function openMobileReorderModal(reportName, primaryGroup, secondaryGroup) {
             if (navigator.vibrate) navigator.vibrate(10);
         }
     });
-    // ========== END FIX ==========
     
-    // ========== FIX: Get or create modal properly ==========
+    // Get or create modal properly
     const modalElement = document.getElementById('mobileReorderModal');
     let modal = bootstrap.Modal.getInstance(modalElement);
     
@@ -4981,132 +4979,124 @@ function openMobileReorderModal(reportName, primaryGroup, secondaryGroup) {
     
     // Show modal
     modal.show();
-    // ========== END FIX ==========
     
-         // ========== FIX: Reset and clone save button ==========
-        const saveBtn = document.getElementById('saveMobileReorder');
-        const newSaveBtn = saveBtn.cloneNode(true);
+    // Reset and clone save button
+    const saveBtn = document.getElementById('saveMobileReorder');
+    const newSaveBtn = saveBtn.cloneNode(true);
+    
+    // Reset button state
+    newSaveBtn.disabled = false;
+    newSaveBtn.textContent = 'Save Order';
+    newSaveBtn.className = 'btn btn-primary'; // Reset to original classes
+    
+    saveBtn.parentNode.replaceChild(newSaveBtn, saveBtn);
+    
+    // Add the save handler
+    newSaveBtn.addEventListener('click', async function() {
+        console.log('💾 Save button clicked!');
         
-        // Reset button state
-        newSaveBtn.disabled = false;
-        newSaveBtn.textContent = 'Save Order';
-        newSaveBtn.className = 'btn btn-primary'; // Reset to original classes
+        if (!currentMobileReorder) {
+            console.error('No currentMobileReorder data');
+            return;
+        }
         
-        saveBtn.parentNode.replaceChild(newSaveBtn, saveBtn);
-        // ========== END FIX ==========
-
-    
-// Add the save handler
-newSaveBtn.addEventListener('click', async function() {
-    console.log('💾 Save button clicked!');
-    
-    if (!currentMobileReorder) {
-        console.error('No currentMobileReorder data');
-        return;
-    }
-    
-    const listContainer = document.getElementById('mobileReorderList');
-    const items = Array.from(listContainer.querySelectorAll('.reorder-item'));
-    const newOrder = items.map(item => item.dataset.cardId).filter(id => id);
-    
-    console.log('Saving mobile reorder:', newOrder);
-    
-    // Disable button while saving
-    newSaveBtn.disabled = true;
-    newSaveBtn.textContent = 'Saving...';
-    
-    try {
-        const result = await saveCardPriority(
-            currentMobileReorder.reportName,
-            currentMobileReorder.primaryGroup,
-            currentMobileReorder.secondaryGroup,
-            newOrder
-        );
+        const listContainer = document.getElementById('mobileReorderList');
+        const items = Array.from(listContainer.querySelectorAll('.reorder-item'));
+        const newOrder = items.map(item => item.dataset.cardId).filter(id => id);
         
-        console.log('Save result:', result);
+        console.log('Saving mobile reorder:', newOrder);
         
-        if (result.success) {
-            // Update local config
-            if (!reportConfig[currentMobileReorder.reportName]) {
-                reportConfig[currentMobileReorder.reportName] = {};
-            }
-            if (!reportConfig[currentMobileReorder.reportName].card_priority) {
-                reportConfig[currentMobileReorder.reportName].card_priority = {};
-            }
-            if (!reportConfig[currentMobileReorder.reportName].card_priority[currentMobileReorder.primaryGroup]) {
-                reportConfig[currentMobileReorder.reportName].card_priority[currentMobileReorder.primaryGroup] = {};
-            }
-            reportConfig[currentMobileReorder.reportName].card_priority[currentMobileReorder.primaryGroup][currentMobileReorder.secondaryGroup] = newOrder;
+        // Disable button while saving
+        newSaveBtn.disabled = true;
+        newSaveBtn.textContent = 'Saving...';
+        
+        try {
+            const result = await saveCardPriority(
+                currentMobileReorder.reportName,
+                currentMobileReorder.primaryGroup,
+                currentMobileReorder.secondaryGroup,
+                newOrder
+            );
             
-            // Reset button
-            newSaveBtn.textContent = '✅ Saved!';
-            newSaveBtn.classList.remove('btn-primary');
-            newSaveBtn.classList.add('btn-success');
+            console.log('Save result:', result);
             
-            // Success feedback
-            if (navigator.vibrate) navigator.vibrate([30, 50, 30]);
-            
-            // Hide modal immediately
-            modal.hide();
-            
-            // Wait for modal animation to complete, then clean up and reload
-            setTimeout(async () => {
-                // Dispose modal
-                modal.dispose();
+            if (result.success) {
+                // Update local config
+                if (!reportConfig[currentMobileReorder.reportName]) {
+                    reportConfig[currentMobileReorder.reportName] = {};
+                }
+                if (!reportConfig[currentMobileReorder.reportName].card_priority) {
+                    reportConfig[currentMobileReorder.reportName].card_priority = {};
+                }
+                if (!reportConfig[currentMobileReorder.reportName].card_priority[currentMobileReorder.primaryGroup]) {
+                    reportConfig[currentMobileReorder.reportName].card_priority[currentMobileReorder.primaryGroup] = {};
+                }
+                reportConfig[currentMobileReorder.reportName].card_priority[currentMobileReorder.primaryGroup][currentMobileReorder.secondaryGroup] = newOrder;
                 
-                // Clean up Sortable
+                // Reset button
+                newSaveBtn.textContent = '✅ Saved!';
+                newSaveBtn.classList.remove('btn-primary');
+                newSaveBtn.classList.add('btn-success');
+                
+                // Success feedback
+                if (navigator.vibrate) navigator.vibrate([30, 50, 30]);
+                
+                // ========== COMPLETE CLEANUP AND RELOAD ==========
+                // 1. Destroy Sortable first
                 if (mobileSortableInstance) {
                     mobileSortableInstance.destroy();
                     mobileSortableInstance = null;
                 }
                 
-                // Reload the report to show new order
-                console.log('Reloading report...');
-                await loadReport(currentMobileReorder.reportName);
-                console.log('✅ Report reloaded - new order applied');
+                // 2. Hide and dispose modal
+                modal.hide();
                 
-                // ========== FIX: Force reset body scroll ==========
-                document.body.style.overflow = '';
-                document.body.style.position = '';
-                document.body.style.touchAction = '';
-                document.body.classList.remove('modal-open');
+                // 3. Wait for modal to close, then do full cleanup
+                setTimeout(async () => {
+                    modal.dispose();
+                    
+                    // 4. Force reset all scrolling
+                    forceResetScroll();
+                    
+                    // 5. Reload the report
+                    console.log('Reloading report...');
+                    await loadReport(currentMobileReorder.reportName);
+                    console.log('✅ Report reloaded - new order applied');
+                    
+                    // 6. Final scroll check after a short delay
+                    setTimeout(() => {
+                        forceResetScroll();
+                        console.log('✅ Final scroll check complete');
+                    }, 100);
+                    
+                }, 400);
+                // ========== END CLEANUP ==========
                 
-                // Remove any lingering modal backdrops
-                document.querySelectorAll('.modal-backdrop').forEach(backdrop => {
-                    backdrop.remove();
-                });
-                
-                console.log('✅ Scroll restored');
-                // ========== END FIX ==========
-                
-                }, 300); // Modal animation takes ~300ms
-
-            
-        } else {
-            alert('❌ Failed to save order: ' + (result.error || 'Unknown error'));
+            } else {
+                alert('❌ Failed to save order: ' + (result.error || 'Unknown error'));
+                newSaveBtn.disabled = false;
+                newSaveBtn.textContent = 'Save Order';
+            }
+        } catch (error) {
+            console.error('Error saving mobile reorder:', error);
+            alert('❌ Error saving order: ' + error.message);
             newSaveBtn.disabled = false;
             newSaveBtn.textContent = 'Save Order';
         }
-    } catch (error) {
-        console.error('Error saving mobile reorder:', error);
-        alert('❌ Error saving order: ' + error.message);
-        newSaveBtn.disabled = false;
-        newSaveBtn.textContent = 'Save Order';
-    }
-});
-
+    });
     
-    // ========== FIX: Clean up when modal is closed with X or Cancel ==========
+    // Clean up when modal is closed with X or Cancel
     modalElement.addEventListener('hidden.bs.modal', function cleanup() {
         console.log('Modal closed - cleaning up');
         if (mobileSortableInstance) {
             mobileSortableInstance.destroy();
             mobileSortableInstance = null;
         }
+        // Force scroll reset
+        forceResetScroll();
         // Remove this listener to prevent memory leaks
         modalElement.removeEventListener('hidden.bs.modal', cleanup);
     });
-    // ========== END FIX ==========
 }
 
 // ========== END MOBILE REORDER MODAL FUNCTIONS ==========
