@@ -995,7 +995,15 @@ function createCard(row, columns, reportName, config) {
     const card = document.createElement("div");
     card.className = "card card-report h-100";
 
-    card.dataset.docname = row.name; // Add unique identifier for drag-drop
+    // ========== IMPROVED: Add fallback logic ==========
+    // Try multiple fields to ensure we always have a valid ID
+    card.dataset.docname = row.name || row.work_order_id || row.job_card || row.item_code || '';
+    
+    // Debug warning if no valid ID found
+    if (!card.dataset.docname) {
+        console.warn('⚠️ Warning: No valid docname found for card. Row data:', row);
+    }
+    // ========== END FIX ==========
     
     const userPerms = config.user_permissions?.[userEmail];
     const hiddenFields = userPerms?.hidden_fields || [];
@@ -1106,30 +1114,30 @@ function createCard(row, columns, reportName, config) {
         }
     }
     
-// Add Operation Planning button if configured
-if (config.show_operation_planning_button !== false) {
-    const opPerms = config.operation_planning_permissions?.[userEmail] || {};
-    
-    if (opPerms.can_view) {
-        const opPlanningBtn = document.createElement("button");
-        opPlanningBtn.className = "btn btn-sm btn-outline-success";
-        opPlanningBtn.innerHTML = '<i class="bi bi-diagram-3"></i> Operation Planning';
-        opPlanningBtn.addEventListener("click", () => {
-            // Debug: Check what work order ID we're passing
-            console.log('Row data:', row);
-            console.log('Work Order ID:', row.work_order_id || row.name);
-            openOperationPlanningModal(row, config, reportName);
-        });
-        buttonsContainer.appendChild(opPlanningBtn);
+    // Add Operation Planning button if configured
+    if (config.show_operation_planning_button !== false) {
+        const opPerms = config.operation_planning_permissions?.[userEmail] || {};
+        
+        if (opPerms.can_view) {
+            const opPlanningBtn = document.createElement("button");
+            opPlanningBtn.className = "btn btn-sm btn-outline-success";
+            opPlanningBtn.innerHTML = '<i class="bi bi-diagram-3"></i> Operation Planning';
+            opPlanningBtn.addEventListener("click", () => {
+                // Debug: Check what work order ID we're passing
+                console.log('Row data:', row);
+                console.log('Work Order ID:', row.work_order_id || row.name);
+                openOperationPlanningModal(row, config, reportName);
+            });
+            buttonsContainer.appendChild(opPlanningBtn);
+        }
     }
-}
-
     
     cardBody.appendChild(buttonsContainer);
     card.appendChild(cardBody);
     
     return card;
 }
+
 
 
 
