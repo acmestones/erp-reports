@@ -190,10 +190,173 @@ async function saveReportConfig(config) {
     const res = await fetch(`${API_BASE}?action=save_report_config`, {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({config})
+        body: JSON.stringify({config: fullConfig}) // Must be the FULL config
     });
     return res.json();
 }
+
+
+
+
+async function saveCardPriority(reportName, primaryGroup, secondaryGroup, cardOrder) {
+    const res = await fetch(`${API_BASE}?action=save_card_priority`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            report_name: reportName,
+            primary_group: primaryGroup,
+            secondary_group: secondaryGroup,
+            card_order: cardOrder
+        })
+    });
+    return res.json();
+}
+
+
+
+
+// ========== FORCE SCROLL RESET HELPER ==========
+function forceResetScroll() {
+    console.log('🔧 Force resetting scroll...');
+    
+    // Remove Bootstrap modal classes
+    document.body.classList.remove('modal-open');
+    
+    // Reset all body styles
+    document.body.style.overflow = '';
+    document.body.style.position = '';
+    document.body.style.paddingRight = '';
+    document.body.style.touchAction = '';
+    
+    // Reset html element too
+    document.documentElement.style.overflow = '';
+    document.documentElement.style.position = '';
+    
+    // Remove all modal backdrops
+    const backdrops = document.querySelectorAll('.modal-backdrop');
+    backdrops.forEach(backdrop => {
+        console.log('Removing backdrop:', backdrop);
+        backdrop.remove();
+    });
+    
+    // Force redraw
+    document.body.offsetHeight; // Trigger reflow
+    
+    console.log('✅ Scroll reset complete');
+}
+// ========== END HELPER ==========
+
+
+
+
+
+
+
+
+
+function initializeSortable(container, reportName, primaryGroup, secondaryGroup) {
+    // Only enable for admins
+    if (!currentUser || currentUser.role !== 'admin') {
+        return;
+    }
+    
+    // ========== CRITICAL: DISABLE ON MOBILE ==========
+    // Check if mobile - if yes, skip desktop drag entirely
+    const isMobile = window.innerWidth <= 768;
+    if (isMobile) {
+        console.log('Mobile detected - using modal reorder instead of desktop drag');
+        return; // Exit early - no desktop drag on mobile
+    }
+    // ========== END MOBILE CHECK ==========
+
+    // Desktop-only drag and drop
+    new Sortable(container, {
+        animation: 150,
+        delay: 500,
+        delayOnTouchOnly: true,
+        handle: '.drag-handle',
+        
+        ghostClass: 'sortable-ghost',
+        chosenClass: 'sortable-chosen',
+        dragClass: 'sortable-drag',
+        
+        onChoose: function(evt) {
+            console.log('Card selected');
+            evt.item.classList.add('is-dragging');
+        },
+        
+        onStart: function(evt) {
+            console.log('Drag started');
+        },
+        
+        onEnd: async function(evt) {
+            evt.item.classList.remove('is-dragging');
+            
+            // Get the new order of cards
+            const cards = Array.from(container.querySelectorAll('.card-report'));
+            const cardOrder = cards.map(card => card.dataset.docname).filter(name => name);
+            
+            console.log('=== DRAG DROP DEBUG ===');
+            console.log('Report Name:', reportName);
+            console.log('Primary Group:', primaryGroup);
+            console.log('Secondary Group:', secondaryGroup);
+            console.log('New card order:', cardOrder);
+            console.log('Card count:', cardOrder.length);
+            
+            // Save to backend
+            try {
+                const result = await saveCardPriority(
+                    reportName, 
+                    primaryGroup, 
+                    secondaryGroup, 
+                    cardOrder
+                );
+                
+                console.log('Save result:', result);
+                
+                if (result.success) {
+                    console.log('✅ Card priority saved successfully');
+                    if (!reportConfig[reportName]) {
+                        reportConfig[reportName] = {};
+                    }
+                    if (!reportConfig[reportName].card_priority) {
+                        reportConfig[reportName].card_priority = {};
+                    }
+                    if (!reportConfig[reportName].card_priority[primaryGroup]) {
+                        reportConfig[reportName].card_priority[primaryGroup] = {};
+                    }
+                    reportConfig[reportName].card_priority[primaryGroup][secondaryGroup] = cardOrder;
+                    console.log('Updated local reportConfig');
+                } else {
+                    console.error('❌ Failed to save card priority:', result.error);
+                    alert('Failed to save card order. Please try again.');
+                }
+            } catch (error) {
+                console.error('❌ Error saving card priority:', error);
+                alert('Error saving card order. Please try again.');
+            }
+        },
+        
+        onUnchoose: function(evt) {
+            console.log('Drag cancelled');
+            evt.item.classList.remove('is-dragging');
+        }
+    });
+    
+    // Add visual indicator that cards are draggable
+    const cards = container.querySelectorAll('.card-report');
+    cards.forEach(card => {
+        card.classList.add('sortable-enabled');
+    });
+}
+
+
+
+
+
+
+
+
 
 async function getLinkOptions(doctype) {
     if (linkFieldOptions[doctype]) {
@@ -438,6 +601,45 @@ function buildFieldMapping(columns) {
 
 
 
+async function cleanupCardPriority(reportName) {
+    if (!currentReportData || !currentReportData.grouped) {
+        console.log('No report data to clean');
+        return;
+    }
+    
+    const config = reportConfig[reportName] || {};
+    if (!config.card_priority) return;
+    
+    let cleaned = false;
+    
+    // For each primary group
+    Object.keys(config.card_priority).forEach(primaryGroup => {
+        // For each secondary group
+        Object.keys(config.card_priority[primaryGroup]).forEach(secondaryGroup => {
+            const savedOrder = config.card_priority[primaryGroup][secondaryGroup];
+            
+            // Get current cards in this subgroup
+            const currentCards = currentReportData.grouped[primaryGroup]?.[secondaryGroup] || [];
+            const currentCardIds = currentCards.map(card => card.name);
+            
+            // Filter out cards that no longer exist
+            const cleanedOrder = savedOrder.filter(id => currentCardIds.includes(id));
+            
+            // If anything was removed, update
+            if (cleanedOrder.length !== savedOrder.length) {
+                config.card_priority[primaryGroup][secondaryGroup] = cleanedOrder;
+                cleaned = true;
+                console.log(`Cleaned ${savedOrder.length - cleanedOrder.length} stale cards from ${primaryGroup} > ${secondaryGroup}`);
+            }
+        });
+    });
+    
+    // Save if anything was cleaned
+    if (cleaned) {
+        await saveReportConfig(config);
+        console.log('✅ Cleanup complete and saved');
+    }
+}
 
 
 
@@ -556,6 +758,9 @@ async function loadReport(reportName) {
         };
         
         renderGroupedCards(grouped, orderedColumns, reportName);
+
+
+        
     } catch (err) {
         console.error("Error loading report:", err);
         alert("Error loading report: " + err.message);
@@ -733,11 +938,76 @@ function renderGroupedCards(grouped, columns, reportName) {
             const cardsContainer = document.createElement("div");
             cardsContainer.className = "d-flex flex-wrap gap-3 mt-2";
             
-            grouped[level1][level2].forEach(row => {
+            // ========== COMPLETE FIXED VERSION ==========
+            // Apply saved card priority if it exists
+            const cardPriority = config.card_priority?.[level1]?.[level2];
+            let cardsToRender = grouped[level1][level2];
+            
+            const titleField = config.title_field || "work_order_id";
+            
+            // Helper function to get card ID from row (same logic as createCard)
+            const getCardId = (row) => {
+                const possibleIds = [
+                    row.name,
+                    row[titleField],
+                    row.work_order_id,
+                    row.sales_order_id,
+                    row.job_card,
+                    row.item_code,
+                    row.customer
+                ];
+                return possibleIds.find(id => id && id !== '') || '';
+            };
+            
+            if (cardPriority && Array.isArray(cardPriority)) {
+                cardsToRender = [...cardsToRender].sort((a, b) => {
+                    const idA = getCardId(a);
+                    const idB = getCardId(b);
+                    
+                    const indexA = cardPriority.indexOf(idA);
+                    const indexB = cardPriority.indexOf(idB);
+                    
+                    // Both cards are in the priority list - use priority order
+                    if (indexA !== -1 && indexB !== -1) {
+                        return indexA - indexB;
+                    }
+                    
+                    // Only A is in priority list - A comes first
+                    if (indexA !== -1) return -1;
+                    
+                    // Only B is in priority list - B comes first
+                    if (indexB !== -1) return 1;
+                    
+                    // Neither is in priority list - NEW CARDS
+                    // Sort new cards by the configured sort_by field (sales_order_id)
+                    if (config.sort_by) {
+                        const sortField = config.sort_by;
+                        const valA = a[sortField];
+                        const valB = b[sortField];
+                        
+                        if (valA === valB) return 0;
+                        if (valA === null || valA === undefined) return 1;
+                        if (valB === null || valB === undefined) return -1;
+                        
+                        const comparison = valA < valB ? -1 : 1;
+                        return config.sort_order === 'desc' ? -comparison : comparison;
+                    }
+                    
+                    return 0;
+                });
+            }
+            // ========== END FIX ==========
+
+            cardsToRender.forEach(row => {
                 const card = createCard(row, columns, reportName, config);
                 card.className = card.className + " card-grid-item";
                 cardsContainer.appendChild(card);
             });
+            
+            // Initialize drag-and-drop for this subgroup (admin only)
+            if (currentUser && currentUser.role === 'admin') {
+                initializeSortable(cardsContainer, reportName, level1, level2);
+            }
             
             level2Content.appendChild(cardsContainer);
             level2Div.appendChild(level2Header);
@@ -790,13 +1060,44 @@ function renderGroupedCards(grouped, columns, reportName) {
 
 
 
+
+
 function createCard(row, columns, reportName, config) {
     const card = document.createElement("div");
     card.className = "card card-report h-100";
+
+    // ========== SMART DOCNAME DETECTION ==========
+    // Priority order:
+    // 1. Use title_field from config (the displayed title)
+    // 2. Fall back to row.name (ERPNext document name)
+    // 3. Try common ID fields
+    // 4. Use first available field
+    
+    const titleField = config.title_field || "work_order_id";
+    const possibleIds = [
+        row.name,                    // ERPNext document name (e.g., "WO-00123")
+        row[titleField],             // Whatever is configured as title
+        row.work_order_id,           // Work Order ID
+        row.sales_order_id,          // Sales Order ID  
+        row.job_card,                // Job Card ID
+        row.item_code,               // Item Code
+        row.customer,                // Customer name
+        ''                           // Empty fallback
+    ];
+    
+    // Find the first non-empty value
+    card.dataset.docname = possibleIds.find(id => id && id !== '') || '';
+    
+    // Warn if no valid ID found
+    if (!card.dataset.docname) {
+        console.warn('⚠️ No valid docname found. Title field:', titleField, 'Row:', row);
+    }
+    
+    console.log('Card docname set to:', card.dataset.docname, 'from field:', titleField);
+    // ========== END SMART DETECTION ==========
     
     const userPerms = config.user_permissions?.[userEmail];
     const hiddenFields = userPerms?.hidden_fields || [];
-    const titleField = config.title_field || "work_order_id";
     const cardFields = config.card_fields || ["customer", "production_item", "quantity_to_manufacture", "completed_qty", "workstation"];
     const imageFields = config.image_fields || [];
     
@@ -828,6 +1129,44 @@ function createCard(row, columns, reportName, config) {
     
     const cardBody = document.createElement("div");
     cardBody.className = "card-body";
+
+
+        // ========== ADD DRAG HANDLE FOR MOBILE ==========
+        if (currentUser && currentUser.role === 'admin') {
+            const dragHandle = document.createElement("div");
+            dragHandle.className = "drag-handle";
+            dragHandle.innerHTML = '<i class="bi bi-grip-vertical"></i>';
+            
+            // Check if mobile
+            const isMobile = window.innerWidth <= 768;
+            
+            if (isMobile) {
+                dragHandle.title = "Tap to reorder";
+                dragHandle.style.cursor = "pointer";
+                
+                // Store data for mobile reorder
+                dragHandle.dataset.reportName = reportName;
+                dragHandle.dataset.primaryGroup = config.group_by?.[0] ? row[config.group_by[0]] : 'All';
+                dragHandle.dataset.secondaryGroup = config.group_by?.[1] ? row[config.group_by[1]] : 'All';
+                
+                // Open mobile reorder modal on tap
+                dragHandle.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    openMobileReorderModal(
+                        dragHandle.dataset.reportName,
+                        dragHandle.dataset.primaryGroup,
+                        dragHandle.dataset.secondaryGroup
+                    );
+                });
+            } else {
+                dragHandle.title = "Hold and drag to reorder";
+            }
+            
+            cardBody.appendChild(dragHandle);
+        }
+        // ========== END DRAG HANDLE ==========
+
+
     
     if (status) {
         const badge = document.createElement("span");
@@ -903,30 +1242,30 @@ function createCard(row, columns, reportName, config) {
         }
     }
     
-// Add Operation Planning button if configured
-if (config.show_operation_planning_button !== false) {
-    const opPerms = config.operation_planning_permissions?.[userEmail] || {};
-    
-    if (opPerms.can_view) {
-        const opPlanningBtn = document.createElement("button");
-        opPlanningBtn.className = "btn btn-sm btn-outline-success";
-        opPlanningBtn.innerHTML = '<i class="bi bi-diagram-3"></i> Operation Planning';
-        opPlanningBtn.addEventListener("click", () => {
-            // Debug: Check what work order ID we're passing
-            console.log('Row data:', row);
-            console.log('Work Order ID:', row.work_order_id || row.name);
-            openOperationPlanningModal(row, config, reportName);
-        });
-        buttonsContainer.appendChild(opPlanningBtn);
+    // Add Operation Planning button if configured
+    if (config.show_operation_planning_button !== false) {
+        const opPerms = config.operation_planning_permissions?.[userEmail] || {};
+        
+        if (opPerms.can_view) {
+            const opPlanningBtn = document.createElement("button");
+            opPlanningBtn.className = "btn btn-sm btn-outline-success";
+            opPlanningBtn.innerHTML = '<i class="bi bi-diagram-3"></i> Operation Planning';
+            opPlanningBtn.addEventListener("click", () => {
+                console.log('Row data:', row);
+                console.log('Work Order ID:', row.work_order_id || row.name);
+                openOperationPlanningModal(row, config, reportName);
+            });
+            buttonsContainer.appendChild(opPlanningBtn);
+        }
     }
-}
-
     
     cardBody.appendChild(buttonsContainer);
     card.appendChild(cardBody);
     
     return card;
 }
+
+
 
 
 
@@ -4514,3 +4853,289 @@ async function saveOperationOrder(workOrderId) {
     alert('Error saving operation order: ' + error.message);
   }
 }
+
+
+
+
+
+
+
+
+// ========== MOBILE REORDER MODAL FUNCTIONS ==========
+
+let currentMobileReorder = null;
+let mobileSortableInstance = null; // Track the sortable instance
+
+function openMobileReorderModal(reportName, primaryGroup, secondaryGroup) {
+    console.log('Opening mobile reorder for:', reportName, primaryGroup, secondaryGroup);
+    
+    // Store current context
+    currentMobileReorder = {
+        reportName,
+        primaryGroup,
+        secondaryGroup
+    };
+    
+    // Get cards in this group
+    const config = reportConfig[reportName] || {};
+    const grouped = currentReportData.grouped;
+    
+    if (!grouped || !grouped[primaryGroup] || !grouped[primaryGroup][secondaryGroup]) {
+        alert('No cards found in this group');
+        return;
+    }
+    
+    let cards = grouped[primaryGroup][secondaryGroup];
+    
+    // Apply existing sort order if it exists
+    const cardPriority = config.card_priority?.[primaryGroup]?.[secondaryGroup];
+    if (cardPriority && Array.isArray(cardPriority)) {
+        const titleField = config.title_field || "work_order_id";
+        
+        const getCardId = (row) => {
+            const possibleIds = [
+                row.name,
+                row[titleField],
+                row.work_order_id,
+                row.sales_order_id,
+                row.job_card,
+                row.item_code,
+                row.customer
+            ];
+            return possibleIds.find(id => id && id !== '') || '';
+        };
+        
+        cards = [...cards].sort((a, b) => {
+            const idA = getCardId(a);
+            const idB = getCardId(b);
+            
+            const indexA = cardPriority.indexOf(idA);
+            const indexB = cardPriority.indexOf(idB);
+            
+            if (indexA !== -1 && indexB !== -1) return indexA - indexB;
+            if (indexA !== -1) return -1;
+            if (indexB !== -1) return 1;
+            return 0;
+        });
+    }
+    
+    // Destroy previous Sortable instance
+    if (mobileSortableInstance) {
+        console.log('Destroying previous Sortable instance');
+        mobileSortableInstance.destroy();
+        mobileSortableInstance = null;
+    }
+    
+    // Populate modal
+    const listContainer = document.getElementById('mobileReorderList');
+    listContainer.innerHTML = '';
+    
+    const titleField = config.title_field || "work_order_id";
+    const cardFields = config.card_fields || [];
+    
+    cards.forEach(row => {
+        const item = document.createElement('div');
+        item.className = 'reorder-item';
+        
+        // Get card ID
+        const possibleIds = [
+            row.name,
+            row[titleField],
+            row.work_order_id,
+            row.sales_order_id,
+            row.job_card,
+            row.item_code,
+            row.customer
+        ];
+        const cardId = possibleIds.find(id => id && id !== '') || '';
+        item.dataset.cardId = cardId;
+        
+        // Get title
+        const title = row[titleField] || row.name || 'Card';
+        
+        // Get subtitle (first available card field)
+        let subtitle = '';
+        for (const field of cardFields) {
+            if (row[field]) {
+                subtitle = String(row[field]).substring(0, 50);
+                break;
+            }
+        }
+        
+        item.innerHTML = `
+            <div class="reorder-item-handle">☰</div>
+            <div class="reorder-item-content">
+                <div class="reorder-item-title">${title}</div>
+                ${subtitle ? `<div class="reorder-item-subtitle">${subtitle}</div>` : ''}
+            </div>
+        `;
+        
+        listContainer.appendChild(item);
+    });
+    
+    // Create NEW Sortable instance and store it
+    mobileSortableInstance = new Sortable(listContainer, {
+        animation: 150,
+        delay: 200,
+        delayOnTouchOnly: true,
+        
+        // Better mobile scroll settings
+        scroll: true,
+        forceAutoScrollFallback: true,
+        scrollSensitivity: 60,
+        scrollSpeed: 15,
+        bubbleScroll: true,
+        
+        ghostClass: 'sortable-ghost',
+        chosenClass: 'sortable-chosen',
+        dragClass: 'sortable-drag',
+        handle: '.reorder-item-handle',
+        
+        swapThreshold: 0.65,
+        
+        onStart: function() {
+            if (navigator.vibrate) navigator.vibrate(10);
+        },
+        
+        onEnd: function() {
+            if (navigator.vibrate) navigator.vibrate(10);
+        }
+    });
+    
+    // Get or create modal properly
+    const modalElement = document.getElementById('mobileReorderModal');
+    let modal = bootstrap.Modal.getInstance(modalElement);
+    
+    // If modal instance exists, dispose it first
+    if (modal) {
+        modal.dispose();
+    }
+    
+    // Create fresh modal instance
+    modal = new bootstrap.Modal(modalElement);
+    
+    // Show modal
+    modal.show();
+    
+    // Reset and clone save button
+    const saveBtn = document.getElementById('saveMobileReorder');
+    const newSaveBtn = saveBtn.cloneNode(true);
+    
+    // Reset button state
+    newSaveBtn.disabled = false;
+    newSaveBtn.textContent = 'Save Order';
+    newSaveBtn.className = 'btn btn-primary'; // Reset to original classes
+    
+    saveBtn.parentNode.replaceChild(newSaveBtn, saveBtn);
+    
+    // Add the save handler
+    newSaveBtn.addEventListener('click', async function() {
+        console.log('💾 Save button clicked!');
+        
+        if (!currentMobileReorder) {
+            console.error('No currentMobileReorder data');
+            return;
+        }
+        
+        const listContainer = document.getElementById('mobileReorderList');
+        const items = Array.from(listContainer.querySelectorAll('.reorder-item'));
+        const newOrder = items.map(item => item.dataset.cardId).filter(id => id);
+        
+        console.log('Saving mobile reorder:', newOrder);
+        
+        // Disable button while saving
+        newSaveBtn.disabled = true;
+        newSaveBtn.textContent = 'Saving...';
+        
+        try {
+            const result = await saveCardPriority(
+                currentMobileReorder.reportName,
+                currentMobileReorder.primaryGroup,
+                currentMobileReorder.secondaryGroup,
+                newOrder
+            );
+            
+            console.log('Save result:', result);
+            
+            if (result.success) {
+                // Update local config
+                if (!reportConfig[currentMobileReorder.reportName]) {
+                    reportConfig[currentMobileReorder.reportName] = {};
+                }
+                if (!reportConfig[currentMobileReorder.reportName].card_priority) {
+                    reportConfig[currentMobileReorder.reportName].card_priority = {};
+                }
+                if (!reportConfig[currentMobileReorder.reportName].card_priority[currentMobileReorder.primaryGroup]) {
+                    reportConfig[currentMobileReorder.reportName].card_priority[currentMobileReorder.primaryGroup] = {};
+                }
+                reportConfig[currentMobileReorder.reportName].card_priority[currentMobileReorder.primaryGroup][currentMobileReorder.secondaryGroup] = newOrder;
+                
+                // Reset button
+                newSaveBtn.textContent = '✅ Saved!';
+                newSaveBtn.classList.remove('btn-primary');
+                newSaveBtn.classList.add('btn-success');
+                
+                // Success feedback
+                if (navigator.vibrate) navigator.vibrate([30, 50, 30]);
+                
+                // ========== COMPLETE CLEANUP AND RELOAD ==========
+                // 1. Destroy Sortable first
+                if (mobileSortableInstance) {
+                    mobileSortableInstance.destroy();
+                    mobileSortableInstance = null;
+                }
+                
+                // 2. Hide and dispose modal
+                modal.hide();
+                
+                // 3. Wait for modal to close, then do full cleanup
+                setTimeout(async () => {
+                    modal.dispose();
+                    
+                    // 4. Force reset all scrolling
+                    forceResetScroll();
+                    
+                    // 5. Reload the report
+                    console.log('Reloading report...');
+                    await loadReport(currentMobileReorder.reportName);
+                    console.log('✅ Report reloaded - new order applied');
+                    
+                    // 6. Final scroll check after a short delay
+                    setTimeout(() => {
+                        forceResetScroll();
+                        console.log('✅ Final scroll check complete');
+                    }, 100);
+                    
+                }, 400);
+                // ========== END CLEANUP ==========
+                
+            } else {
+                alert('❌ Failed to save order: ' + (result.error || 'Unknown error'));
+                newSaveBtn.disabled = false;
+                newSaveBtn.textContent = 'Save Order';
+            }
+        } catch (error) {
+            console.error('Error saving mobile reorder:', error);
+            alert('❌ Error saving order: ' + error.message);
+            newSaveBtn.disabled = false;
+            newSaveBtn.textContent = 'Save Order';
+        }
+    });
+    
+    // Clean up when modal is closed with X or Cancel
+    modalElement.addEventListener('hidden.bs.modal', function cleanup() {
+        console.log('Modal closed - cleaning up');
+        if (mobileSortableInstance) {
+            mobileSortableInstance.destroy();
+            mobileSortableInstance = null;
+        }
+        // Force scroll reset
+        forceResetScroll();
+        // Remove this listener to prevent memory leaks
+        modalElement.removeEventListener('hidden.bs.modal', cleanup);
+    });
+}
+
+// ========== END MOBILE REORDER MODAL FUNCTIONS ==========
+
+
