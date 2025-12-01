@@ -610,5 +610,37 @@ body {
     }
 }
 
+
+/* Better scrolling in modal list */
+#mobileReorderList {
+    max-height: 60vh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
+    overscroll-behavior: contain;
+    padding: 0.5rem;
+}
+
+/* Make modal body scrollable */
+#mobileReorderModal .modal-body {
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    max-height: 70vh;
+}
+
+/* Ensure items have enough space */
+.reorder-item {
+    cursor: move;
+    padding: 1rem;
+    margin-bottom: 0.75rem; /* Increased spacing */
+    background: white;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    touch-action: none; /* Prevent native touch scrolling on items */
+}
+
+
 /* ========== END MOBILE REORDER MODAL ========== */
 
