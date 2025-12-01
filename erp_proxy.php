@@ -1895,6 +1895,69 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_plant_options') {
 
 
 
+// Save card priority order
+if (isset($_GET['action']) && $_GET['action'] === 'save_card_priority') {
+    $input = json_decode(file_get_contents("php://input"), true);
+    if (json_last_error() !== JSON_ERROR_NONE) {
+        echo json_encode(["error" => "Invalid JSON"]);
+        exit;
+    }
+
+    $reportName = $input['report_name'] ?? '';
+    $primaryGroup = $input['primary_group'] ?? '';
+    $secondaryGroup = $input['secondary_group'] ?? '';
+    $cardOrder = $input['card_order'] ?? [];
+
+    if (empty($reportName) || empty($cardOrder)) {
+        echo json_encode(["error" => "Missing required parameters"]);
+        exit;
+    }
+
+    // ========== FIX: Load existing FULL config ==========
+    $config = [];
+    if (file_exists("report_config.json")) {
+        $configContent = file_get_contents("report_config.json");
+        $config = json_decode($configContent, true);
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            logError("Failed to parse existing config: " . json_last_error_msg());
+            $config = [];
+        }
+    }
+
+    // Initialize structure if needed (but preserve existing data!)
+    if (!isset($config[$reportName])) {
+        $config[$reportName] = [];
+    }
+    if (!isset($config[$reportName]['card_priority'])) {
+        $config[$reportName]['card_priority'] = [];
+    }
+    if (!isset($config[$reportName]['card_priority'][$primaryGroup])) {
+        $config[$reportName]['card_priority'][$primaryGroup] = [];
+    }
+
+    // Update ONLY the specific card priority
+    $config[$reportName]['card_priority'][$primaryGroup][$secondaryGroup] = $cardOrder;
+    // ========== END FIX ==========
+
+    // Save the FULL config back
+    $saveResult = file_put_contents("report_config.json", json_encode($config, JSON_PRETTY_PRINT));
+    
+    if ($saveResult === false) {
+        logError("Failed to save report_config.json");
+        echo json_encode(["error" => "Failed to save config file"]);
+        exit;
+    }
+    
+    logError("Card priority saved for $reportName > $primaryGroup > $secondaryGroup (saved " . count($cardOrder) . " cards)");
+    echo json_encode(["success" => true, "message" => "Card priority saved"]);
+    exit;
+}
+
+
+
+
+
+
 
 
 
