@@ -878,27 +878,34 @@ function renderGroupedCards(grouped, columns, reportName) {
             const cardsContainer = document.createElement("div");
             cardsContainer.className = "d-flex flex-wrap gap-3 mt-2";
             
-            // ========== START OF CHANGES ==========
-
+            // ========== COMPLETE FIXED VERSION ==========
             // Apply saved card priority if it exists
             const cardPriority = config.card_priority?.[level1]?.[level2];
             let cardsToRender = grouped[level1][level2];
-
-
-            // ========== ADD DEBUG LOGGING ==========
-            console.log('=== RENDER DEBUG ===');
-            console.log('Primary Group:', level1);
-            console.log('Secondary Group:', level2);
-            console.log('Saved card priority:', cardPriority);
-            console.log('Current cards:', cardsToRender.map(c => c.name));
-            // ========== END DEBUG ==========
-        
+            
+            const titleField = config.title_field || "work_order_id";
+            
+            // Helper function to get card ID from row (same logic as createCard)
+            const getCardId = (row) => {
+                const possibleIds = [
+                    row.name,
+                    row[titleField],
+                    row.work_order_id,
+                    row.sales_order_id,
+                    row.job_card,
+                    row.item_code,
+                    row.customer
+                ];
+                return possibleIds.find(id => id && id !== '') || '';
+            };
             
             if (cardPriority && Array.isArray(cardPriority)) {
-                // Sort the cards based on saved priority
                 cardsToRender = [...cardsToRender].sort((a, b) => {
-                    const indexA = cardPriority.indexOf(a.name);
-                    const indexB = cardPriority.indexOf(b.name);
+                    const idA = getCardId(a);
+                    const idB = getCardId(b);
+                    
+                    const indexA = cardPriority.indexOf(idA);
+                    const indexB = cardPriority.indexOf(idB);
                     
                     // Both cards are in the priority list - use priority order
                     if (indexA !== -1 && indexB !== -1) {
@@ -929,7 +936,7 @@ function renderGroupedCards(grouped, columns, reportName) {
                     return 0;
                 });
             }
-
+            // ========== END FIX ==========
 
             cardsToRender.forEach(row => {
                 const card = createCard(row, columns, reportName, config);
@@ -941,7 +948,6 @@ function renderGroupedCards(grouped, columns, reportName) {
             if (currentUser && currentUser.role === 'admin') {
                 initializeSortable(cardsContainer, reportName, level1, level2);
             }
-            // ========== END OF CHANGES ==========
             
             level2Content.appendChild(cardsContainer);
             level2Div.appendChild(level2Header);
@@ -972,6 +978,7 @@ function renderGroupedCards(grouped, columns, reportName) {
         reportArea.appendChild(level1Div);
     });
 }
+
 
 
 
