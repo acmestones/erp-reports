@@ -237,11 +237,16 @@ function initializeSortable(container, reportName, primaryGroup, secondaryGroup)
         },
         
         onEnd: async function(evt) {
-            // Get the new order of cards
+            // Get the new order of cards that are CURRENTLY visible
             const cards = Array.from(container.querySelectorAll('.card-report'));
-            const cardOrder = cards.map(card => card.dataset.docname);
+            const cardOrder = cards.map(card => card.dataset.docname).filter(name => name); // Filter out empty/undefined
             
+            console.log('=== DRAG DROP DEBUG ===');
+            console.log('Report Name:', reportName);
+            console.log('Primary Group:', primaryGroup);
+            console.log('Secondary Group:', secondaryGroup);
             console.log('New card order:', cardOrder);
+            console.log('Card count:', cardOrder.length);
             
             // Save to backend
             try {
@@ -249,22 +254,35 @@ function initializeSortable(container, reportName, primaryGroup, secondaryGroup)
                     reportName, 
                     primaryGroup, 
                     secondaryGroup, 
-                    cardOrder
+                    cardOrder // This now ONLY contains currently visible cards
                 );
                 
+                console.log('Save result:', result);
+                
                 if (result.success) {
-                    console.log('Card priority saved successfully');
-                    // Optional: Show a brief success message
-                    // You can add a toast notification here if you want
+                    console.log('✅ Card priority saved successfully');
+                    // Update the local config so it persists during this session
+                    if (!reportConfig[reportName]) {
+                        reportConfig[reportName] = {};
+                    }
+                    if (!reportConfig[reportName].card_priority) {
+                        reportConfig[reportName].card_priority = {};
+                    }
+                    if (!reportConfig[reportName].card_priority[primaryGroup]) {
+                        reportConfig[reportName].card_priority[primaryGroup] = {};
+                    }
+                    reportConfig[reportName].card_priority[primaryGroup][secondaryGroup] = cardOrder;
+                    console.log('Updated local reportConfig');
                 } else {
-                    console.error('Failed to save card priority:', result.error);
+                    console.error('❌ Failed to save card priority:', result.error);
                     alert('Failed to save card order. Please try again.');
                 }
             } catch (error) {
-                console.error('Error saving card priority:', error);
+                console.error('❌ Error saving card priority:', error);
                 alert('Error saving card order. Please try again.');
             }
         }
+
     });
     
     // Add visual indicator that cards are draggable
@@ -523,6 +541,45 @@ function buildFieldMapping(columns) {
 
 
 
+async function cleanupCardPriority(reportName) {
+    if (!currentReportData || !currentReportData.grouped) {
+        console.log('No report data to clean');
+        return;
+    }
+    
+    const config = reportConfig[reportName] || {};
+    if (!config.card_priority) return;
+    
+    let cleaned = false;
+    
+    // For each primary group
+    Object.keys(config.card_priority).forEach(primaryGroup => {
+        // For each secondary group
+        Object.keys(config.card_priority[primaryGroup]).forEach(secondaryGroup => {
+            const savedOrder = config.card_priority[primaryGroup][secondaryGroup];
+            
+            // Get current cards in this subgroup
+            const currentCards = currentReportData.grouped[primaryGroup]?.[secondaryGroup] || [];
+            const currentCardIds = currentCards.map(card => card.name);
+            
+            // Filter out cards that no longer exist
+            const cleanedOrder = savedOrder.filter(id => currentCardIds.includes(id));
+            
+            // If anything was removed, update
+            if (cleanedOrder.length !== savedOrder.length) {
+                config.card_priority[primaryGroup][secondaryGroup] = cleanedOrder;
+                cleaned = true;
+                console.log(`Cleaned ${savedOrder.length - cleanedOrder.length} stale cards from ${primaryGroup} > ${secondaryGroup}`);
+            }
+        });
+    });
+    
+    // Save if anything was cleaned
+    if (cleaned) {
+        await saveReportConfig(config);
+        console.log('✅ Cleanup complete and saved');
+    }
+}
 
 
 
@@ -641,6 +698,15 @@ async function loadReport(reportName) {
         };
         
         renderGroupedCards(grouped, orderedColumns, reportName);
+
+        // ========== ADD THIS ==========
+        // Cleanup stale card priorities (admin only)
+        if (currentUser && currentUser.role === 'admin') {
+            await cleanupCardPriority(reportName);
+        }
+        // ========== END ADD ==========
+
+        
     } catch (err) {
         console.error("Error loading report:", err);
         alert("Error loading report: " + err.message);
@@ -819,24 +885,47 @@ function renderGroupedCards(grouped, columns, reportName) {
             cardsContainer.className = "d-flex flex-wrap gap-3 mt-2";
             
             // ========== START OF CHANGES ==========
+
             // Apply saved card priority if it exists
             const cardPriority = config.card_priority?.[level1]?.[level2];
             let cardsToRender = grouped[level1][level2];
-
+            
             if (cardPriority && Array.isArray(cardPriority)) {
                 // Sort the cards based on saved priority
                 cardsToRender = [...cardsToRender].sort((a, b) => {
                     const indexA = cardPriority.indexOf(a.name);
                     const indexB = cardPriority.indexOf(b.name);
                     
+                    // Both cards are in the priority list - use priority order
                     if (indexA !== -1 && indexB !== -1) {
                         return indexA - indexB;
                     }
+                    
+                    // Only A is in priority list - A comes first
                     if (indexA !== -1) return -1;
+                    
+                    // Only B is in priority list - B comes first
                     if (indexB !== -1) return 1;
+                    
+                    // Neither is in priority list - NEW CARDS
+                    // Sort new cards by the configured sort_by field (sales_order_id)
+                    if (config.sort_by) {
+                        const sortField = config.sort_by;
+                        const valA = a[sortField];
+                        const valB = b[sortField];
+                        
+                        if (valA === valB) return 0;
+                        if (valA === null || valA === undefined) return 1;
+                        if (valB === null || valB === undefined) return -1;
+                        
+                        const comparison = valA < valB ? -1 : 1;
+                        return config.sort_order === 'desc' ? -comparison : comparison;
+                    }
+                    
                     return 0;
                 });
             }
+
 
             cardsToRender.forEach(row => {
                 const card = createCard(row, columns, reportName, config);
