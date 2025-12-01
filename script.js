@@ -195,6 +195,91 @@ async function saveReportConfig(config) {
     return res.json();
 }
 
+
+
+
+async function saveCardPriority(reportName, primaryGroup, secondaryGroup, cardOrder) {
+    const res = await fetch(`${API_BASE}?action=save_card_priority`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            report_name: reportName,
+            primary_group: primaryGroup,
+            secondary_group: secondaryGroup,
+            card_order: cardOrder
+        })
+    });
+    return res.json();
+}
+
+
+
+
+
+
+function initializeSortable(container, reportName, primaryGroup, secondaryGroup) {
+    // Only enable for admins
+    if (!currentUser || currentUser.role !== 'admin') {
+        return;
+    }
+
+    new Sortable(container, {
+        animation: 150,
+        delay: 500, // Long-press delay in milliseconds
+        delayOnTouchOnly: true, // Only delay on touch devices
+        touchStartThreshold: 3, // Pixels of movement before canceling
+        ghostClass: 'sortable-ghost',
+        chosenClass: 'sortable-chosen',
+        dragClass: 'sortable-drag',
+        
+        onStart: function(evt) {
+            console.log('Drag started');
+        },
+        
+        onEnd: async function(evt) {
+            // Get the new order of cards
+            const cards = Array.from(container.querySelectorAll('.card-report'));
+            const cardOrder = cards.map(card => card.dataset.docname);
+            
+            console.log('New card order:', cardOrder);
+            
+            // Save to backend
+            try {
+                const result = await saveCardPriority(
+                    reportName, 
+                    primaryGroup, 
+                    secondaryGroup, 
+                    cardOrder
+                );
+                
+                if (result.success) {
+                    console.log('Card priority saved successfully');
+                    // Optional: Show a brief success message
+                    // You can add a toast notification here if you want
+                } else {
+                    console.error('Failed to save card priority:', result.error);
+                    alert('Failed to save card order. Please try again.');
+                }
+            } catch (error) {
+                console.error('Error saving card priority:', error);
+                alert('Error saving card order. Please try again.');
+            }
+        }
+    });
+    
+    // Add visual indicator that cards are draggable
+    const cards = container.querySelectorAll('.card-report');
+    cards.forEach(card => {
+        card.classList.add('sortable-enabled');
+    });
+}
+
+
+
+
+
+
+
 async function getLinkOptions(doctype) {
     if (linkFieldOptions[doctype]) {
         return linkFieldOptions[doctype];
@@ -733,11 +818,37 @@ function renderGroupedCards(grouped, columns, reportName) {
             const cardsContainer = document.createElement("div");
             cardsContainer.className = "d-flex flex-wrap gap-3 mt-2";
             
-            grouped[level1][level2].forEach(row => {
+            // ========== START OF CHANGES ==========
+            // Apply saved card priority if it exists
+            const cardPriority = config.card_priority?.[level1]?.[level2];
+            let cardsToRender = grouped[level1][level2];
+
+            if (cardPriority && Array.isArray(cardPriority)) {
+                // Sort the cards based on saved priority
+                cardsToRender = [...cardsToRender].sort((a, b) => {
+                    const indexA = cardPriority.indexOf(a.name);
+                    const indexB = cardPriority.indexOf(b.name);
+                    
+                    if (indexA !== -1 && indexB !== -1) {
+                        return indexA - indexB;
+                    }
+                    if (indexA !== -1) return -1;
+                    if (indexB !== -1) return 1;
+                    return 0;
+                });
+            }
+
+            cardsToRender.forEach(row => {
                 const card = createCard(row, columns, reportName, config);
                 card.className = card.className + " card-grid-item";
                 cardsContainer.appendChild(card);
             });
+            
+            // Initialize drag-and-drop for this subgroup (admin only)
+            if (currentUser && currentUser.role === 'admin') {
+                initializeSortable(cardsContainer, reportName, level1, level2);
+            }
+            // ========== END OF CHANGES ==========
             
             level2Content.appendChild(cardsContainer);
             level2Div.appendChild(level2Header);
@@ -790,9 +901,12 @@ function renderGroupedCards(grouped, columns, reportName) {
 
 
 
+
 function createCard(row, columns, reportName, config) {
     const card = document.createElement("div");
     card.className = "card card-report h-100";
+
+    card.dataset.docname = row.name; // Add unique identifier for drag-drop
     
     const userPerms = config.user_permissions?.[userEmail];
     const hiddenFields = userPerms?.hidden_fields || [];
