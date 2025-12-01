@@ -1,3 +1,52 @@
+/* ========== PERFORMANCE OPTIMIZATIONS ========== */
+
+/* Force GPU acceleration */
+.card-report,
+.reorder-item,
+.modal-body {
+    -webkit-transform: translateZ(0);
+    transform: translateZ(0);
+    will-change: transform;
+}
+
+/* Reduce repaints during scroll */
+* {
+    -webkit-tap-highlight-color: transparent;
+    -webkit-touch-callout: none;
+}
+
+/* Smooth scrolling */
+html {
+    -webkit-overflow-scrolling: touch;
+}
+
+#mobileReorderList {
+    -webkit-overflow-scrolling: touch;
+    overflow-y: scroll;
+    overscroll-behavior: contain;
+}
+
+/* Disable animations during scroll on mobile */
+@media (max-width: 768px) {
+    .card-report,
+    .reorder-item {
+        transition: none !important;
+    }
+    
+    .card-report:hover {
+        transform: none !important;
+    }
+}
+
+/* ========== END PERFORMANCE OPTIMIZATIONS ========== */
+
+
+
+
+
+
+
+
 body {
     background: #f8f9fa;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
@@ -480,17 +529,17 @@ body {
     padding: 1rem;
     margin-bottom: 0.5rem;
     background: white;
-    border: 2px solid #dee2e6;
-    border-radius: 8px;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
     display: flex;
     align-items: center;
     gap: 1rem;
-    transition: all 0.2s ease;
+    /* Removed transitions for better performance */
 }
 
 .reorder-item:active {
     background: #f8f9fa;
-    transform: scale(0.98);
+    /* Removed transform */
 }
 
 .reorder-item-handle {
