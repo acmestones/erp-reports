@@ -224,46 +224,71 @@ function initializeSortable(container, reportName, primaryGroup, secondaryGroup)
     }
 
     new Sortable(container, {
-        animation: 150,
-        delay: 500, // Long-press delay
-        delayOnTouchOnly: true,
-        handle: '.drag-handle', // Only drag from handle
+        animation: 200,
         
-        // ========== MOBILE IMPROVEMENTS ==========
-        // Make dragged item small and transparent
-        ghostClass: 'sortable-ghost',
-        chosenClass: 'sortable-chosen', 
-        dragClass: 'sortable-drag',
+        // ========== MOBILE OPTIMIZATIONS ==========
+        delay: 300, // Reduced delay for faster response
+        delayOnTouchOnly: true,
+        
+        // Critical mobile settings
+        handle: '.drag-handle',
+        touchStartThreshold: 10,
         
         // Enable smooth scrolling while dragging
-        scroll: true, // Enable auto-scroll
-        scrollSensitivity: 100, // Distance from edge to start scrolling (pixels)
-        scrollSpeed: 20, // Scroll speed
-        bubbleScroll: true, // Allow scrolling in parent containers
+        scroll: true,
+        forceAutoScrollFallback: true,
+        scrollSensitivity: 80, // Start scrolling 80px from edge
+        scrollSpeed: 25, // Fast scrolling
+        bubbleScroll: true,
         
-        // Better mobile support
-        forceFallback: false, // Use native drag on mobile for better performance
-        fallbackTolerance: 3,
-        
-        // Show clear drop indicator
-        dragoverBubble: true,
+        // Better drag behavior
+        forceFallback: false,
+        fallbackOnBody: true,
+        swapThreshold: 0.65,
         invertSwap: false,
-        swapThreshold: 0.65, // How much overlap needed to swap
-        // ========== END MOBILE IMPROVEMENTS ==========
+        
+        // Visual feedback
+        ghostClass: 'sortable-ghost',
+        chosenClass: 'sortable-chosen',
+        dragClass: 'sortable-drag',
+        // ========== END MOBILE OPTIMIZATIONS ==========
+        
+        setData: function (dataTransfer, dragEl) {
+            // Prevent default drag image on mobile
+            dataTransfer.setData('Text', '');
+        },
         
         onChoose: function(evt) {
-            console.log('Card selected for drag');
-            // Add class to show it's being dragged
+            console.log('Card selected');
             evt.item.classList.add('is-dragging');
+            
+            // Add haptic feedback on mobile
+            if (navigator.vibrate) {
+                navigator.vibrate(50);
+            }
         },
         
         onStart: function(evt) {
             console.log('Drag started');
+            
+            // Slight haptic feedback
+            if (navigator.vibrate) {
+                navigator.vibrate(10);
+            }
+        },
+        
+        onMove: function(evt) {
+            // Allow smooth movement
+            return true;
         },
         
         onEnd: async function(evt) {
-            // Remove dragging class
             evt.item.classList.remove('is-dragging');
+            
+            // Success haptic feedback
+            if (navigator.vibrate) {
+                navigator.vibrate([30, 50, 30]);
+            }
             
             // Get the new order of cards
             const cards = Array.from(container.querySelectorAll('.card-report'));
