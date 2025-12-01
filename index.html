@@ -1,304 +1,268 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>ACM Stonemart — Internal Product Catalog</title>
-
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=<?php echo time(); ?>">
-
-  <script>
-    if (!localStorage.getItem("user")) window.location.replace("login.html");
-    
-    // Define logout function globally BEFORE any other scripts load
-    function logout() {
-      try { 
-        localStorage.removeItem("user");
-        localStorage.removeItem("forceRefresh");
-      } catch (e) {}
-      window.location.replace("login.html");
-    }
-  </script>
-
-
-
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>ACM Stonemart Internal Product Catalog</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="style.css?v=<?php echo time(); ?>">
+    <script>
+        if (!localStorage.getItem('user')) {
+            window.location.replace('login.html');
+        }
+        
+        function logout() {
+            try {
+                localStorage.removeItem('user');
+                localStorage.removeItem('forceRefresh');
+            } catch (e) {}
+            window.location.replace('login.html');
+        }
+    </script>
 </head>
 <body class="bg-light">
-
-<div class="container py-3">
-  <div class="d-flex justify-content-between align-items-center mb-3">
-    <h3>🪨 Acme Stonemart — Product Catalog</h3>
-    <div>
-      <span id="loggedUserBadge" class="me-2 text-muted small"></span>
-      <button id="refreshCacheBtn" class="btn btn-warning btn-sm me-2" onclick="forceRefreshCache()" title="Check for product updates from Plytix">
-        🔄 Refresh Cache
-      </button>
-      <button id="logoutBtn" class="btn btn-outline-danger btn-sm" onclick="logout()">Logout</button>
-    </div>
-  </div>
-
-
-
-
-
-  
-
-<!-- Add this in the header section, after the logout button -->
-<button id="settingsBtn" class="btn btn-primary btn-sm me-2" onclick="openSettingsModal()" style="display:none;" title="Manage users and permissions">
-    <i class="bi bi-gear-fill"></i> Settings
-</button>
-
-<!-- Add this modal at the end of the body, after the productModal -->
-
-<!-- Admin Settings Modal -->
-<div class="modal fade" id="settingsModal" tabindex="-1">
-    <div class="modal-dialog modal-xl modal-dialog-scrollable">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Admin Settings</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+    <div class="container py-3">
+        <!-- Header -->
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h3>Acme Stonemart Product Catalog</h3>
+            <div>
+                <span id="loggedUserBadge" class="me-2 text-muted small"></span>
+                <button id="settingsBtn" class="btn btn-primary btn-sm me-2" onclick="AdminModule.openSettingsModal()" style="display:none;" title="Manage users and permissions">
+                    <i class="bi bi-gear-fill"></i> Settings
+                </button>
+                <button id="refreshCacheBtn" class="btn btn-warning btn-sm me-2" onclick="forceRefreshCache()" title="Check for product updates from Plytix">
+                    Refresh Cache
+                </button>
+                <button id="logoutBtn" class="btn btn-outline-danger btn-sm" onclick="logout()">Logout</button>
             </div>
-            <div class="modal-body">
-                <ul class="nav nav-tabs mb-3" id="settingsTabs" role="tablist">
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link active" id="users-tab" data-bs-toggle="tab" data-bs-target="#users-panel" type="button">
-                            Users Management
-                        </button>
-                    </li>
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link" id="attributes-tab" data-bs-toggle="tab" data-bs-target="#attributes-panel" type="button">
-                            Available Attributes
-                        </button>
-                    </li>
-                </ul>
+        </div>
 
-                <div class="tab-content" id="settingsTabContent">
-                    <!-- Users Management Tab -->
-                    <div class="tab-pane fade show active" id="users-panel">
-                        <div class="mb-3">
-                            <button class="btn btn-success btn-sm" onclick="showAddUserForm()">
-                                <i class="bi bi-plus-circle"></i> Add New User
+        <!-- Filters -->
+        <div class="row g-2 mb-3 align-items-end">
+            <div class="col-md-2">
+                <input id="searchBox" class="form-control" placeholder="Search by SKU, Name...">
+            </div>
+            <div class="col-md-2">
+                <div class="dropdown w-100">
+                    <button class="btn btn-outline-secondary dropdown-toggle w-100" type="button" id="categoryFilterDropdown" data-bs-toggle="dropdown" aria-expanded="false" data-bs-auto-close="outside">
+                        Categories
+                    </button>
+                    <ul id="categoryFilter" class="dropdown-menu" aria-labelledby="categoryFilterDropdown" style="max-height: 300px; overflow-y: auto;">
+                        <li class="dropdown-item text-muted">Loading...</li>
+                    </ul>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="dropdown w-100">
+                    <button class="btn btn-outline-secondary dropdown-toggle w-100" type="button" id="familyFilterDropdown" data-bs-toggle="dropdown" aria-expanded="false" data-bs-auto-close="outside">
+                        Product Family
+                    </button>
+                    <ul id="familyFilter" class="dropdown-menu" aria-labelledby="familyFilterDropdown" style="max-height: 300px; overflow-y: auto;">
+                        <li class="dropdown-item text-muted">Loading...</li>
+                    </ul>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <select id="statusFilter" class="form-select">
+                    <option value="all" selected>All Products</option>
+                    <option value="enabled">Enabled Only</option>
+                    <option value="disabled">Disabled Only</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <select id="variantFilter" class="form-select">
+                    <option value="all" selected>All Types</option>
+                    <option value="parents">Parents with Variants</option>
+                    <option value="variants">Variants Only</option>
+                    <option value="singles">Singles (No Variants)</option>
+                    <option value="variants-and-singles">Variants + Singles</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <select id="sortFilter" class="form-select">
+                    <option value="sku-asc">Sort by SKU (A-Z)</option>
+                    <option value="sku-desc">Sort by SKU (Z-A)</option>
+                    <option value="label-asc">Sort by Name (A-Z)</option>
+                    <option value="label-desc">Sort by Name (Z-A)</option>
+                </select>
+            </div>
+        </div>
+
+        <div id="catalogStatus" class="text-muted small mb-2"></div>
+        <div id="productGrid" class="row g-3"></div>
+    </div>
+
+    <!-- Product Detail Modal -->
+    <div class="modal fade" id="productModal" tabindex="-1">
+        <div class="modal-dialog modal-xl modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 id="modalTitle" class="modal-title"></h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="modalBody" class="row g-3"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Admin Settings Modal -->
+    <div class="modal fade" id="settingsModal" tabindex="-1">
+        <div class="modal-dialog modal-xl modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Admin Settings</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <ul class="nav nav-tabs mb-3" id="settingsTabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="users-tab" data-bs-toggle="tab" data-bs-target="#users-panel" type="button">
+                                Users Management
                             </button>
-                        </div>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="attributes-tab" data-bs-toggle="tab" data-bs-target="#attributes-panel" type="button">
+                                Available Attributes
+                            </button>
+                        </li>
+                    </ul>
 
-                        <!-- Add User Form (hidden by default) -->
-                        <div id="addUserForm" class="card mb-3" style="display:none;">
-                            <div class="card-body">
-                                <h6 class="card-title">Add New User</h6>
-                                <div class="row g-3">
-                                    <div class="col-md-6">
-                                        <label class="form-label">Email Address</label>
-                                        <input type="email" id="newUserEmail" class="form-control" placeholder="user@example.com">
+                    <div class="tab-content" id="settingsTabContent">
+                        <!-- Users Management Tab -->
+                        <div class="tab-pane fade show active" id="users-panel">
+                            <div class="mb-3">
+                                <button class="btn btn-success btn-sm" onclick="AdminModule.showAddUserForm()">
+                                    <i class="bi bi-plus-circle"></i> Add New User
+                                </button>
+                            </div>
+
+                            <!-- Add User Form -->
+                            <div id="addUserForm" class="card mb-3" style="display:none;">
+                                <div class="card-body">
+                                    <h6 class="card-title">Add New User</h6>
+                                    <div class="row g-3">
+                                        <div class="col-md-6">
+                                            <label class="form-label">Email Address</label>
+                                            <input type="email" id="newUserEmail" class="form-control" placeholder="user@example.com">
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label">Role</label>
+                                            <select id="newUserRole" class="form-select">
+                                                <option value="user">User</option>
+                                                <option value="admin">Admin</option>
+                                            </select>
+                                        </div>
                                     </div>
-                                    <div class="col-md-6">
-                                        <label class="form-label">Role</label>
-                                        <select id="newUserRole" class="form-select">
-                                            <option value="user">User</option>
-                                            <option value="admin">Admin</option>
-                                        </select>
+                                    <div class="mt-3">
+                                        <button class="btn btn-primary btn-sm" onclick="AdminModule.addNewUser()">Add User</button>
+                                        <button class="btn btn-secondary btn-sm" onclick="AdminModule.hideAddUserForm()">Cancel</button>
                                     </div>
                                 </div>
-                                <div class="mt-3">
-                                    <button class="btn btn-primary btn-sm" onclick="addNewUser()">Add User</button>
-                                    <button class="btn btn-secondary btn-sm" onclick="hideAddUserForm()">Cancel</button>
-                                </div>
+                            </div>
+
+                            <!-- Users Table -->
+                            <div class="table-responsive">
+                                <table class="table table-bordered table-hover" id="usersTable">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>Email</th>
+                                            <th>Role</th>
+                                            <th>Visible Attributes</th>
+                                            <th>Editable Attributes</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="usersTableBody">
+                                        <tr>
+                                            <td colspan="5" class="text-center">Loading...</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
                             </div>
                         </div>
 
-                        <!-- Users Table -->
-                        <div class="table-responsive">
-                            <table class="table table-bordered table-hover" id="usersTable">
-                                <thead class="table-light">
-                                    <tr>
-                                        <th>Email</th>
-                                        <th>Role</th>
-                                        <th>Visible Attributes</th>
-                                        <th>Editable Attributes</th>
-                                        <th>Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="usersTableBody">
-                                    <tr>
-                                        <td colspan="5" class="text-center">Loading...</td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-
-                    <!-- Available Attributes Tab -->
-                    <div class="tab-pane fade" id="attributes-panel">
-                        <p class="text-muted">Manage the list of available attributes that can be assigned to users.</p>
-                        <div class="mb-3">
-                            <label class="form-label">Add New Attribute</label>
-                            <div class="input-group">
-                                <input type="text" id="newAttributeName" class="form-control" placeholder="Attribute name (e.g., warranty)">
-                                <button class="btn btn-primary" onclick="addNewAttribute()">Add</button>
+                        <!-- Available Attributes Tab -->
+                        <div class="tab-pane fade" id="attributes-panel">
+                            <p class="text-muted">Manage the list of available attributes that can be assigned to users.</p>
+                            <div class="mb-3">
+                                <label class="form-label">Add New Attribute</label>
+                                <div class="input-group">
+                                    <input type="text" id="newAttributeName" class="form-control" placeholder="Attribute name (e.g., warranty)">
+                                    <button class="btn btn-primary" onclick="AdminModule.addNewAttribute()">Add</button>
+                                </div>
+                            </div>
+                            <div id="attributesList" class="border rounded p-3" style="max-height: 400px; overflow-y: auto;">
+                                <p class="text-muted">Loading...</p>
                             </div>
                         </div>
-                        <div id="attributesList" class="border rounded p-3" style="max-height: 400px; overflow-y: auto;">
-                            <p class="text-muted">Loading...</p>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit User Permissions Modal -->
+    <div class="modal fade" id="editPermissionsModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Edit Permissions: <span id="editUserEmail"></span></h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Role</label>
+                        <select id="editUserRole" class="form-select">
+                            <option value="user">User</option>
+                            <option value="admin">Admin</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Visible Attributes</label>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="visibleAll" onchange="AdminModule.toggleAllAttributes('visible')">
+                            <label class="form-check-label fw-bold" for="visibleAll">
+                                All Attributes
+                            </label>
                         </div>
+                        <hr>
+                        <div id="visibleAttributesCheckboxes" class="row"></div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Editable Attributes</label>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="editableAll" onchange="AdminModule.toggleAllAttributes('editable')">
+                            <label class="form-check-label fw-bold" for="editableAll">
+                                All Attributes
+                            </label>
+                        </div>
+                        <hr>
+                        <div id="editableAttributesCheckboxes" class="row"></div>
                     </div>
                 </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" onclick="AdminModule.saveUserPermissions()">Save Changes</button>
+                </div>
             </div>
         </div>
     </div>
-</div>
 
-<!-- Edit User Permissions Modal -->
-<div class="modal fade" id="editPermissionsModal" tabindex="-1">
-    <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Edit Permissions: <span id="editUserEmail"></span></h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <div class="mb-3">
-                    <label class="form-label">Role</label>
-                    <select id="editUserRole" class="form-select">
-                        <option value="user">User</option>
-                        <option value="admin">Admin</option>
-                    </select>
-                </div>
-                
-                <div class="mb-3">
-                    <label class="form-label">Visible Attributes</label>
-                    <div class="form-check">
-                        <input class="form-check-input" type="checkbox" id="visibleAll" onchange="toggleAllAttributes('visible')">
-                        <label class="form-check-label fw-bold" for="visibleAll">
-                            All Attributes
-                        </label>
-                    </div>
-                    <hr>
-                    <div id="visibleAttributesCheckboxes" class="row">
-                        <!-- Populated dynamically -->
-                    </div>
-                </div>
-
-                <div class="mb-3">
-                    <label class="form-label">Editable Attributes</label>
-                    <div class="form-check">
-                        <input class="form-check-input" type="checkbox" id="editableAll" onchange="toggleAllAttributes('editable')">
-                        <label class="form-check-label fw-bold" for="editableAll">
-                            All Attributes
-                        </label>
-                    </div>
-                    <hr>
-                    <div id="editableAttributesCheckboxes" class="row">
-                        <!-- Populated dynamically -->
-                    </div>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-primary" onclick="saveUserPermissions()">Save Changes</button>
-            </div>
-        </div>
-    </div>
-</div>
-
-
-
-
-
-  
-  
-
-  
-
-<!-- Filters -->
-  <div class="row g-2 mb-3 align-items-end">
-    <div class="col-md-2">
-      <input id="searchBox" class="form-control" placeholder="Search by SKU, Name..." />
-    </div>
-    
-    <div class="col-md-2">
-      <div class="dropdown w-100">
-        <button class="btn btn-outline-secondary dropdown-toggle w-100" type="button" id="categoryFilterDropdown" data-bs-toggle="dropdown" aria-expanded="false" data-bs-auto-close="outside">
-          Categories
-        </button>
-        <ul id="categoryFilter" class="dropdown-menu" aria-labelledby="categoryFilterDropdown" style="max-height: 300px; overflow-y: auto;">
-          <li class="dropdown-item text-muted">Loading...</li>
-        </ul>
-      </div>
-    </div>
-
-    <div class="col-md-2">
-      <div class="dropdown w-100">
-        <button class="btn btn-outline-secondary dropdown-toggle w-100" type="button" id="familyFilterDropdown" data-bs-toggle="dropdown" aria-expanded="false" data-bs-auto-close="outside">
-          Product Family
-        </button>
-        <ul id="familyFilter" class="dropdown-menu" aria-labelledby="familyFilterDropdown" style="max-height: 300px; overflow-y: auto;">
-          <li class="dropdown-item text-muted">Loading...</li>
-        </ul>
-      </div>
-    </div>
-    
-    <div class="col-md-2">
-      <select id="statusFilter" class="form-select">
-        <option value="all" selected>All Products</option>
-        <option value="enabled">Enabled Only</option>
-        <option value="disabled">Disabled Only</option>
-      </select>
-    </div>
-    
-    <div class="col-md-2">
-      <select id="variantFilter" class="form-select">
-        <option value="all" selected>All Types</option>
-        <option value="parents">Parents with Variants</option>
-        <option value="variants">Variants Only</option>
-        <option value="singles">Singles (No Variants)</option>
-        <option value="variants-and-singles">Variants & Singles</option>
-      </select>
-    </div>
-    
-    <div class="col-md-2">
-      <select id="sortFilter" class="form-select">
-        <option value="sku-asc">Sort by SKU (A-Z)</option>
-        <option value="sku-desc">Sort by SKU (Z-A)</option>
-        <option value="label-asc">Sort by Name (A-Z)</option>
-        <option value="label-desc">Sort by Name (Z-A)</option>
-      </select>
-    </div>
-  </div>
-
-
-
-
-
-  
-  <div id="catalogStatus" class="text-muted small mb-2"></div>
-  <div id="productGrid" class="row g-3"></div>
-</div>
-
-<!-- Product Detail Modal -->
-<div class="modal fade" id="productModal" tabindex="-1">
-  <div class="modal-dialog modal-xl modal-dialog-scrollable">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 id="modalTitle" class="modal-title"></h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-      </div>
-      <div class="modal-body">
-        <div id="modalBody" class="row g-3"></div>
-      </div>
-    </div>
-  </div>
-</div>
-
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-<script>
-  // Dynamic script loading with timestamp to prevent cache
-  const script = document.createElement('script');
-  script.src = 'script.js?v=' + new Date().getTime();
-  document.body.appendChild(script);
-</script>
-
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="admin.js"></script>
+    <script>
+        const script = document.createElement('script');
+        script.src = 'script.js?v=' + new Date().getTime();
+        document.body.appendChild(script);
+    </script>
 </body>
 </html>
