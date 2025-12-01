@@ -227,19 +227,42 @@ function initializeSortable(container, reportName, primaryGroup, secondaryGroup)
         animation: 150,
         delay: 500, // Long-press delay in milliseconds
         delayOnTouchOnly: true, // Only delay on touch devices
-        touchStartThreshold: 3, // Pixels of movement before canceling
+        touchStartThreshold: 5, // Increased from 3 - more forgiving on mobile
+        
+        // ========== MOBILE FIX: Prevent scroll during drag ==========
+        forceFallback: true, // Use fallback for better mobile support
+        fallbackTolerance: 5, // Pixels of movement before drag starts
+        scrollSensitivity: 50, // Increased scroll sensitivity
+        scrollSpeed: 10, // Reduced scroll speed during drag
+        bubbleScroll: true, // Enable scroll in parent containers
+        // ========== END MOBILE FIX ==========
+        
         ghostClass: 'sortable-ghost',
         chosenClass: 'sortable-chosen',
         dragClass: 'sortable-drag',
+        
+        // ========== MOBILE FIX: Better drag handle ==========
+        onChoose: function(evt) {
+            console.log('Card selected for drag');
+            // Prevent scrolling when card is selected
+            document.body.style.overflow = 'hidden';
+            document.body.style.touchAction = 'none';
+        },
+        // ========== END FIX ==========
         
         onStart: function(evt) {
             console.log('Drag started');
         },
         
         onEnd: async function(evt) {
-            // Get the new order of cards that are CURRENTLY visible
+            // ========== MOBILE FIX: Re-enable scrolling ==========
+            document.body.style.overflow = '';
+            document.body.style.touchAction = '';
+            // ========== END FIX ==========
+            
+            // Get the new order of cards
             const cards = Array.from(container.querySelectorAll('.card-report'));
-            const cardOrder = cards.map(card => card.dataset.docname).filter(name => name); // Filter out empty/undefined
+            const cardOrder = cards.map(card => card.dataset.docname).filter(name => name);
             
             console.log('=== DRAG DROP DEBUG ===');
             console.log('Report Name:', reportName);
@@ -254,7 +277,7 @@ function initializeSortable(container, reportName, primaryGroup, secondaryGroup)
                     reportName, 
                     primaryGroup, 
                     secondaryGroup, 
-                    cardOrder // This now ONLY contains currently visible cards
+                    cardOrder
                 );
                 
                 console.log('Save result:', result);
@@ -281,8 +304,16 @@ function initializeSortable(container, reportName, primaryGroup, secondaryGroup)
                 console.error('❌ Error saving card priority:', error);
                 alert('Error saving card order. Please try again.');
             }
+        },
+        
+        // ========== MOBILE FIX: Cancel on cancel ==========
+        onUnchoose: function(evt) {
+            console.log('Drag cancelled');
+            // Re-enable scrolling if drag is cancelled
+            document.body.style.overflow = '';
+            document.body.style.touchAction = '';
         }
-
+        // ========== END FIX ==========
     });
     
     // Add visual indicator that cards are draggable
@@ -291,6 +322,7 @@ function initializeSortable(container, reportName, primaryGroup, secondaryGroup)
         card.classList.add('sortable-enabled');
     });
 }
+
 
 
 
