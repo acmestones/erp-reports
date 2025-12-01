@@ -40,6 +40,176 @@
 
 
 
+
+
+  
+
+<!-- Add this in the header section, after the logout button -->
+<button id="settingsBtn" class="btn btn-primary btn-sm me-2" onclick="openSettingsModal()" style="display:none;" title="Manage users and permissions">
+    <i class="bi bi-gear-fill"></i> Settings
+</button>
+
+<!-- Add this modal at the end of the body, after the productModal -->
+
+<!-- Admin Settings Modal -->
+<div class="modal fade" id="settingsModal" tabindex="-1">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Admin Settings</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <ul class="nav nav-tabs mb-3" id="settingsTabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="users-tab" data-bs-toggle="tab" data-bs-target="#users-panel" type="button">
+                            Users Management
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="attributes-tab" data-bs-toggle="tab" data-bs-target="#attributes-panel" type="button">
+                            Available Attributes
+                        </button>
+                    </li>
+                </ul>
+
+                <div class="tab-content" id="settingsTabContent">
+                    <!-- Users Management Tab -->
+                    <div class="tab-pane fade show active" id="users-panel">
+                        <div class="mb-3">
+                            <button class="btn btn-success btn-sm" onclick="showAddUserForm()">
+                                <i class="bi bi-plus-circle"></i> Add New User
+                            </button>
+                        </div>
+
+                        <!-- Add User Form (hidden by default) -->
+                        <div id="addUserForm" class="card mb-3" style="display:none;">
+                            <div class="card-body">
+                                <h6 class="card-title">Add New User</h6>
+                                <div class="row g-3">
+                                    <div class="col-md-6">
+                                        <label class="form-label">Email Address</label>
+                                        <input type="email" id="newUserEmail" class="form-control" placeholder="user@example.com">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label">Role</label>
+                                        <select id="newUserRole" class="form-select">
+                                            <option value="user">User</option>
+                                            <option value="admin">Admin</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="mt-3">
+                                    <button class="btn btn-primary btn-sm" onclick="addNewUser()">Add User</button>
+                                    <button class="btn btn-secondary btn-sm" onclick="hideAddUserForm()">Cancel</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Users Table -->
+                        <div class="table-responsive">
+                            <table class="table table-bordered table-hover" id="usersTable">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Email</th>
+                                        <th>Role</th>
+                                        <th>Visible Attributes</th>
+                                        <th>Editable Attributes</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="usersTableBody">
+                                    <tr>
+                                        <td colspan="5" class="text-center">Loading...</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Available Attributes Tab -->
+                    <div class="tab-pane fade" id="attributes-panel">
+                        <p class="text-muted">Manage the list of available attributes that can be assigned to users.</p>
+                        <div class="mb-3">
+                            <label class="form-label">Add New Attribute</label>
+                            <div class="input-group">
+                                <input type="text" id="newAttributeName" class="form-control" placeholder="Attribute name (e.g., warranty)">
+                                <button class="btn btn-primary" onclick="addNewAttribute()">Add</button>
+                            </div>
+                        </div>
+                        <div id="attributesList" class="border rounded p-3" style="max-height: 400px; overflow-y: auto;">
+                            <p class="text-muted">Loading...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Edit User Permissions Modal -->
+<div class="modal fade" id="editPermissionsModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Edit Permissions: <span id="editUserEmail"></span></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">Role</label>
+                    <select id="editUserRole" class="form-select">
+                        <option value="user">User</option>
+                        <option value="admin">Admin</option>
+                    </select>
+                </div>
+                
+                <div class="mb-3">
+                    <label class="form-label">Visible Attributes</label>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="visibleAll" onchange="toggleAllAttributes('visible')">
+                        <label class="form-check-label fw-bold" for="visibleAll">
+                            All Attributes
+                        </label>
+                    </div>
+                    <hr>
+                    <div id="visibleAttributesCheckboxes" class="row">
+                        <!-- Populated dynamically -->
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Editable Attributes</label>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="editableAll" onchange="toggleAllAttributes('editable')">
+                        <label class="form-check-label fw-bold" for="editableAll">
+                            All Attributes
+                        </label>
+                    </div>
+                    <hr>
+                    <div id="editableAttributesCheckboxes" class="row">
+                        <!-- Populated dynamically -->
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="saveUserPermissions()">Save Changes</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+
+
+
+  
+  
+
   
 
 <!-- Filters -->
