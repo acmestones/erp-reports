@@ -465,3 +465,101 @@ body {
 
 /* ========== END DRAG AND DROP STYLES ========== */
 
+
+
+
+/* ========== MOBILE REORDER MODAL ========== */
+
+#mobileReorderList {
+    max-height: 60vh;
+    overflow-y: auto;
+}
+
+.reorder-item {
+    cursor: move;
+    padding: 1rem;
+    margin-bottom: 0.5rem;
+    background: white;
+    border: 2px solid #dee2e6;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    transition: all 0.2s ease;
+}
+
+.reorder-item:active {
+    background: #f8f9fa;
+    transform: scale(0.98);
+}
+
+.reorder-item-handle {
+    font-size: 1.5rem;
+    color: #667eea;
+    flex-shrink: 0;
+}
+
+.reorder-item-content {
+    flex: 1;
+    min-width: 0;
+}
+
+.reorder-item-title {
+    font-weight: 600;
+    color: #000;
+    margin-bottom: 0.25rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.reorder-item-subtitle {
+    font-size: 0.85rem;
+    color: #666;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Mobile reorder sortable styles */
+.reorder-item.sortable-chosen {
+    background: #e7f3ff;
+    border-color: #667eea;
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+}
+
+.reorder-item.sortable-drag {
+    opacity: 0.5;
+    transform: rotate(2deg);
+}
+
+.reorder-item.sortable-ghost {
+    opacity: 0.3;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border: 3px dashed #667eea;
+}
+
+/* Only show mobile reorder on small screens */
+@media (min-width: 769px) {
+    .mobile-reorder-trigger {
+        display: none !important;
+    }
+}
+
+/* Hide desktop drag handle on mobile, show tap icon instead */
+@media (max-width: 768px) {
+    .drag-handle {
+        background: rgba(102, 126, 234, 0.15);
+        border: 2px solid #667eea;
+        padding: 12px;
+        cursor: pointer;
+    }
+    
+    .drag-handle i::before {
+        content: "☰"; /* Menu icon instead of grip */
+        font-style: normal;
+    }
+}
+
+/* ========== END MOBILE REORDER MODAL ========== */
+
