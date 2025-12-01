@@ -699,12 +699,6 @@ async function loadReport(reportName) {
         
         renderGroupedCards(grouped, orderedColumns, reportName);
 
-        // ========== ADD THIS ==========
-        // Cleanup stale card priorities (admin only)
-        if (currentUser && currentUser.role === 'admin') {
-            await cleanupCardPriority(reportName);
-        }
-        // ========== END ADD ==========
 
         
     } catch (err) {
