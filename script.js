@@ -48,7 +48,11 @@ function init() {
     
     const badge = document.getElementById("loggedUserBadge");
     if (badge) badge.textContent = "Signed in as " + currentUser;
-    
+
+     // ADD THIS LINE - Initialize Admin Module
+    AdminModule.init(currentUser);
+
+  
     loadProducts();
 }
 
