@@ -1130,14 +1130,40 @@ function createCard(row, columns, reportName, config) {
 
 
         // ========== ADD DRAG HANDLE FOR MOBILE ==========
-    if (currentUser && currentUser.role === 'admin') {
-        const dragHandle = document.createElement("div");
-        dragHandle.className = "drag-handle";
-        dragHandle.innerHTML = '<i class="bi bi-grip-vertical"></i>';
-        dragHandle.title = "Hold and drag to reorder";
-        cardBody.appendChild(dragHandle);
-    }
-    // ========== END DRAG HANDLE ==========
+        if (currentUser && currentUser.role === 'admin') {
+            const dragHandle = document.createElement("div");
+            dragHandle.className = "drag-handle";
+            dragHandle.innerHTML = '<i class="bi bi-grip-vertical"></i>';
+            
+            // Check if mobile
+            const isMobile = window.innerWidth <= 768;
+            
+            if (isMobile) {
+                dragHandle.title = "Tap to reorder";
+                dragHandle.style.cursor = "pointer";
+                
+                // Store data for mobile reorder
+                dragHandle.dataset.reportName = reportName;
+                dragHandle.dataset.primaryGroup = config.group_by?.[0] ? row[config.group_by[0]] : 'All';
+                dragHandle.dataset.secondaryGroup = config.group_by?.[1] ? row[config.group_by[1]] : 'All';
+                
+                // Open mobile reorder modal on tap
+                dragHandle.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    openMobileReorderModal(
+                        dragHandle.dataset.reportName,
+                        dragHandle.dataset.primaryGroup,
+                        dragHandle.dataset.secondaryGroup
+                    );
+                });
+            } else {
+                dragHandle.title = "Hold and drag to reorder";
+            }
+            
+            cardBody.appendChild(dragHandle);
+        }
+        // ========== END DRAG HANDLE ==========
+
 
     
     if (status) {
@@ -4826,3 +4852,191 @@ async function saveOperationOrder(workOrderId) {
   }
 }
 
+
+
+
+
+
+
+
+
+
+// ========== MOBILE REORDER MODAL FUNCTIONS ==========
+
+let currentMobileReorder = null;
+
+function openMobileReorderModal(reportName, primaryGroup, secondaryGroup) {
+    console.log('Opening mobile reorder for:', reportName, primaryGroup, secondaryGroup);
+    
+    // Store current context
+    currentMobileReorder = {
+        reportName,
+        primaryGroup,
+        secondaryGroup
+    };
+    
+    // Get cards in this group
+    const config = reportConfig[reportName] || {};
+    const grouped = currentReportData.grouped;
+    
+    if (!grouped || !grouped[primaryGroup] || !grouped[primaryGroup][secondaryGroup]) {
+        alert('No cards found in this group');
+        return;
+    }
+    
+    let cards = grouped[primaryGroup][secondaryGroup];
+    
+    // Apply existing sort order if it exists
+    const cardPriority = config.card_priority?.[primaryGroup]?.[secondaryGroup];
+    if (cardPriority && Array.isArray(cardPriority)) {
+        const titleField = config.title_field || "work_order_id";
+        
+        const getCardId = (row) => {
+            const possibleIds = [
+                row.name,
+                row[titleField],
+                row.work_order_id,
+                row.sales_order_id,
+                row.job_card,
+                row.item_code,
+                row.customer
+            ];
+            return possibleIds.find(id => id && id !== '') || '';
+        };
+        
+        cards = [...cards].sort((a, b) => {
+            const idA = getCardId(a);
+            const idB = getCardId(b);
+            
+            const indexA = cardPriority.indexOf(idA);
+            const indexB = cardPriority.indexOf(idB);
+            
+            if (indexA !== -1 && indexB !== -1) return indexA - indexB;
+            if (indexA !== -1) return -1;
+            if (indexB !== -1) return 1;
+            return 0;
+        });
+    }
+    
+    // Populate modal
+    const listContainer = document.getElementById('mobileReorderList');
+    listContainer.innerHTML = '';
+    
+    const titleField = config.title_field || "work_order_id";
+    const cardFields = config.card_fields || [];
+    
+    cards.forEach(row => {
+        const item = document.createElement('div');
+        item.className = 'reorder-item';
+        
+        // Get card ID
+        const possibleIds = [
+            row.name,
+            row[titleField],
+            row.work_order_id,
+            row.sales_order_id,
+            row.job_card,
+            row.item_code,
+            row.customer
+        ];
+        const cardId = possibleIds.find(id => id && id !== '') || '';
+        item.dataset.cardId = cardId;
+        
+        // Get title
+        const title = row[titleField] || row.name || 'Card';
+        
+        // Get subtitle (first available card field)
+        let subtitle = '';
+        for (const field of cardFields) {
+            if (row[field]) {
+                subtitle = String(row[field]).substring(0, 50);
+                break;
+            }
+        }
+        
+        item.innerHTML = `
+            <div class="reorder-item-handle">☰</div>
+            <div class="reorder-item-content">
+                <div class="reorder-item-title">${title}</div>
+                ${subtitle ? `<div class="reorder-item-subtitle">${subtitle}</div>` : ''}
+            </div>
+        `;
+        
+        listContainer.appendChild(item);
+    });
+    
+    // Initialize Sortable on the list
+    new Sortable(listContainer, {
+        animation: 150,
+        delay: 150,
+        delayOnTouchOnly: true,
+        ghostClass: 'sortable-ghost',
+        chosenClass: 'sortable-chosen',
+        dragClass: 'sortable-drag',
+        handle: '.reorder-item-handle',
+        
+        onStart: function() {
+            if (navigator.vibrate) navigator.vibrate(10);
+        },
+        
+        onEnd: function() {
+            if (navigator.vibrate) navigator.vibrate(10);
+        }
+    });
+    
+    // Show modal
+    const modal = new bootstrap.Modal(document.getElementById('mobileReorderModal'));
+    modal.show();
+}
+
+// Save mobile reorder
+document.getElementById('saveMobileReorder').addEventListener('click', async function() {
+    if (!currentMobileReorder) return;
+    
+    const listContainer = document.getElementById('mobileReorderList');
+    const items = Array.from(listContainer.querySelectorAll('.reorder-item'));
+    const newOrder = items.map(item => item.dataset.cardId).filter(id => id);
+    
+    console.log('Saving mobile reorder:', newOrder);
+    
+    try {
+        const result = await saveCardPriority(
+            currentMobileReorder.reportName,
+            currentMobileReorder.primaryGroup,
+            currentMobileReorder.secondaryGroup,
+            newOrder
+        );
+        
+        if (result.success) {
+            // Update local config
+            if (!reportConfig[currentMobileReorder.reportName]) {
+                reportConfig[currentMobileReorder.reportName] = {};
+            }
+            if (!reportConfig[currentMobileReorder.reportName].card_priority) {
+                reportConfig[currentMobileReorder.reportName].card_priority = {};
+            }
+            if (!reportConfig[currentMobileReorder.reportName].card_priority[currentMobileReorder.primaryGroup]) {
+                reportConfig[currentMobileReorder.reportName].card_priority[currentMobileReorder.primaryGroup] = {};
+            }
+            reportConfig[currentMobileReorder.reportName].card_priority[currentMobileReorder.primaryGroup][currentMobileReorder.secondaryGroup] = newOrder;
+            
+            // Close modal
+            bootstrap.Modal.getInstance(document.getElementById('mobileReorderModal')).hide();
+            
+            // Reload the report to show new order
+            await loadReport(currentMobileReorder.reportName);
+            
+            // Success feedback
+            if (navigator.vibrate) navigator.vibrate([30, 50, 30]);
+            
+            alert('✅ Order saved successfully!');
+        } else {
+            alert('❌ Failed to save order. Please try again.');
+        }
+    } catch (error) {
+        console.error('Error saving mobile reorder:', error);
+        alert('❌ Error saving order. Please try again.');
+    }
+});
+
+// ========== END MOBILE REORDER MODAL FUNCTIONS ==========
