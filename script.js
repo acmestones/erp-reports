@@ -883,6 +883,16 @@ function renderGroupedCards(grouped, columns, reportName) {
             // Apply saved card priority if it exists
             const cardPriority = config.card_priority?.[level1]?.[level2];
             let cardsToRender = grouped[level1][level2];
+
+
+            // ========== ADD DEBUG LOGGING ==========
+            console.log('=== RENDER DEBUG ===');
+            console.log('Primary Group:', level1);
+            console.log('Secondary Group:', level2);
+            console.log('Saved card priority:', cardPriority);
+            console.log('Current cards:', cardsToRender.map(c => c.name));
+            // ========== END DEBUG ==========
+        
             
             if (cardPriority && Array.isArray(cardPriority)) {
                 // Sort the cards based on saved priority
@@ -989,19 +999,38 @@ function createCard(row, columns, reportName, config) {
     const card = document.createElement("div");
     card.className = "card card-report h-100";
 
-    // ========== IMPROVED: Add fallback logic ==========
-    // Try multiple fields to ensure we always have a valid ID
-    card.dataset.docname = row.name || row.work_order_id || row.job_card || row.item_code || '';
+    // ========== SMART DOCNAME DETECTION ==========
+    // Priority order:
+    // 1. Use title_field from config (the displayed title)
+    // 2. Fall back to row.name (ERPNext document name)
+    // 3. Try common ID fields
+    // 4. Use first available field
     
-    // Debug warning if no valid ID found
+    const titleField = config.title_field || "work_order_id";
+    const possibleIds = [
+        row.name,                    // ERPNext document name (e.g., "WO-00123")
+        row[titleField],             // Whatever is configured as title
+        row.work_order_id,           // Work Order ID
+        row.sales_order_id,          // Sales Order ID  
+        row.job_card,                // Job Card ID
+        row.item_code,               // Item Code
+        row.customer,                // Customer name
+        ''                           // Empty fallback
+    ];
+    
+    // Find the first non-empty value
+    card.dataset.docname = possibleIds.find(id => id && id !== '') || '';
+    
+    // Warn if no valid ID found
     if (!card.dataset.docname) {
-        console.warn('⚠️ Warning: No valid docname found for card. Row data:', row);
+        console.warn('⚠️ No valid docname found. Title field:', titleField, 'Row:', row);
     }
-    // ========== END FIX ==========
+    
+    console.log('Card docname set to:', card.dataset.docname, 'from field:', titleField);
+    // ========== END SMART DETECTION ==========
     
     const userPerms = config.user_permissions?.[userEmail];
     const hiddenFields = userPerms?.hidden_fields || [];
-    const titleField = config.title_field || "work_order_id";
     const cardFields = config.card_fields || ["customer", "production_item", "quantity_to_manufacture", "completed_qty", "workstation"];
     const imageFields = config.image_fields || [];
     
@@ -1117,7 +1146,6 @@ function createCard(row, columns, reportName, config) {
             opPlanningBtn.className = "btn btn-sm btn-outline-success";
             opPlanningBtn.innerHTML = '<i class="bi bi-diagram-3"></i> Operation Planning';
             opPlanningBtn.addEventListener("click", () => {
-                // Debug: Check what work order ID we're passing
                 console.log('Row data:', row);
                 console.log('Work Order ID:', row.work_order_id || row.name);
                 openOperationPlanningModal(row, config, reportName);
@@ -1131,6 +1159,7 @@ function createCard(row, columns, reportName, config) {
     
     return card;
 }
+
 
 
 
