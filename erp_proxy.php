@@ -1913,13 +1913,18 @@ if (isset($_GET['action']) && $_GET['action'] === 'save_card_priority') {
         exit;
     }
 
-    // Load existing config
+    // ========== FIX: Load existing FULL config ==========
     $config = [];
     if (file_exists("report_config.json")) {
-        $config = json_decode(file_get_contents("report_config.json"), true);
+        $configContent = file_get_contents("report_config.json");
+        $config = json_decode($configContent, true);
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            logError("Failed to parse existing config: " . json_last_error_msg());
+            $config = [];
+        }
     }
 
-    // Initialize structure if needed
+    // Initialize structure if needed (but preserve existing data!)
     if (!isset($config[$reportName])) {
         $config[$reportName] = [];
     }
@@ -1930,16 +1935,24 @@ if (isset($_GET['action']) && $_GET['action'] === 'save_card_priority') {
         $config[$reportName]['card_priority'][$primaryGroup] = [];
     }
 
-    // Save the new order
+    // Update ONLY the specific card priority
     $config[$reportName]['card_priority'][$primaryGroup][$secondaryGroup] = $cardOrder;
+    // ========== END FIX ==========
 
-    // Save config
-    file_put_contents("report_config.json", json_encode($config, JSON_PRETTY_PRINT));
+    // Save the FULL config back
+    $saveResult = file_put_contents("report_config.json", json_encode($config, JSON_PRETTY_PRINT));
     
-    logError("Card priority saved for $reportName > $primaryGroup > $secondaryGroup");
+    if ($saveResult === false) {
+        logError("Failed to save report_config.json");
+        echo json_encode(["error" => "Failed to save config file"]);
+        exit;
+    }
+    
+    logError("Card priority saved for $reportName > $primaryGroup > $secondaryGroup (saved " . count($cardOrder) . " cards)");
     echo json_encode(["success" => true, "message" => "Card priority saved"]);
     exit;
 }
+
 
 
 
