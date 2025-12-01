@@ -215,6 +215,43 @@ async function saveCardPriority(reportName, primaryGroup, secondaryGroup, cardOr
 
 
 
+// ========== FORCE SCROLL RESET HELPER ==========
+function forceResetScroll() {
+    console.log('🔧 Force resetting scroll...');
+    
+    // Remove Bootstrap modal classes
+    document.body.classList.remove('modal-open');
+    
+    // Reset all body styles
+    document.body.style.overflow = '';
+    document.body.style.position = '';
+    document.body.style.paddingRight = '';
+    document.body.style.touchAction = '';
+    
+    // Reset html element too
+    document.documentElement.style.overflow = '';
+    document.documentElement.style.position = '';
+    
+    // Remove all modal backdrops
+    const backdrops = document.querySelectorAll('.modal-backdrop');
+    backdrops.forEach(backdrop => {
+        console.log('Removing backdrop:', backdrop);
+        backdrop.remove();
+    });
+    
+    // Force redraw
+    document.body.offsetHeight; // Trigger reflow
+    
+    console.log('✅ Scroll reset complete');
+}
+// ========== END HELPER ==========
+
+
+
+
+
+
+
 
 
 function initializeSortable(container, reportName, primaryGroup, secondaryGroup) {
