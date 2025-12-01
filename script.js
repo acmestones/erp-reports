@@ -4930,21 +4930,33 @@ function openMobileReorderModal(reportName, primaryGroup, secondaryGroup) {
         listContainer.appendChild(item);
     });
     
-    // Initialize Sortable on the list
+    // Initialize Sortable on the list with better mobile scrolling
     new Sortable(listContainer, {
         animation: 150,
-        delay: 150,
+        delay: 200,
         delayOnTouchOnly: true,
+        
+        // Better mobile scroll settings
+        scroll: true,
+        forceAutoScrollFallback: true,
+        scrollSensitivity: 60,
+        scrollSpeed: 15,
+        bubbleScroll: true,
+        
         ghostClass: 'sortable-ghost',
         chosenClass: 'sortable-chosen',
         dragClass: 'sortable-drag',
         handle: '.reorder-item-handle',
         
+        swapThreshold: 0.65,
+        
         onStart: function() {
+            console.log('Started dragging in modal');
             if (navigator.vibrate) navigator.vibrate(10);
         },
         
         onEnd: function() {
+            console.log('Finished dragging in modal');
             if (navigator.vibrate) navigator.vibrate(10);
         }
     });
@@ -4953,7 +4965,6 @@ function openMobileReorderModal(reportName, primaryGroup, secondaryGroup) {
     const modal = new bootstrap.Modal(document.getElementById('mobileReorderModal'));
     modal.show();
     
-    // ========== SAVE BUTTON HANDLER ==========
     // Remove any existing listeners first
     const saveBtn = document.getElementById('saveMobileReorder');
     const newSaveBtn = saveBtn.cloneNode(true);
@@ -5001,16 +5012,22 @@ function openMobileReorderModal(reportName, primaryGroup, secondaryGroup) {
                 }
                 reportConfig[currentMobileReorder.reportName].card_priority[currentMobileReorder.primaryGroup][currentMobileReorder.secondaryGroup] = newOrder;
                 
-                // Close modal
-                modal.hide();
-                
-                // Reload the report to show new order
-                await loadReport(currentMobileReorder.reportName);
+                // Reset button
+                newSaveBtn.textContent = '✅ Saved!';
+                newSaveBtn.classList.remove('btn-primary');
+                newSaveBtn.classList.add('btn-success');
                 
                 // Success feedback
                 if (navigator.vibrate) navigator.vibrate([30, 50, 30]);
                 
-                alert('✅ Order saved successfully!');
+                // Close modal after a short delay
+                setTimeout(() => {
+                    modal.hide();
+                }, 500);
+                
+                // Reload the report to show new order
+                await loadReport(currentMobileReorder.reportName);
+                
             } else {
                 alert('❌ Failed to save order: ' + (result.error || 'Unknown error'));
                 newSaveBtn.disabled = false;
@@ -5023,8 +5040,8 @@ function openMobileReorderModal(reportName, primaryGroup, secondaryGroup) {
             newSaveBtn.textContent = 'Save Order';
         }
     });
-    // ========== END SAVE HANDLER ==========
 }
+
 
 // ========== END MOBILE REORDER MODAL FUNCTIONS ==========
 
