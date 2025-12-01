@@ -225,41 +225,45 @@ function initializeSortable(container, reportName, primaryGroup, secondaryGroup)
 
     new Sortable(container, {
         animation: 150,
-        delay: 500, // Long-press delay in milliseconds
-        delayOnTouchOnly: true, // Only delay on touch devices
-        handle: '.drag-handle', // ✅ ADD THIS LINE - only drag from handle
-        touchStartThreshold: 5, // Increased from 3 - more forgiving on mobile
+        delay: 500, // Long-press delay
+        delayOnTouchOnly: true,
+        handle: '.drag-handle', // Only drag from handle
         
-        // ========== MOBILE FIX: Prevent scroll during drag ==========
-        forceFallback: true, // Use fallback for better mobile support
-        fallbackTolerance: 5, // Pixels of movement before drag starts
-        scrollSensitivity: 50, // Increased scroll sensitivity
-        scrollSpeed: 10, // Reduced scroll speed during drag
-        bubbleScroll: true, // Enable scroll in parent containers
-        // ========== END MOBILE FIX ==========
-        
+        // ========== MOBILE IMPROVEMENTS ==========
+        // Make dragged item small and transparent
         ghostClass: 'sortable-ghost',
-        chosenClass: 'sortable-chosen',
+        chosenClass: 'sortable-chosen', 
         dragClass: 'sortable-drag',
         
-        // ========== MOBILE FIX: Better drag handle ==========
+        // Enable smooth scrolling while dragging
+        scroll: true, // Enable auto-scroll
+        scrollSensitivity: 100, // Distance from edge to start scrolling (pixels)
+        scrollSpeed: 20, // Scroll speed
+        bubbleScroll: true, // Allow scrolling in parent containers
+        
+        // Better mobile support
+        forceFallback: false, // Use native drag on mobile for better performance
+        fallbackTolerance: 3,
+        
+        // Show clear drop indicator
+        dragoverBubble: true,
+        invertSwap: false,
+        swapThreshold: 0.65, // How much overlap needed to swap
+        // ========== END MOBILE IMPROVEMENTS ==========
+        
         onChoose: function(evt) {
             console.log('Card selected for drag');
-            // Prevent scrolling when card is selected
-            document.body.style.overflow = 'hidden';
-            document.body.style.touchAction = 'none';
+            // Add class to show it's being dragged
+            evt.item.classList.add('is-dragging');
         },
-        // ========== END FIX ==========
         
         onStart: function(evt) {
             console.log('Drag started');
         },
         
         onEnd: async function(evt) {
-            // ========== MOBILE FIX: Re-enable scrolling ==========
-            document.body.style.overflow = '';
-            document.body.style.touchAction = '';
-            // ========== END FIX ==========
+            // Remove dragging class
+            evt.item.classList.remove('is-dragging');
             
             // Get the new order of cards
             const cards = Array.from(container.querySelectorAll('.card-report'));
@@ -285,7 +289,6 @@ function initializeSortable(container, reportName, primaryGroup, secondaryGroup)
                 
                 if (result.success) {
                     console.log('✅ Card priority saved successfully');
-                    // Update the local config so it persists during this session
                     if (!reportConfig[reportName]) {
                         reportConfig[reportName] = {};
                     }
@@ -307,14 +310,10 @@ function initializeSortable(container, reportName, primaryGroup, secondaryGroup)
             }
         },
         
-        // ========== MOBILE FIX: Cancel on cancel ==========
         onUnchoose: function(evt) {
             console.log('Drag cancelled');
-            // Re-enable scrolling if drag is cancelled
-            document.body.style.overflow = '';
-            document.body.style.touchAction = '';
+            evt.item.classList.remove('is-dragging');
         }
-        // ========== END FIX ==========
     });
     
     // Add visual indicator that cards are draggable
@@ -323,6 +322,7 @@ function initializeSortable(container, reportName, primaryGroup, secondaryGroup)
         card.classList.add('sortable-enabled');
     });
 }
+
 
 
 
