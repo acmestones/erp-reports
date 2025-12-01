@@ -715,6 +715,10 @@ if (familyMap.size === 0) {
     return '<span class="text-break">' + String(value) + '</span>';
   }
 
+
+
+
+  
   function showProductDetail(product) {
     const modalTitle = document.getElementById("modalTitle");
     const modalBody = document.getElementById("modalBody");
@@ -725,7 +729,9 @@ if (familyMap.size === 0) {
     const leftCol = document.createElement("div");
     leftCol.className = "col-md-4";
     
-    if (product.thumbnail && product.thumbnail.thumbnail) {
+    // Check if thumbnail is visible to user
+    if (product.thumbnail && product.thumbnail.thumbnail && 
+        (!AdminModule.isAttributeVisible || AdminModule.isAttributeVisible('thumbnail'))) {
       const thumbCard = document.createElement("div");
       thumbCard.className = "card mb-3";
       thumbCard.innerHTML = '<div class="card-header"><strong>Thumbnail</strong></div>';
@@ -748,6 +754,11 @@ if (familyMap.size === 0) {
     if (product.attributes && typeof product.attributes === 'object') {
       Object.keys(product.attributes).forEach(function(attrKey) {
         const attrValue = product.attributes[attrKey];
+        
+        // Check if this attribute is visible to user
+        if (AdminModule.isAttributeVisible && !AdminModule.isAttributeVisible(attrKey)) {
+          return;
+        }
         
         if (Array.isArray(attrValue) && attrValue.length > 0 && attrValue[0] && attrValue[0].url) {
           const imgCard = document.createElement("div");
@@ -777,7 +788,9 @@ if (familyMap.size === 0) {
       });
     }
     
-    if (Array.isArray(product.assets) && product.assets.length > 0) {
+    // Check if assets are visible to user
+    if (Array.isArray(product.assets) && product.assets.length > 0 && 
+        (!AdminModule.isAttributeVisible || AdminModule.isAttributeVisible('assets'))) {
       const alreadyShown = product.attributes && product.attributes.images && 
         Array.isArray(product.attributes.images) && product.attributes.images.length > 0;
       
@@ -847,6 +860,12 @@ if (familyMap.size === 0) {
     });
     
     displayFields.forEach(function(field) {
+      // Check if user has permission to view this attribute (AdminModule check)
+      if (AdminModule.isAttributeVisible && !AdminModule.isAttributeVisible(field.key)) {
+        return; // Skip this field
+      }
+      
+      // Legacy price access check (kept for backward compatibility)
       if (!USERS_WITH_PRICE_ACCESS.includes(currentUser)) {
         const keyLower = field.key.toLowerCase();
         if (keyLower.includes('price') || keyLower.includes('cost') || keyLower.includes('msrp')) {
@@ -861,6 +880,11 @@ if (familyMap.size === 0) {
       
       const td = document.createElement("td");
       td.innerHTML = formatValueForDisplay(field.value);
+      
+      // If attribute is editable, show an indicator or make it editable
+      if (AdminModule.isAttributeEditable && AdminModule.isAttributeEditable(field.key)) {
+        th.innerHTML = field.label + ' <span class="badge bg-warning text-dark ms-1" title="Editable">✏️</span>';
+      }
       
       tr.appendChild(th);
       tr.appendChild(td);
@@ -882,8 +906,20 @@ if (familyMap.size === 0) {
     
     const modal = new bootstrap.Modal(document.getElementById("productModal"));
     modal.show();
-  }
+}
 
+
+
+
+
+
+
+
+
+
+
+
+  
   function capitalizeWords(str) {
     return str.replace(/\b\w/g, function(char) { return char.toUpperCase(); });
   }
