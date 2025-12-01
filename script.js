@@ -4824,12 +4824,6 @@ async function saveOperationOrder(workOrderId) {
 
 
 
-
-
-// ========== MOBILE REORDER MODAL FUNCTIONS ==========
-
-let currentMobileReorder = null;
-
 // ========== MOBILE REORDER MODAL FUNCTIONS ==========
 
 let currentMobileReorder = null;
