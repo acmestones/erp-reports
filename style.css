@@ -381,3 +381,37 @@ body {
     }
 }
 
+
+
+
+
+
+/* Drag Handle */
+.drag-handle {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    cursor: grab;
+    padding: 5px;
+    background: rgba(0, 0, 0, 0.1);
+    border-radius: 4px;
+    z-index: 10;
+    font-size: 1.2rem;
+    color: #666;
+    user-select: none;
+}
+
+.drag-handle:active {
+    cursor: grabbing;
+}
+
+.drag-handle:hover {
+    background: rgba(0, 0, 0, 0.2);
+}
+
+/* Make card body relative for handle positioning */
+.card-report .card-body {
+    position: relative;
+}
+
+
