@@ -4952,97 +4952,80 @@ function openMobileReorderModal(reportName, primaryGroup, secondaryGroup) {
     // Show modal
     const modal = new bootstrap.Modal(document.getElementById('mobileReorderModal'));
     modal.show();
-
-
-
     
-    // Show modal
-const modal = new bootstrap.Modal(document.getElementById('mobileReorderModal'));
-modal.show();
-
-// ========== ADD SAVE BUTTON HANDLER HERE ==========
-// Remove any existing listeners first
-const saveBtn = document.getElementById('saveMobileReorder');
-const newSaveBtn = saveBtn.cloneNode(true);
-saveBtn.parentNode.replaceChild(newSaveBtn, saveBtn);
-
-// Add the save handler
-newSaveBtn.addEventListener('click', async function() {
-    console.log('💾 Save button clicked!');
+    // ========== SAVE BUTTON HANDLER ==========
+    // Remove any existing listeners first
+    const saveBtn = document.getElementById('saveMobileReorder');
+    const newSaveBtn = saveBtn.cloneNode(true);
+    saveBtn.parentNode.replaceChild(newSaveBtn, saveBtn);
     
-    if (!currentMobileReorder) {
-        console.error('No currentMobileReorder data');
-        return;
-    }
-    
-    const listContainer = document.getElementById('mobileReorderList');
-    const items = Array.from(listContainer.querySelectorAll('.reorder-item'));
-    const newOrder = items.map(item => item.dataset.cardId).filter(id => id);
-    
-    console.log('Saving mobile reorder:', newOrder);
-    
-    // Disable button while saving
-    newSaveBtn.disabled = true;
-    newSaveBtn.textContent = 'Saving...';
-    
-    try {
-        const result = await saveCardPriority(
-            currentMobileReorder.reportName,
-            currentMobileReorder.primaryGroup,
-            currentMobileReorder.secondaryGroup,
-            newOrder
-        );
+    // Add the save handler
+    newSaveBtn.addEventListener('click', async function() {
+        console.log('💾 Save button clicked!');
         
-        console.log('Save result:', result);
+        if (!currentMobileReorder) {
+            console.error('No currentMobileReorder data');
+            return;
+        }
         
-        if (result.success) {
-            // Update local config
-            if (!reportConfig[currentMobileReorder.reportName]) {
-                reportConfig[currentMobileReorder.reportName] = {};
+        const listContainer = document.getElementById('mobileReorderList');
+        const items = Array.from(listContainer.querySelectorAll('.reorder-item'));
+        const newOrder = items.map(item => item.dataset.cardId).filter(id => id);
+        
+        console.log('Saving mobile reorder:', newOrder);
+        
+        // Disable button while saving
+        newSaveBtn.disabled = true;
+        newSaveBtn.textContent = 'Saving...';
+        
+        try {
+            const result = await saveCardPriority(
+                currentMobileReorder.reportName,
+                currentMobileReorder.primaryGroup,
+                currentMobileReorder.secondaryGroup,
+                newOrder
+            );
+            
+            console.log('Save result:', result);
+            
+            if (result.success) {
+                // Update local config
+                if (!reportConfig[currentMobileReorder.reportName]) {
+                    reportConfig[currentMobileReorder.reportName] = {};
+                }
+                if (!reportConfig[currentMobileReorder.reportName].card_priority) {
+                    reportConfig[currentMobileReorder.reportName].card_priority = {};
+                }
+                if (!reportConfig[currentMobileReorder.reportName].card_priority[currentMobileReorder.primaryGroup]) {
+                    reportConfig[currentMobileReorder.reportName].card_priority[currentMobileReorder.primaryGroup] = {};
+                }
+                reportConfig[currentMobileReorder.reportName].card_priority[currentMobileReorder.primaryGroup][currentMobileReorder.secondaryGroup] = newOrder;
+                
+                // Close modal
+                modal.hide();
+                
+                // Reload the report to show new order
+                await loadReport(currentMobileReorder.reportName);
+                
+                // Success feedback
+                if (navigator.vibrate) navigator.vibrate([30, 50, 30]);
+                
+                alert('✅ Order saved successfully!');
+            } else {
+                alert('❌ Failed to save order: ' + (result.error || 'Unknown error'));
+                newSaveBtn.disabled = false;
+                newSaveBtn.textContent = 'Save Order';
             }
-            if (!reportConfig[currentMobileReorder.reportName].card_priority) {
-                reportConfig[currentMobileReorder.reportName].card_priority = {};
-            }
-            if (!reportConfig[currentMobileReorder.reportName].card_priority[currentMobileReorder.primaryGroup]) {
-                reportConfig[currentMobileReorder.reportName].card_priority[currentMobileReorder.primaryGroup] = {};
-            }
-            reportConfig[currentMobileReorder.reportName].card_priority[currentMobileReorder.primaryGroup][currentMobileReorder.secondaryGroup] = newOrder;
-            
-            // Close modal
-            modal.hide();
-            
-            // Reload the report to show new order
-            await loadReport(currentMobileReorder.reportName);
-            
-            // Success feedback
-            if (navigator.vibrate) navigator.vibrate([30, 50, 30]);
-            
-            alert('✅ Order saved successfully!');
-        } else {
-            alert('❌ Failed to save order: ' + (result.error || 'Unknown error'));
+        } catch (error) {
+            console.error('Error saving mobile reorder:', error);
+            alert('❌ Error saving order: ' + error.message);
             newSaveBtn.disabled = false;
             newSaveBtn.textContent = 'Save Order';
         }
-    } catch (error) {
-        console.error('Error saving mobile reorder:', error);
-        alert('❌ Error saving order: ' + error.message);
-        newSaveBtn.disabled = false;
-        newSaveBtn.textContent = 'Save Order';
-    }
-});
-// ========== END SAVE HANDLER ==========
-
-
-
-    
-
-
-    
+    });
+    // ========== END SAVE HANDLER ==========
 }
 
-// Save mobile reorder
-document.getElementById('saveMobileReorder').addEventListener('click', async function() {
-   
-});
-
 // ========== END MOBILE REORDER MODAL FUNCTIONS ==========
+
+
