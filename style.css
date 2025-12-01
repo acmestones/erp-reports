@@ -299,3 +299,33 @@ body {
     border-radius: 0.25rem;
 }
 
+
+
+
+
+// drag drop
+
+/* Drag and Drop Styles */
+.sortable-ghost {
+  opacity: 0.4;
+  background: #f8f9fa;
+}
+
+.sortable-chosen {
+  box-shadow: 0 8px 24px rgba(0,0,0,0.2) !important;
+  transform: scale(1.05);
+  cursor: grabbing !important;
+}
+
+.sortable-drag {
+  opacity: 0.8;
+  cursor: grabbing !important;
+}
+
+.card-report.sortable-enabled {
+  cursor: grab;
+}
+
+.card-report.sortable-enabled:active {
+  cursor: grabbing;
+}
