@@ -4983,10 +4983,18 @@ function openMobileReorderModal(reportName, primaryGroup, secondaryGroup) {
     modal.show();
     // ========== END FIX ==========
     
-    // Remove any existing listeners first
-    const saveBtn = document.getElementById('saveMobileReorder');
-    const newSaveBtn = saveBtn.cloneNode(true);
-    saveBtn.parentNode.replaceChild(newSaveBtn, saveBtn);
+         // ========== FIX: Reset and clone save button ==========
+        const saveBtn = document.getElementById('saveMobileReorder');
+        const newSaveBtn = saveBtn.cloneNode(true);
+        
+        // Reset button state
+        newSaveBtn.disabled = false;
+        newSaveBtn.textContent = 'Save Order';
+        newSaveBtn.className = 'btn btn-primary'; // Reset to original classes
+        
+        saveBtn.parentNode.replaceChild(newSaveBtn, saveBtn);
+        // ========== END FIX ==========
+
     
 // Add the save handler
 newSaveBtn.addEventListener('click', async function() {
