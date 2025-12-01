@@ -7,7 +7,7 @@ $settingsFile = __DIR__ . '/user_settings.json';
 // BOOTSTRAP: Define initial admins who should always have access
 // These users will automatically become admins if the system is empty
 $BOOTSTRAP_ADMINS = [
-    'marblehousegmail.com',
+    'marblehouse@gmail.com',
     // Add other bootstrap admins here
 ];
 
