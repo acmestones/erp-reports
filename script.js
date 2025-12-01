@@ -4830,6 +4830,11 @@ async function saveOperationOrder(workOrderId) {
 
 let currentMobileReorder = null;
 
+// ========== MOBILE REORDER MODAL FUNCTIONS ==========
+
+let currentMobileReorder = null;
+let mobileSortableInstance = null; // Track the sortable instance
+
 function openMobileReorderModal(reportName, primaryGroup, secondaryGroup) {
     console.log('Opening mobile reorder for:', reportName, primaryGroup, secondaryGroup);
     
@@ -4883,6 +4888,14 @@ function openMobileReorderModal(reportName, primaryGroup, secondaryGroup) {
         });
     }
     
+    // ========== FIX: Destroy previous Sortable instance ==========
+    if (mobileSortableInstance) {
+        console.log('Destroying previous Sortable instance');
+        mobileSortableInstance.destroy();
+        mobileSortableInstance = null;
+    }
+    // ========== END FIX ==========
+    
     // Populate modal
     const listContainer = document.getElementById('mobileReorderList');
     listContainer.innerHTML = '';
@@ -4930,8 +4943,8 @@ function openMobileReorderModal(reportName, primaryGroup, secondaryGroup) {
         listContainer.appendChild(item);
     });
     
-    // Initialize Sortable on the list with better mobile scrolling
-    new Sortable(listContainer, {
+    // ========== FIX: Create NEW Sortable instance and store it ==========
+    mobileSortableInstance = new Sortable(listContainer, {
         animation: 150,
         delay: 200,
         delayOnTouchOnly: true,
@@ -4951,19 +4964,30 @@ function openMobileReorderModal(reportName, primaryGroup, secondaryGroup) {
         swapThreshold: 0.65,
         
         onStart: function() {
-            console.log('Started dragging in modal');
             if (navigator.vibrate) navigator.vibrate(10);
         },
         
         onEnd: function() {
-            console.log('Finished dragging in modal');
             if (navigator.vibrate) navigator.vibrate(10);
         }
     });
+    // ========== END FIX ==========
+    
+    // ========== FIX: Get or create modal properly ==========
+    const modalElement = document.getElementById('mobileReorderModal');
+    let modal = bootstrap.Modal.getInstance(modalElement);
+    
+    // If modal instance exists, dispose it first
+    if (modal) {
+        modal.dispose();
+    }
+    
+    // Create fresh modal instance
+    modal = new bootstrap.Modal(modalElement);
     
     // Show modal
-    const modal = new bootstrap.Modal(document.getElementById('mobileReorderModal'));
     modal.show();
+    // ========== END FIX ==========
     
     // Remove any existing listeners first
     const saveBtn = document.getElementById('saveMobileReorder');
@@ -5020,10 +5044,19 @@ function openMobileReorderModal(reportName, primaryGroup, secondaryGroup) {
                 // Success feedback
                 if (navigator.vibrate) navigator.vibrate([30, 50, 30]);
                 
+                // ========== FIX: Clean up before closing ==========
+                // Destroy sortable instance
+                if (mobileSortableInstance) {
+                    mobileSortableInstance.destroy();
+                    mobileSortableInstance = null;
+                }
+                
                 // Close modal after a short delay
                 setTimeout(() => {
                     modal.hide();
+                    modal.dispose(); // Dispose modal instance
                 }, 500);
+                // ========== END FIX ==========
                 
                 // Reload the report to show new order
                 await loadReport(currentMobileReorder.reportName);
@@ -5040,9 +5073,21 @@ function openMobileReorderModal(reportName, primaryGroup, secondaryGroup) {
             newSaveBtn.textContent = 'Save Order';
         }
     });
+    
+    // ========== FIX: Clean up when modal is closed with X or Cancel ==========
+    modalElement.addEventListener('hidden.bs.modal', function cleanup() {
+        console.log('Modal closed - cleaning up');
+        if (mobileSortableInstance) {
+            mobileSortableInstance.destroy();
+            mobileSortableInstance = null;
+        }
+        // Remove this listener to prevent memory leaks
+        modalElement.removeEventListener('hidden.bs.modal', cleanup);
+    });
+    // ========== END FIX ==========
 }
 
-
 // ========== END MOBILE REORDER MODAL FUNCTIONS ==========
+
 
 
