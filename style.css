@@ -1,3 +1,52 @@
+/* ========== PERFORMANCE OPTIMIZATIONS ========== */
+
+/* Force GPU acceleration */
+.card-report,
+.reorder-item,
+.modal-body {
+    -webkit-transform: translateZ(0);
+    transform: translateZ(0);
+    will-change: transform;
+}
+
+/* Reduce repaints during scroll */
+* {
+    -webkit-tap-highlight-color: transparent;
+    -webkit-touch-callout: none;
+}
+
+/* Smooth scrolling */
+html {
+    -webkit-overflow-scrolling: touch;
+}
+
+#mobileReorderList {
+    -webkit-overflow-scrolling: touch;
+    overflow-y: scroll;
+    overscroll-behavior: contain;
+}
+
+/* Disable animations during scroll on mobile */
+@media (max-width: 768px) {
+    .card-report,
+    .reorder-item {
+        transition: none !important;
+    }
+    
+    .card-report:hover {
+        transform: none !important;
+    }
+}
+
+/* ========== END PERFORMANCE OPTIMIZATIONS ========== */
+
+
+
+
+
+
+
+
 body {
     background: #f8f9fa;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
@@ -299,3 +348,298 @@ body {
     border-radius: 0.25rem;
 }
 
+
+
+
+
+/* ========== DRAG AND DROP STYLES (Complete) ========== */
+
+/* The ghost/placeholder that shows where card will drop */
+.sortable-ghost {
+    opacity: 0.3 !important;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+    border: 3px dashed #667eea !important;
+    position: relative;
+}
+
+/* Show clear drop indicator line */
+.sortable-ghost::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: -4px;
+    height: 4px;
+    background: #667eea;
+    box-shadow: 0 0 10px #667eea;
+}
+
+/* Card being chosen (initial long-press) */
+.sortable-chosen {
+    box-shadow: 0 8px 24px rgba(0,0,0,0.3) !important;
+    transform: scale(1.02);
+    z-index: 1000 !important;
+}
+
+/* Card while being dragged */
+.sortable-drag {
+    opacity: 0.5 !important;
+    transform: scale(0.95) rotate(2deg) !important;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.3) !important;
+    z-index: 9999 !important;
+    cursor: grabbing !important;
+}
+
+/* Custom class when dragging */
+.is-dragging {
+    opacity: 0.6 !important;
+    transform: scale(0.9) !important;
+    transition: all 0.2s ease;
+}
+
+/* Remove default cursor from card */
+.card-report.sortable-enabled {
+    cursor: default;
+}
+
+/* Drag Handle */
+.drag-handle {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    cursor: grab !important;
+    padding: 8px;
+    background: rgba(102, 126, 234, 0.1);
+    border-radius: 6px;
+    z-index: 10;
+    font-size: 1.3rem;
+    color: #667eea;
+    user-select: none;
+    transition: all 0.2s ease;
+    border: 2px solid transparent;
+}
+
+.drag-handle:hover {
+    background: rgba(102, 126, 234, 0.2);
+    transform: scale(1.1);
+    border-color: #667eea;
+}
+
+.drag-handle:active {
+    cursor: grabbing !important;
+    transform: scale(0.95);
+}
+
+/* Make card body relative for handle positioning */
+.card-report .card-body {
+    position: relative;
+}
+
+/* Prevent text selection during drag */
+.sortable-fallback {
+    cursor: grabbing !important;
+    opacity: 0.5;
+    z-index: 10000 !important;
+}
+
+
+
+
+/* Mobile specific improvements */
+@media (max-width: 768px) {
+    .card-report {
+        touch-action: manipulation;
+        position: relative;
+    }
+    
+    /* Make drag handle MUCH bigger and easier to grab on mobile */
+    .drag-handle {
+        padding: 15px;
+        font-size: 1.8rem;
+        top: 5px;
+        right: 5px;
+        background: rgba(102, 126, 234, 0.2);
+        border: 2px solid #667eea;
+    }
+    
+    .drag-handle:active {
+        background: rgba(102, 126, 234, 0.4);
+    }
+    
+    /* Make ghost placeholder VERY visible on mobile */
+    .sortable-ghost {
+        min-height: 80px !important;
+        border: 5px dashed #667eea !important;
+        background: linear-gradient(135deg, rgba(102, 126, 234, 0.3) 0%, rgba(118, 75, 162, 0.3) 100%) !important;
+    }
+    
+    .sortable-ghost::before {
+        height: 8px;
+        background: #667eea;
+        box-shadow: 0 0 15px #667eea, 0 0 30px #667eea;
+        animation: pulse-line 0.5s ease-in-out infinite;
+    }
+    
+    @keyframes pulse-line {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.5; }
+    }
+    
+    /* Dragged card becomes MUCH smaller and transparent on mobile */
+    .sortable-drag {
+        opacity: 0.2 !important;
+        transform: scale(0.6) rotate(3deg) !important;
+        box-shadow: 0 15px 40px rgba(0,0,0,0.4) !important;
+    }
+    
+    /* Card being chosen shows clear feedback */
+    .sortable-chosen {
+        transform: scale(1.05) !important;
+        box-shadow: 0 10px 30px rgba(102, 126, 234, 0.4) !important;
+        border: 2px solid #667eea !important;
+    }
+    
+    /* When actively dragging */
+    .is-dragging {
+        opacity: 0.3 !important;
+        transform: scale(0.7) rotate(2deg) !important;
+    }
+    
+    /* Ensure cards don't overlap during drag */
+    .card-grid-item {
+        margin-bottom: 1rem;
+    }
+}
+
+
+/* ========== END DRAG AND DROP STYLES ========== */
+
+
+
+
+/* ========== MOBILE REORDER MODAL ========== */
+
+#mobileReorderList {
+    max-height: 60vh;
+    overflow-y: auto;
+}
+
+.reorder-item {
+    cursor: move;
+    padding: 1rem;
+    margin-bottom: 0.5rem;
+    background: white;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    /* Removed transitions for better performance */
+}
+
+.reorder-item:active {
+    background: #f8f9fa;
+    /* Removed transform */
+}
+
+.reorder-item-handle {
+    font-size: 1.5rem;
+    color: #667eea;
+    flex-shrink: 0;
+}
+
+.reorder-item-content {
+    flex: 1;
+    min-width: 0;
+}
+
+.reorder-item-title {
+    font-weight: 600;
+    color: #000;
+    margin-bottom: 0.25rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.reorder-item-subtitle {
+    font-size: 0.85rem;
+    color: #666;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Mobile reorder sortable styles */
+.reorder-item.sortable-chosen {
+    background: #e7f3ff;
+    border-color: #667eea;
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+}
+
+.reorder-item.sortable-drag {
+    opacity: 0.5;
+    transform: rotate(2deg);
+}
+
+.reorder-item.sortable-ghost {
+    opacity: 0.3;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border: 3px dashed #667eea;
+}
+
+/* Only show mobile reorder on small screens */
+@media (min-width: 769px) {
+    .mobile-reorder-trigger {
+        display: none !important;
+    }
+}
+
+/* Hide desktop drag handle on mobile, show tap icon instead */
+@media (max-width: 768px) {
+    .drag-handle {
+        background: rgba(102, 126, 234, 0.15);
+        border: 2px solid #667eea;
+        padding: 12px;
+        cursor: pointer;
+    }
+    
+    .drag-handle i::before {
+        content: "☰"; /* Menu icon instead of grip */
+        font-style: normal;
+    }
+}
+
+
+/* Better scrolling in modal list */
+#mobileReorderList {
+    max-height: 60vh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
+    overscroll-behavior: contain;
+    padding: 0.5rem;
+}
+
+/* Make modal body scrollable */
+#mobileReorderModal .modal-body {
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    max-height: 70vh;
+}
+
+/* Ensure items have enough space */
+.reorder-item {
+    cursor: move;
+    padding: 1rem;
+    margin-bottom: 0.75rem; /* Increased spacing */
+    background: white;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    touch-action: none; /* Prevent native touch scrolling on items */
+}
+
+
+/* ========== END MOBILE REORDER MODAL ========== */
