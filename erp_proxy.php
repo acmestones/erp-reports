@@ -1895,6 +1895,56 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_plant_options') {
 
 
 
+// Save card priority order
+if (isset($_GET['action']) && $_GET['action'] === 'save_card_priority') {
+    $input = json_decode(file_get_contents("php://input"), true);
+    if (json_last_error() !== JSON_ERROR_NONE) {
+        echo json_encode(["error" => "Invalid JSON"]);
+        exit;
+    }
+
+    $reportName = $input['report_name'] ?? '';
+    $primaryGroup = $input['primary_group'] ?? '';
+    $secondaryGroup = $input['secondary_group'] ?? '';
+    $cardOrder = $input['card_order'] ?? [];
+
+    if (empty($reportName) || empty($cardOrder)) {
+        echo json_encode(["error" => "Missing required parameters"]);
+        exit;
+    }
+
+    // Load existing config
+    $config = [];
+    if (file_exists("report_config.json")) {
+        $config = json_decode(file_get_contents("report_config.json"), true);
+    }
+
+    // Initialize structure if needed
+    if (!isset($config[$reportName])) {
+        $config[$reportName] = [];
+    }
+    if (!isset($config[$reportName]['card_priority'])) {
+        $config[$reportName]['card_priority'] = [];
+    }
+    if (!isset($config[$reportName]['card_priority'][$primaryGroup])) {
+        $config[$reportName]['card_priority'][$primaryGroup] = [];
+    }
+
+    // Save the new order
+    $config[$reportName]['card_priority'][$primaryGroup][$secondaryGroup] = $cardOrder;
+
+    // Save config
+    file_put_contents("report_config.json", json_encode($config, JSON_PRETTY_PRINT));
+    
+    logError("Card priority saved for $reportName > $primaryGroup > $secondaryGroup");
+    echo json_encode(["success" => true, "message" => "Card priority saved"]);
+    exit;
+}
+
+
+
+
+
 
 
 
