@@ -222,73 +222,38 @@ function initializeSortable(container, reportName, primaryGroup, secondaryGroup)
     if (!currentUser || currentUser.role !== 'admin') {
         return;
     }
+    
+    // ========== CRITICAL: DISABLE ON MOBILE ==========
+    // Check if mobile - if yes, skip desktop drag entirely
+    const isMobile = window.innerWidth <= 768;
+    if (isMobile) {
+        console.log('Mobile detected - using modal reorder instead of desktop drag');
+        return; // Exit early - no desktop drag on mobile
+    }
+    // ========== END MOBILE CHECK ==========
 
+    // Desktop-only drag and drop
     new Sortable(container, {
-        animation: 200,
-        
-        // ========== MOBILE OPTIMIZATIONS ==========
-        delay: 300, // Reduced delay for faster response
+        animation: 150,
+        delay: 500,
         delayOnTouchOnly: true,
-        
-        // Critical mobile settings
         handle: '.drag-handle',
-        touchStartThreshold: 10,
         
-        // Enable smooth scrolling while dragging
-        scroll: true,
-        forceAutoScrollFallback: true,
-        scrollSensitivity: 80, // Start scrolling 80px from edge
-        scrollSpeed: 25, // Fast scrolling
-        bubbleScroll: true,
-        
-        // Better drag behavior
-        forceFallback: false,
-        fallbackOnBody: true,
-        swapThreshold: 0.65,
-        invertSwap: false,
-        
-        // Visual feedback
         ghostClass: 'sortable-ghost',
         chosenClass: 'sortable-chosen',
         dragClass: 'sortable-drag',
-        // ========== END MOBILE OPTIMIZATIONS ==========
-        
-        setData: function (dataTransfer, dragEl) {
-            // Prevent default drag image on mobile
-            dataTransfer.setData('Text', '');
-        },
         
         onChoose: function(evt) {
             console.log('Card selected');
             evt.item.classList.add('is-dragging');
-            
-            // Add haptic feedback on mobile
-            if (navigator.vibrate) {
-                navigator.vibrate(50);
-            }
         },
         
         onStart: function(evt) {
             console.log('Drag started');
-            
-            // Slight haptic feedback
-            if (navigator.vibrate) {
-                navigator.vibrate(10);
-            }
-        },
-        
-        onMove: function(evt) {
-            // Allow smooth movement
-            return true;
         },
         
         onEnd: async function(evt) {
             evt.item.classList.remove('is-dragging');
-            
-            // Success haptic feedback
-            if (navigator.vibrate) {
-                navigator.vibrate([30, 50, 30]);
-            }
             
             // Get the new order of cards
             const cards = Array.from(container.querySelectorAll('.card-report'));
