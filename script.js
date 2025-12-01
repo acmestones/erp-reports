@@ -227,6 +227,7 @@ function initializeSortable(container, reportName, primaryGroup, secondaryGroup)
         animation: 150,
         delay: 500, // Long-press delay in milliseconds
         delayOnTouchOnly: true, // Only delay on touch devices
+        handle: '.drag-handle', // ✅ ADD THIS LINE - only drag from handle
         touchStartThreshold: 5, // Increased from 3 - more forgiving on mobile
         
         // ========== MOBILE FIX: Prevent scroll during drag ==========
