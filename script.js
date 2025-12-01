@@ -5065,7 +5065,22 @@ newSaveBtn.addEventListener('click', async function() {
                 await loadReport(currentMobileReorder.reportName);
                 console.log('✅ Report reloaded - new order applied');
                 
-            }, 300); // Modal animation takes ~300ms
+                // ========== FIX: Force reset body scroll ==========
+                document.body.style.overflow = '';
+                document.body.style.position = '';
+                document.body.style.touchAction = '';
+                document.body.classList.remove('modal-open');
+                
+                // Remove any lingering modal backdrops
+                document.querySelectorAll('.modal-backdrop').forEach(backdrop => {
+                    backdrop.remove();
+                });
+                
+                console.log('✅ Scroll restored');
+                // ========== END FIX ==========
+                
+                }, 300); // Modal animation takes ~300ms
+
             
         } else {
             alert('❌ Failed to save order: ' + (result.error || 'Unknown error'));
