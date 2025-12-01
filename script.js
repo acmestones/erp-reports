@@ -1101,6 +1101,18 @@ function createCard(row, columns, reportName, config) {
     
     const cardBody = document.createElement("div");
     cardBody.className = "card-body";
+
+
+        // ========== ADD DRAG HANDLE FOR MOBILE ==========
+    if (currentUser && currentUser.role === 'admin') {
+        const dragHandle = document.createElement("div");
+        dragHandle.className = "drag-handle";
+        dragHandle.innerHTML = '<i class="bi bi-grip-vertical"></i>';
+        dragHandle.title = "Hold and drag to reorder";
+        cardBody.appendChild(dragHandle);
+    }
+    // ========== END DRAG HANDLE ==========
+
     
     if (status) {
         const badge = document.createElement("span");
