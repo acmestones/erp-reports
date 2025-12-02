@@ -535,12 +535,18 @@
  */
 function populateAttributesList() {
     const div = document.getElementById('attributesList');
+    const countSpan = document.getElementById('attributeCount');
+    
     div.innerHTML = '';
     
     if (!allSettings || !allSettings.available_attributes || allSettings.available_attributes.length === 0) {
         div.innerHTML = '<p class="text-muted">No attributes defined</p>';
+        if (countSpan) countSpan.textContent = '0';
         return;
     }
+    
+    // Update count
+    if (countSpan) countSpan.textContent = allSettings.available_attributes.length;
     
     const list = document.createElement('div');
     list.className = 'row g-2';
@@ -561,6 +567,7 @@ function populateAttributesList() {
     
     div.appendChild(list);
 }
+
 
 /**
  * Scan all products and discover all attributes
