@@ -719,7 +719,7 @@ if (familyMap.size === 0) {
 
 
   
-  function showProductDetail(product) {
+function showProductDetail(product) {
     const modalTitle = document.getElementById("modalTitle");
     const modalBody = document.getElementById("modalBody");
     
@@ -755,12 +755,14 @@ if (familyMap.size === 0) {
       Object.keys(product.attributes).forEach(function(attrKey) {
         const attrValue = product.attributes[attrKey];
         
-        // Check if this attribute is visible to user
-        if (AdminModule.isAttributeVisible && !AdminModule.isAttributeVisible(attrKey)) {
-          return;
-        }
-        
+        // FIRST check if it's an image array (do this BEFORE permission check)
+        // This way image attributes display under their attribute name, not under assets
         if (Array.isArray(attrValue) && attrValue.length > 0 && attrValue[0] && attrValue[0].url) {
+          // NOW check if this attribute is visible to user
+          if (AdminModule.isAttributeVisible && !AdminModule.isAttributeVisible(attrKey)) {
+            return; // Skip if not visible
+          }
+          
           const imgCard = document.createElement("div");
           imgCard.className = "card mb-3";
           
@@ -843,6 +845,7 @@ if (familyMap.size === 0) {
       Object.keys(product.attributes).forEach(function(attrKey) {
         const attrValue = product.attributes[attrKey];
         
+        // Skip if it's an image array (already shown above)
         if (Array.isArray(attrValue) && attrValue.length > 0 && attrValue[0] && attrValue[0].url) {
           return;
         }
@@ -881,7 +884,7 @@ if (familyMap.size === 0) {
       const td = document.createElement("td");
       td.innerHTML = formatValueForDisplay(field.value);
       
-      // If attribute is editable, show an indicator or make it editable
+      // If attribute is editable, show an indicator
       if (AdminModule.isAttributeEditable && AdminModule.isAttributeEditable(field.key)) {
         th.innerHTML = field.label + ' <span class="badge bg-warning text-dark ms-1" title="Editable">✏️</span>';
       }
