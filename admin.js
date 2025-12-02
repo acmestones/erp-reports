@@ -26,6 +26,7 @@
      */
     function initAdmin(user) {
         currentUser = user;
+        console.log('Admin module initialized with user:', currentUser);
         loadUserPermissions();
     }
 
@@ -33,6 +34,11 @@
      * Load current user's permissions from server
      */
     function loadUserPermissions() {
+        if (!currentUser) {
+            console.error('No current user set');
+            return;
+        }
+        
         fetch(`admin_user_settings.php?action=getPermissions&currentUser=${encodeURIComponent(currentUser)}`)
             .then(res => res.json())
             .then(data => {
@@ -113,6 +119,10 @@
      * Open settings modal
      */
     function openSettingsModal() {
+        if (!currentUser) {
+            alert('User not initialized');
+            return;
+        }
         loadAllSettings();
         const modal = new bootstrap.Modal(document.getElementById('settingsModal'));
         modal.show();
@@ -122,8 +132,18 @@
      * Load all settings from server
      */
     function loadAllSettings() {
+        if (!currentUser) {
+            alert('User not initialized');
+            return;
+        }
+        
         fetch(`admin_user_settings.php?action=get&currentUser=${encodeURIComponent(currentUser)}`)
-            .then(res => res.json())
+            .then(res => {
+                if (!res.ok) {
+                    throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+                }
+                return res.json();
+            })
             .then(data => {
                 if (data.success) {
                     allSettings = data.settings;
@@ -135,7 +155,7 @@
             })
             .catch(err => {
                 console.error('Failed to load settings:', err);
-                alert('Failed to load settings');
+                alert('Failed to load settings: ' + err.message);
             });
     }
 
@@ -242,6 +262,11 @@
      * Add new user to the system
      */
     function addNewUser() {
+        if (!currentUser) {
+            alert('User not initialized');
+            return;
+        }
+        
         const email = document.getElementById('newUserEmail').value.trim();
         const role = document.getElementById('newUserRole').value;
         
@@ -257,25 +282,30 @@
             return;
         }
         
-        const newUser = {
+        const requestData = {
+            action: 'addUser',
+            currentUser: currentUser,
             email: email,
             role: role,
             visible_attributes: role === 'admin' ? ['all'] : ['sku', 'label', 'images', 'thumbnail', 'assets'],
             editable_attributes: role === 'admin' ? ['all'] : []
         };
         
+        console.log('Adding user with data:', requestData);
+        
         fetch('admin_user_settings.php', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({
-                action: 'addUser',
-                currentUser: currentUser,
-                ...newUser
-            })
+            body: JSON.stringify(requestData)
         })
-        .then(res => res.json())
+        .then(res => {
+            if (!res.ok) {
+                throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+            }
+            return res.json();
+        })
         .then(data => {
             if (data.success) {
                 alert('User added successfully');
@@ -287,7 +317,7 @@
         })
         .catch(err => {
             console.error('Failed to add user:', err);
-            alert('Failed to add user');
+            alert('Failed to add user: ' + err.message);
         });
     }
 
@@ -296,6 +326,11 @@
      * @param {string} userEmail - Email of user to delete
      */
     function deleteUser(userEmail) {
+        if (!currentUser) {
+            alert('User not initialized');
+            return;
+        }
+        
         if (userEmail === currentUser) {
             alert('You cannot delete your own account');
             return;
@@ -316,7 +351,12 @@
                 email: userEmail
             })
         })
-        .then(res => res.json())
+        .then(res => {
+            if (!res.ok) {
+                throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+            }
+            return res.json();
+        })
         .then(data => {
             if (data.success) {
                 alert('User deleted successfully');
@@ -327,7 +367,7 @@
         })
         .catch(err => {
             console.error('Failed to delete user:', err);
-            alert('Failed to delete user');
+            alert('Failed to delete user: ' + err.message);
         });
     }
 
@@ -423,7 +463,7 @@
      * Save user permissions
      */
     function saveUserPermissions() {
-        if (!editingUserEmail) return;
+        if (!editingUserEmail || !currentUser) return;
         
         const role = document.getElementById('editUserRole').value;
         
@@ -459,7 +499,12 @@
                 editable_attributes: editableAttributes
             })
         })
-        .then(res => res.json())
+        .then(res => {
+            if (!res.ok) {
+                throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+            }
+            return res.json();
+        })
         .then(data => {
             if (data.success) {
                 alert('Permissions updated successfully');
@@ -476,7 +521,7 @@
         })
         .catch(err => {
             console.error('Failed to update permissions:', err);
-            alert('Failed to update permissions');
+            alert('Failed to update permissions: ' + err.message);
         });
     }
 
@@ -520,6 +565,11 @@
      * Add new attribute to available attributes
      */
     function addNewAttribute() {
+        if (!currentUser) {
+            alert('User not initialized');
+            return;
+        }
+        
         const input = document.getElementById('newAttributeName');
         const attrName = input.value.trim().toLowerCase().replace(/\s+/g, '_');
         
@@ -545,6 +595,11 @@
      * @param {string} attrName - Name of attribute to remove
      */
     function removeAttribute(attrName) {
+        if (!currentUser) {
+            alert('User not initialized');
+            return;
+        }
+        
         if (!confirm(`Remove attribute "${attrName}"? This will also remove it from all user permissions.`)) {
             return;
         }
@@ -564,6 +619,11 @@
      * Save all settings to server
      */
     function saveAllSettings() {
+        if (!currentUser) {
+            alert('User not initialized');
+            return;
+        }
+        
         fetch('admin_user_settings.php', {
             method: 'POST',
             headers: {
@@ -575,7 +635,12 @@
                 settings: allSettings
             })
         })
-        .then(res => res.json())
+        .then(res => {
+            if (!res.ok) {
+                throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+            }
+            return res.json();
+        })
         .then(data => {
             if (data.success) {
                 loadAllSettings();
@@ -585,7 +650,7 @@
         })
         .catch(err => {
             console.error('Failed to save settings:', err);
-            alert('Failed to save settings');
+            alert('Failed to save settings: ' + err.message);
         });
     }
 
