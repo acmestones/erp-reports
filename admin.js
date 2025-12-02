@@ -783,33 +783,34 @@ function removeAttribute(attrName) {
     // PUBLIC API
     // ============================================
 
-    window.AdminModule = {
-        // Initialization
-        init: initAdmin,
-        
-        // Permission checks
-        getUserPermissions: getUserPermissions,
-        isAdmin: isAdmin,
-        isAttributeVisible: isAttributeVisible,
-        isAttributeEditable: isAttributeEditable,
-        
-        // Modal management
-        openSettingsModal: openSettingsModal,
-        
-        // User management
-        showAddUserForm: showAddUserForm,
-        hideAddUserForm: hideAddUserForm,
-        addNewUser: addNewUser,
-        deleteUser: deleteUser,
-        
-        // Permission management
-        openEditPermissionsModal: openEditPermissionsModal,
-        toggleAllAttributes: toggleAllAttributes,
-        saveUserPermissions: saveUserPermissions,
-        
-        // Attribute management
-        addNewAttribute: addNewAttribute,
-        removeAttribute: removeAttribute
-    };
+window.AdminModule = {
+    // Initialization
+    init: initAdmin,
+    
+    // Permission checks
+    getUserPermissions: getUserPermissions,
+    isAdmin: isAdmin,
+    isAttributeVisible: isAttributeVisible,
+    isAttributeEditable: isAttributeEditable,
+    
+    // Modal management
+    openSettingsModal: openSettingsModal,
+    
+    // User management
+    showAddUserForm: showAddUserForm,
+    hideAddUserForm: hideAddUserForm,
+    addNewUser: addNewUser,
+    deleteUser: deleteUser,
+    
+    // Permission management
+    openEditPermissionsModal: openEditPermissionsModal,
+    toggleAllAttributes: toggleAllAttributes,
+    saveUserPermissions: saveUserPermissions,
+    
+    // Attribute management
+    addNewAttribute: addNewAttribute,
+    removeAttribute: removeAttribute,
+    discoverAllAttributes: discoverAllAttributes  // ADD THIS LINE
+};
 
 })();
