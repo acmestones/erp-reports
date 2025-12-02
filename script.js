@@ -8,7 +8,6 @@
   ];
 
   let allProducts = [];
-  window.allProducts = allProducts;  // ADD THIS LINE
   let filteredProducts = [];
   let currentUser = "";
   let displayedCount = 0;
@@ -183,6 +182,7 @@ function loadCachedProducts(cachedIds, needUpdateIds, totalProducts, startTime) 
         .then(function(data) {
             if (data.success && data.products) {
                 allProducts = allProducts.concat(data.products);
+                window.allProducts = allProducts;  // ADD THIS LINE
                 loadedCount += data.products.length;
                 const currentTime = ((Date.now() - startTime) / 1000).toFixed(1);
                 status.innerHTML = `<span class="text-primary">⏳ Loaded ${loadedCount}/${cachedIds.length} (${currentTime}s)</span>`;
@@ -268,6 +268,9 @@ function loadCachedProducts(cachedIds, needUpdateIds, totalProducts, startTime) 
               allProducts.push(newProduct);
             }
           });
+
+          window.allProducts = allProducts;  // ADD THIS LINE
+
           
           if (needsFilterSetup && allProducts.length >= INITIAL_LOAD) {
             needsFilterSetup = false;
