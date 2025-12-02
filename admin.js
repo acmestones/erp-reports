@@ -525,41 +525,153 @@
         });
     }
 
-    // ============================================
-    // ATTRIBUTE MANAGEMENT
-    // ============================================
 
-    /**
-     * Populate attributes list
-     */
-    function populateAttributesList() {
-        const div = document.getElementById('attributesList');
-        div.innerHTML = '';
-        
-        if (!allSettings || !allSettings.available_attributes || allSettings.available_attributes.length === 0) {
-            div.innerHTML = '<p class="text-muted">No attributes defined</p>';
-            return;
-        }
-        
-        const list = document.createElement('div');
-        list.className = 'row g-2';
-        
-        allSettings.available_attributes.forEach(attr => {
-            const col = document.createElement('div');
-            col.className = 'col-md-6 col-lg-4';
-            col.innerHTML = `
-                <div class="d-flex align-items-center justify-content-between p-2 border rounded">
-                    <span>${capitalizeWords(attr.replace(/_/g, ' '))}</span>
-                    <button class="btn btn-sm btn-danger" onclick="AdminModule.removeAttribute('${attr}')">
-                        <i class="bi bi-x"></i>
-                    </button>
-                </div>
-            `;
-            list.appendChild(col);
+// ============================================
+// ATTRIBUTE MANAGEMENT
+// ============================================
+
+/**
+ * Populate attributes list
+ */
+function populateAttributesList() {
+    const div = document.getElementById('attributesList');
+    div.innerHTML = '';
+    
+    if (!allSettings || !allSettings.available_attributes || allSettings.available_attributes.length === 0) {
+        div.innerHTML = '<p class="text-muted">No attributes defined</p>';
+        return;
+    }
+    
+    const list = document.createElement('div');
+    list.className = 'row g-2';
+    
+    allSettings.available_attributes.forEach(attr => {
+        const col = document.createElement('div');
+        col.className = 'col-md-6 col-lg-4';
+        col.innerHTML = `
+            <div class="d-flex align-items-center justify-content-between p-2 border rounded">
+                <span>${capitalizeWords(attr.replace(/_/g, ' '))}</span>
+                <button class="btn btn-sm btn-danger" onclick="AdminModule.removeAttribute('${attr}')">
+                    <i class="bi bi-x"></i>
+                </button>
+            </div>
+        `;
+        list.appendChild(col);
+    });
+    
+    div.appendChild(list);
+}
+
+/**
+ * Scan all products and discover all attributes
+ */
+function discoverAllAttributes() {
+    // Check if allProducts is available globally
+    if (typeof window.allProducts === 'undefined' || !Array.isArray(window.allProducts)) {
+        alert('Products not loaded yet. Please wait for products to load and try again.');
+        return;
+    }
+    
+    const discoveredAttributes = new Set();
+    
+    // Scan all products
+    window.allProducts.forEach(product => {
+        // Add top-level product keys
+        Object.keys(product).forEach(key => {
+            if (key !== 'attributes' && key !== 'relationships' && key !== 'id') {
+                discoveredAttributes.add(key);
+            }
         });
         
-        div.appendChild(list);
+        // Add attributes
+        if (product.attributes && typeof product.attributes === 'object') {
+            Object.keys(product.attributes).forEach(attrKey => {
+                discoveredAttributes.add(attrKey);
+            });
+        }
+    });
+    
+    // Convert to array and sort
+    const attributesArray = Array.from(discoveredAttributes).sort();
+    
+    console.log('Discovered attributes:', attributesArray);
+    
+    // Merge with existing attributes
+    const existingAttrs = new Set(allSettings.available_attributes);
+    let newCount = 0;
+    
+    attributesArray.forEach(attr => {
+        if (!existingAttrs.has(attr)) {
+            allSettings.available_attributes.push(attr);
+            newCount++;
+        }
+    });
+    
+    allSettings.available_attributes.sort();
+    
+    if (newCount > 0) {
+        alert(`Discovered ${newCount} new attributes! Total: ${allSettings.available_attributes.length}`);
+        saveAllSettings();
+    } else {
+        alert('No new attributes found. All attributes are already in the list.');
+        populateAttributesList();
     }
+}
+
+/**
+ * Add new attribute to available attributes
+ */
+function addNewAttribute() {
+    if (!currentUser) {
+        alert('User not initialized');
+        return;
+    }
+    
+    const input = document.getElementById('newAttributeName');
+    const attrName = input.value.trim().toLowerCase().replace(/\s+/g, '_');
+    
+    if (!attrName) {
+        alert('Please enter an attribute name');
+        return;
+    }
+    
+    if (allSettings.available_attributes.includes(attrName)) {
+        alert('This attribute already exists');
+        return;
+    }
+    
+    allSettings.available_attributes.push(attrName);
+    allSettings.available_attributes.sort();
+    
+    saveAllSettings();
+    input.value = '';
+}
+
+/**
+ * Remove attribute from available attributes
+ * @param {string} attrName - Name of attribute to remove
+ */
+function removeAttribute(attrName) {
+    if (!currentUser) {
+        alert('User not initialized');
+        return;
+    }
+    
+    if (!confirm(`Remove attribute "${attrName}"? This will also remove it from all user permissions.`)) {
+        return;
+    }
+    
+    allSettings.available_attributes = allSettings.available_attributes.filter(a => a !== attrName);
+    
+    // Remove from all users
+    allSettings.users.forEach(user => {
+        user.visible_attributes = user.visible_attributes.filter(a => a !== attrName);
+        user.editable_attributes = user.editable_attributes.filter(a => a !== attrName);
+    });
+    
+    saveAllSettings();
+}
+
 
     /**
      * Add new attribute to available attributes
