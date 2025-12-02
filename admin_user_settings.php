@@ -5,14 +5,35 @@ header('Cache-Control: no-cache, must-revalidate');
 $settingsFile = __DIR__ . '/user_settings.json';
 
 // BOOTSTRAP: Define initial admins who should always have access
-// These users will automatically become admins if the system is empty
 $BOOTSTRAP_ADMINS = [
     'marblehouse@gmail.com',
     // Add other bootstrap admins here
 ];
 
 // Get current user from request
-$currentUserEmail = $_GET['currentUser'] ?? $_POST['currentUser'] ?? null;
+// For GET requests, use query parameter
+// For POST requests with JSON body, read from decoded JSON
+$currentUserEmail = null;
+
+if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+    $currentUserEmail = $_GET['currentUser'] ?? null;
+} else if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    // First try to get from POST (for form data)
+    $currentUserEmail = $_POST['currentUser'] ?? null;
+    
+    // If not in POST, read from JSON body
+    if (!$currentUserEmail) {
+        $postData = file_get_contents('php://input');
+        if ($postData) {
+            $jsonData = json_decode($postData, true);
+            $currentUserEmail = $jsonData['currentUser'] ?? null;
+        }
+    }
+}
+
+// Log for debugging
+error_log("Current user email: " . ($currentUserEmail ?? 'NULL'));
+error_log("Request method: " . $_SERVER['REQUEST_METHOD']);
 
 if (!$currentUserEmail) {
     http_response_code(401);
@@ -125,7 +146,19 @@ function isAdmin($email, $settings) {
     return in_array($email, $settings['admins'] ?? []);
 }
 
-$action = $_GET['action'] ?? $_POST['action'] ?? 'get';
+// Get action from GET or decoded JSON POST
+$action = null;
+if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+    $action = $_GET['action'] ?? 'get';
+} else {
+    $postData = file_get_contents('php://input');
+    if ($postData) {
+        $jsonData = json_decode($postData, true);
+        $action = $jsonData['action'] ?? null;
+    }
+}
+
+error_log("Action: " . ($action ?? 'NULL'));
 
 // Load settings with bootstrap
 $settings = loadSettings($settingsFile, $BOOTSTRAP_ADMINS, $currentUserEmail);
@@ -405,5 +438,5 @@ if ($action === 'deleteUser') {
 }
 
 http_response_code(400);
-echo json_encode(['error' => 'Invalid action']);
+echo json_encode(['error' => 'Invalid action: ' . ($action ?? 'none')]);
 ?>
