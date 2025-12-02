@@ -8,6 +8,7 @@
   ];
 
   let allProducts = [];
+  window.allProducts = allProducts;  // ADD THIS LINE
   let filteredProducts = [];
   let currentUser = "";
   let displayedCount = 0;
