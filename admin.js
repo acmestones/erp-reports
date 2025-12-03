@@ -258,69 +258,78 @@
         document.getElementById('addUserForm').style.display = 'none';
     }
 
+
+    
+    
+    
     /**
      * Add new user to the system
      */
-    function addNewUser() {
-        if (!currentUser) {
-            alert('User not initialized');
-            return;
-        }
-        
-        const email = document.getElementById('newUserEmail').value.trim();
-        const role = document.getElementById('newUserRole').value;
-        
-        if (!email) {
-            alert('Please enter an email address');
-            return;
-        }
-        
-        // Validate email format
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (!emailRegex.test(email)) {
-            alert('Please enter a valid email address');
-            return;
-        }
-        
-        const requestData = {
-            action: 'addUser',
-            currentUser: currentUser,
-            email: email,
-            role: role,
-            visible_attributes: role === 'admin' ? ['all'] : ['sku', 'label', 'images', 'thumbnail', 'assets'],
-            editable_attributes: role === 'admin' ? ['all'] : []
-        };
-        
-        console.log('Adding user with data:', requestData);
-        
-        fetch('admin_user_settings.php', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(requestData)
-        })
-        .then(res => {
-            if (!res.ok) {
-                throw new Error(`HTTP ${res.status}: ${res.statusText}`);
-            }
-            return res.json();
-        })
-        .then(data => {
-            if (data.success) {
-                alert('User added successfully');
-                hideAddUserForm();
-                loadAllSettings();
-            } else {
-                alert('Error: ' + (data.error || 'Failed to add user'));
-            }
-        })
-        .catch(err => {
-            console.error('Failed to add user:', err);
-            alert('Failed to add user: ' + err.message);
-        });
+function addNewUser() {
+    if (!currentUser) {
+        alert('User not initialized');
+        return;
     }
+    
+    const email = document.getElementById('newUserEmail').value.trim();
+    const role = document.getElementById('newUserRole').value;
+    
+    if (!email) {
+        alert('Please enter an email address');
+        return;
+    }
+    
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+        alert('Please enter a valid email address');
+        return;
+    }
+    
+    // By default, give basic permissions (not 'all')
+    const requestData = {
+        action: 'addUser',
+        currentUser: currentUser,
+        email: email,
+        role: role,
+        visible_attributes: ['sku', 'label', 'images', 'thumbnail', 'assets', 'categories'],
+        editable_attributes: []
+    };
+    
+    console.log('Adding user with data:', requestData);
+    
+    fetch('admin_user_settings.php', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(requestData)
+    })
+    .then(res => {
+        if (!res.ok) {
+            throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+        }
+        return res.json();
+    })
+    .then(data => {
+        if (data.success) {
+            alert('User added successfully. Please set their permissions by clicking Edit.');
+            hideAddUserForm();
+            loadAllSettings();
+        } else {
+            alert('Error: ' + (data.error || 'Failed to add user'));
+        }
+    })
+    .catch(err => {
+        console.error('Failed to add user:', err);
+        alert('Failed to add user: ' + err.message);
+    });
+}
 
+
+
+
+    
     /**
      * Delete user from the system
      * @param {string} userEmail - Email of user to delete
@@ -398,53 +407,79 @@
         modal.show();
     }
 
+
+
+
+
+
+
+    
     /**
      * Populate attribute checkboxes in edit modal
      * @param {Object} user - User object with permissions
      */
-    function populateAttributeCheckboxes(user) {
-        const visibleDiv = document.getElementById('visibleAttributesCheckboxes');
-        const editableDiv = document.getElementById('editableAttributesCheckboxes');
+function populateAttributeCheckboxes(user) {
+    const visibleDiv = document.getElementById('visibleAttributesCheckboxes');
+    const editableDiv = document.getElementById('editableAttributesCheckboxes');
+    
+    visibleDiv.innerHTML = '';
+    editableDiv.innerHTML = '';
+    
+    // Check if 'all' is explicitly set (not just empty array for backwards compatibility)
+    const hasAllVisible = user.visible_attributes.includes('all');
+    const hasAllEditable = user.editable_attributes.includes('all');
+    
+    document.getElementById('visibleAll').checked = hasAllVisible;
+    document.getElementById('editableAll').checked = hasAllEditable;
+    
+    console.log('Populating checkboxes for:', user.email);
+    console.log('Visible attributes:', user.visible_attributes);
+    console.log('Editable attributes:', user.editable_attributes);
+    
+    allSettings.available_attributes.forEach(attr => {
+        // Visible checkbox
+        const visibleCol = document.createElement('div');
+        visibleCol.className = 'col-md-6 col-lg-4';
+        const visibleCheck = document.createElement('div');
+        visibleCheck.className = 'form-check';
         
-        visibleDiv.innerHTML = '';
-        editableDiv.innerHTML = '';
+        // Check the box if 'all' is set OR if this specific attribute is in the list
+        const isVisibleChecked = hasAllVisible || user.visible_attributes.includes(attr);
         
-        const hasAllVisible = user.visible_attributes.includes('all') || user.visible_attributes.length === 0;
-        const hasAllEditable = user.editable_attributes.includes('all');
+        visibleCheck.innerHTML = `
+            <input class="form-check-input visible-attr" type="checkbox" value="${attr}" id="visible_${attr}" ${isVisibleChecked ? 'checked' : ''}>
+            <label class="form-check-label" for="visible_${attr}">
+                ${capitalizeWords(attr.replace(/_/g, ' '))}
+            </label>
+        `;
+        visibleCol.appendChild(visibleCheck);
+        visibleDiv.appendChild(visibleCol);
         
-        document.getElementById('visibleAll').checked = hasAllVisible;
-        document.getElementById('editableAll').checked = hasAllEditable;
+        // Editable checkbox
+        const editableCol = document.createElement('div');
+        editableCol.className = 'col-md-6 col-lg-4';
+        const editableCheck = document.createElement('div');
+        editableCheck.className = 'form-check';
         
-        allSettings.available_attributes.forEach(attr => {
-            // Visible checkbox
-            const visibleCol = document.createElement('div');
-            visibleCol.className = 'col-md-6 col-lg-4';
-            const visibleCheck = document.createElement('div');
-            visibleCheck.className = 'form-check';
-            visibleCheck.innerHTML = `
-                <input class="form-check-input visible-attr" type="checkbox" value="${attr}" id="visible_${attr}" ${hasAllVisible || user.visible_attributes.includes(attr) ? 'checked' : ''}>
-                <label class="form-check-label" for="visible_${attr}">
-                    ${capitalizeWords(attr.replace(/_/g, ' '))}
-                </label>
-            `;
-            visibleCol.appendChild(visibleCheck);
-            visibleDiv.appendChild(visibleCol);
-            
-            // Editable checkbox
-            const editableCol = document.createElement('div');
-            editableCol.className = 'col-md-6 col-lg-4';
-            const editableCheck = document.createElement('div');
-            editableCheck.className = 'form-check';
-            editableCheck.innerHTML = `
-                <input class="form-check-input editable-attr" type="checkbox" value="${attr}" id="editable_${attr}" ${hasAllEditable || user.editable_attributes.includes(attr) ? 'checked' : ''}>
-                <label class="form-check-label" for="editable_${attr}">
-                    ${capitalizeWords(attr.replace(/_/g, ' '))}
-                </label>
-            `;
-            editableCol.appendChild(editableCheck);
-            editableDiv.appendChild(editableCol);
-        });
-    }
+        // Check the box if 'all' is set OR if this specific attribute is in the list
+        const isEditableChecked = hasAllEditable || user.editable_attributes.includes(attr);
+        
+        editableCheck.innerHTML = `
+            <input class="form-check-input editable-attr" type="checkbox" value="${attr}" id="editable_${attr}" ${isEditableChecked ? 'checked' : ''}>
+            <label class="form-check-label" for="editable_${attr}">
+                ${capitalizeWords(attr.replace(/_/g, ' '))}
+            </label>
+        `;
+        editableCol.appendChild(editableCheck);
+        editableDiv.appendChild(editableCol);
+    });
+}
+
+
+
+
+
+    
 
     /**
      * Toggle all attributes checkboxes
@@ -459,73 +494,97 @@
         });
     }
 
+
+
+
+    
     /**
      * Save user permissions
      */
-    function saveUserPermissions() {
-        if (!editingUserEmail || !currentUser) return;
-        
-        const role = document.getElementById('editUserRole').value;
-        
-        // Get selected visible attributes
-        const visibleAll = document.getElementById('visibleAll').checked;
-        let visibleAttributes;
-        if (visibleAll) {
-            visibleAttributes = ['all'];
-        } else {
-            visibleAttributes = Array.from(document.querySelectorAll('.visible-attr:checked')).map(cb => cb.value);
+function saveUserPermissions() {
+    if (!editingUserEmail || !currentUser) return;
+    
+    const role = document.getElementById('editUserRole').value;
+    
+    // Get selected visible attributes
+    const visibleAll = document.getElementById('visibleAll').checked;
+    let visibleAttributes;
+    if (visibleAll) {
+        visibleAttributes = ['all'];
+    } else {
+        visibleAttributes = Array.from(document.querySelectorAll('.visible-attr:checked')).map(cb => cb.value);
+        // If no attributes selected, set to empty array (nothing visible)
+        if (visibleAttributes.length === 0) {
+            visibleAttributes = [];
         }
-        
-        // Get selected editable attributes
-        const editableAll = document.getElementById('editableAll').checked;
-        let editableAttributes;
-        if (editableAll) {
-            editableAttributes = ['all'];
-        } else {
-            editableAttributes = Array.from(document.querySelectorAll('.editable-attr:checked')).map(cb => cb.value);
-        }
-        
-        fetch('admin_user_settings.php', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                action: 'updateUser',
-                currentUser: currentUser,
-                email: editingUserEmail,
-                role: role,
-                visible_attributes: visibleAttributes,
-                editable_attributes: editableAttributes
-            })
-        })
-        .then(res => {
-            if (!res.ok) {
-                throw new Error(`HTTP ${res.status}: ${res.statusText}`);
-            }
-            return res.json();
-        })
-        .then(data => {
-            if (data.success) {
-                alert('Permissions updated successfully');
-                bootstrap.Modal.getInstance(document.getElementById('editPermissionsModal')).hide();
-                loadAllSettings();
-                
-                // Reload permissions if editing current user
-                if (editingUserEmail === currentUser) {
-                    loadUserPermissions();
-                }
-            } else {
-                alert('Error: ' + (data.error || 'Failed to update permissions'));
-            }
-        })
-        .catch(err => {
-            console.error('Failed to update permissions:', err);
-            alert('Failed to update permissions: ' + err.message);
-        });
     }
+    
+    // Get selected editable attributes
+    const editableAll = document.getElementById('editableAll').checked;
+    let editableAttributes;
+    if (editableAll) {
+        editableAttributes = ['all'];
+    } else {
+        editableAttributes = Array.from(document.querySelectorAll('.editable-attr:checked')).map(cb => cb.value);
+        // If no attributes selected, set to empty array (nothing editable)
+        if (editableAttributes.length === 0) {
+            editableAttributes = [];
+        }
+    }
+    
+    console.log('Saving permissions:', {
+        email: editingUserEmail,
+        role: role,
+        visibleAttributes: visibleAttributes,
+        editableAttributes: editableAttributes
+    });
+    
+    fetch('admin_user_settings.php', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            action: 'updateUser',
+            currentUser: currentUser,
+            email: editingUserEmail,
+            role: role,
+            visible_attributes: visibleAttributes,
+            editable_attributes: editableAttributes
+        })
+    })
+    .then(res => {
+        if (!res.ok) {
+            throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+        }
+        return res.json();
+    })
+    .then(data => {
+        if (data.success) {
+            alert('Permissions updated successfully');
+            bootstrap.Modal.getInstance(document.getElementById('editPermissionsModal')).hide();
+            loadAllSettings();
+            
+            // Reload permissions if editing current user
+            if (editingUserEmail === currentUser) {
+                loadUserPermissions();
+            }
+        } else {
+            alert('Error: ' + (data.error || 'Failed to update permissions'));
+        }
+    })
+    .catch(err => {
+        console.error('Failed to update permissions:', err);
+        alert('Failed to update permissions: ' + err.message);
+    });
+}
 
 
+
+
+
+
+    
 // ============================================
 // ATTRIBUTE MANAGEMENT
 // ============================================
