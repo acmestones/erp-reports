@@ -341,32 +341,92 @@ function loadCachedProducts(cachedIds, needUpdateIds, totalProducts, startTime) 
 function populateFamilyFilter() {
     const familyMap = new Map();
     
-    allProducts.forEach(product => {
-        if (product.relationships?.productfamilies?.length) {
-            product.relationships.productfamilies.forEach(family => {
-                if (family.id && family.label) {
-                    familyMap.set(family.id, family.label);
-                }
-            });
+    // DEBUG: Log first 3 products to see structure
+    console.log('=== FAMILY FILTER DEBUG ===');
+    console.log('Total products:', allProducts.length);
+    if (allProducts.length > 0) {
+        console.log('Sample product 1:', allProducts[0]);
+        console.log('Sample product 1 relationships:', allProducts[0].relationships);
+        console.log('Sample product 1 attributes:', allProducts[0].attributes);
+    }
+    
+    allProducts.forEach((product, index) => {
+        // Method 1: Check relationships.productfamilies array
+        if (product.relationships?.productfamilies) {
+            if (Array.isArray(product.relationships.productfamilies)) {
+                product.relationships.productfamilies.forEach(family => {
+                    if (family.id && family.label) {
+                        familyMap.set(family.id, family.label);
+                        if (index < 3) console.log('Found family via relationships:', family);
+                    }
+                });
+            }
         }
         
+        // Method 2: Check attributes.productfamily
         const familyAttr = product.attributes?.productfamily;
         if (familyAttr) {
             if (typeof familyAttr === 'string') {
+                // String ID - use as-is or create label
                 familyMap.set(familyAttr, `Family ${familyAttr}`);
-            } else if (familyAttr.id && familyAttr.label) {
-                familyMap.set(familyAttr.id, familyAttr.label);
+                if (index < 3) console.log('Found family via attributes (string):', familyAttr);
+            } else if (typeof familyAttr === 'object') {
+                if (familyAttr.id && familyAttr.label) {
+                    familyMap.set(familyAttr.id, familyAttr.label);
+                    if (index < 3) console.log('Found family via attributes (object):', familyAttr);
+                } else if (familyAttr.id) {
+                    // Has ID but no label
+                    familyMap.set(familyAttr.id, familyAttr.name || `Family ${familyAttr.id}`);
+                    if (index < 3) console.log('Found family via attributes (ID only):', familyAttr);
+                }
+            } else if (Array.isArray(familyAttr)) {
+                // Sometimes it's an array
+                familyAttr.forEach(fam => {
+                    if (fam.id && fam.label) {
+                        familyMap.set(fam.id, fam.label);
+                    } else if (fam.id) {
+                        familyMap.set(fam.id, fam.name || `Family ${fam.id}`);
+                    }
+                });
+                if (index < 3) console.log('Found family via attributes (array):', familyAttr);
+            }
+        }
+        
+        // Method 3: Check attributes.product_family (underscore version)
+        const familyAttr2 = product.attributes?.product_family;
+        if (familyAttr2 && !familyAttr) {
+            if (typeof familyAttr2 === 'string') {
+                familyMap.set(familyAttr2, `Family ${familyAttr2}`);
+            } else if (familyAttr2.id) {
+                familyMap.set(familyAttr2.id, familyAttr2.label || familyAttr2.name || `Family ${familyAttr2.id}`);
+            }
+        }
+        
+        // Method 4: Check top-level productfamily field
+        if (product.productfamily) {
+            if (typeof product.productfamily === 'string') {
+                familyMap.set(product.productfamily, `Family ${product.productfamily}`);
+            } else if (product.productfamily.id) {
+                familyMap.set(product.productfamily.id, product.productfamily.label || product.productfamily.name || `Family ${product.productfamily.id}`);
             }
         }
     });
 
+    console.log('Total unique families found:', familyMap.size);
+    console.log('Families:', Array.from(familyMap.entries()));
+    console.log('=== END DEBUG ===');
+
     const ul = document.getElementById('familyFilter');
-    if (!ul) return;
+    if (!ul) {
+        console.error('familyFilter element not found in DOM!');
+        return;
+    }
     
     ul.innerHTML = '';
     
     if (familyMap.size === 0) {
         ul.innerHTML = '<li class="dropdown-item text-muted">No families found</li>';
+        console.warn('No product families found in any products');
         return;
     }
 
@@ -388,7 +448,10 @@ function populateFamilyFilter() {
     ul.querySelectorAll('input[type="checkbox"]').forEach(cb => {
         cb.addEventListener('change', applyFilters);
     });
+    
+    console.log(`Successfully populated ${sortedFamilies.length} families in dropdown`);
 }
+
 
 
 
