@@ -338,13 +338,10 @@ function loadCachedProducts(cachedIds, needUpdateIds, totalProducts, startTime) 
 
 
   
-// FIXED: Robust product family population and filtering
 function populateFamilyFilter() {
     const familyMap = new Map();
     
-    // Collect ALL possible family references from products
     allProducts.forEach(product => {
-        // 1. relationships.productfamilies array
         if (product.relationships?.productfamilies?.length) {
             product.relationships.productfamilies.forEach(family => {
                 if (family.id && family.label) {
@@ -353,11 +350,9 @@ function populateFamilyFilter() {
             });
         }
         
-        // 2. attributes.productfamily (string ID or object)
         const familyAttr = product.attributes?.productfamily;
         if (familyAttr) {
             if (typeof familyAttr === 'string') {
-                // Assume string is family ID, use generic label
                 familyMap.set(familyAttr, `Family ${familyAttr}`);
             } else if (familyAttr.id && familyAttr.label) {
                 familyMap.set(familyAttr.id, familyAttr.label);
@@ -390,34 +385,41 @@ function populateFamilyFilter() {
         ul.appendChild(li);
     });
 
-    // Add change listeners
     ul.querySelectorAll('input[type="checkbox"]').forEach(cb => {
         cb.addEventListener('change', applyFilters);
     });
 }
 
-// FIXED: Complete family filtering logic in applyFilters
+
+
+  
+// FIXED: Complete applyFilters function - NO 'p' references
 function applyFilters() {
     const searchTerm = document.getElementById('searchBox').value.toLowerCase();
     const statusFilter = document.getElementById('statusFilter').value;
     const variantFilter = document.getElementById('variantFilter').value;
     const sortFilter = document.getElementById('sortFilter').value;
     
-    // FIXED: Get selected family IDs properly
+    // Get selected family IDs properly
     const selectedFamilies = Array.from(
         document.querySelectorAll('#familyFilter input[type="checkbox"]:checked')
     ).map(cb => cb.value);
 
+    // Get selected categories properly
+    const selectedCategories = Array.from(
+        document.querySelectorAll('#categoryFilter input[type="checkbox"]:checked')
+    ).map(cb => cb.value);
+
     filteredProducts = allProducts.filter(product => {
-        // Search filter
-        const sku = (p.sku || '').toLowerCase();
+        // FIXED: Use 'product' consistently, NOT 'p'
+        const sku = (product.sku || '').toLowerCase();
         const label = getAttributeValue(product, 'label').toLowerCase();
         const matchesSearch = !searchTerm || sku.includes(searchTerm) || label.includes(searchTerm);
         if (!matchesSearch) return false;
 
         // Status filter
         const enableDisableField = product.enabledisableproduct;
-        const attrEnableDisable = product.attributes?.enabledisableproduct;
+        const attrEnableDisable = product.attributes?.['enabledisableproduct'];
         const isEnabled = enableDisableField === true || 
                          enableDisableField === 'TRUE' || 
                          attrEnableDisable === true || 
@@ -443,9 +445,6 @@ function applyFilters() {
         if (!matchesVariant) return false;
 
         // Category filter
-        const selectedCategories = Array.from(
-            document.querySelectorAll('#categoryFilter input[type="checkbox"]:checked')
-        ).map(cb => cb.value);
         if (selectedCategories.length > 0) {
             const productCats = (product.categories || []).map(c => c.name || '').filter(Boolean);
             const hasCategory = selectedCategories.some(cat => 
@@ -454,7 +453,7 @@ function applyFilters() {
             if (!hasCategory) return false;
         }
 
-        // FIXED: Robust family filtering
+        // Family filter - FIXED robust logic
         if (selectedFamilies.length > 0) {
             const productFamilyIds = [];
             
@@ -495,6 +494,7 @@ function applyFilters() {
 
     renderProducts();
 }
+
 
 
 
