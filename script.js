@@ -338,161 +338,164 @@ function loadCachedProducts(cachedIds, needUpdateIds, totalProducts, startTime) 
 
 
   
-  function populateFamilyFilter() {
+// FIXED: Robust product family population and filtering
+function populateFamilyFilter() {
     const familyMap = new Map();
     
-    allProducts.forEach(function(p) {
-      if (p.relationships && p.relationships.product_families && Array.isArray(p.relationships.product_families)) {
-        p.relationships.product_families.forEach(function(family) {
-          if (family.id && family.label) {
-            familyMap.set(family.id, family.label);
-          }
-        });
-      }
-      
-      if (p.attributes && p.attributes.product_family) {
-        const familyAttr = p.attributes.product_family;
-        if (typeof familyAttr === 'string') {
-          familyMap.set(familyAttr, familyAttr);
-        } else if (familyAttr.id && familyAttr.label) {
-          familyMap.set(familyAttr.id, familyAttr.label);
+    // Collect ALL possible family references from products
+    allProducts.forEach(product => {
+        // 1. relationships.productfamilies array
+        if (product.relationships?.productfamilies?.length) {
+            product.relationships.productfamilies.forEach(family => {
+                if (family.id && family.label) {
+                    familyMap.set(family.id, family.label);
+                }
+            });
         }
-      }
+        
+        // 2. attributes.productfamily (string ID or object)
+        const familyAttr = product.attributes?.productfamily;
+        if (familyAttr) {
+            if (typeof familyAttr === 'string') {
+                // Assume string is family ID, use generic label
+                familyMap.set(familyAttr, `Family ${familyAttr}`);
+            } else if (familyAttr.id && familyAttr.label) {
+                familyMap.set(familyAttr.id, familyAttr.label);
+            }
+        }
     });
-    
-    const ul = document.getElementById("familyFilter");
+
+    const ul = document.getElementById('familyFilter');
     if (!ul) return;
     
-    ul.innerHTML = "";
+    ul.innerHTML = '';
     
-if (familyMap.size === 0) {
-    ul.innerHTML = '<li class="dropdown-item text-muted">No families found</li>';
-    // Removed excessive console logging
-    return;
+    if (familyMap.size === 0) {
+        ul.innerHTML = '<li class="dropdown-item text-muted">No families found</li>';
+        return;
+    }
+
+    const sortedFamilies = Array.from(familyMap.entries()).sort((a, b) => 
+        a[1].localeCompare(b[1])
+    );
+    
+    sortedFamilies.forEach(([familyId, familyName]) => {
+        const li = document.createElement('li');
+        li.innerHTML = `
+            <label class="dropdown-item">
+                <input type="checkbox" class="form-check-input me-2" value="${familyId}" data-family-name="${familyName}">
+                ${familyName}
+            </label>
+        `;
+        ul.appendChild(li);
+    });
+
+    // Add change listeners
+    ul.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+        cb.addEventListener('change', applyFilters);
+    });
 }
 
+// FIXED: Complete family filtering logic in applyFilters
+function applyFilters() {
+    const searchTerm = document.getElementById('searchBox').value.toLowerCase();
+    const statusFilter = document.getElementById('statusFilter').value;
+    const variantFilter = document.getElementById('variantFilter').value;
+    const sortFilter = document.getElementById('sortFilter').value;
     
-    const sortedFamilies = Array.from(familyMap.entries()).sort(function(a, b) {
-      return a[1].localeCompare(b[1]);
-    });
-    
-    console.log("Found " + sortedFamilies.length + " product families:", sortedFamilies);
-    
-    sortedFamilies.forEach(function(entry) {
-      const familyId = entry[0];
-      const familyName = entry[1];
-      
-      const li = document.createElement("li");
-      li.innerHTML = '<label class="dropdown-item"><input type="checkbox" class="form-check-input me-2" value="' + 
-        familyId + '">' + familyName + '</label>';
-      ul.appendChild(li);
-    });
-    
-    ul.querySelectorAll('input[type="checkbox"]').forEach(function(cb) {
-      cb.addEventListener("change", applyFilters);
-    });
-  }
+    // FIXED: Get selected family IDs properly
+    const selectedFamilies = Array.from(
+        document.querySelectorAll('#familyFilter input[type="checkbox"]:checked')
+    ).map(cb => cb.value);
 
-  function applyFilters() {
-    const searchTerm = document.getElementById("searchBox").value.toLowerCase();
-    const statusFilter = document.getElementById("statusFilter").value;
-    const variantFilter = document.getElementById("variantFilter").value;
-    const sortFilter = document.getElementById("sortFilter").value;
-    
-    const selectedCategories = Array.from(
-      document.querySelectorAll('#categoryFilter input[type="checkbox"]:checked')
-    ).map(function(cb) { return cb.value; });
+    filteredProducts = allProducts.filter(product => {
+        // Search filter
+        const sku = (p.sku || '').toLowerCase();
+        const label = getAttributeValue(product, 'label').toLowerCase();
+        const matchesSearch = !searchTerm || sku.includes(searchTerm) || label.includes(searchTerm);
+        if (!matchesSearch) return false;
 
-    const familyFilterEl = document.getElementById("familyFilter");
-    const selectedFamilies = familyFilterEl ? Array.from(
-      familyFilterEl.querySelectorAll('input[type="checkbox"]:checked')
-    ).map(function(cb) { return cb.value; }) : [];
-
-    filteredProducts = allProducts.filter(function(p) {
-      const sku = (p.sku || "").toLowerCase();
-      const label = getAttributeValue(p, "label").toLowerCase();
-      const matchesSearch = !searchTerm || sku.includes(searchTerm) || label.includes(searchTerm);
-      
-      if (!matchesSearch) return false;
-      
-      const enableDisableField = p.enable_disable_product;
-      const attrEnableDisable = p.attributes && p.attributes.enable_disable_product;
-      
-      const isEnabled = enableDisableField === true || 
-                       enableDisableField === "TRUE" ||
-                       attrEnableDisable === true ||
-                       attrEnableDisable === "TRUE";
-      
-      const matchesStatus = 
-        statusFilter === "all" ||
-        (statusFilter === "enabled" && isEnabled) ||
-        (statusFilter === "disabled" && !isEnabled);
-
-      if (!matchesStatus) return false;
-      
-      const numVariations = p.num_variations || 0;
-      const parentId = p._parent_id || null;
-      const isParent = numVariations > 0;
-      const isVariant = !isParent && parentId;
-      const isSingle = !isParent && !parentId;
-      
-      const matchesVariant = 
-        variantFilter === "all" ||
-        (variantFilter === "parents" && isParent) ||
-        (variantFilter === "variants" && isVariant) ||
-        (variantFilter === "singles" && isSingle) ||
-        (variantFilter === "variants-and-singles" && (isVariant || isSingle));
-      
-      if (!matchesVariant) return false;
-      
-      if (selectedCategories.length > 0) {
-        const productCats = (p.categories || []).map(function(c) { return c.name; });
-        const hasCategory = selectedCategories.some(function(cat) {
-          return productCats.includes(cat);
-        });
-        if (!hasCategory) return false;
-      }
-      
-      if (selectedFamilies.length > 0) {
-        let productFamilyIds = [];
+        // Status filter
+        const enableDisableField = product.enabledisableproduct;
+        const attrEnableDisable = product.attributes?.enabledisableproduct;
+        const isEnabled = enableDisableField === true || 
+                         enableDisableField === 'TRUE' || 
+                         attrEnableDisable === true || 
+                         attrEnableDisable === 'TRUE';
         
-        if (p.relationships && p.relationships.product_families && Array.isArray(p.relationships.product_families)) {
-          productFamilyIds = p.relationships.product_families.map(function(f) { return f.id; });
+        const matchesStatus = statusFilter === 'all' || 
+                             (statusFilter === 'enabled' && isEnabled) || 
+                             (statusFilter === 'disabled' && !isEnabled);
+        if (!matchesStatus) return false;
+
+        // Variant filter
+        const numVariations = product.numvariations || 0;
+        const parentId = product.parentid;
+        const isParent = numVariations > 0;
+        const isVariant = !isParent && parentId;
+        const isSingle = !isParent && !parentId;
+        
+        const matchesVariant = variantFilter === 'all' ||
+                              (variantFilter === 'parents' && isParent) ||
+                              (variantFilter === 'variants' && isVariant) ||
+                              (variantFilter === 'singles' && isSingle) ||
+                              (variantFilter === 'variants-and-singles' && (isVariant || isSingle));
+        if (!matchesVariant) return false;
+
+        // Category filter
+        const selectedCategories = Array.from(
+            document.querySelectorAll('#categoryFilter input[type="checkbox"]:checked')
+        ).map(cb => cb.value);
+        if (selectedCategories.length > 0) {
+            const productCats = (product.categories || []).map(c => c.name || '').filter(Boolean);
+            const hasCategory = selectedCategories.some(cat => 
+                productCats.includes(cat)
+            );
+            if (!hasCategory) return false;
         }
-        
-        if (p.attributes && p.attributes.product_family) {
-          const familyAttr = p.attributes.product_family;
-          if (typeof familyAttr === 'string') {
-            productFamilyIds.push(familyAttr);
-          } else if (familyAttr.id) {
-            productFamilyIds.push(familyAttr.id);
-          }
+
+        // FIXED: Robust family filtering
+        if (selectedFamilies.length > 0) {
+            const productFamilyIds = [];
+            
+            // Check relationships.productfamilies
+            if (product.relationships?.productfamilies?.length) {
+                product.relationships.productfamilies.forEach(family => {
+                    if (family.id) productFamilyIds.push(family.id);
+                });
+            }
+            
+            // Check attributes.productfamily
+            const familyAttr = product.attributes?.productfamily;
+            if (familyAttr) {
+                if (typeof familyAttr === 'string') {
+                    productFamilyIds.push(familyAttr);
+                } else if (familyAttr.id) {
+                    productFamilyIds.push(familyAttr.id);
+                }
+            }
+            
+            const hasFamily = selectedFamilies.some(famId => 
+                productFamilyIds.includes(famId)
+            );
+            if (!hasFamily) return false;
         }
-        
-        const hasFamily = selectedFamilies.some(function(famId) {
-          return productFamilyIds.includes(famId);
-        });
-        
-        if (!hasFamily) return false;
-      }
-      
-      return true;
+
+        return true;
     });
 
-    filteredProducts.sort(function(a, b) {
-      if (sortFilter === "sku-asc") return (a.sku || "").localeCompare(b.sku || "");
-      if (sortFilter === "sku-desc") return (b.sku || "").localeCompare(a.sku || "");
-      if (sortFilter === "label-asc") {
-        return getAttributeValue(a, "label").localeCompare(getAttributeValue(b, "label"));
-      }
-      if (sortFilter === "label-desc") {
-        return getAttributeValue(b, "label").localeCompare(getAttributeValue(a, "label"));
-      }
-      return 0;
+    // Sort
+    filteredProducts.sort((a, b) => {
+        if (sortFilter === 'sku-asc') return (a.sku || '').localeCompare(b.sku || '');
+        if (sortFilter === 'sku-desc') return (b.sku || '').localeCompare(a.sku || '');
+        if (sortFilter === 'label-asc') return getAttributeValue(a, 'label').localeCompare(getAttributeValue(b, 'label'));
+        if (sortFilter === 'label-desc') return getAttributeValue(b, 'label').localeCompare(getAttributeValue(a, 'label'));
+        return 0;
     });
 
     renderProducts();
-  }
+}
+
 
 
 
