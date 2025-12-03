@@ -1084,9 +1084,8 @@ window.AdminModule = {
     saveUserPermissions: saveUserPermissions,
     
     // Attribute management
-    addNewAttribute: addNewAttribute,
     removeAttribute: removeAttribute,
-    discoverAllAttributes: discoverAllAttributes  // ADD THIS LINE
+    discoverAllAttributes: discoverAllAttributes
 };
 
 })();
