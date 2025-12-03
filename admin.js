@@ -414,10 +414,10 @@ function addNewUser() {
 
 
     
-    /**
-     * Populate attribute checkboxes in edit modal
-     * @param {Object} user - User object with permissions
-     */
+/**
+ * Populate attribute checkboxes in edit modal
+ * @param {Object} user - User object with permissions
+ */
 function populateAttributeCheckboxes(user) {
     const visibleDiv = document.getElementById('visibleAttributesCheckboxes');
     const editableDiv = document.getElementById('editableAttributesCheckboxes');
@@ -425,7 +425,7 @@ function populateAttributeCheckboxes(user) {
     visibleDiv.innerHTML = '';
     editableDiv.innerHTML = '';
     
-    // Check if 'all' is explicitly set (not just empty array for backwards compatibility)
+    // Check if 'all' is explicitly set
     const hasAllVisible = user.visible_attributes.includes('all');
     const hasAllEditable = user.editable_attributes.includes('all');
     
@@ -443,11 +443,11 @@ function populateAttributeCheckboxes(user) {
         const visibleCheck = document.createElement('div');
         visibleCheck.className = 'form-check';
         
-        // Check the box if 'all' is set OR if this specific attribute is in the list
         const isVisibleChecked = hasAllVisible || user.visible_attributes.includes(attr);
         
         visibleCheck.innerHTML = `
-            <input class="form-check-input visible-attr" type="checkbox" value="${attr}" id="visible_${attr}" ${isVisibleChecked ? 'checked' : ''}>
+            <input class="form-check-input visible-attr" type="checkbox" value="${attr}" id="visible_${attr}" 
+                   ${isVisibleChecked ? 'checked' : ''}>
             <label class="form-check-label" for="visible_${attr}">
                 ${capitalizeWords(attr.replace(/_/g, ' '))}
             </label>
@@ -461,11 +461,11 @@ function populateAttributeCheckboxes(user) {
         const editableCheck = document.createElement('div');
         editableCheck.className = 'form-check';
         
-        // Check the box if 'all' is set OR if this specific attribute is in the list
         const isEditableChecked = hasAllEditable || user.editable_attributes.includes(attr);
         
         editableCheck.innerHTML = `
-            <input class="form-check-input editable-attr" type="checkbox" value="${attr}" id="editable_${attr}" ${isEditableChecked ? 'checked' : ''}>
+            <input class="form-check-input editable-attr" type="checkbox" value="${attr}" id="editable_${attr}" 
+                   ${isEditableChecked ? 'checked' : ''}>
             <label class="form-check-label" for="editable_${attr}">
                 ${capitalizeWords(attr.replace(/_/g, ' '))}
             </label>
@@ -473,26 +473,79 @@ function populateAttributeCheckboxes(user) {
         editableCol.appendChild(editableCheck);
         editableDiv.appendChild(editableCol);
     });
+    
+    // Add event listeners for smart behavior
+    setupAttributeCheckboxListeners();
 }
 
 
 
 
 
+/**
+ * Setup event listeners for smart checkbox behavior
+ */
+function setupAttributeCheckboxListeners() {
+    const visibleCheckboxes = document.querySelectorAll('.visible-attr');
+    const editableCheckboxes = document.querySelectorAll('.editable-attr');
+    const visibleAll = document.getElementById('visibleAll');
+    const editableAll = document.getElementById('editableAll');
+    
+    // When individual visible checkbox changes
+    visibleCheckboxes.forEach(cb => {
+        cb.addEventListener('change', function() {
+            // If any checkbox is unchecked, uncheck "All"
+            if (!this.checked) {
+                visibleAll.checked = false;
+            }
+            // If all checkboxes are now checked, check "All"
+            else {
+                const allChecked = Array.from(visibleCheckboxes).every(vcb => vcb.checked);
+                if (allChecked) {
+                    visibleAll.checked = true;
+                }
+            }
+        });
+    });
+    
+    // When individual editable checkbox changes
+    editableCheckboxes.forEach(cb => {
+        cb.addEventListener('change', function() {
+            // If any checkbox is unchecked, uncheck "All"
+            if (!this.checked) {
+                editableAll.checked = false;
+            }
+            // If all checkboxes are now checked, check "All"
+            else {
+                const allChecked = Array.from(editableCheckboxes).every(ecb => ecb.checked);
+                if (allChecked) {
+                    editableAll.checked = true;
+                }
+            }
+        });
+    });
+}
+
     
 
-    /**
-     * Toggle all attributes checkboxes
-     * @param {string} type - 'visible' or 'editable'
-     */
-    function toggleAllAttributes(type) {
-        const checkbox = document.getElementById(`${type}All`);
-        const checkboxes = document.querySelectorAll(`.${type}-attr`);
-        
-        checkboxes.forEach(cb => {
-            cb.checked = checkbox.checked;
-        });
-    }
+
+
+
+    
+
+/**
+ * Toggle all attributes checkboxes
+ * @param {string} type - 'visible' or 'editable'
+ */
+function toggleAllAttributes(type) {
+    const checkbox = document.getElementById(`${type}All`);
+    const checkboxes = document.querySelectorAll(`.${type}-attr`);
+    
+    // Simply check or uncheck all boxes based on "All" checkbox state
+    checkboxes.forEach(cb => {
+        cb.checked = checkbox.checked;
+    });
+}
 
 
 
