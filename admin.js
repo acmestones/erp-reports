@@ -498,9 +498,9 @@ function populateAttributeCheckboxes(user) {
 
 
     
-    /**
-     * Save user permissions
-     */
+/**
+ * Save user permissions
+ */
 function saveUserPermissions() {
     if (!editingUserEmail || !currentUser) return;
     
@@ -539,19 +539,23 @@ function saveUserPermissions() {
         editableAttributes: editableAttributes
     });
     
+    const requestBody = {
+        action: 'updateUser',
+        currentUser: currentUser,
+        email: editingUserEmail,
+        role: role,
+        visible_attributes: visibleAttributes,
+        editable_attributes: editableAttributes
+    };
+    
+    console.log('Request body being sent:', requestBody);
+    
     fetch('admin_user_settings.php', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json'
         },
-        body: JSON.stringify({
-            action: 'updateUser',
-            currentUser: currentUser,
-            email: editingUserEmail,
-            role: role,
-            visible_attributes: visibleAttributes,
-            editable_attributes: editableAttributes
-        })
+        body: JSON.stringify(requestBody)
     })
     .then(res => {
         if (!res.ok) {
@@ -560,6 +564,7 @@ function saveUserPermissions() {
         return res.json();
     })
     .then(data => {
+        console.log('Server response:', data);
         if (data.success) {
             alert('Permissions updated successfully');
             bootstrap.Modal.getInstance(document.getElementById('editPermissionsModal')).hide();
@@ -567,7 +572,9 @@ function saveUserPermissions() {
             
             // Reload permissions if editing current user
             if (editingUserEmail === currentUser) {
-                loadUserPermissions();
+                setTimeout(() => {
+                    loadUserPermissions();
+                }, 500);
             }
         } else {
             alert('Error: ' + (data.error || 'Failed to update permissions'));
@@ -578,6 +585,7 @@ function saveUserPermissions() {
         alert('Failed to update permissions: ' + err.message);
     });
 }
+
 
 
 
