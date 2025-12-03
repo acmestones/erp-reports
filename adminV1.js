@@ -649,6 +649,22 @@
     });
   }
 
+
+
+
+/**
+ * Filter attributes based on search term
+ */
+function filterAttributes() {
+    const searchTerm = document.getElementById('attributeSearch').value.toLowerCase();
+    const container = document
+
+
+
+
+
+  
+
   /**
    * Update attribute order after drag and drop
    */
