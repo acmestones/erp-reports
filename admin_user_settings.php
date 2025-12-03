@@ -91,6 +91,7 @@ function loadSettings($settingsFile, $bootstrapAdmins, $currentUser) {
                 }
             }
             
+            // FIXED: Only add if user doesn't exist, don't update existing users
             if (!$userExists) {
                 $settings['users'][] = [
                     'email' => $adminEmail,
@@ -102,7 +103,8 @@ function loadSettings($settingsFile, $bootstrapAdmins, $currentUser) {
         }
     }
     
-    // Auto-add current user if they're a bootstrap admin but not in the system
+    // FIXED: Only auto-add current user if they're NOT already in the system
+    // This prevents overwriting their existing permissions
     if (in_array($currentUser, $bootstrapAdmins)) {
         $userExists = false;
         foreach ($settings['users'] as $user) {
@@ -112,6 +114,7 @@ function loadSettings($settingsFile, $bootstrapAdmins, $currentUser) {
             }
         }
         
+        // Only add if they don't exist yet
         if (!$userExists) {
             $settings['users'][] = [
                 'email' => $currentUser,
@@ -122,6 +125,7 @@ function loadSettings($settingsFile, $bootstrapAdmins, $currentUser) {
             $needsSave = true;
         }
         
+        // Add to admins array if not there
         if (!in_array($currentUser, $settings['admins'])) {
             $settings['admins'][] = $currentUser;
             $needsSave = true;
@@ -282,12 +286,12 @@ if ($action === 'addUser') {
         }
     }
     
-    // Add new user
+    // Add new user - use what's provided, don't auto-set to ['all']
     $newUser = [
         'email' => $newUserEmail,
         'role' => $role,
-        'visible_attributes' => $data['visible_attributes'] ?? ($role === 'admin' ? ['all'] : ['sku', 'label', 'images', 'thumbnail', 'assets']),
-        'editable_attributes' => $data['editable_attributes'] ?? ($role === 'admin' ? ['all'] : [])
+        'visible_attributes' => $data['visible_attributes'] ?? ['sku', 'label', 'images', 'thumbnail', 'assets'],
+        'editable_attributes' => $data['editable_attributes'] ?? []
     ];
     
     $settings['users'][] = $newUser;
@@ -312,12 +316,8 @@ if ($action === 'addUser') {
     exit;
 }
 
-
-
-
 // ACTION: Update user
 if ($action === 'updateUser') {
-    
     if (!isAdmin($currentUserEmail, $settings)) {
         http_response_code(403);
         echo json_encode(['error' => 'Forbidden - Admin access required']);
@@ -326,6 +326,10 @@ if ($action === 'updateUser') {
     
     $postData = file_get_contents('php://input');
     $data = json_decode($postData, true);
+    
+    // Add debug logging
+    error_log("=== UPDATE USER ===");
+    error_log("Received data: " . print_r($data, true));
     
     $userEmail = $data['email'] ?? null;
     
@@ -341,9 +345,15 @@ if ($action === 'updateUser') {
         if ($user['email'] === $userEmail) {
             $user['role'] = $data['role'] ?? $user['role'];
             
-            // CRITICAL: Use exactly what was sent, don't override
-            $user['visible_attributes'] = $data['visible_attributes'] ?? $user['visible_attributes'];
-            $user['editable_attributes'] = $data['editable_attributes'] ?? $user['editable_attributes'];
+            // CRITICAL FIX: Use exactly what was sent, don't override
+            if (isset($data['visible_attributes'])) {
+                $user['visible_attributes'] = $data['visible_attributes'];
+            }
+            if (isset($data['editable_attributes'])) {
+                $user['editable_attributes'] = $data['editable_attributes'];
+            }
+            
+            error_log("Updated user: " . print_r($user, true));
             
             $userFound = true;
             
@@ -376,25 +386,18 @@ if ($action === 'updateUser') {
     }
     
     if (saveSettings($settingsFile, $settings)) {
+        error_log("Settings saved successfully");
         echo json_encode([
             'success' => true,
             'message' => 'User updated successfully'
         ]);
     } else {
+        error_log("Failed to save settings");
         http_response_code(500);
         echo json_encode(['error' => 'Failed to save settings']);
     }
     exit;
 }
-
-
-
-
-
-
-
-
-
 
 // ACTION: Delete user
 if ($action === 'deleteUser') {
