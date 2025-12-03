@@ -651,7 +651,7 @@ function saveUserPermissions() {
 // ============================================
 
 /**
- * Populate attributes list
+ * Populate attributes list with drag-and-drop support
  */
 function populateAttributesList() {
     const div = document.getElementById('attributesList');
@@ -669,11 +669,15 @@ function populateAttributesList() {
     if (countSpan) countSpan.textContent = allSettings.available_attributes.length;
     
     const list = document.createElement('div');
+    list.id = 'sortableAttributesList';
     list.className = 'row g-2';
     
-    allSettings.available_attributes.forEach(attr => {
+    allSettings.available_attributes.forEach((attr, index) => {
         const col = document.createElement('div');
-        col.className = 'col-md-6 col-lg-4';
+        col.className = 'col-12';
+        col.setAttribute('data-attr-name', attr);
+        col.setAttribute('draggable', 'true');
+        col.style.cursor = 'move';
         
         // Show if attribute is hidden from current admin
         const isHiddenFromMe = userPermissions && 
@@ -681,21 +685,124 @@ function populateAttributesList() {
                                !userPermissions.visible_attributes.includes(attr);
         
         col.innerHTML = `
-            <div class="d-flex align-items-center justify-content-between p-2 border rounded ${isHiddenFromMe ? 'bg-light' : ''}">
-                <span>
-                    ${capitalizeWords(attr.replace(/_/g, ' '))}
-                    ${isHiddenFromMe ? '<span class="badge bg-secondary ms-1" title="Hidden from your view">👁️‍🗨️</span>' : ''}
-                </span>
+            <div class="d-flex align-items-center justify-content-between p-2 border rounded ${isHiddenFromMe ? 'bg-light' : 'bg-white'}" style="transition: all 0.2s;">
+                <div class="d-flex align-items-center">
+                    <span class="me-2 text-muted" style="cursor: move;">⋮⋮</span>
+                    <span class="badge bg-secondary me-2">${index + 1}</span>
+                    <span>
+                        ${capitalizeWords(attr.replace(/_/g, ' '))}
+                        ${isHiddenFromMe ? '<span class="badge bg-secondary ms-1" title="Hidden from your view">👁️‍🗨️</span>' : ''}
+                    </span>
+                </div>
                 <button class="btn btn-sm btn-danger" onclick="AdminModule.removeAttribute('${attr}')">
                     <i class="bi bi-x"></i>
                 </button>
             </div>
         `;
+        
+        // Add drag event listeners
+        col.addEventListener('dragstart', handleDragStart);
+        col.addEventListener('dragover', handleDragOver);
+        col.addEventListener('drop', handleDrop);
+        col.addEventListener('dragend', handleDragEnd);
+        
         list.appendChild(col);
     });
     
     div.appendChild(list);
 }
+
+/**
+ * Drag and drop handlers
+ */
+let draggedElement = null;
+
+function handleDragStart(e) {
+    draggedElement = this;
+    this.style.opacity = '0.4';
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/html', this.innerHTML);
+}
+
+function handleDragOver(e) {
+    if (e.preventDefault) {
+        e.preventDefault();
+    }
+    e.dataTransfer.dropEffect = 'move';
+    
+    const afterElement = getDragAfterElement(this.parentElement, e.clientY);
+    if (afterElement == null) {
+        this.parentElement.appendChild(draggedElement);
+    } else {
+        this.parentElement.insertBefore(draggedElement, afterElement);
+    }
+    
+    return false;
+}
+
+function handleDrop(e) {
+    if (e.stopPropagation) {
+        e.stopPropagation();
+    }
+    
+    // Don't do anything if dropping on itself
+    if (draggedElement !== this) {
+        // Update the order in settings
+        updateAttributeOrder();
+    }
+    
+    return false;
+}
+
+function handleDragEnd(e) {
+    this.style.opacity = '1';
+    
+    // Update the order numbers
+    const items = document.querySelectorAll('#sortableAttributesList > div');
+    items.forEach((item, index) => {
+        const badge = item.querySelector('.badge.bg-secondary');
+        if (badge) {
+            badge.textContent = index + 1;
+        }
+    });
+}
+
+function getDragAfterElement(container, y) {
+    const draggableElements = [...container.querySelectorAll('[draggable="true"]:not(.opacity-40)')];
+    
+    return draggableElements.reduce((closest, child) => {
+        const box = child.getBoundingClientRect();
+        const offset = y - box.top - box.height / 2;
+        
+        if (offset < 0 && offset > closest.offset) {
+            return { offset: offset, element: child };
+        } else {
+            return closest;
+        }
+    }, { offset: Number.NEGATIVE_INFINITY }).element;
+}
+
+/**
+ * Update attribute order after drag and drop
+ */
+function updateAttributeOrder() {
+    const items = document.querySelectorAll('#sortableAttributesList > div');
+    const newOrder = [];
+    
+    items.forEach(item => {
+        const attrName = item.getAttribute('data-attr-name');
+        if (attrName) {
+            newOrder.push(attrName);
+        }
+    });
+    
+    // Update settings
+    allSettings.available_attributes = newOrder;
+    
+    // Save to server
+    saveAllSettings();
+}
+
 
 
 /**
