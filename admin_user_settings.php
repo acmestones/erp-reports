@@ -41,6 +41,10 @@ if (!$currentUserEmail) {
     exit;
 }
 
+
+
+
+
 // Load settings with auto-initialization
 function loadSettings($settingsFile, $bootstrapAdmins, $currentUser) {
     $needsSave = false;
@@ -49,9 +53,15 @@ function loadSettings($settingsFile, $bootstrapAdmins, $currentUser) {
         $content = file_get_contents($settingsFile);
         $settings = json_decode($content, true);
         
-        // Validate structure
-        if (!isset($settings['admins'])) $settings['admins'] = [];
-        if (!isset($settings['users'])) $settings['users'] = [];
+        // Validate structure only
+        if (!isset($settings['admins'])) {
+            $settings['admins'] = [];
+            $needsSave = true;
+        }
+        if (!isset($settings['users'])) {
+            $settings['users'] = [];
+            $needsSave = true;
+        }
         if (!isset($settings['available_attributes'])) {
             $settings['available_attributes'] = [
                 'sku', 'label', 'price', 'cost', 'msrp', 'categories', 
@@ -76,69 +86,69 @@ function loadSettings($settingsFile, $bootstrapAdmins, $currentUser) {
         $needsSave = true;
     }
     
-    // Bootstrap: If no admins exist, add bootstrap admins
+    // Bootstrap: ONLY run if there are NO admins at all (first time setup)
     if (empty($settings['admins'])) {
+        error_log("Bootstrap: No admins exist, adding bootstrap admins");
         $settings['admins'] = $bootstrapAdmins;
         $needsSave = true;
         
-        // Add bootstrap admins to users array if not present
+        // Add bootstrap admins to users array
         foreach ($bootstrapAdmins as $adminEmail) {
+            $settings['users'][] = [
+                'email' => $adminEmail,
+                'role' => 'admin',
+                'visible_attributes' => ['all'],
+                'editable_attributes' => ['all']
+            ];
+        }
+    } else {
+        // Admins exist - just ensure current user is in the admins list if they're a bootstrap admin
+        if (in_array($currentUser, $bootstrapAdmins)) {
+            if (!in_array($currentUser, $settings['admins'])) {
+                error_log("Adding bootstrap admin to admins list: " . $currentUser);
+                $settings['admins'][] = $currentUser;
+                $needsSave = true;
+            }
+            
+            // Check if user exists in users array
             $userExists = false;
             foreach ($settings['users'] as $user) {
-                if ($user['email'] === $adminEmail) {
+                if ($user['email'] === $currentUser) {
                     $userExists = true;
                     break;
                 }
             }
             
-            // FIXED: Only add if user doesn't exist, don't update existing users
+            // Only add if they don't exist at all
             if (!$userExists) {
+                error_log("Adding new bootstrap admin user: " . $currentUser);
                 $settings['users'][] = [
-                    'email' => $adminEmail,
+                    'email' => $currentUser,
                     'role' => 'admin',
                     'visible_attributes' => ['all'],
                     'editable_attributes' => ['all']
                 ];
+                $needsSave = true;
             }
-        }
-    }
-    
-    // FIXED: Only auto-add current user if they're NOT already in the system
-    // This prevents overwriting their existing permissions
-    if (in_array($currentUser, $bootstrapAdmins)) {
-        $userExists = false;
-        foreach ($settings['users'] as $user) {
-            if ($user['email'] === $currentUser) {
-                $userExists = true;
-                break;
-            }
-        }
-        
-        // Only add if they don't exist yet
-        if (!$userExists) {
-            $settings['users'][] = [
-                'email' => $currentUser,
-                'role' => 'admin',
-                'visible_attributes' => ['all'],
-                'editable_attributes' => ['all']
-            ];
-            $needsSave = true;
-        }
-        
-        // Add to admins array if not there
-        if (!in_array($currentUser, $settings['admins'])) {
-            $settings['admins'][] = $currentUser;
-            $needsSave = true;
+            // DO NOT modify existing users - this was the bug!
         }
     }
     
     // Save if changes were made
     if ($needsSave) {
+        error_log("Saving settings due to bootstrap changes");
         saveSettings($settingsFile, $settings);
     }
     
     return $settings;
 }
+
+
+
+
+
+
+
 
 // Save settings
 function saveSettings($settingsFile, $settings) {
