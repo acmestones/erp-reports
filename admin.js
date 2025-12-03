@@ -554,9 +554,18 @@ function populateAttributesList() {
     allSettings.available_attributes.forEach(attr => {
         const col = document.createElement('div');
         col.className = 'col-md-6 col-lg-4';
+        
+        // Show if attribute is hidden from current admin
+        const isHiddenFromMe = userPermissions && 
+                               !userPermissions.visible_attributes.includes('all') && 
+                               !userPermissions.visible_attributes.includes(attr);
+        
         col.innerHTML = `
-            <div class="d-flex align-items-center justify-content-between p-2 border rounded">
-                <span>${capitalizeWords(attr.replace(/_/g, ' '))}</span>
+            <div class="d-flex align-items-center justify-content-between p-2 border rounded ${isHiddenFromMe ? 'bg-light' : ''}">
+                <span>
+                    ${capitalizeWords(attr.replace(/_/g, ' '))}
+                    ${isHiddenFromMe ? '<span class="badge bg-secondary ms-1" title="Hidden from your view">👁️‍🗨️</span>' : ''}
+                </span>
                 <button class="btn btn-sm btn-danger" onclick="AdminModule.removeAttribute('${attr}')">
                     <i class="bi bi-x"></i>
                 </button>
@@ -573,11 +582,31 @@ function populateAttributesList() {
  * Scan all products and discover all attributes
  */
 function discoverAllAttributes() {
+    console.log('Discovering attributes...');
+    
     // Check if allProducts is available globally
     if (typeof window.allProducts === 'undefined' || !Array.isArray(window.allProducts)) {
         alert('Products not loaded yet. Please wait for products to load and try again.');
+        console.error('window.allProducts not found');
         return;
     }
+    
+    if (window.allProducts.length === 0) {
+        alert('No products loaded yet. Please wait for products to load and try again.');
+        return;
+    }
+    
+    // Show info message about discovery scope
+    if (userPermissions && !userPermissions.visible_attributes.includes('all')) {
+        const proceed = confirm(
+            'Note: This will discover ALL attributes from products, including those hidden from your view.\n\n' +
+            'Newly discovered attributes will be added to the available list and you can assign them to users.\n\n' +
+            'Continue?'
+        );
+        if (!proceed) return;
+    }
+    
+    console.log('Scanning', window.allProducts.length, 'products...');
     
     const discoveredAttributes = new Set();
     
@@ -602,14 +631,17 @@ function discoverAllAttributes() {
     const attributesArray = Array.from(discoveredAttributes).sort();
     
     console.log('Discovered attributes:', attributesArray);
+    console.log('Total discovered:', attributesArray.length);
     
     // Merge with existing attributes
-    const existingAttrs = new Set(allSettings.available_attributes);
+    const existingAttrs = new Set(allSettings.available_attributes || []);
     let newCount = 0;
+    const newAttributes = [];
     
     attributesArray.forEach(attr => {
         if (!existingAttrs.has(attr)) {
             allSettings.available_attributes.push(attr);
+            newAttributes.push(attr);
             newCount++;
         }
     });
@@ -617,14 +649,24 @@ function discoverAllAttributes() {
     allSettings.available_attributes.sort();
     
     if (newCount > 0) {
-        alert(`Discovered ${newCount} new attributes! Total: ${allSettings.available_attributes.length}`);
+        const newAttrList = newAttributes.slice(0, 10).join(', ') + (newAttributes.length > 10 ? '...' : '');
+        alert(
+            `✅ Discovered ${newCount} new attributes!\n\n` +
+            `New attributes: ${newAttrList}\n\n` +
+            `Total attributes: ${allSettings.available_attributes.length}`
+        );
         saveAllSettings();
     } else {
-        alert('No new attributes found. All attributes are already in the list.');
+        alert('✅ No new attributes found.\n\nAll ' + attributesArray.length + ' attributes are already in the list.');
         populateAttributesList();
     }
 }
 
+
+
+
+
+    
 /**
  * Add new attribute to available attributes
  */
