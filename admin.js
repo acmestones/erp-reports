@@ -671,97 +671,93 @@ function populateAttributesList() {
     // Update count
     if (countSpan) countSpan.textContent = allSettings.available_attributes.length;
     
-    const list = document.createElement('div');
-    list.id = 'sortableAttributesList';
+    // Global drag state
+    window.draggedElement = null;
     
     allSettings.available_attributes.forEach((attr, index) => {
         const row = document.createElement('div');
-        row.className = 'attribute-row d-flex align-items-center justify-content-between p-2 mb-2 border rounded';
-        row.style.cursor = 'move';
-        row.style.backgroundColor = '#fff';
-        row.setAttribute('draggable', 'true');
-        row.setAttribute('data-attr-name', attr);
+        row.className = 'attribute-row draggable-item d-flex align-items-center justify-content-between p-3 mb-2 border rounded bg-white shadow-sm';
+        row.draggable = true;
+        row.dataset.attrName = attr;
+        row.style.cursor = 'grab';
+        row.style.userSelect = 'none';
         
         // Show if attribute is hidden from current admin
         const isHiddenFromMe = userPermissions && 
                                !userPermissions.visible_attributes.includes('all') && 
                                !userPermissions.visible_attributes.includes(attr);
         
-        if (isHiddenFromMe) {
-            row.style.backgroundColor = '#f8f9fa';
-        }
+        const hiddenBadge = isHiddenFromMe ? '<span class="badge bg-secondary ms-2" title="Hidden from your view">👁️‍🗨️</span>' : '';
         
         row.innerHTML = `
-            <div class="d-flex align-items-center flex-grow-1">
-                <span class="me-3 text-muted" style="cursor: move; user-select: none;">⋮⋮</span>
-                <span class="badge bg-secondary me-3">${index + 1}</span>
-                <span>
-                    ${capitalizeWords(attr.replace(/_/g, ' '))}
-                    ${isHiddenFromMe ? '<span class="badge bg-secondary ms-2" title="Hidden from your view">👁️‍🗨️</span>' : ''}
-                </span>
+            <div class="flex-grow-1">
+                <div class="d-flex align-items-center">
+                    <span class="drag-handle text-muted me-3 fs-4" style="cursor: grab;">⋮⋮</span>
+                    <span class="badge bg-primary me-3">${index + 1}</span>
+                    <span class="fw-medium">${capitalizeWords(attr.replace(/_/g, ' '))}</span>
+                    ${hiddenBadge}
+                </div>
             </div>
-            <button class="btn btn-sm btn-danger" onclick="AdminModule.removeAttribute('${attr}')" type="button">
-                <i class="bi bi-x"></i>
+            <button class="btn btn-sm btn-outline-danger ms-2" onclick="AdminModule.removeAttribute('${attr}')">
+                <i class="bi bi-x-lg"></i>
             </button>
         `;
         
-        // Add drag event listeners
+        // Drag events
         row.addEventListener('dragstart', function(e) {
-            draggedElement = this;
-            this.style.opacity = '0.4';
+            window.draggedElement = this;
+            this.style.opacity = '0.5';
+            this.style.transform = 'scale(0.98)';
             e.dataTransfer.effectAllowed = 'move';
+        });
+        
+        row.addEventListener('dragend', function(e) {
+            this.style.opacity = '1';
+            this.style.transform = 'scale(1)';
+            updateAttributeOrder();
         });
         
         row.addEventListener('dragover', function(e) {
             e.preventDefault();
             e.dataTransfer.dropEffect = 'move';
-            
-            if (draggedElement === this) return;
-            
-            const rect = this.getBoundingClientRect();
-            const midpoint = rect.top + rect.height / 2;
-            
-            if (e.clientY < midpoint) {
-                this.parentNode.insertBefore(draggedElement, this);
-            } else {
-                this.parentNode.insertBefore(draggedElement, this.nextSibling);
+        });
+        
+        row.addEventListener('drop', function(e) {
+            e.preventDefault();
+            if (window.draggedElement && window.draggedElement !== this) {
+                const rect = this.getBoundingClientRect();
+                const midpoint = rect.top + rect.height / 2;
+                if (e.clientY < midpoint) {
+                    this.parentNode.insertBefore(window.draggedElement, this);
+                } else {
+                    this.parentNode.insertBefore(window.draggedElement, this.nextSibling);
+                }
+                updateAttributeOrder();
             }
         });
         
-        row.addEventListener('dragend', function(e) {
-            this.style.opacity = '1';
-            updateAttributeOrder();
-            populateAttributesList(); // Refresh to update numbers
-        });
-        
-        list.appendChild(row);
+        div.appendChild(row);
     });
-    
-    div.appendChild(list);
 }
 
 /**
  * Update attribute order after drag and drop
  */
 function updateAttributeOrder() {
-    const items = document.querySelectorAll('#sortableAttributesList .attribute-row');
+    const items = document.querySelectorAll('.draggable-item');
     const newOrder = [];
     
     items.forEach(item => {
-        const attrName = item.getAttribute('data-attr-name');
-        if (attrName) {
-            newOrder.push(attrName);
-        }
+        const attrName = item.dataset.attrName;
+        if (attrName) newOrder.push(attrName);
     });
     
-    console.log('New attribute order:', newOrder);
-    
-    // Update settings
     allSettings.available_attributes = newOrder;
-    
-    // Save to server
     saveAllSettings();
 }
+
+
+    
 
 /**
  * Scan all products and discover all attributes
