@@ -166,81 +166,195 @@
     /**
      * Populate users table with current users
      */
-    function populateUsersTable() {
-        const tbody = document.getElementById('usersTableBody');
-        tbody.innerHTML = '';
+function populateUsersTable() {
+    const tbody = document.getElementById('usersTableBody');
+    tbody.innerHTML = '';
+    
+    if (!allSettings || !allSettings.users || allSettings.users.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">No users found</td></tr>';
+        return;
+    }
+    
+    allSettings.users.forEach(user => {
+        const tr = document.createElement('tr');
         
-        if (!allSettings || !allSettings.users || allSettings.users.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">No users found</td></tr>';
-            return;
+        // Email column
+        const tdEmail = document.createElement('td');
+        tdEmail.textContent = user.email;
+        if (user.email === currentUser) {
+            tdEmail.innerHTML += ' <span class="badge bg-info">You</span>';
         }
         
-        allSettings.users.forEach(user => {
-            const tr = document.createElement('tr');
-            
-            // Email column
-            const tdEmail = document.createElement('td');
-            tdEmail.textContent = user.email;
-            if (user.email === currentUser) {
-                tdEmail.innerHTML += ' <span class="badge bg-info">You</span>';
-            }
-            
-            // Role column
-            const tdRole = document.createElement('td');
-            const roleBadge = document.createElement('span');
-            roleBadge.className = user.role === 'admin' ? 'badge bg-danger' : 'badge bg-secondary';
-            roleBadge.textContent = user.role.toUpperCase();
-            tdRole.appendChild(roleBadge);
-            
-            // Visible attributes column
-            const tdVisible = document.createElement('td');
-            if (user.visible_attributes.includes('all') || user.visible_attributes.length === 0) {
-                tdVisible.innerHTML = '<span class="badge bg-success">All</span>';
-            } else {
-                tdVisible.innerHTML = `<span class="badge bg-primary">${user.visible_attributes.length} attributes</span>`;
-            }
-            
-            // Editable attributes column
-            const tdEditable = document.createElement('td');
-            if (user.editable_attributes.includes('all')) {
-                tdEditable.innerHTML = '<span class="badge bg-success">All</span>';
-            } else if (user.editable_attributes.length === 0) {
-                tdEditable.innerHTML = '<span class="badge bg-secondary">None</span>';
-            } else {
-                tdEditable.innerHTML = `<span class="badge bg-warning">${user.editable_attributes.length} attributes</span>`;
-            }
-            
-            // Actions column
-            const tdActions = document.createElement('td');
-            const editBtn = document.createElement('button');
-            editBtn.className = 'btn btn-sm btn-primary me-1';
-            editBtn.innerHTML = '<i class="bi bi-pencil"></i> Edit';
-            editBtn.onclick = () => openEditPermissionsModal(user.email);
-            
-            const deleteBtn = document.createElement('button');
-            deleteBtn.className = 'btn btn-sm btn-danger';
-            deleteBtn.innerHTML = '<i class="bi bi-trash"></i> Delete';
-            deleteBtn.onclick = () => deleteUser(user.email);
-            
-            // Disable delete for current user
-            if (user.email === currentUser) {
-                deleteBtn.disabled = true;
-                deleteBtn.title = 'Cannot delete your own account';
-            }
-            
-            tdActions.appendChild(editBtn);
-            tdActions.appendChild(deleteBtn);
-            
-            tr.appendChild(tdEmail);
-            tr.appendChild(tdRole);
-            tr.appendChild(tdVisible);
-            tr.appendChild(tdEditable);
-            tr.appendChild(tdActions);
-            
-            tbody.appendChild(tr);
-        });
+        // Role column
+        const tdRole = document.createElement('td');
+        const roleBadge = document.createElement('span');
+        roleBadge.className = user.role === 'admin' ? 'badge bg-danger' : 'badge bg-secondary';
+        roleBadge.textContent = user.role.toUpperCase();
+        tdRole.appendChild(roleBadge);
+        
+        // Visible attributes column
+        const tdVisible = document.createElement('td');
+        if (user.visible_attributes.includes('all') || user.visible_attributes.length === 0) {
+            tdVisible.innerHTML = '<span class="badge bg-success">All</span>';
+        } else {
+            tdVisible.innerHTML = `<span class="badge bg-primary">${user.visible_attributes.length} attributes</span>`;
+        }
+        
+        // Editable attributes column
+        const tdEditable = document.createElement('td');
+        if (user.editable_attributes.includes('all')) {
+            tdEditable.innerHTML = '<span class="badge bg-success">All</span>';
+        } else if (user.editable_attributes.length === 0) {
+            tdEditable.innerHTML = '<span class="badge bg-secondary">None</span>';
+        } else {
+            tdEditable.innerHTML = `<span class="badge bg-warning">${user.editable_attributes.length} attributes</span>`;
+        }
+        
+        // Actions column
+        const tdActions = document.createElement('td');
+        const editBtn = document.createElement('button');
+        editBtn.className = 'btn btn-sm btn-primary me-1';
+        editBtn.innerHTML = '<i class="bi bi-pencil"></i> Edit';
+        editBtn.onclick = () => openEditPermissionsModal(user.email);
+        
+        const deleteBtn = document.createElement('button');
+        deleteBtn.className = 'btn btn-sm btn-danger';
+        deleteBtn.innerHTML = '<i class="bi bi-trash"></i> Delete';
+        deleteBtn.onclick = () => deleteUser(user.email);
+        
+        if (user.email === currentUser) {
+            deleteBtn.disabled = true;
+            deleteBtn.title = 'Cannot delete your own account';
+        }
+        
+        tdActions.appendChild(editBtn);
+        tdActions.appendChild(deleteBtn);
+        
+        tr.appendChild(tdEmail);
+        tr.appendChild(tdRole);
+        tr.appendChild(tdVisible);
+        tr.appendChild(tdEditable);
+        tr.appendChild(tdActions);
+        
+        tbody.appendChild(tr);
+    });
+}
+
+
+
+
+
+// ============================================
+// ATTRIBUTE MANAGEMENT
+// ============================================
+
+let draggedAttributeRow = null;
+
+/**
+ * Populate attributes list with drag-and-drop support
+ */
+function populateAttributesList() {
+    const container = document.getElementById('attributesList');
+    const countSpan = document.getElementById('attributeCount');
+
+    container.innerHTML = '';
+
+    if (!allSettings || !allSettings.available_attributes || allSettings.available_attributes.length === 0) {
+        container.innerHTML = '<p class="text-muted">No attributes defined</p>';
+        if (countSpan) countSpan.textContent = '0';
+        return;
     }
 
+    if (countSpan) countSpan.textContent = allSettings.available_attributes.length;
+
+    allSettings.available_attributes.forEach((attr, index) => {
+        const row = document.createElement('div');
+        row.className = 'attribute-row d-flex align-items-center justify-content-between p-2 mb-2 border rounded bg-white';
+        row.setAttribute('data-attr-name', attr);
+        row.setAttribute('draggable', 'true');
+        row.style.cursor = 'grab';
+
+        const isHiddenFromMe = userPermissions &&
+                               !userPermissions.visible_attributes.includes('all') &&
+                               !userPermissions.visible_attributes.includes(attr);
+
+        row.innerHTML = `
+            <div class="d-flex align-items-center flex-grow-1">
+                <span class="me-3 text-muted" style="cursor:grab; user-select:none;">⋮⋮</span>
+                <span class="badge bg-secondary me-3">${index + 1}</span>
+                <span>
+                    ${capitalizeWords(attr.replace(/_/g, ' '))}
+                    ${isHiddenFromMe ? '<span class="badge bg-secondary ms-2" title="Hidden from your view">👁️‍🗨️</span>' : ''}
+                </span>
+            </div>
+            <button class="btn btn-sm btn-danger" type="button" onclick="AdminModule.removeAttribute('${attr}')">
+                <i class="bi bi-x"></i>
+            </button>
+        `;
+
+        row.addEventListener('dragstart', function (e) {
+            draggedAttributeRow = this;
+            this.style.opacity = '0.5';
+        });
+
+        row.addEventListener('dragend', function () {
+            this.style.opacity = '1';
+            draggedAttributeRow = null;
+
+            const rows = container.querySelectorAll('.attribute-row');
+            rows.forEach((r, i) => {
+                const badge = r.querySelector('.badge.bg-secondary');
+                if (badge) badge.textContent = i + 1;
+            });
+
+            updateAttributeOrder();
+        });
+
+        row.addEventListener('dragover', function (e) {
+            e.preventDefault();
+        });
+
+        row.addEventListener('drop', function (e) {
+            e.preventDefault();
+            if (!draggedAttributeRow || draggedAttributeRow === this) return;
+
+            const rect = this.getBoundingClientRect();
+            const midpoint = rect.top + rect.height / 2;
+
+            if (e.clientY < midpoint) {
+                container.insertBefore(draggedAttributeRow, this);
+            } else {
+                container.insertBefore(draggedAttributeRow, this.nextSibling);
+            }
+        });
+
+        container.appendChild(row);
+    });
+}
+
+/**
+ * Update attribute order after drag and drop
+ */
+function updateAttributeOrder() {
+    const rows = document.querySelectorAll('#attributesList .attribute-row');
+    const newOrder = [];
+    rows.forEach(row => {
+        const name = row.getAttribute('data-attr-name');
+        if (name) newOrder.push(name);
+    });
+    allSettings.available_attributes = newOrder;
+    console.log('New attribute order:', newOrder);
+    saveAllSettings();
+}
+
+
+    
+    
+
+
+
+
+    
     /**
      * Show add user form
      */
