@@ -312,8 +312,12 @@ if ($action === 'addUser') {
     exit;
 }
 
+
+
+
 // ACTION: Update user
 if ($action === 'updateUser') {
+    
     if (!isAdmin($currentUserEmail, $settings)) {
         http_response_code(403);
         echo json_encode(['error' => 'Forbidden - Admin access required']);
@@ -336,8 +340,11 @@ if ($action === 'updateUser') {
     foreach ($settings['users'] as &$user) {
         if ($user['email'] === $userEmail) {
             $user['role'] = $data['role'] ?? $user['role'];
+            
+            // CRITICAL: Use exactly what was sent, don't override
             $user['visible_attributes'] = $data['visible_attributes'] ?? $user['visible_attributes'];
             $user['editable_attributes'] = $data['editable_attributes'] ?? $user['editable_attributes'];
+            
             $userFound = true;
             
             // Update admin status
@@ -379,6 +386,15 @@ if ($action === 'updateUser') {
     }
     exit;
 }
+
+
+
+
+
+
+
+
+
 
 // ACTION: Delete user
 if ($action === 'deleteUser') {
