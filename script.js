@@ -340,76 +340,97 @@ function loadCachedProducts(cachedIds, needUpdateIds, totalProducts, startTime) 
   
 function populateFamilyFilter() {
     const familyMap = new Map();
+    let debugCount = 0;
     
-    console.log('=== FAMILY FILTER DEEP SCAN ===');
+    console.log('🔍 PLYTIX PRODUCT FAMILIES DEEP SCAN START');
     
     allProducts.forEach((product, index) => {
-        // DEEP SCAN: Look for ANY field that might contain family/category-like data
-        if (index < 5) {  // Debug first 5 products only
-            console.log(`Product ${index + 1} keys:`, Object.keys(product));
-            console.log(`Product ${index + 1} attributes keys:`, Object.keys(product.attributes || {}));
+        if (debugCount < 5) {
+            console.log(`\n📦 Product ${index + 1}:`, {
+                id: product.id,
+                sku: product.sku,
+                allKeys: Object.keys(product).slice(0, 20), // First 20 keys
+                hasRelationships: !!product.relationships,
+                relationshipsKeys: product.relationships ? Object.keys(product.relationships) : [],
+                attributesKeys: product.attributes ? Object.keys(product.attributes).slice(0, 15) : []
+            });
+            debugCount++;
         }
         
-        // Method 1: Scan ALL attributes for family-like names
-        if (product.attributes) {
-            Object.keys(product.attributes).forEach(attrKey => {
-                const value = product.attributes[attrKey];
-                const attrLower = attrKey.toLowerCase();
-                
-                // Look for family/product family keywords
-                if (attrLower.includes('family') || attrLower.includes('group') || attrLower.includes('type')) {
-                    if (typeof value === 'string' && value.trim()) {
-                        familyMap.set(`${attrKey}:${value}`, `${capitalizeWords(attrKey)}: ${value}`);
-                        if (index < 5) console.log(`Found family-like: ${attrKey} = ${value}`);
-                    } else if (typeof value === 'object' && value.label) {
-                        familyMap.set(value.id || attrKey, value.label);
-                        if (index < 5) console.log(`Found family object: ${attrKey}`, value);
+        // PLYTIX PRODUCT FAMILY FIELDS - Common locations:
+        
+        // 1. Top-level fields (most likely)
+        ['productfamily', 'product_family', 'family', 'productFamily', 'family_id', 'product_family_id'].forEach(field => {
+            if (product[field]) {
+                const value = product[field];
+                const id = typeof value === 'object' ? (value.id || value._id) : value;
+                const name = typeof value === 'object' ? (value.name || value.label || value.title) : value;
+                if (id && name && name !== 'Unassigned') {
+                    familyMap.set(id, name);
+                    console.log(`✅ FAMILY FOUND: ${field} = ${name} (ID: ${id})`);
+                }
+            }
+        });
+        
+        // 2. relationships.productfamilies (standard Plytix)
+        if (product.relationships?.productfamilies) {
+            product.relationships.productfamilies.forEach(family => {
+                if (family.id && (family.name || family.label)) {
+                    familyMap.set(family.id, family.name || family.label);
+                    console.log(`✅ FAMILY FOUND: relationships.productfamilies = ${family.name || family.label}`);
+                }
+            });
+        }
+        
+        // 3. Nested in relationships
+        if (product.relationships) {
+            Object.keys(product.relationships).forEach(relKey => {
+                if (relKey.toLowerCase().includes('family')) {
+                    const families = product.relationships[relKey];
+                    if (Array.isArray(families)) {
+                        families.forEach(family => {
+                            if (family.id && (family.name || family.label)) {
+                                familyMap.set(family.id, family.name || family.label);
+                            }
+                        });
                     }
                 }
             });
         }
         
-        // Method 2: Check top-level fields for family-like names
-        Object.keys(product).forEach(key => {
-            const keyLower = key.toLowerCase();
-            const value = product[key];
-            
-            if ((keyLower.includes('family') || keyLower.includes('group') || keyLower.includes('type')) && 
-                typeof value === 'string' && value.trim()) {
-                familyMap.set(key + ':' + value, capitalizeWords(key) + ': ' + value);
-                if (index < 5) console.log(`Found top-level family: ${key} = ${value}`);
-            }
-        });
-        
-        // Method 3: Check categories (sometimes used for families)
-        if (product.categories && product.categories.length > 0) {
-            product.categories.forEach(cat => {
-                if (cat.id && cat.name) {
-                    familyMap.set(cat.id, cat.name);
-                    if (index < 5) console.log(`Using category as family:`, cat);
+        // 4. Attributes with family-like names
+        if (product.attributes) {
+            Object.keys(product.attributes).forEach(attr => {
+                if (attr.toLowerCase().includes('family')) {
+                    const value = product.attributes[attr];
+                    if (typeof value === 'string' && value.trim() && value !== 'Unassigned') {
+                        familyMap.set(`${attr}:${value}`, `${capitalizeWords(attr)}: ${value}`);
+                    }
                 }
             });
         }
     });
-
-    console.log('Total unique families found:', familyMap.size);
-    console.log('All families:', Array.from(familyMap.entries()).slice(0, 10)); // First 10
-
+    
+    console.log(`\n📊 SCAN COMPLETE: Found ${familyMap.size} unique product families`);
+    console.log('Families:', Array.from(familyMap.entries()).slice(0, 10));
+    
     const ul = document.getElementById('familyFilter');
-    if (!ul) return;
+    if (!ul) {
+        console.error('❌ #familyFilter element missing!');
+        return;
+    }
     
     ul.innerHTML = '';
     
     if (familyMap.size === 0) {
-        ul.innerHTML = '<li class="dropdown-item text-muted">No family data found - check console for product structure</li>';
+        ul.innerHTML = '<li class="dropdown-item text-muted">No Product Families found in data</li>';
+        console.log('💡 TIP: Check Plytix Settings > Products > Families to assign families to products');
         return;
     }
-
-    const sortedFamilies = Array.from(familyMap.entries()).sort((a, b) => 
-        a[1].localeCompare(b[1])
-    );
     
-    sortedFamilies.slice(0, 50).forEach(([familyId, familyName]) => {  // Limit to 50
+    // Populate dropdown
+    const sortedFamilies = Array.from(familyMap.entries()).sort((a, b) => a[1].localeCompare(b[1]));
+    sortedFamilies.slice(0, 50).forEach(([familyId, familyName]) => {
         const li = document.createElement('li');
         li.innerHTML = `
             <label class="dropdown-item">
@@ -419,12 +440,12 @@ function populateFamilyFilter() {
         `;
         ul.appendChild(li);
     });
-
+    
     ul.querySelectorAll('input[type="checkbox"]').forEach(cb => {
         cb.addEventListener('change', applyFilters);
     });
     
-    console.log(`Populated ${Math.min(50, sortedFamilies.length)} families in dropdown`);
+    console.log(`✅ Populated ${Math.min(50, sortedFamilies.length)} families in dropdown`);
 }
 
 
