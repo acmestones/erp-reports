@@ -341,92 +341,67 @@ function loadCachedProducts(cachedIds, needUpdateIds, totalProducts, startTime) 
 function populateFamilyFilter() {
     const familyMap = new Map();
     
-    // DEBUG: Log first 3 products to see structure
-    console.log('=== FAMILY FILTER DEBUG ===');
-    console.log('Total products:', allProducts.length);
-    if (allProducts.length > 0) {
-        console.log('Sample product 1:', allProducts[0]);
-        console.log('Sample product 1 relationships:', allProducts[0].relationships);
-        console.log('Sample product 1 attributes:', allProducts[0].attributes);
-    }
+    console.log('=== FAMILY FILTER DEEP SCAN ===');
     
     allProducts.forEach((product, index) => {
-        // Method 1: Check relationships.productfamilies array
-        if (product.relationships?.productfamilies) {
-            if (Array.isArray(product.relationships.productfamilies)) {
-                product.relationships.productfamilies.forEach(family => {
-                    if (family.id && family.label) {
-                        familyMap.set(family.id, family.label);
-                        if (index < 3) console.log('Found family via relationships:', family);
-                    }
-                });
-            }
+        // DEEP SCAN: Look for ANY field that might contain family/category-like data
+        if (index < 5) {  // Debug first 5 products only
+            console.log(`Product ${index + 1} keys:`, Object.keys(product));
+            console.log(`Product ${index + 1} attributes keys:`, Object.keys(product.attributes || {}));
         }
         
-        // Method 2: Check attributes.productfamily
-        const familyAttr = product.attributes?.productfamily;
-        if (familyAttr) {
-            if (typeof familyAttr === 'string') {
-                // String ID - use as-is or create label
-                familyMap.set(familyAttr, `Family ${familyAttr}`);
-                if (index < 3) console.log('Found family via attributes (string):', familyAttr);
-            } else if (typeof familyAttr === 'object') {
-                if (familyAttr.id && familyAttr.label) {
-                    familyMap.set(familyAttr.id, familyAttr.label);
-                    if (index < 3) console.log('Found family via attributes (object):', familyAttr);
-                } else if (familyAttr.id) {
-                    // Has ID but no label
-                    familyMap.set(familyAttr.id, familyAttr.name || `Family ${familyAttr.id}`);
-                    if (index < 3) console.log('Found family via attributes (ID only):', familyAttr);
+        // Method 1: Scan ALL attributes for family-like names
+        if (product.attributes) {
+            Object.keys(product.attributes).forEach(attrKey => {
+                const value = product.attributes[attrKey];
+                const attrLower = attrKey.toLowerCase();
+                
+                // Look for family/product family keywords
+                if (attrLower.includes('family') || attrLower.includes('group') || attrLower.includes('type')) {
+                    if (typeof value === 'string' && value.trim()) {
+                        familyMap.set(`${attrKey}:${value}`, `${capitalizeWords(attrKey)}: ${value}`);
+                        if (index < 5) console.log(`Found family-like: ${attrKey} = ${value}`);
+                    } else if (typeof value === 'object' && value.label) {
+                        familyMap.set(value.id || attrKey, value.label);
+                        if (index < 5) console.log(`Found family object: ${attrKey}`, value);
+                    }
                 }
-            } else if (Array.isArray(familyAttr)) {
-                // Sometimes it's an array
-                familyAttr.forEach(fam => {
-                    if (fam.id && fam.label) {
-                        familyMap.set(fam.id, fam.label);
-                    } else if (fam.id) {
-                        familyMap.set(fam.id, fam.name || `Family ${fam.id}`);
-                    }
-                });
-                if (index < 3) console.log('Found family via attributes (array):', familyAttr);
-            }
+            });
         }
         
-        // Method 3: Check attributes.product_family (underscore version)
-        const familyAttr2 = product.attributes?.product_family;
-        if (familyAttr2 && !familyAttr) {
-            if (typeof familyAttr2 === 'string') {
-                familyMap.set(familyAttr2, `Family ${familyAttr2}`);
-            } else if (familyAttr2.id) {
-                familyMap.set(familyAttr2.id, familyAttr2.label || familyAttr2.name || `Family ${familyAttr2.id}`);
+        // Method 2: Check top-level fields for family-like names
+        Object.keys(product).forEach(key => {
+            const keyLower = key.toLowerCase();
+            const value = product[key];
+            
+            if ((keyLower.includes('family') || keyLower.includes('group') || keyLower.includes('type')) && 
+                typeof value === 'string' && value.trim()) {
+                familyMap.set(key + ':' + value, capitalizeWords(key) + ': ' + value);
+                if (index < 5) console.log(`Found top-level family: ${key} = ${value}`);
             }
-        }
+        });
         
-        // Method 4: Check top-level productfamily field
-        if (product.productfamily) {
-            if (typeof product.productfamily === 'string') {
-                familyMap.set(product.productfamily, `Family ${product.productfamily}`);
-            } else if (product.productfamily.id) {
-                familyMap.set(product.productfamily.id, product.productfamily.label || product.productfamily.name || `Family ${product.productfamily.id}`);
-            }
+        // Method 3: Check categories (sometimes used for families)
+        if (product.categories && product.categories.length > 0) {
+            product.categories.forEach(cat => {
+                if (cat.id && cat.name) {
+                    familyMap.set(cat.id, cat.name);
+                    if (index < 5) console.log(`Using category as family:`, cat);
+                }
+            });
         }
     });
 
     console.log('Total unique families found:', familyMap.size);
-    console.log('Families:', Array.from(familyMap.entries()));
-    console.log('=== END DEBUG ===');
+    console.log('All families:', Array.from(familyMap.entries()).slice(0, 10)); // First 10
 
     const ul = document.getElementById('familyFilter');
-    if (!ul) {
-        console.error('familyFilter element not found in DOM!');
-        return;
-    }
+    if (!ul) return;
     
     ul.innerHTML = '';
     
     if (familyMap.size === 0) {
-        ul.innerHTML = '<li class="dropdown-item text-muted">No families found</li>';
-        console.warn('No product families found in any products');
+        ul.innerHTML = '<li class="dropdown-item text-muted">No family data found - check console for product structure</li>';
         return;
     }
 
@@ -434,7 +409,7 @@ function populateFamilyFilter() {
         a[1].localeCompare(b[1])
     );
     
-    sortedFamilies.forEach(([familyId, familyName]) => {
+    sortedFamilies.slice(0, 50).forEach(([familyId, familyName]) => {  // Limit to 50
         const li = document.createElement('li');
         li.innerHTML = `
             <label class="dropdown-item">
@@ -449,8 +424,9 @@ function populateFamilyFilter() {
         cb.addEventListener('change', applyFilters);
     });
     
-    console.log(`Successfully populated ${sortedFamilies.length} families in dropdown`);
+    console.log(`Populated ${Math.min(50, sortedFamilies.length)} families in dropdown`);
 }
+
 
 
 
