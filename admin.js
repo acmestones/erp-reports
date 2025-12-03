@@ -650,6 +650,9 @@ function saveUserPermissions() {
 // ATTRIBUTE MANAGEMENT
 // ============================================
 
+// Drag and drop state
+let draggedElement = null;
+
 /**
  * Populate attributes list with drag-and-drop support
  */
@@ -670,47 +673,248 @@ function populateAttributesList() {
     
     const list = document.createElement('div');
     list.id = 'sortableAttributesList';
-    list.className = 'row g-2';
     
     allSettings.available_attributes.forEach((attr, index) => {
-        const col = document.createElement('div');
-        col.className = 'col-12';
-        col.setAttribute('data-attr-name', attr);
-        col.setAttribute('draggable', 'true');
-        col.style.cursor = 'move';
+        const row = document.createElement('div');
+        row.className = 'attribute-row d-flex align-items-center justify-content-between p-2 mb-2 border rounded';
+        row.style.cursor = 'move';
+        row.style.backgroundColor = '#fff';
+        row.setAttribute('draggable', 'true');
+        row.setAttribute('data-attr-name', attr);
         
         // Show if attribute is hidden from current admin
         const isHiddenFromMe = userPermissions && 
                                !userPermissions.visible_attributes.includes('all') && 
                                !userPermissions.visible_attributes.includes(attr);
         
-        col.innerHTML = `
-            <div class="d-flex align-items-center justify-content-between p-2 border rounded ${isHiddenFromMe ? 'bg-light' : 'bg-white'}" style="transition: all 0.2s;">
-                <div class="d-flex align-items-center">
-                    <span class="me-2 text-muted" style="cursor: move;">⋮⋮</span>
-                    <span class="badge bg-secondary me-2">${index + 1}</span>
-                    <span>
-                        ${capitalizeWords(attr.replace(/_/g, ' '))}
-                        ${isHiddenFromMe ? '<span class="badge bg-secondary ms-1" title="Hidden from your view">👁️‍🗨️</span>' : ''}
-                    </span>
-                </div>
-                <button class="btn btn-sm btn-danger" onclick="AdminModule.removeAttribute('${attr}')">
-                    <i class="bi bi-x"></i>
-                </button>
+        if (isHiddenFromMe) {
+            row.style.backgroundColor = '#f8f9fa';
+        }
+        
+        row.innerHTML = `
+            <div class="d-flex align-items-center flex-grow-1">
+                <span class="me-3 text-muted" style="cursor: move; user-select: none;">⋮⋮</span>
+                <span class="badge bg-secondary me-3">${index + 1}</span>
+                <span>
+                    ${capitalizeWords(attr.replace(/_/g, ' '))}
+                    ${isHiddenFromMe ? '<span class="badge bg-secondary ms-2" title="Hidden from your view">👁️‍🗨️</span>' : ''}
+                </span>
             </div>
+            <button class="btn btn-sm btn-danger" onclick="AdminModule.removeAttribute('${attr}')" type="button">
+                <i class="bi bi-x"></i>
+            </button>
         `;
         
         // Add drag event listeners
-        col.addEventListener('dragstart', handleDragStart);
-        col.addEventListener('dragover', handleDragOver);
-        col.addEventListener('drop', handleDrop);
-        col.addEventListener('dragend', handleDragEnd);
+        row.addEventListener('dragstart', function(e) {
+            draggedElement = this;
+            this.style.opacity = '0.4';
+            e.dataTransfer.effectAllowed = 'move';
+        });
         
-        list.appendChild(col);
+        row.addEventListener('dragover', function(e) {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            
+            if (draggedElement === this) return;
+            
+            const rect = this.getBoundingClientRect();
+            const midpoint = rect.top + rect.height / 2;
+            
+            if (e.clientY < midpoint) {
+                this.parentNode.insertBefore(draggedElement, this);
+            } else {
+                this.parentNode.insertBefore(draggedElement, this.nextSibling);
+            }
+        });
+        
+        row.addEventListener('dragend', function(e) {
+            this.style.opacity = '1';
+            updateAttributeOrder();
+            populateAttributesList(); // Refresh to update numbers
+        });
+        
+        list.appendChild(row);
     });
     
     div.appendChild(list);
 }
+
+/**
+ * Update attribute order after drag and drop
+ */
+function updateAttributeOrder() {
+    const items = document.querySelectorAll('#sortableAttributesList .attribute-row');
+    const newOrder = [];
+    
+    items.forEach(item => {
+        const attrName = item.getAttribute('data-attr-name');
+        if (attrName) {
+            newOrder.push(attrName);
+        }
+    });
+    
+    console.log('New attribute order:', newOrder);
+    
+    // Update settings
+    allSettings.available_attributes = newOrder;
+    
+    // Save to server
+    saveAllSettings();
+}
+
+/**
+ * Scan all products and discover all attributes
+ */
+function discoverAllAttributes() {
+    console.log('Discovering attributes...');
+    
+    // Check if allProducts is available globally
+    if (typeof window.allProducts === 'undefined' || !Array.isArray(window.allProducts)) {
+        alert('Products not loaded yet. Please wait for products to load and try again.');
+        console.error('window.allProducts not found');
+        return;
+    }
+    
+    if (window.allProducts.length === 0) {
+        alert('No products loaded yet. Please wait for products to load and try again.');
+        return;
+    }
+    
+    // Show info message about discovery scope
+    if (userPermissions && !userPermissions.visible_attributes.includes('all')) {
+        const proceed = confirm(
+            'Note: This will discover ALL attributes from products, including those hidden from your view.\n\n' +
+            'Newly discovered attributes will be added to the available list and you can assign them to users.\n\n' +
+            'Continue?'
+        );
+        if (!proceed) return;
+    }
+    
+    console.log('Scanning', window.allProducts.length, 'products...');
+    
+    const discoveredAttributes = new Set();
+    
+    // Scan all products
+    window.allProducts.forEach(product => {
+        // Add top-level product keys
+        Object.keys(product).forEach(key => {
+            if (key !== 'attributes' && key !== 'relationships' && key !== 'id') {
+                discoveredAttributes.add(key);
+            }
+        });
+        
+        // Add attributes
+        if (product.attributes && typeof product.attributes === 'object') {
+            Object.keys(product.attributes).forEach(attrKey => {
+                discoveredAttributes.add(attrKey);
+            });
+        }
+    });
+    
+    // Convert to array (don't sort, keep existing order and append new ones)
+    const attributesArray = Array.from(discoveredAttributes);
+    
+    console.log('Discovered attributes:', attributesArray);
+    console.log('Total discovered:', attributesArray.length);
+    
+    // Merge with existing attributes, maintaining order
+    const existingAttrs = new Set(allSettings.available_attributes || []);
+    let newCount = 0;
+    const newAttributes = [];
+    
+    attributesArray.forEach(attr => {
+        if (!existingAttrs.has(attr)) {
+            allSettings.available_attributes.push(attr); // Append to end
+            newAttributes.push(attr);
+            newCount++;
+        }
+    });
+    
+    if (newCount > 0) {
+        const newAttrList = newAttributes.slice(0, 10).join(', ') + (newAttributes.length > 10 ? '...' : '');
+        alert(
+            `✅ Discovered ${newCount} new attributes!\n\n` +
+            `New attributes: ${newAttrList}\n\n` +
+            `Total attributes: ${allSettings.available_attributes.length}\n\n` +
+            `New attributes added at the end. You can drag to reorder them.`
+        );
+        saveAllSettings();
+    } else {
+        alert('✅ No new attributes found.\n\nAll ' + attributesArray.length + ' attributes are already in the list.');
+        populateAttributesList();
+    }
+}
+
+/**
+ * Remove attribute from available attributes
+ * @param {string} attrName - Name of attribute to remove
+ */
+function removeAttribute(attrName) {
+    if (!currentUser) {
+        alert('User not initialized');
+        return;
+    }
+    
+    if (!confirm(`Remove attribute "${attrName}"? This will also remove it from all user permissions.`)) {
+        return;
+    }
+    
+    allSettings.available_attributes = allSettings.available_attributes.filter(a => a !== attrName);
+    
+    // Remove from all users
+    allSettings.users.forEach(user => {
+        user.visible_attributes = user.visible_attributes.filter(a => a !== attrName);
+        user.editable_attributes = user.editable_attributes.filter(a => a !== attrName);
+    });
+    
+    saveAllSettings();
+}
+
+/**
+ * Save all settings to server
+ */
+function saveAllSettings() {
+    if (!currentUser) {
+        alert('User not initialized');
+        return;
+    }
+    
+    fetch('admin_user_settings.php', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            action: 'save',
+            currentUser: currentUser,
+            settings: allSettings
+        })
+    })
+    .then(res => {
+        if (!res.ok) {
+            throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+        }
+        return res.json();
+    })
+    .then(data => {
+        if (data.success) {
+            loadAllSettings();
+        } else {
+            alert('Error: ' + (data.error || 'Failed to save settings'));
+        }
+    })
+    .catch(err => {
+        console.error('Failed to save settings:', err);
+        alert('Failed to save settings: ' + err.message);
+    });
+}
+
+
+
+
+
+    
 
 /**
  * Drag and drop handlers
