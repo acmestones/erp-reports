@@ -650,93 +650,87 @@ function saveUserPermissions() {
 // ATTRIBUTE MANAGEMENT
 // ============================================
 
-// Drag and drop state
-let draggedElement = null;
+let draggedAttributeRow = null;
 
 /**
  * Populate attributes list with drag-and-drop support
  */
 function populateAttributesList() {
-    const div = document.getElementById('attributesList');
+    const container = document.getElementById('attributesList');
     const countSpan = document.getElementById('attributeCount');
-    
-    div.innerHTML = '';
-    
+
+    container.innerHTML = '';
+
     if (!allSettings || !allSettings.available_attributes || allSettings.available_attributes.length === 0) {
-        div.innerHTML = '<p class="text-muted">No attributes defined</p>';
+        container.innerHTML = '<p class="text-muted">No attributes defined</p>';
         if (countSpan) countSpan.textContent = '0';
         return;
     }
-    
-    // Update count
+
     if (countSpan) countSpan.textContent = allSettings.available_attributes.length;
-    
-    // Global drag state
-    window.draggedElement = null;
-    
+
     allSettings.available_attributes.forEach((attr, index) => {
         const row = document.createElement('div');
-        row.className = 'attribute-row draggable-item d-flex align-items-center justify-content-between p-3 mb-2 border rounded bg-white shadow-sm';
-        row.draggable = true;
-        row.dataset.attrName = attr;
+        row.className = 'attribute-row d-flex align-items-center justify-content-between p-2 mb-2 border rounded bg-white';
+        row.setAttribute('data-attr-name', attr);
+        row.setAttribute('draggable', 'true');
         row.style.cursor = 'grab';
-        row.style.userSelect = 'none';
-        
-        // Show if attribute is hidden from current admin
-        const isHiddenFromMe = userPermissions && 
-                               !userPermissions.visible_attributes.includes('all') && 
+
+        const isHiddenFromMe = userPermissions &&
+                               !userPermissions.visible_attributes.includes('all') &&
                                !userPermissions.visible_attributes.includes(attr);
-        
-        const hiddenBadge = isHiddenFromMe ? '<span class="badge bg-secondary ms-2" title="Hidden from your view">👁️‍🗨️</span>' : '';
-        
+
         row.innerHTML = `
-            <div class="flex-grow-1">
-                <div class="d-flex align-items-center">
-                    <span class="drag-handle text-muted me-3 fs-4" style="cursor: grab;">⋮⋮</span>
-                    <span class="badge bg-primary me-3">${index + 1}</span>
-                    <span class="fw-medium">${capitalizeWords(attr.replace(/_/g, ' '))}</span>
-                    ${hiddenBadge}
-                </div>
+            <div class="d-flex align-items-center flex-grow-1">
+                <span class="me-3 text-muted" style="cursor:grab; user-select:none;">⋮⋮</span>
+                <span class="badge bg-secondary me-3">${index + 1}</span>
+                <span>
+                    ${capitalizeWords(attr.replace(/_/g, ' '))}
+                    ${isHiddenFromMe ? '<span class="badge bg-secondary ms-2" title="Hidden from your view">👁️‍🗨️</span>' : ''}
+                </span>
             </div>
-            <button class="btn btn-sm btn-outline-danger ms-2" onclick="AdminModule.removeAttribute('${attr}')">
-                <i class="bi bi-x-lg"></i>
+            <button class="btn btn-sm btn-danger" type="button" onclick="AdminModule.removeAttribute('${attr}')">
+                <i class="bi bi-x"></i>
             </button>
         `;
-        
+
         // Drag events
-        row.addEventListener('dragstart', function(e) {
-            window.draggedElement = this;
+        row.addEventListener('dragstart', function (e) {
+            draggedAttributeRow = this;
             this.style.opacity = '0.5';
-            this.style.transform = 'scale(0.98)';
-            e.dataTransfer.effectAllowed = 'move';
         });
-        
-        row.addEventListener('dragend', function(e) {
+
+        row.addEventListener('dragend', function () {
             this.style.opacity = '1';
-            this.style.transform = 'scale(1)';
+            draggedAttributeRow = null;
+            // Re-number badges after drop
+            const rows = container.querySelectorAll('.attribute-row');
+            rows.forEach((r, i) => {
+                const badge = r.querySelector('.badge.bg-secondary');
+                if (badge) badge.textContent = i + 1;
+            });
             updateAttributeOrder();
         });
-        
-        row.addEventListener('dragover', function(e) {
+
+        row.addEventListener('dragover', function (e) {
             e.preventDefault();
-            e.dataTransfer.dropEffect = 'move';
         });
-        
-        row.addEventListener('drop', function(e) {
+
+        row.addEventListener('drop', function (e) {
             e.preventDefault();
-            if (window.draggedElement && window.draggedElement !== this) {
-                const rect = this.getBoundingClientRect();
-                const midpoint = rect.top + rect.height / 2;
-                if (e.clientY < midpoint) {
-                    this.parentNode.insertBefore(window.draggedElement, this);
-                } else {
-                    this.parentNode.insertBefore(window.draggedElement, this.nextSibling);
-                }
-                updateAttributeOrder();
+            if (!draggedAttributeRow || draggedAttributeRow === this) return;
+
+            const rect = this.getBoundingClientRect();
+            const midpoint = rect.top + rect.height / 2;
+
+            if (e.clientY < midpoint) {
+                container.insertBefore(draggedAttributeRow, this);
+            } else {
+                container.insertBefore(draggedAttributeRow, this.nextSibling);
             }
         });
-        
-        div.appendChild(row);
+
+        container.appendChild(row);
     });
 }
 
@@ -744,17 +738,17 @@ function populateAttributesList() {
  * Update attribute order after drag and drop
  */
 function updateAttributeOrder() {
-    const items = document.querySelectorAll('.draggable-item');
+    const rows = document.querySelectorAll('#attributesList .attribute-row');
     const newOrder = [];
-    
-    items.forEach(item => {
-        const attrName = item.dataset.attrName;
-        if (attrName) newOrder.push(attrName);
+    rows.forEach(row => {
+        const name = row.getAttribute('data-attr-name');
+        if (name) newOrder.push(name);
     });
-    
     allSettings.available_attributes = newOrder;
+    console.log('New attribute order:', newOrder);
     saveAllSettings();
 }
+
 
 
     
