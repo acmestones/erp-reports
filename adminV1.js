@@ -647,67 +647,7 @@
 
       container.appendChild(row);
     });
-
-  setupAttributeSearch();
-    
   }
-
-
-
-
-/**
- * Filter attributes based on search term
- */
-function filterAttributes() {
-    const searchTerm = document.getElementById('attributeSearch').value.toLowerCase();
-    const container = document.getElementById('attributesList');
-    const rows = container.querySelectorAll('.attribute-row');
-    
-    let visibleCount = 0;
-    
-    rows.forEach(row => {
-        const attrName = row.getAttribute('data-attr-name').toLowerCase();
-        const attrDisplay = row.textContent.toLowerCase();
-        
-        if (searchTerm === '' || attrName.includes(searchTerm) || attrDisplay.includes(searchTerm)) {
-            row.style.display = '';
-            visibleCount++;
-        } else {
-            row.style.display = 'none';
-        }
-    });
-    
-    // Update count if search span exists
-    const countSpan = document.getElementById('attributeCount');
-    if (countSpan && searchTerm !== '') {
-        countSpan.textContent = `${visibleCount} of ${allSettings.available_attributes.length}`;
-    }
-}
-
-/**
- * Clear attribute search and show all
- */
-function clearAttributeSearch() {
-    document.getElementById('attributeSearch').value = '';
-    filterAttributes();
-}
-
-/**
- * Setup attribute search listener
- */
-function setupAttributeSearch() {
-    const searchInput = document.getElementById('attributeSearch');
-    if (searchInput) {
-        searchInput.addEventListener('input', filterAttributes);
-    }
-}
-
-
-
-
-
-
-  
 
   /**
    * Update attribute order after drag and drop
@@ -898,11 +838,5 @@ function setupAttributeSearch() {
     // Attribute management
     discoverAllAttributes: discoverAllAttributes,
     removeAttribute: removeAttribute
-
-
-    discoverAllAttributes: discoverAllAttributes,
-    removeAttribute
-
-    
   };
 })();
