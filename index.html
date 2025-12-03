@@ -190,13 +190,10 @@
                         
                         
                         
-                        <!-- Available Attributes Tab -->
-                       
-
-                        
+ <!-- Available Attributes Tab -->
 <div class="tab-pane fade" id="attributes-panel">
     <div class="alert alert-info">
-        <strong>💡 Tip:</strong> Click "Discover All Attributes" to automatically scan all loaded products and add any missing attributes to this list.
+        <strong>💡 Tip:</strong> Click "Discover All Attributes" to automatically scan all loaded products and add any missing attributes to this list. Drag attributes to reorder how they appear in product details.
     </div>
     
     <div class="mb-3">
@@ -208,23 +205,15 @@
     
     <hr>
     
-    <p class="text-muted mb-2">Manually add a new attribute:</p>
-    <div class="mb-3">
-        <div class="input-group">
-            <input type="text" id="newAttributeName" class="form-control" placeholder="Attribute name (e.g., warranty, color)">
-            <button class="btn btn-primary" onclick="AdminModule.addNewAttribute()">
-                <i class="bi bi-plus-circle"></i> Add
-            </button>
-        </div>
-    </div>
-    
-    <hr>
-    
-    <h6 class="mb-3">Available Attributes (<span id="attributeCount">0</span>)</h6>
-    <div id="attributesList" class="border rounded p-3" style="max-height: 400px; overflow-y: auto;">
+    <h6 class="mb-3">
+        Available Attributes (<span id="attributeCount">0</span>)
+        <small class="text-muted ms-2">Drag to reorder</small>
+    </h6>
+    <div id="attributesList" class="border rounded p-3" style="max-height: 500px; overflow-y: auto;">
         <p class="text-muted">Loading...</p>
     </div>
 </div>
+
 
 
 
