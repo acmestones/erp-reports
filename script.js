@@ -320,12 +320,29 @@ function loadDefaultFilters() {
     fetchNextBatch(0);
   }
 
-  function setupFilters() {
-    document.getElementById("searchBox").addEventListener("input", applyFilters);
-    document.getElementById("statusFilter").addEventListener("change", applyFilters);
-    document.getElementById("variantFilter").addEventListener("change", applyFilters);
-    document.getElementById("sortFilter").addEventListener("change", applyFilters);
-  }
+function setupFilters() {
+    // Apply DEFAULT_FILTERS to controls on first load
+    if (DEFAULT_FILTERS) {
+        const searchBox = document.getElementById('searchBox');
+        const statusFilter = document.getElementById('statusFilter');
+        const variantFilter = document.getElementById('variantFilter');
+        const sortFilter = document.getElementById('sortFilter');
+
+        if (searchBox) searchBox.value = DEFAULT_FILTERS.search || '';
+        if (statusFilter) statusFilter.value = DEFAULT_FILTERS.status || 'enabled';
+        if (variantFilter) variantFilter.value = DEFAULT_FILTERS.variant || 'all';
+        if (sortFilter) sortFilter.value = DEFAULT_FILTERS.sort || 'sku-asc';
+    }
+
+    document.getElementById('searchBox').addEventListener('input', applyFilters);
+    document.getElementById('statusFilter').addEventListener('change', applyFilters);
+    document.getElementById('variantFilter').addEventListener('change', applyFilters);
+    document.getElementById('sortFilter').addEventListener('change', applyFilters);
+
+    // After category and family checkboxes are populated, we also need to apply defaults.
+    // Call these from the end of populateCategoryFilter() and populateFamilyFilter().
+}
+
 
   function populateCategoryFilter() {
     const categorySet = new Set();
@@ -355,6 +372,16 @@ function loadDefaultFilters() {
     ul.querySelectorAll('input[type="checkbox"]').forEach(function(cb) {
       cb.addEventListener("change", applyFilters);
     });
+
+        // Apply default category selection from DEFAULT_FILTERS
+    if (DEFAULT_FILTERS && DEFAULT_FILTERS.categories && DEFAULT_FILTERS.categories.length > 0) {
+        document.querySelectorAll('#categoryFilter input[type="checkbox"]').forEach(cb => {
+            cb.checked = DEFAULT_FILTERS.categories.includes(cb.value);
+        });
+    }
+
+
+    
   }
 
 
@@ -423,6 +450,16 @@ function populateFamilyFilter() {
             console.error('Failed to load product families:', err);
             ul.innerHTML = '<li class="dropdown-item text-danger">Error loading families</li>';
         });
+
+          // Apply default family selection from DEFAULT_FILTERS
+    if (DEFAULT_FILTERS && DEFAULT_FILTERS.families && DEFAULT_FILTERS.families.length > 0) {
+        document.querySelectorAll('#familyFilter input[type="checkbox"]').forEach(cb => {
+            cb.checked = DEFAULT_FILTERS.families.includes(cb.value);
+        });
+    }
+
+
+ 
 }
 
 
