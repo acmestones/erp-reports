@@ -817,84 +817,87 @@
     /**
      * Populate available categories into Default Filters tab
      */
-    function populateDefaultCategoriesCheckboxes() {
-        const container = document.getElementById('defaultCategoriesCheckboxes');
-        if (!container) return;
+function populateDefaultCategoriesCheckboxes() {
+    const container = document.getElementById('defaultCategoriesCheckboxes');
+    if (!container) return;
 
-        // Get categories from main filter dropdown
-        const categoryFilter = document.getElementById('categoryFilter');
-        availableCategories = [];
+    const categoryFilter = document.getElementById('categoryFilter');
+    availableCategories = [];
 
-        if (categoryFilter) {
-            categoryFilter.querySelectorAll('input[type="checkbox"]').forEach(cb => {
-                availableCategories.push(cb.value);
-            });
-        }
-
-        container.innerHTML = '';
-
-        if (availableCategories.length === 0) {
-            container.innerHTML = '<p class="text-muted">No categories available yet. Please load products first.</p>';
-            return;
-        }
-
-        availableCategories.forEach(cat => {
-            const isChecked = defaultFiltersConfig.categories.includes(cat);
-            const idSafe = cat.replace(/[^a-zA-Z0-9]/g, '_');
-            const div = document.createElement('div');
-            div.className = 'form-check';
-            div.innerHTML = `
-                <input class="form-check-input default-category" type="checkbox"
-                       value="${cat}" id="defaultCat_${idSafe}" ${isChecked ? 'checked' : ''}>
-                <label class="form-check-label" for="defaultCat_${idSafe}">
-                    ${cat}
-                </label>
-            `;
-            container.appendChild(div);
+    if (categoryFilter) {
+        categoryFilter.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+            availableCategories.push(cb.value);
         });
     }
+
+    container.innerHTML = '';
+
+    if (availableCategories.length === 0) {
+        container.innerHTML = '<p class="text-muted">No categories available yet. Please load products first.</p>';
+        return;
+    }
+
+    availableCategories.forEach(cat => {
+        const isChecked = defaultFiltersConfig &&
+                          Array.isArray(defaultFiltersConfig.categories) &&
+                          defaultFiltersConfig.categories.includes(cat);
+        const idSafe = cat.replace(/[^a-zA-Z0-9]/g, '_');
+        const div = document.createElement('div');
+        div.className = 'form-check';
+        div.innerHTML = `
+            <input class="form-check-input default-category" type="checkbox"
+                   value="${cat}" id="defaultCat_${idSafe}" ${isChecked ? 'checked' : ''}>
+            <label class="form-check-label" for="defaultCat_${idSafe}">
+                ${cat}
+            </label>
+        `;
+        container.appendChild(div);
+    });
+}
 
     /**
      * Populate available families into Default Filters tab
      */
-    function populateDefaultFamiliesCheckboxes() {
-        const container = document.getElementById('defaultFamiliesCheckboxes');
-        if (!container) return;
+function populateDefaultFamiliesCheckboxes() {
+    const container = document.getElementById('defaultFamiliesCheckboxes');
+    if (!container) return;
 
-        const familyFilter = document.getElementById('familyFilter');
-        availableFamilies = {};
+    const familyFilter = document.getElementById('familyFilter');
+    availableFamilies = {};
 
-        if (familyFilter) {
-            familyFilter.querySelectorAll('input[type="checkbox"]').forEach(cb => {
-                const famId = cb.value;
-                const famName = cb.getAttribute('data-family-name') || famId;
-                availableFamilies[famId] = famName;
-            });
-        }
-
-        container.innerHTML = '';
-
-        const keys = Object.keys(availableFamilies);
-        if (keys.length === 0) {
-            container.innerHTML = '<p class="text-muted">No families available yet. Please load products first.</p>';
-            return;
-        }
-
-        keys.forEach(famId => {
-            const famName = availableFamilies[famId];
-            const isChecked = defaultFiltersConfig.families.includes(famId);
-            const div = document.createElement('div');
-            div.className = 'form-check';
-            div.innerHTML = `
-                <input class="form-check-input default-family" type="checkbox"
-                       value="${famId}" id="defaultFam_${famId}" ${isChecked ? 'checked' : ''}>
-                <label class="form-check-label" for="defaultFam_${famId}">
-                    ${famName}
-                </label>
-            `;
-            container.appendChild(div);
+    if (familyFilter) {
+        familyFilter.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+            const famId = cb.value;
+            const famName = cb.getAttribute('data-family-name') || famId;
+            availableFamilies[famId] = famName;
         });
     }
+
+    container.innerHTML = '';
+
+    const keys = Object.keys(availableFamilies);
+    if (keys.length === 0) {
+        container.innerHTML = '<p class="text-muted">No families available yet. Please load products first.</p>';
+        return;
+    }
+
+    keys.forEach(famId => {
+        const famName = availableFamilies[famId];
+        const isChecked = defaultFiltersConfig &&
+                          Array.isArray(defaultFiltersConfig.families) &&
+                          defaultFiltersConfig.families.includes(famId);
+        const div = document.createElement('div');
+        div.className = 'form-check';
+        div.innerHTML = `
+            <input class="form-check-input default-family" type="checkbox"
+                   value="${famId}" id="defaultFam_${famId}" ${isChecked ? 'checked' : ''}>
+            <label class="form-check-label" for="defaultFam_${famId}">
+                ${famName}
+            </label>
+        `;
+        container.appendChild(div);
+    });
+}
 
     /**
      * Save default filters configuration
