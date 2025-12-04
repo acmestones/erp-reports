@@ -339,113 +339,60 @@ function loadCachedProducts(cachedIds, needUpdateIds, totalProducts, startTime) 
 
   
 function populateFamilyFilter() {
-    const familyMap = new Map();
-    let debugCount = 0;
-    
-    console.log('🔍 PLYTIX PRODUCT FAMILIES DEEP SCAN START');
-    
-    allProducts.forEach((product, index) => {
-        if (debugCount < 5) {
-            console.log(`\n📦 Product ${index + 1}:`, {
-                id: product.id,
-                sku: product.sku,
-                allKeys: Object.keys(product).slice(0, 20), // First 20 keys
-                hasRelationships: !!product.relationships,
-                relationshipsKeys: product.relationships ? Object.keys(product.relationships) : [],
-                attributesKeys: product.attributes ? Object.keys(product.attributes).slice(0, 15) : []
-            });
-            debugCount++;
-        }
-        
-        // PLYTIX PRODUCT FAMILY FIELDS - Common locations:
-        
-        // 1. Top-level fields (most likely)
-        ['productfamily', 'product_family', 'family', 'productFamily', 'family_id', 'product_family_id'].forEach(field => {
-            if (product[field]) {
-                const value = product[field];
-                const id = typeof value === 'object' ? (value.id || value._id) : value;
-                const name = typeof value === 'object' ? (value.name || value.label || value.title) : value;
-                if (id && name && name !== 'Unassigned') {
-                    familyMap.set(id, name);
-                    console.log(`✅ FAMILY FOUND: ${field} = ${name} (ID: ${id})`);
-                }
-            }
-        });
-        
-        // 2. relationships.productfamilies (standard Plytix)
-        if (product.relationships?.productfamilies) {
-            product.relationships.productfamilies.forEach(family => {
-                if (family.id && (family.name || family.label)) {
-                    familyMap.set(family.id, family.name || family.label);
-                    console.log(`✅ FAMILY FOUND: relationships.productfamilies = ${family.name || family.label}`);
-                }
-            });
-        }
-        
-        // 3. Nested in relationships
-        if (product.relationships) {
-            Object.keys(product.relationships).forEach(relKey => {
-                if (relKey.toLowerCase().includes('family')) {
-                    const families = product.relationships[relKey];
-                    if (Array.isArray(families)) {
-                        families.forEach(family => {
-                            if (family.id && (family.name || family.label)) {
-                                familyMap.set(family.id, family.name || family.label);
-                            }
-                        });
-                    }
-                }
-            });
-        }
-        
-        // 4. Attributes with family-like names
-        if (product.attributes) {
-            Object.keys(product.attributes).forEach(attr => {
-                if (attr.toLowerCase().includes('family')) {
-                    const value = product.attributes[attr];
-                    if (typeof value === 'string' && value.trim() && value !== 'Unassigned') {
-                        familyMap.set(`${attr}:${value}`, `${capitalizeWords(attr)}: ${value}`);
-                    }
-                }
-            });
+    const familySet = new Set();
+
+    // Collect all distinct product_family_id values
+    allProducts.forEach(product => {
+        if (product.product_family_id) {
+            familySet.add(product.product_family_id);
         }
     });
-    
-    console.log(`\n📊 SCAN COMPLETE: Found ${familyMap.size} unique product families`);
-    console.log('Families:', Array.from(familyMap.entries()).slice(0, 10));
-    
+
     const ul = document.getElementById('familyFilter');
-    if (!ul) {
-        console.error('❌ #familyFilter element missing!');
-        return;
-    }
-    
+    if (!ul) return;
+
     ul.innerHTML = '';
-    
-    if (familyMap.size === 0) {
-        ul.innerHTML = '<li class="dropdown-item text-muted">No Product Families found in data</li>';
-        console.log('💡 TIP: Check Plytix Settings > Products > Families to assign families to products');
+
+    if (familySet.size === 0) {
+        ul.innerHTML = '<li class="dropdown-item text-muted">No Product Families found</li>';
         return;
     }
-    
-    // Populate dropdown
-    const sortedFamilies = Array.from(familyMap.entries()).sort((a, b) => a[1].localeCompare(b[1]));
-    sortedFamilies.slice(0, 50).forEach(([familyId, familyName]) => {
+
+    // Map IDs → friendly names once you know them from Plytix
+    // Fill these lines with your real IDs and names:
+    const FAMILY_NAME_MAP = {
+        // example:
+        // '62ed2050e3c422aae0742bbe': 'Jalis',
+        // '62e223b3a9cff922f470657c': 'CNC Murals',
+        // '...': 'Tiles',
+    };
+
+    const families = Array.from(familySet).map(id => ({
+        id,
+        name: FAMILY_NAME_MAP[id] || id   // show ID until mapped
+    }));
+
+    families.sort((a, b) => a.name.localeCompare(b.name));
+
+    families.forEach(fam => {
         const li = document.createElement('li');
         li.innerHTML = `
             <label class="dropdown-item">
-                <input type="checkbox" class="form-check-input me-2" value="${familyId}" data-family-name="${familyName}">
-                ${familyName}
+                <input
+                    type="checkbox"
+                    class="form-check-input me-2"
+                    value="${fam.id}"
+                    data-family-name="${fam.name}">
+                ${fam.name}
             </label>
         `;
         ul.appendChild(li);
     });
-    
+
+    // Hook up filter
     ul.querySelectorAll('input[type="checkbox"]').forEach(cb => {
         cb.addEventListener('change', applyFilters);
     });
-    
-    console.log(`✅ Populated ${Math.min(50, sortedFamilies.length)} families in dropdown`);
 }
 
 
@@ -459,101 +406,102 @@ function applyFilters() {
     const statusFilter = document.getElementById('statusFilter').value;
     const variantFilter = document.getElementById('variantFilter').value;
     const sortFilter = document.getElementById('sortFilter').value;
-    
-    // Get selected family IDs properly
-    const selectedFamilies = Array.from(
-        document.querySelectorAll('#familyFilter input[type="checkbox"]:checked')
-    ).map(cb => cb.value);
 
-    // Get selected categories properly
+    // Selected categories
     const selectedCategories = Array.from(
         document.querySelectorAll('#categoryFilter input[type="checkbox"]:checked')
     ).map(cb => cb.value);
 
+    // Selected product families (IDs)
+    const selectedFamilies = Array.from(
+        document.querySelectorAll('#familyFilter input[type="checkbox"]:checked')
+    ).map(cb => cb.value);
+
     filteredProducts = allProducts.filter(product => {
-        // FIXED: Use 'product' consistently, NOT 'p'
+        // Search filter
         const sku = (product.sku || '').toLowerCase();
-        const label = getAttributeValue(product, 'label').toLowerCase();
-        const matchesSearch = !searchTerm || sku.includes(searchTerm) || label.includes(searchTerm);
+        const label = (getAttributeValue(product, 'label') || '').toLowerCase();
+        const matchesSearch =
+            !searchTerm || sku.includes(searchTerm) || label.includes(searchTerm);
         if (!matchesSearch) return false;
 
         // Status filter
-        const enableDisableField = product.enabledisableproduct;
-        const attrEnableDisable = product.attributes?.['enabledisableproduct'];
-        const isEnabled = enableDisableField === true || 
-                         enableDisableField === 'TRUE' || 
-                         attrEnableDisable === true || 
-                         attrEnableDisable === 'TRUE';
-        
-        const matchesStatus = statusFilter === 'all' || 
-                             (statusFilter === 'enabled' && isEnabled) || 
-                             (statusFilter === 'disabled' && !isEnabled);
+        const enableDisableField = product.enable_disable_product;
+        const attrEnableDisable = product.attributes?.enable_disable_product;
+        const isEnabled =
+            enableDisableField === true ||
+            enableDisableField === 'TRUE' ||
+            attrEnableDisable === true ||
+            attrEnableDisable === 'TRUE';
+
+        const matchesStatus =
+            statusFilter === 'all' ||
+            (statusFilter === 'enabled' && isEnabled) ||
+            (statusFilter === 'disabled' && !isEnabled);
         if (!matchesStatus) return false;
 
         // Variant filter
-        const numVariations = product.numvariations || 0;
-        const parentId = product.parentid;
+        const numVariations = product.num_variations || product.numvariations || 0;
+        const parentId = product.parent_id || product.parentid;
         const isParent = numVariations > 0;
-        const isVariant = !isParent && parentId;
+        const isVariant = !isParent && !!parentId;
         const isSingle = !isParent && !parentId;
-        
-        const matchesVariant = variantFilter === 'all' ||
-                              (variantFilter === 'parents' && isParent) ||
-                              (variantFilter === 'variants' && isVariant) ||
-                              (variantFilter === 'singles' && isSingle) ||
-                              (variantFilter === 'variants-and-singles' && (isVariant || isSingle));
+
+        const matchesVariant =
+            variantFilter === 'all' ||
+            (variantFilter === 'parents' && isParent) ||
+            (variantFilter === 'variants' && isVariant) ||
+            (variantFilter === 'singles' && isSingle) ||
+            (variantFilter === 'variants-and-singles' && (isVariant || isSingle));
         if (!matchesVariant) return false;
 
         // Category filter
         if (selectedCategories.length > 0) {
-            const productCats = (product.categories || []).map(c => c.name || '').filter(Boolean);
-            const hasCategory = selectedCategories.some(cat => 
+            const productCats = (product.categories || [])
+                .map(c => c.name || '')
+                .filter(Boolean);
+            const hasCategory = selectedCategories.some(cat =>
                 productCats.includes(cat)
             );
             if (!hasCategory) return false;
         }
 
-        // Family filter - FIXED robust logic
+        // Product family filter (using product_family_id)
         if (selectedFamilies.length > 0) {
-            const productFamilyIds = [];
-            
-            // Check relationships.productfamilies
-            if (product.relationships?.productfamilies?.length) {
-                product.relationships.productfamilies.forEach(family => {
-                    if (family.id) productFamilyIds.push(family.id);
-                });
-            }
-            
-            // Check attributes.productfamily
-            const familyAttr = product.attributes?.productfamily;
-            if (familyAttr) {
-                if (typeof familyAttr === 'string') {
-                    productFamilyIds.push(familyAttr);
-                } else if (familyAttr.id) {
-                    productFamilyIds.push(familyAttr.id);
-                }
-            }
-            
-            const hasFamily = selectedFamilies.some(famId => 
-                productFamilyIds.includes(famId)
-            );
+            const productFamilyId = product.product_family_id || null;
+
+            // If product has no family, it cannot match
+            if (!productFamilyId) return false;
+
+            const hasFamily = selectedFamilies.includes(productFamilyId);
             if (!hasFamily) return false;
         }
 
         return true;
     });
 
-    // Sort
+    // Sorting
     filteredProducts.sort((a, b) => {
-        if (sortFilter === 'sku-asc') return (a.sku || '').localeCompare(b.sku || '');
-        if (sortFilter === 'sku-desc') return (b.sku || '').localeCompare(a.sku || '');
-        if (sortFilter === 'label-asc') return getAttributeValue(a, 'label').localeCompare(getAttributeValue(b, 'label'));
-        if (sortFilter === 'label-desc') return getAttributeValue(b, 'label').localeCompare(getAttributeValue(a, 'label'));
+        if (sortFilter === 'sku-asc') {
+            return (a.sku || '').localeCompare(b.sku || '');
+        }
+        if (sortFilter === 'sku-desc') {
+            return (b.sku || '').localeCompare(a.sku || '');
+        }
+        if (sortFilter === 'label-asc') {
+            return (getAttributeValue(a, 'label') || '')
+                .localeCompare(getAttributeValue(b, 'label') || '');
+        }
+        if (sortFilter === 'label-desc') {
+            return (getAttributeValue(b, 'label') || '')
+                .localeCompare(getAttributeValue(a, 'label') || '');
+        }
         return 0;
     });
 
     renderProducts();
 }
+
 
 
 
