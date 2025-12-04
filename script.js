@@ -1,6 +1,19 @@
 (function() {
   "use strict";
 
+
+      // DEFAULT FILTERS (runtime value, can be updated from AdminModule)
+    let DEFAULT_FILTERS = {
+        search: '',
+        categories: [],
+        families: [],
+        status: 'enabled',
+        variant: 'all',
+        sort: 'sku-asc'
+    };
+
+  
+
   const USERS_WITH_PRICE_ACCESS = [
     "marblehouse@gmail.com",
     "designacmestones@gmail.com",
@@ -1008,11 +1021,15 @@ let DEFAULT_FILTERS = null;
 
 // Add this function to load defaults from admin settings
 function loadDefaultFilters() {
-    // Get from AdminModule if available
+    // Try to get from AdminModule (which loaded config from server)
     if (typeof AdminModule !== 'undefined' && AdminModule.getDefaultFilters) {
         DEFAULT_FILTERS = AdminModule.getDefaultFilters();
-        return;
+        console.log('DEFAULT_FILTERS loaded from AdminModule:', DEFAULT_FILTERS);
+    } else {
+        console.log('AdminModule.getDefaultFilters not available, keeping current DEFAULT_FILTERS');
     }
+}
+
     
     // Fallback: fetch from server
     fetch('admin_user_settings.php?action=getDefaultFilters&currentUser=' + encodeURIComponent(currentUser))
