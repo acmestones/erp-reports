@@ -466,6 +466,66 @@ if ($action === 'deleteUser') {
     exit;
 }
 
+
+
+
+
+// ACTION: Get default filters
+if ($action === 'getDefaultFilters') {
+    $filters = $settings['defaultFilters'] ?? [
+        'search' => '',
+        'categories' => [],
+        'families' => [],
+        'status' => 'enabled',
+        'variant' => 'all',
+        'sort' => 'sku-asc'
+    ];
+    
+    echo json_encode([
+        'success' => true,
+        'filters' => $filters
+    ]);
+    exit;
+}
+
+// ACTION: Save default filters (admin only)
+if ($action === 'saveDefaultFilters') {
+    if (!isAdmin($currentUserEmail, $settings)) {
+        http_response_code(403);
+        echo json_encode(['error' => 'Forbidden - Admin access required']);
+        exit;
+    }
+    
+    $postData = file_get_contents('php://input');
+    $data = json_decode($postData, true);
+    
+    if (!isset($data['filters'])) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Filters data required']);
+        exit;
+    }
+    
+    $settings['defaultFilters'] = $data['filters'];
+    
+    if (saveSettings($settingsFile, $settings)) {
+        echo json_encode([
+            'success' => true,
+            'message' => 'Default filters saved successfully'
+        ]);
+    } else {
+        http_response_code(500);
+        echo json_encode(['error' => 'Failed to save settings']);
+    }
+    exit;
+}
+
+
+
+
+
+
+
+
 http_response_code(400);
 echo json_encode(['error' => 'Invalid action: ' . ($action ?? 'none')]);
 ?>
