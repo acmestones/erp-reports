@@ -351,49 +351,58 @@ function populateFamilyFilter() {
     const ul = document.getElementById('familyFilter');
     if (!ul) return;
 
-    ul.innerHTML = '';
+    ul.innerHTML = '<li class="dropdown-item text-muted">Loading families...</li>';
 
     if (familySet.size === 0) {
         ul.innerHTML = '<li class="dropdown-item text-muted">No Product Families found</li>';
         return;
     }
 
-    // Map IDs → friendly names once you know them from Plytix
-    // Fill these lines with your real IDs and names:
-    const FAMILY_NAME_MAP = {
-        // example:
-        // '62ed2050e3c422aae0742bbe': 'Jalis',
-        // '62e223b3a9cff922f470657c': 'CNC Murals',
-        // '...': 'Tiles',
-    };
+    // Fetch family names from Plytix
+    fetch('fetch_plytix_data.php?action=get_families')
+        .then(res => res.json())
+        .then(data => {
+            if (!data.success) {
+                throw new Error(data.error || 'Failed to load families');
+            }
 
-    const families = Array.from(familySet).map(id => ({
-        id,
-        name: FAMILY_NAME_MAP[id] || id   // show ID until mapped
-    }));
+            const FAMILY_NAME_MAP = data.families;
 
-    families.sort((a, b) => a.name.localeCompare(b.name));
+            const families = Array.from(familySet).map(id => ({
+                id,
+                name: FAMILY_NAME_MAP[id] || id   // show ID if name not found
+            }));
 
-    families.forEach(fam => {
-        const li = document.createElement('li');
-        li.innerHTML = `
-            <label class="dropdown-item">
-                <input
-                    type="checkbox"
-                    class="form-check-input me-2"
-                    value="${fam.id}"
-                    data-family-name="${fam.name}">
-                ${fam.name}
-            </label>
-        `;
-        ul.appendChild(li);
-    });
+            families.sort((a, b) => a.name.localeCompare(b.name));
 
-    // Hook up filter
-    ul.querySelectorAll('input[type="checkbox"]').forEach(cb => {
-        cb.addEventListener('change', applyFilters);
-    });
+            ul.innerHTML = '';
+
+            families.forEach(fam => {
+                const li = document.createElement('li');
+                li.innerHTML = `
+                    <label class="dropdown-item">
+                        <input
+                            type="checkbox"
+                            class="form-check-input me-2"
+                            value="${fam.id}"
+                            data-family-name="${fam.name}">
+                        ${fam.name}
+                    </label>
+                `;
+                ul.appendChild(li);
+            });
+
+            // Hook up filter
+            ul.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+                cb.addEventListener('change', applyFilters);
+            });
+        })
+        .catch(err => {
+            console.error('Failed to load product families:', err);
+            ul.innerHTML = '<li class="dropdown-item text-danger">Error loading families</li>';
+        });
 }
+
 
 
 
