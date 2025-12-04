@@ -919,6 +919,7 @@ function populateDefaultFamiliesCheckboxes() {
      * Save default filters configuration
      */
     function saveDefaultFilters() {
+        console.log('saveDefaultFilters CLICKED');  // confirm in console
         if (!currentUser) {
             alert('User not initialized');
             return;
