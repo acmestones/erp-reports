@@ -1,19 +1,6 @@
 (function() {
   "use strict";
 
-
-    // Runtime default filters; can be overridden by AdminModule
-    let DEFAULT_FILTERS = {
-        search: '',
-        categories: [],
-        families: [],
-        status: 'enabled',
-        variant: 'all',
-        sort: 'sku-asc'
-    };
-
-
-  
   const USERS_WITH_PRICE_ACCESS = [
     "marblehouse@gmail.com",
     "designacmestones@gmail.com",
@@ -64,7 +51,7 @@ function init() {
 
      // ADD THIS LINE - Initialize Admin Module
     AdminModule.init(currentUser);
-    loadDefaultFilters();  // NEW
+
   
     loadProducts();
 }
@@ -225,15 +212,6 @@ function loadCachedProducts(cachedIds, needUpdateIds, totalProducts, startTime) 
 
 
 
-function loadDefaultFilters() {
-    if (typeof AdminModule !== 'undefined' && AdminModule.getDefaultFilters) {
-        DEFAULT_FILTERS = AdminModule.getDefaultFilters();
-        console.log('Loaded DEFAULT_FILTERS from AdminModule:', DEFAULT_FILTERS);
-    }
-}
-
-
-  
 
   
 
@@ -320,29 +298,12 @@ function loadDefaultFilters() {
     fetchNextBatch(0);
   }
 
-function setupFilters() {
-    // Apply DEFAULT_FILTERS to controls on first load
-    if (DEFAULT_FILTERS) {
-        const searchBox = document.getElementById('searchBox');
-        const statusFilter = document.getElementById('statusFilter');
-        const variantFilter = document.getElementById('variantFilter');
-        const sortFilter = document.getElementById('sortFilter');
-
-        if (searchBox) searchBox.value = DEFAULT_FILTERS.search || '';
-        if (statusFilter) statusFilter.value = DEFAULT_FILTERS.status || 'enabled';
-        if (variantFilter) variantFilter.value = DEFAULT_FILTERS.variant || 'all';
-        if (sortFilter) sortFilter.value = DEFAULT_FILTERS.sort || 'sku-asc';
-    }
-
-    document.getElementById('searchBox').addEventListener('input', applyFilters);
-    document.getElementById('statusFilter').addEventListener('change', applyFilters);
-    document.getElementById('variantFilter').addEventListener('change', applyFilters);
-    document.getElementById('sortFilter').addEventListener('change', applyFilters);
-
-    // After category and family checkboxes are populated, we also need to apply defaults.
-    // Call these from the end of populateCategoryFilter() and populateFamilyFilter().
-}
-
+  function setupFilters() {
+    document.getElementById("searchBox").addEventListener("input", applyFilters);
+    document.getElementById("statusFilter").addEventListener("change", applyFilters);
+    document.getElementById("variantFilter").addEventListener("change", applyFilters);
+    document.getElementById("sortFilter").addEventListener("change", applyFilters);
+  }
 
   function populateCategoryFilter() {
     const categorySet = new Set();
@@ -372,16 +333,6 @@ function setupFilters() {
     ul.querySelectorAll('input[type="checkbox"]').forEach(function(cb) {
       cb.addEventListener("change", applyFilters);
     });
-
-        // Apply default category selection from DEFAULT_FILTERS
-    if (DEFAULT_FILTERS && DEFAULT_FILTERS.categories && DEFAULT_FILTERS.categories.length > 0) {
-        document.querySelectorAll('#categoryFilter input[type="checkbox"]').forEach(cb => {
-            cb.checked = DEFAULT_FILTERS.categories.includes(cb.value);
-        });
-    }
-
-
-    
   }
 
 
@@ -450,16 +401,6 @@ function populateFamilyFilter() {
             console.error('Failed to load product families:', err);
             ul.innerHTML = '<li class="dropdown-item text-danger">Error loading families</li>';
         });
-
-          // Apply default family selection from DEFAULT_FILTERS
-    if (DEFAULT_FILTERS && DEFAULT_FILTERS.families && DEFAULT_FILTERS.families.length > 0) {
-        document.querySelectorAll('#familyFilter input[type="checkbox"]').forEach(cb => {
-            cb.checked = DEFAULT_FILTERS.families.includes(cb.value);
-        });
-    }
-
-
- 
 }
 
 
@@ -1041,52 +982,6 @@ function startProgressTimer(statusElementId, messagePrefix) {
     return interval;
 }
 
-
-
-
-
-
-  // Reset filters to DEFAULT_FILTERS from Admin settings
-function resetFiltersToDefault() {
-    if (!DEFAULT_FILTERS) return;
-
-    // Search box
-    const searchBox = document.getElementById('searchBox');
-    if (searchBox) searchBox.value = DEFAULT_FILTERS.search || '';
-
-    // Status, variant, sort
-    const statusFilter = document.getElementById('statusFilter');
-    const variantFilter = document.getElementById('variantFilter');
-    const sortFilter = document.getElementById('sortFilter');
-
-    if (statusFilter) statusFilter.value = DEFAULT_FILTERS.status || 'enabled';
-    if (variantFilter) variantFilter.value = DEFAULT_FILTERS.variant || 'all';
-    if (sortFilter) sortFilter.value = DEFAULT_FILTERS.sort || 'sku-asc';
-
-    // Categories: checkboxes in main category filter dropdown
-    const categoryCheckboxes = document.querySelectorAll('#categoryFilter input[type="checkbox"]');
-    categoryCheckboxes.forEach(cb => {
-        cb.checked = DEFAULT_FILTERS.categories.includes(cb.value);
-    });
-
-    // Families: checkboxes in main family filter dropdown
-    const familyCheckboxes = document.querySelectorAll('#familyFilter input[type="checkbox"]');
-    familyCheckboxes.forEach(cb => {
-        cb.checked = DEFAULT_FILTERS.families.includes(cb.value);
-    });
-
-    // Re-apply filters
-    if (typeof applyFilters === 'function') {
-        applyFilters();
-    }
-
-    console.log('Filters reset to DEFAULT_FILTERS:', DEFAULT_FILTERS);
-}
-
-// Expose for inline onclick in index.html
-window.resetFiltersToDefault = resetFiltersToDefault;
-
-  
 
 
 })();
