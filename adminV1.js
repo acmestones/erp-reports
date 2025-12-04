@@ -122,18 +122,34 @@
     /**
      * Open settings modal
      */
-    function openSettingsModal() {
-        if (!currentUser) {
-            alert('User not initialized');
-            return;
+function openSettingsModal() {
+    if (!currentUser) {
+        alert('User not initialized');
+        return;
+    }
+
+    loadAllSettings();
+    loadDefaultFilters();
+
+    // Wire up Default Filters buttons every time modal opens
+    setTimeout(() => {
+        const saveBtn = document.getElementById('saveDefaultFiltersBtn');
+        if (saveBtn && !saveBtn._wiredForDefaultFilters) {
+            saveBtn.addEventListener('click', saveDefaultFilters);
+            saveBtn._wiredForDefaultFilters = true;
         }
 
-        loadAllSettings();
-        loadDefaultFilters(); // load default filter config for the tab
+        const resetBtn = document.getElementById('resetDefaultFiltersBtn');
+        if (resetBtn && !resetBtn._wiredForDefaultFilters) {
+            resetBtn.addEventListener('click', resetDefaultFilters);
+            resetBtn._wiredForDefaultFilters = true;
+        }
+    }, 0);
 
-        const modal = new bootstrap.Modal(document.getElementById('settingsModal'));
-        modal.show();
-    }
+    const modal = new bootstrap.Modal(document.getElementById('settingsModal'));
+    modal.show();
+}
+
 
     /**
      * Load all settings from server
