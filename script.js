@@ -135,13 +135,11 @@ function loadProducts() {
     
     const startTime = Date.now();
     
-    // Show timer for force refresh
     let progressTimer = null;
     if (window.isForceRefresh) {
         progressTimer = startProgressTimer("catalogStatus", "Checking 1022 products for updates");
     }
     
-    // Use the stored force refresh flag
     const fetchUrl = window.isForceRefresh
         ? "fetch_plytix_data.php?action=get_status&forcerefresh=1"
         : "fetch_plytix_data.php?action=get_status";
@@ -152,7 +150,6 @@ function loadProducts() {
             return res.json();
         })
         .then(function(statusData) {
-            // Stop the progress timer
             if (progressTimer) {
                 clearInterval(progressTimer);
                 progressTimer = null;
@@ -190,6 +187,7 @@ function loadProducts() {
             grid.innerHTML = '';
         });
 }
+
 
 
 
