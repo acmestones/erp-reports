@@ -137,46 +137,41 @@ function fetchProductDetails($productId, $accessToken) {
 
 
 // Add this function after the existing helper functions
-// ACTION 4: Get product families from cached products
-if ($action === 'get_families') {
-    error_log("GET_FAMILIES: Extracting from cached products...");
+function fetchProductFamilies($accessToken) {
+    // Correct endpoint from Plytix API docs: /product_families/search
+    $postData = [
+        "pagination" => [
+            "page" => 1,
+            "page_size" => 100
+        ]
+    ];
     
-    $familyMap = [];
-    $cacheFiles = glob($cacheDir . '/product_*.json');
-    
-    if (!$cacheFiles) {
-        error_log("GET_FAMILIES: No cache files found");
-        echo json_encode(["success" => true, "families" => []]);
-        exit;
-    }
-    
-    // Sample first 100 products to build family map
-    $sampled = array_slice($cacheFiles, 0, 100);
-    
-    foreach ($sampled as $file) {
-        $content = @file_get_contents($file);
-        if ($content) {
-            $product = json_decode($content, true);
-            if ($product && isset($product['product_family_id'])) {
-                $familyId = $product['product_family_id'];
-                
-                // Try to get family name from product_family_name or use ID
-                if (isset($product['product_family_name'])) {
-                    $familyMap[$familyId] = $product['product_family_name'];
-                } else if (!isset($familyMap[$familyId])) {
-                    $familyMap[$familyId] = $familyId; // Use ID as fallback
-                }
-            }
-        }
-    }
-    
-    error_log("GET_FAMILIES: Found " . count($familyMap) . " families from products");
-    echo json_encode([
-        "success" => true,
-        "families" => $familyMap
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_URL, "https://pim.plytix.com/api/v1/product_families/search");
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+    curl_setopt($ch, CURLOPT_POST, 1);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($postData));
+    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+        'Content-Type: application/json',
+        'Authorization: Bearer ' . $accessToken
     ]);
-    exit;
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+    
+    $response = curl_exec($ch);
+    $httpcode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    
+    error_log("fetchProductFamilies: HTTP $httpcode");
+    error_log("fetchProductFamilies: Response - " . substr($response, 0, 1000));
+    
+    if ($httpcode == 200) {
+        $data = json_decode($response, true);
+        return $data['data'] ?? [];
+    }
+    
+    return null;
 }
+
 
 
 
@@ -504,11 +499,11 @@ if ($action === 'get_families') {
         exit;
     }
     
-    error_log("GET_FAMILIES: Got token, fetching families...");
+    error_log("GET_FAMILIES: Got token, fetching families from API...");
     $families = fetchProductFamilies($accessToken);
     
-    if ($families !== null) {
-        error_log("GET_FAMILIES: Got " . count($families) . " families");
+    if ($families !== null && count($families) > 0) {
+        error_log("GET_FAMILIES: Got " . count($families) . " families from API");
         
         // Build ID -> Name map
         $familyMap = [];
@@ -523,11 +518,36 @@ if ($action === 'get_families') {
             "success" => true,
             "families" => $familyMap
         ]);
-    } else {
-        error_log("GET_FAMILIES: API returned null");
-        http_response_code(500);
-        echo json_encode(["success" => false, "error" => "Failed to fetch product families from Plytix API"]);
+        exit;
     }
+    
+    // FALLBACK: If API fails, extract IDs from cached products
+    error_log("GET_FAMILIES: API returned no data, using fallback...");
+    
+    $familyMap = [];
+    $cacheFiles = glob($cacheDir . '/product_*.json');
+    
+    if ($cacheFiles) {
+        $sampled = array_slice($cacheFiles, 0, 100);
+        
+        foreach ($sampled as $file) {
+            $content = @file_get_contents($file);
+            if ($content) {
+                $product = json_decode($content, true);
+                if ($product && isset($product['product_family_id'])) {
+                    $familyId = $product['product_family_id'];
+                    if (!isset($familyMap[$familyId])) {
+                        $familyMap[$familyId] = $familyId;
+                    }
+                }
+            }
+        }
+    }
+    
+    echo json_encode([
+        "success" => true,
+        "families" => $familyMap
+    ]);
     exit;
 }
 
