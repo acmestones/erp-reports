@@ -918,49 +918,66 @@ function populateDefaultFamiliesCheckboxes() {
     /**
      * Save default filters configuration
      */
-    function saveDefaultFilters() {
-        console.log('saveDefaultFilters CLICKED');  // confirm in console
-        if (!currentUser) {
-            alert('User not initialized');
-            return;
-        }
+function saveDefaultFilters() {
+    console.log('saveDefaultFilters CLICKED');
 
-        const filters = {
-            search: (document.getElementById('defaultSearch') || {}).value?.trim() || '',
-            status: (document.getElementById('defaultStatus') || {}).value || 'enabled',
-            variant: (document.getElementById('defaultVariant') || {}).value || 'all',
-            sort: (document.getElementById('defaultSort') || {}).value || 'sku-asc',
-            categories: Array.from(document.querySelectorAll('.default-category:checked')).map(cb => cb.value),
-            families: Array.from(document.querySelectorAll('.default-family:checked')).map(cb => cb.value)
-        };
-
-        fetch('admin_user_settings.php', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                action: 'saveDefaultFilters',
-                currentUser: currentUser,
-                filters: filters
-            })
-        })
-            .then(res => {
-                if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                return res.json();
-            })
-            .then(data => {
-                if (data.success) {
-                    alert('Default filters saved successfully!');
-                    defaultFiltersConfig = filters;
-                    window.dispatchEvent(new CustomEvent('defaultFiltersUpdated', { detail: filters }));
-                } else {
-                    alert('Error: ' + (data.error || 'Failed to save default filters'));
-                }
-            })
-            .catch(err => {
-                console.error('Failed to save default filters:', err);
-                alert('Failed to save default filters: ' + err.message);
-            });
+    if (!currentUser) {
+        alert('User not initialized');
+        return;
     }
+
+    var searchEl  = document.getElementById('defaultSearch');
+    var statusEl  = document.getElementById('defaultStatus');
+    var variantEl = document.getElementById('defaultVariant');
+    var sortEl    = document.getElementById('defaultSort');
+
+    var filters = {
+        search:  searchEl  ? searchEl.value.trim() : '',
+        status:  statusEl  ? statusEl.value        : 'enabled',
+        variant: variantEl ? variantEl.value       : 'all',
+        sort:    sortEl    ? sortEl.value          : 'sku-asc',
+        categories: Array.prototype.map.call(
+            document.querySelectorAll('.default-category:checked'),
+            function (cb) { return cb.value; }
+        ),
+        families: Array.prototype.map.call(
+            document.querySelectorAll('.default-family:checked'),
+            function (cb) { return cb.value; }
+        )
+    };
+
+    console.log('Saving default filters:', filters);
+
+    fetch('admin_user_settings.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            action: 'saveDefaultFilters',
+            currentUser: currentUser,
+            filters: filters
+        })
+    })
+    .then(function (res) {
+        console.log('saveDefaultFilters response status:', res.status);
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        return res.json();
+    })
+    .then(function (data) {
+        console.log('saveDefaultFilters response body:', data);
+        if (data.success) {
+            alert('Default filters saved successfully!');
+            defaultFiltersConfig = filters;
+            window.dispatchEvent(new CustomEvent('defaultFiltersUpdated', { detail: filters }));
+        } else {
+            alert('Error: ' + (data.error || 'Failed to save default filters'));
+        }
+    })
+    .catch(function (err) {
+        console.error('Failed to save default filters:', err);
+        alert('Failed to save default filters: ' + err.message);
+    });
+}
+
 
     /**
      * Reset default filters to built-in system defaults (not per-user)
