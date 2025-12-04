@@ -1,6 +1,8 @@
 ro<?php
 // Enable output buffering for better performance
 ob_start();
+error_reporting(E_ALL);
+ini_set('display_errors', 0); // Don't display errors in output
 
 set_time_limit(600);
 ini_set('memory_limit', '512M');
@@ -137,38 +139,42 @@ function fetchProductDetails($productId, $accessToken) {
 // Add this function after the existing helper functions
 function fetchProductFamilies($accessToken) {
     // Try the families search endpoint with pagination
-    $postData = [
-        "pagination" => [
+    $postData = array(
+        "pagination" => array(
             "page" => 1,
             "page_size" => 100
-        ]
-    ];
+        )
+    );
     
     $ch = curl_init();
     curl_setopt($ch, CURLOPT_URL, "https://pim.plytix.com/api/v1/families/search");
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
     curl_setopt($ch, CURLOPT_POST, 1);
     curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($postData));
-    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+    curl_setopt($ch, CURLOPT_HTTPHEADER, array(
         'Content-Type: application/json',
         'Authorization: Bearer ' . $accessToken
-    ]);
+    ));
     curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
     
     $response = curl_exec($ch);
     $httpcode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
     
-    error_log("fetchProductFamilies: HTTP $httpcode");
+    error_log("fetchProductFamilies: HTTP " . $httpcode);
     error_log("fetchProductFamilies: Response - " . substr($response, 0, 1000));
     
     if ($httpcode == 200) {
         $data = json_decode($response, true);
-        return $data['data'] ?? [];
+        if (isset($data['data'])) {
+            return $data['data'];
+        }
+        return array();
     }
     
     return null;
 }
+
 
 
 
