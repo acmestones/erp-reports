@@ -1,19 +1,6 @@
 (function() {
   "use strict";
 
-
-      // DEFAULT FILTERS (runtime value, can be updated from AdminModule)
-    let DEFAULT_FILTERS = {
-        search: '',
-        categories: [],
-        families: [],
-        status: 'enabled',
-        variant: 'all',
-        sort: 'sku-asc'
-    };
-
-  
-
   const USERS_WITH_PRICE_ACCESS = [
     "marblehouse@gmail.com",
     "designacmestones@gmail.com",
@@ -64,7 +51,7 @@ function init() {
 
      // ADD THIS LINE - Initialize Admin Module
     AdminModule.init(currentUser);
-    loadDefaultFilters(); // ADD THIS LINE
+
   
     loadProducts();
 }
@@ -346,22 +333,6 @@ function loadCachedProducts(cachedIds, needUpdateIds, totalProducts, startTime) 
     ul.querySelectorAll('input[type="checkbox"]').forEach(function(cb) {
       cb.addEventListener("change", applyFilters);
     });
-
-
-    // At the end of populateCategoryFilter()
-if (typeof AdminModule !== 'undefined' && AdminModule.populateDefaultCategoriesCheckboxes) {
-    AdminModule.populateDefaultCategoriesCheckboxes();
-}
-
-// At the end of populateFamilyFilter()
-if (typeof AdminModule !== 'undefined' && AdminModule.populateDefaultFamiliesCheckboxes) {
-    AdminModule.populateDefaultFamiliesCheckboxes();
-}
-
-
-
-
-    
   }
 
 
@@ -1011,84 +982,6 @@ function startProgressTimer(statusElementId, messagePrefix) {
     return interval;
 }
 
-
-
-
-
-
-// Remove the hardcoded DEFAULT_FILTERS constant and add:
-let DEFAULT_FILTERS = null;
-
-// Add this function to load defaults from admin settings
-function loadDefaultFilters() {
-    // Try to get from AdminModule (which loaded config from server)
-    if (typeof AdminModule !== 'undefined' && AdminModule.getDefaultFilters) {
-        DEFAULT_FILTERS = AdminModule.getDefaultFilters();
-        console.log('DEFAULT_FILTERS loaded from AdminModule:', DEFAULT_FILTERS);
-    } else {
-        console.log('AdminModule.getDefaultFilters not available, keeping current DEFAULT_FILTERS');
-    }
-}
-
-    
-    // Fallback: fetch from server
-    fetch('admin_user_settings.php?action=getDefaultFilters&currentUser=' + encodeURIComponent(currentUser))
-        .then(res => res.json())
-        .then(data => {
-            if (data.success) {
-                DEFAULT_FILTERS = data.filters;
-                console.log('Loaded default filters:', DEFAULT_FILTERS);
-            }
-        })
-        .catch(err => {
-            console.error('Failed to load default filters:', err);
-            DEFAULT_FILTERS = getSystemDefaultFilters();
-        });
-}
-
-function getSystemDefaultFilters() {
-    return {
-        search: '',
-        categories: [],
-        families: [],
-        status: 'enabled',
-        variant: 'all',
-        sort: 'sku-asc'
-    };
-}
-
-
-
-
-
-  // Listen for default filter updates from admin panel
-window.addEventListener('defaultFiltersUpdated', function(event) {
-    DEFAULT_FILTERS = event.detail;
-    console.log('Default filters updated:', DEFAULT_FILTERS);
-});
-
-// Update setupFilters to wait for defaults to load
-function setupFilters() {
-    // Wait for defaults to be loaded
-    if (!DEFAULT_FILTERS) {
-        DEFAULT_FILTERS = getSystemDefaultFilters();
-    }
-    
-    // Set default values
-    document.getElementById('searchBox').value = DEFAULT_FILTERS.search;
-    document.getElementById('statusFilter').value = DEFAULT_FILTERS.status;
-    document.getElementById('variantFilter').value = DEFAULT_FILTERS.variant;
-    document.getElementById('sortFilter').value = DEFAULT_FILTERS.sort;
-    
-    // Add event listeners
-    document.getElementById('searchBox').addEventListener('input', applyFilters);
-    document.getElementById('statusFilter').addEventListener('change', applyFilters);
-    document.getElementById('variantFilter').addEventListener('change', applyFilters);
-    document.getElementById('sortFilter').addEventListener('change', applyFilters);
-}
-
-
-  
 
 
 })();
