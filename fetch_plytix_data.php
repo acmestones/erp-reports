@@ -139,37 +139,34 @@ function fetchProductDetails($productId, $accessToken) {
 // Add this function after the existing helper functions
 function fetchProductFamilies($accessToken) {
     // Try the families search endpoint with pagination
-    $postData = array(
-        "pagination" => array(
+    $postData = [
+        "pagination" => [
             "page" => 1,
             "page_size" => 100
-        )
-    );
+        ]
+    ];
     
     $ch = curl_init();
     curl_setopt($ch, CURLOPT_URL, "https://pim.plytix.com/api/v1/families/search");
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
     curl_setopt($ch, CURLOPT_POST, 1);
     curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($postData));
-    curl_setopt($ch, CURLOPT_HTTPHEADER, array(
+    curl_setopt($ch, CURLOPT_HTTPHEADER, [
         'Content-Type: application/json',
         'Authorization: Bearer ' . $accessToken
-    ));
+    ]);
     curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
     
     $response = curl_exec($ch);
     $httpcode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
     
-    error_log("fetchProductFamilies: HTTP " . $httpcode);
+    error_log("fetchProductFamilies: HTTP $httpcode");
     error_log("fetchProductFamilies: Response - " . substr($response, 0, 1000));
     
     if ($httpcode == 200) {
         $data = json_decode($response, true);
-        if (isset($data['data'])) {
-            return $data['data'];
-        }
-        return array();
+        return $data['data'] ?? [];
     }
     
     return null;
