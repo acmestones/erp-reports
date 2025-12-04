@@ -81,7 +81,12 @@ function loadDefaultFilters() {
 
 
   
-  init();
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+} else {
+    init();
+}
+
 
 function init() {
     console.time("Total Load Time");
