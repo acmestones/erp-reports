@@ -1,5 +1,10 @@
 (function() {
   "use strict";
+  
+  // Per-user filter defaults storage
+  const USER_FILTER_KEY_PREFIX = 'acmeCatalogFilters_';
+  let DEFAULT_FILTERS = null;
+
 
   const USERS_WITH_PRICE_ACCESS = [
     "marblehouse@gmail.com",
@@ -14,6 +19,68 @@
   const INITIAL_LOAD = 40;
   const BATCH_SIZE = 20;
 
+
+
+
+
+
+
+function getUserFilterKey() {
+    return USER_FILTER_KEY_PREFIX + (currentUser || 'guest');
+}
+
+function loadUserFilterDefaults() {
+    try {
+        const raw = localStorage.getItem(getUserFilterKey());
+        if (!raw) {
+            console.log('No saved user filters, using system defaults');
+            return null;
+        }
+        const obj = JSON.parse(raw);
+        console.log('Loaded user-saved filters from localStorage:', obj);
+        return obj;
+    } catch (e) {
+        console.error('Failed to parse user filter defaults:', e);
+        return null;
+    }
+}
+
+function saveUserFilterDefaults(filters) {
+    try {
+        localStorage.setItem(getUserFilterKey(), JSON.stringify(filters));
+        console.log('Saved user filter defaults to localStorage:', filters);
+        alert('✓ Your filter defaults have been saved!');
+    } catch (e) {
+        console.error('Failed to save user filter defaults:', e);
+        alert('Failed to save filter defaults');
+    }
+}
+
+function getSystemDefaultFilters() {
+    return {
+        search: '',
+        categories: [],
+        families: [],
+        status: 'all',
+        variant: 'all',
+        sort: 'sku-asc'
+    };
+}
+
+function loadDefaultFilters() {
+    const userDefaults = loadUserFilterDefaults();
+    DEFAULT_FILTERS = userDefaults || getSystemDefaultFilters();
+    console.log('Effective DEFAULT_FILTERS:', DEFAULT_FILTERS);
+}
+
+
+
+
+
+
+
+
+  
   init();
 
 function init() {
@@ -51,7 +118,7 @@ function init() {
 
      // ADD THIS LINE - Initialize Admin Module
     AdminModule.init(currentUser);
-
+    loadDefaultFilters();
   
     loadProducts();
 }
@@ -298,12 +365,36 @@ function loadCachedProducts(cachedIds, needUpdateIds, totalProducts, startTime) 
     fetchNextBatch(0);
   }
 
-  function setupFilters() {
-    document.getElementById("searchBox").addEventListener("input", applyFilters);
-    document.getElementById("statusFilter").addEventListener("change", applyFilters);
-    document.getElementById("variantFilter").addEventListener("change", applyFilters);
-    document.getElementById("sortFilter").addEventListener("change", applyFilters);
-  }
+
+
+
+  
+function setupFilters() {
+    // Apply DEFAULT_FILTERS to controls
+    if (DEFAULT_FILTERS) {
+        const searchBox = document.getElementById('searchBox');
+        const statusFilter = document.getElementById('statusFilter');
+        const variantFilter = document.getElementById('variantFilter');
+        const sortFilter = document.getElementById('sortFilter');
+
+        if (searchBox) searchBox.value = DEFAULT_FILTERS.search || '';
+        if (statusFilter) statusFilter.value = DEFAULT_FILTERS.status || 'all';
+        if (variantFilter) variantFilter.value = DEFAULT_FILTERS.variant || 'all';
+        if (sortFilter) sortFilter.value = DEFAULT_FILTERS.sort || 'sku-asc';
+    }
+
+    document.getElementById('searchBox').addEventListener('input', applyFilters);
+    document.getElementById('statusFilter').addEventListener('change', applyFilters);
+    document.getElementById('variantFilter').addEventListener('change', applyFilters);
+    document.getElementById('sortFilter').addEventListener('change', applyFilters);
+}
+
+
+
+
+
+
+  
 
   function populateCategoryFilter() {
     const categorySet = new Set();
@@ -333,6 +424,17 @@ function loadCachedProducts(cachedIds, needUpdateIds, totalProducts, startTime) 
     ul.querySelectorAll('input[type="checkbox"]').forEach(function(cb) {
       cb.addEventListener("change", applyFilters);
     });
+
+
+    // Apply default category selections
+    if (DEFAULT_FILTERS && DEFAULT_FILTERS.categories && DEFAULT_FILTERS.categories.length > 0) {
+        document.querySelectorAll('#categoryFilter input[type="checkbox"]').forEach(function (cb) {
+            cb.checked = DEFAULT_FILTERS.categories.indexOf(cb.value) !== -1;
+        });
+    }
+
+
+    
   }
 
 
@@ -401,6 +503,18 @@ function populateFamilyFilter() {
             console.error('Failed to load product families:', err);
             ul.innerHTML = '<li class="dropdown-item text-danger">Error loading families</li>';
         });
+
+
+    // Apply default family selections
+    if (DEFAULT_FILTERS && DEFAULT_FILTERS.families && DEFAULT_FILTERS.families.length > 0) {
+        document.querySelectorAll('#familyFilter input[type="checkbox"]').forEach(function (cb) {
+            cb.checked = DEFAULT_FILTERS.families.indexOf(cb.value) !== -1;
+        });
+    }
+
+
+
+  
 }
 
 
@@ -983,5 +1097,91 @@ function startProgressTimer(statusElementId, messagePrefix) {
 }
 
 
+
+
+
+
+
+
+function saveCurrentFiltersAsDefaults() {
+    const searchBox = document.getElementById('searchBox');
+    const statusEl  = document.getElementById('statusFilter');
+    const variantEl = document.getElementById('variantFilter');
+    const sortEl    = document.getElementById('sortFilter');
+
+    const filters = {
+        search:  searchBox ? searchBox.value.trim() : '',
+        status:  statusEl  ? statusEl.value        : 'all',
+        variant: variantEl ? variantEl.value       : 'all',
+        sort:    sortEl    ? sortEl.value          : 'sku-asc',
+        categories: Array.prototype.map.call(
+            document.querySelectorAll('#categoryFilter input[type="checkbox"]:checked'),
+            function (cb) { return cb.value; }
+        ),
+        families: Array.prototype.map.call(
+            document.querySelectorAll('#familyFilter input[type="checkbox"]:checked'),
+            function (cb) { return cb.value; }
+        )
+    };
+
+    DEFAULT_FILTERS = filters;
+    saveUserFilterDefaults(filters);
+}
+
+function resetFiltersToDefault() {
+    if (!DEFAULT_FILTERS) {
+        alert('No saved defaults found');
+        return;
+    }
+
+    const searchBox = document.getElementById('searchBox');
+    const statusFilter = document.getElementById('statusFilter');
+    const variantFilter = document.getElementById('variantFilter');
+    const sortFilter = document.getElementById('sortFilter');
+
+    if (searchBox) searchBox.value = DEFAULT_FILTERS.search || '';
+    if (statusFilter) statusFilter.value = DEFAULT_FILTERS.status || 'all';
+    if (variantFilter) variantFilter.value = DEFAULT_FILTERS.variant || 'all';
+    if (sortFilter) sortFilter.value = DEFAULT_FILTERS.sort || 'sku-asc';
+
+    // Reset category checkboxes
+    document.querySelectorAll('#categoryFilter input[type="checkbox"]').forEach(function (cb) {
+        cb.checked = DEFAULT_FILTERS.categories.indexOf(cb.value) !== -1;
+    });
+
+    // Reset family checkboxes
+    document.querySelectorAll('#familyFilter input[type="checkbox"]').forEach(function (cb) {
+        cb.checked = DEFAULT_FILTERS.families.indexOf(cb.value) !== -1;
+    });
+
+    applyFilters();
+    console.log('Filters reset to DEFAULT_FILTERS:', DEFAULT_FILTERS);
+}
+
+// Wire up buttons
+window.addEventListener('DOMContentLoaded', function () {
+    const saveBtn = document.getElementById('saveMyDefaultsBtn');
+    const resetBtn = document.getElementById('resetFiltersBtn');
+    
+    if (saveBtn) {
+        saveBtn.addEventListener('click', saveCurrentFiltersAsDefaults);
+    }
+    
+    if (resetBtn) {
+        resetBtn.addEventListener('click', resetFiltersToDefault);
+    }
+});
+
+
+
+
+
+
+
+
+
+
+
+  
 
 })();
