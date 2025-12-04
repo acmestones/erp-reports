@@ -1006,4 +1006,50 @@ function startProgressTimer(statusElementId, messagePrefix) {
 
 
 
+
+
+
+  // Reset filters to DEFAULT_FILTERS from Admin settings
+function resetFiltersToDefault() {
+    if (!DEFAULT_FILTERS) return;
+
+    // Search box
+    const searchBox = document.getElementById('searchBox');
+    if (searchBox) searchBox.value = DEFAULT_FILTERS.search || '';
+
+    // Status, variant, sort
+    const statusFilter = document.getElementById('statusFilter');
+    const variantFilter = document.getElementById('variantFilter');
+    const sortFilter = document.getElementById('sortFilter');
+
+    if (statusFilter) statusFilter.value = DEFAULT_FILTERS.status || 'enabled';
+    if (variantFilter) variantFilter.value = DEFAULT_FILTERS.variant || 'all';
+    if (sortFilter) sortFilter.value = DEFAULT_FILTERS.sort || 'sku-asc';
+
+    // Categories: checkboxes in main category filter dropdown
+    const categoryCheckboxes = document.querySelectorAll('#categoryFilter input[type="checkbox"]');
+    categoryCheckboxes.forEach(cb => {
+        cb.checked = DEFAULT_FILTERS.categories.includes(cb.value);
+    });
+
+    // Families: checkboxes in main family filter dropdown
+    const familyCheckboxes = document.querySelectorAll('#familyFilter input[type="checkbox"]');
+    familyCheckboxes.forEach(cb => {
+        cb.checked = DEFAULT_FILTERS.families.includes(cb.value);
+    });
+
+    // Re-apply filters
+    if (typeof applyFilters === 'function') {
+        applyFilters();
+    }
+
+    console.log('Filters reset to DEFAULT_FILTERS:', DEFAULT_FILTERS);
+}
+
+// Expose for inline onclick in index.html
+window.resetFiltersToDefault = resetFiltersToDefault;
+
+  
+
+
 })();
