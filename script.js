@@ -130,6 +130,11 @@ function loadProducts() {
     const status = document.getElementById("catalogStatus");
     const grid = document.getElementById("productGrid");
     
+    if (!status || !grid) {
+        console.error('catalogStatus or productGrid not found in DOM');
+        return;
+    }
+
     status.innerHTML = '<span class="text-primary">⏳ Loading...</span>';
     grid.innerHTML = '<div class="col-12 text-center py-5"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div></div>';
     
@@ -187,6 +192,7 @@ function loadProducts() {
             grid.innerHTML = '';
         });
 }
+
 
 
 
