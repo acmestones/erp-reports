@@ -76,10 +76,7 @@ function loadDefaultFilters() {
 
 
 
-
-
-
-
+ 
   
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);
