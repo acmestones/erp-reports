@@ -1,6 +1,19 @@
 (function() {
   "use strict";
 
+
+    // Runtime default filters; can be overridden by AdminModule
+    let DEFAULT_FILTERS = {
+        search: '',
+        categories: [],
+        families: [],
+        status: 'enabled',
+        variant: 'all',
+        sort: 'sku-asc'
+    };
+
+
+  
   const USERS_WITH_PRICE_ACCESS = [
     "marblehouse@gmail.com",
     "designacmestones@gmail.com",
@@ -51,7 +64,7 @@ function init() {
 
      // ADD THIS LINE - Initialize Admin Module
     AdminModule.init(currentUser);
-
+    loadDefaultFilters();  // NEW
   
     loadProducts();
 }
@@ -212,6 +225,15 @@ function loadCachedProducts(cachedIds, needUpdateIds, totalProducts, startTime) 
 
 
 
+function loadDefaultFilters() {
+    if (typeof AdminModule !== 'undefined' && AdminModule.getDefaultFilters) {
+        DEFAULT_FILTERS = AdminModule.getDefaultFilters();
+        console.log('Loaded DEFAULT_FILTERS from AdminModule:', DEFAULT_FILTERS);
+    }
+}
+
+
+  
 
   
 
