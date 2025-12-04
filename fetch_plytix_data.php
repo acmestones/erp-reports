@@ -1,4 +1,4 @@
-ro<?php
+<?php
 // Enable output buffering for better performance
 ob_start();
 error_reporting(E_ALL);
