@@ -133,6 +133,36 @@ function fetchProductDetails($productId, $accessToken) {
 
 
 
+
+// Add this function after the existing helper functions
+function fetchProductFamilies($accessToken) {
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_URL, "https://pim.plytix.com/api/v1/product-families");
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+        'Content-Type: application/json',
+        'Authorization: Bearer ' . $accessToken
+    ]);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+    
+    $response = curl_exec($ch);
+    $httpcode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    
+    if ($httpcode == 200) {
+        $data = json_decode($response, true);
+        return $data['data'] ?? [];
+    }
+    
+    return null;
+}
+
+
+
+
+
+
+
 function buildConsolidatedCache($cacheDir) {
     $consolidatedFile = $cacheDir . '/all_products_consolidated.json';
     $allProducts = [];
@@ -433,6 +463,43 @@ if ($action === 'fetch_products') {
         exit;
 
 }
+
+
+
+
+// ACTION 4: Get product families list
+if ($action === 'get_families') {
+    $accessToken = getAuthToken($apiKey, $apiPassword);
+    if (!$accessToken) {
+        http_response_code(500);
+        echo json_encode(["error" => "Authentication failed"]);
+        exit;
+    }
+    
+    $families = fetchProductFamilies($accessToken);
+    
+    if ($families !== null) {
+        // Build ID -> Name map
+        $familyMap = [];
+        foreach ($families as $family) {
+            $familyMap[$family['id']] = $family['name'];
+        }
+        
+        echo json_encode([
+            "success" => true,
+            "families" => $familyMap
+        ]);
+    } else {
+        http_response_code(500);
+        echo json_encode(["error" => "Failed to fetch product families"]);
+    }
+    exit;
+}
+
+
+
+
+
 
 echo json_encode(["error" => "Invalid action"]);
 
