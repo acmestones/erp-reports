@@ -149,13 +149,20 @@ function fetchProductFamilies($accessToken) {
     $httpcode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
     
+    error_log("fetchProductFamilies: HTTP $httpcode");
+    if ($httpcode != 200) {
+        error_log("fetchProductFamilies: Response - " . substr($response, 0, 500));
+    }
+    
     if ($httpcode == 200) {
         $data = json_decode($response, true);
+        error_log("fetchProductFamilies: Decoded data - " . print_r($data, true));
         return $data['data'] ?? [];
     }
     
     return null;
 }
+
 
 
 
@@ -469,32 +476,43 @@ if ($action === 'fetch_products') {
 
 // ACTION 4: Get product families list
 if ($action === 'get_families') {
+    error_log("GET_FAMILIES: Starting...");
+    
     $accessToken = getAuthToken($apiKey, $apiPassword);
     if (!$accessToken) {
+        error_log("GET_FAMILIES: Auth failed");
         http_response_code(500);
-        echo json_encode(["error" => "Authentication failed"]);
+        echo json_encode(["success" => false, "error" => "Authentication failed"]);
         exit;
     }
     
+    error_log("GET_FAMILIES: Got token, fetching families...");
     $families = fetchProductFamilies($accessToken);
     
     if ($families !== null) {
+        error_log("GET_FAMILIES: Got " . count($families) . " families");
+        
         // Build ID -> Name map
         $familyMap = [];
         foreach ($families as $family) {
-            $familyMap[$family['id']] = $family['name'];
+            if (isset($family['id']) && isset($family['name'])) {
+                $familyMap[$family['id']] = $family['name'];
+            }
         }
         
+        error_log("GET_FAMILIES: Built map with " . count($familyMap) . " entries");
         echo json_encode([
             "success" => true,
             "families" => $familyMap
         ]);
     } else {
+        error_log("GET_FAMILIES: API returned null");
         http_response_code(500);
-        echo json_encode(["error" => "Failed to fetch product families"]);
+        echo json_encode(["success" => false, "error" => "Failed to fetch product families from Plytix API"]);
     }
     exit;
 }
+
 
 
 
