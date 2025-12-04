@@ -38,61 +38,88 @@
             </div>
         </div>
 
-        <!-- Filters -->
-        <div class="row g-2 mb-3 align-items-end">
-            <div class="col-md-2">
-                <input id="searchBox" class="form-control" placeholder="Search by SKU, Name...">
-            </div>
-            <div class="col-md-2">
-                <div class="dropdown w-100">
-                    <button class="btn btn-outline-secondary dropdown-toggle w-100" type="button" id="categoryFilterDropdown" data-bs-toggle="dropdown" aria-expanded="false" data-bs-auto-close="outside">
-                        Categories
-                    </button>
-                    <ul id="categoryFilter" class="dropdown-menu" aria-labelledby="categoryFilterDropdown" style="max-height: 300px; overflow-y: auto;">
-                        <li class="dropdown-item text-muted">Loading...</li>
-                    </ul>
-                </div>
-            </div>
-            <div class="col-md-2">
-                <div class="dropdown w-100">
-                    <button class="btn btn-outline-secondary dropdown-toggle w-100" type="button" id="familyFilterDropdown" data-bs-toggle="dropdown" aria-expanded="false" data-bs-auto-close="outside">
-                        Product Family
-                    </button>
-                    <ul id="familyFilter" class="dropdown-menu" aria-labelledby="familyFilterDropdown" style="max-height: 300px; overflow-y: auto;">
-                        <li class="dropdown-item text-muted">Loading...</li>
-                    </ul>
-                </div>
-            </div>
-            <div class="col-md-2">
-                <select id="statusFilter" class="form-select">
-                    <option value="all" selected>All Products</option>
-                    <option value="enabled">Enabled Only</option>
-                    <option value="disabled">Disabled Only</option>
-                </select>
-            </div>
-            <div class="col-md-2">
-                <select id="variantFilter" class="form-select">
-                    <option value="all" selected>All Types</option>
-                    <option value="parents">Parents with Variants</option>
-                    <option value="variants">Variants Only</option>
-                    <option value="singles">Singles (No Variants)</option>
-                    <option value="variants-and-singles">Variants + Singles</option>
-                </select>
-            </div>
-            <div class="col-md-2">
-                <select id="sortFilter" class="form-select">
-                    <option value="sku-asc">Sort by SKU (A-Z)</option>
-                    <option value="sku-desc">Sort by SKU (Z-A)</option>
-                    <option value="label-asc">Sort by Name (A-Z)</option>
-                    <option value="label-desc">Sort by Name (Z-A)</option>
-                </select>
-            </div>
-        </div>
 
-        <div id="catalogStatus" class="text-muted small mb-2"></div>
-        <div id="productGrid" class="row g-3"></div>
+
+        
+<!-- Filters -->
+<div class="row g-2 mb-3 align-items-end">
+    <div class="col-md-2">
+        <input id="searchBox" class="form-control" placeholder="Search by SKU, Name...">
     </div>
+    
+    <div class="col-md-2">
+        <div class="dropdown w-100">
+            <button class="btn btn-outline-secondary dropdown-toggle w-100" type="button" 
+                    id="categoryFilterDropdown" data-bs-toggle="dropdown" aria-expanded="false" data-bs-auto-close="outside">
+                Categories
+            </button>
+            <ul id="categoryFilter" class="dropdown-menu" aria-labelledby="categoryFilterDropdown" 
+                style="max-height: 300px; overflow-y: auto;">
+                <li class="dropdown-item text-muted">Loading...</li>
+            </ul>
+        </div>
+    </div>
+    
+    <div class="col-md-2">
+        <div class="dropdown w-100">
+            <button class="btn btn-outline-secondary dropdown-toggle w-100" type="button" 
+                    id="familyFilterDropdown" data-bs-toggle="dropdown" aria-expanded="false" data-bs-auto-close="outside">
+                Product Family
+            </button>
+            <ul id="familyFilter" class="dropdown-menu" aria-labelledby="familyFilterDropdown" 
+                style="max-height: 300px; overflow-y: auto;">
+                <li class="dropdown-item text-muted">Loading...</li>
+            </ul>
+        </div>
+    </div>
+    
+    <div class="col-md-2">
+        <select id="statusFilter" class="form-select">
+            <option value="all" selected>All Products</option>
+            <option value="enabled">Enabled Only</option>
+            <option value="disabled">Disabled Only</option>
+        </select>
+    </div>
+    
+    <div class="col-md-2">
+        <select id="variantFilter" class="form-select">
+            <option value="all" selected>All Types</option>
+            <option value="parents">Parents with Variants</option>
+            <option value="variants">Variants Only</option>
+            <option value="singles">Singles (No Variants)</option>
+            <option value="variants-and-singles">Variants + Singles</option>
+        </select>
+    </div>
+    
+    <div class="col-md-1">
+        <select id="sortFilter" class="form-select">
+            <option value="sku-asc">Sort by SKU (A-Z)</option>
+            <option value="sku-desc">Sort by SKU (Z-A)</option>
+            <option value="label-asc">Sort by Name (A-Z)</option>
+            <option value="label-desc">Sort by Name (Z-A)</option>
+        </select>
+    </div>
+    
+    <!-- NEW: Save and Reset buttons -->
+    <div class="col-md-1">
+        <button id="saveMyDefaultsBtn" class="btn btn-success w-100" title="Save current filters as my defaults">
+            <i class="bi bi-bookmark-fill"></i> Save
+        </button>
+    </div>
+    
+    <div class="col-md-1">
+        <button id="resetFiltersBtn" class="btn btn-outline-danger w-100" title="Reset to my saved defaults">
+            <i class="bi bi-arrow-counterclockwise"></i> Reset
+        </button>
+    </div>
+</div>
 
+
+
+
+
+
+    
     <!-- Product Detail Modal -->
     <div class="modal fade" id="productModal" tabindex="-1">
         <div class="modal-dialog modal-xl modal-dialog-scrollable">
