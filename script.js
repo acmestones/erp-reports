@@ -77,12 +77,7 @@ function loadDefaultFilters() {
 
 
  
-  
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', init);
-} else {
-    init();
-}
+
 
 
 function init() {
@@ -1177,6 +1172,16 @@ window.addEventListener('DOMContentLoaded', function () {
 
 
 
+// Call init after DOM is ready
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function () {
+        init();
+    });
+} else {
+    // DOM already loaded
+    init();
+}
+})();
 
 
 
@@ -1186,4 +1191,4 @@ window.addEventListener('DOMContentLoaded', function () {
 
   
 
-})();
+
