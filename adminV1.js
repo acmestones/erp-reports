@@ -790,25 +790,29 @@ function openSettingsModal() {
     /**
      * Load default filters configuration from server
      */
-    function loadDefaultFilters() {
-        if (!currentUser) return;
+function loadDefaultFilters() {
+    if (!currentUser) return;
 
-        fetch(`admin_user_settings.php?action=getDefaultFilters&currentUser=${encodeURIComponent(currentUser)}`)
-            .then(res => res.json())
-            .then(data => {
-                if (data.success) {
-                    defaultFiltersConfig = data.filters || getSystemDefaultFilters();
-                } else {
-                    defaultFiltersConfig = getSystemDefaultFilters();
-                }
-                populateDefaultFiltersForm();
-            })
-            .catch(err => {
-                console.error('Failed to load default filters:', err);
+    fetch('admin_user_settings.php?action=getDefaultFilters&currentUser=' + encodeURIComponent(currentUser))
+        .then(function (res) { return res.json(); })
+        .then(function (data) {
+            console.log('getDefaultFilters response in AdminModule:', data); // debug
+
+            if (data && data.success && data.filters) {
+                defaultFiltersConfig = data.filters;
+            } else {
                 defaultFiltersConfig = getSystemDefaultFilters();
-                populateDefaultFiltersForm();
-            });
-    }
+            }
+
+            populateDefaultFiltersForm();
+        })
+        .catch(function (err) {
+            console.error('Failed to load default filters:', err);
+            defaultFiltersConfig = getSystemDefaultFilters();
+            populateDefaultFiltersForm();
+        });
+}
+
 
     /**
      * Populate all fields in Default Filters tab
