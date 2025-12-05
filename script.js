@@ -1416,22 +1416,33 @@ function saveFieldValue(product, fieldKey, newValue, tdElement, originalContent)
     // Show saving state
     tdElement.innerHTML = '<span class="text-muted"><span class="spinner-border spinner-border-sm me-2"></span>Saving...</span>';
     
-    // Prepare update payload
-      const updateData = {};
-      let finalValue = newValue;
-      
-      // Detect multiselect from the editor element, if present
-      const editor = tdElement.querySelector('select, input, textarea');
-      if (editor && editor.dataset && editor.dataset.attrType === 'MultiSelectAttribute') {
-          // Collect all selected options into an array
-          finalValue = Array.from(editor.selectedOptions).map(opt => opt.value);
-      }
-      
-      updateData[fieldKey] = finalValue;
+    const updateData = {};
+    let finalValue = newValue;
 
+    // Detect editor and attribute type (set earlier in makeFieldEditable)
+    const editor = tdElement.querySelector('select, input, textarea');
     
-    console.log('Saving field:', fieldKey, 'with value:', newValue, 'for product:', product.id);
-    
+    if (editor && editor.dataset) {
+        const attrType = editor.dataset.attrType;
+
+        // Multiselect → array of selected values
+        if (attrType === 'MultiSelectAttribute') {
+            finalValue = Array.from(editor.selectedOptions).map(opt => opt.value);
+        }
+
+        // Single dropdown → string or null when cleared
+        if (attrType === 'DropdownAttribute') {
+            if (finalValue === '') {
+                finalValue = null;
+            }
+        }
+    }
+
+    updateData[fieldKey] = finalValue;
+
+    console.log('Saving field:', fieldKey, 'with value:', finalValue, 'for product:', product.id);
+    console.log('Update payload:', updateData);
+
     // Send to backend to update in Plytix
     fetch('fetch_plytix_data.php?action=update_product', {
         method: 'POST',
@@ -1448,32 +1459,31 @@ function saveFieldValue(product, fieldKey, newValue, tdElement, originalContent)
     .then(function(data) {
         console.log('Update response:', data);
         if (data.success) {
-            // Update local product object
+            // Update local product object with the actual value sent
             if (product.attributes && product.attributes[fieldKey] !== undefined) {
-                product.attributes[fieldKey] = newValue;
+                product.attributes[fieldKey] = finalValue;
             } else {
-                product[fieldKey] = newValue;
+                product[fieldKey] = finalValue;
             }
             
             // Update in allProducts array
             const productIndex = allProducts.findIndex(function(p) { return p.id === product.id; });
             if (productIndex >= 0) {
                 if (allProducts[productIndex].attributes && allProducts[productIndex].attributes[fieldKey] !== undefined) {
-                    allProducts[productIndex].attributes[fieldKey] = newValue;
+                    allProducts[productIndex].attributes[fieldKey] = finalValue;
                 } else {
-                    allProducts[productIndex][fieldKey] = newValue;
+                    allProducts[productIndex][fieldKey] = finalValue;
                 }
             }
             
-            // Show updated value
-            tdElement.innerHTML = formatValueForDisplay(newValue) + 
+            // Show updated value in UI
+            tdElement.innerHTML = formatValueForDisplay(finalValue) + 
                 ' <span class="badge bg-primary ms-2" style="cursor:pointer">✎ Edit</span>';
             tdElement.style.cursor = 'pointer';
             tdElement.onclick = function() {
-                makeFieldEditable(tdElement, product, fieldKey, newValue);
+                makeFieldEditable(tdElement, product, fieldKey, finalValue);
             };
             
-            // Show success toast
             showToast('✓ Field updated successfully', 'success');
         } else {
             throw new Error(data.error || 'Update failed');
@@ -1489,6 +1499,7 @@ function saveFieldValue(product, fieldKey, newValue, tdElement, originalContent)
         showToast('✗ Failed to update: ' + err.message, 'danger');
     });
 }
+
 
 
 
