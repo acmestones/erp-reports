@@ -1322,56 +1322,68 @@ function showProductDetail(product) {
     displayFields.sort(function(a, b) {
       return a.label.localeCompare(b.label);
     });
-    
-displayFields.forEach(function(field) {
-    // Check if user has permission to view this attribute
-    if (AdminModule.isAttributeVisible && !AdminModule.isAttributeVisible(field.key)) {
-      return; // Skip this field
-    }
-    
-    // Legacy price access check
-    if (!USERS_WITH_PRICE_ACCESS.includes(currentUser)) {
-      const keyLower = field.key.toLowerCase();
-      if (keyLower.includes('price') || keyLower.includes('cost') || keyLower.includes('msrp')) {
-        return;
-      }
-    }
-    
-    const tr = document.createElement('tr');
-    const th = document.createElement('th');
-    th.style.width = '30%';
-    th.textContent = field.label;
-    
-    const td = document.createElement('td');
-    const isEditable = AdminModule.isAttributeEditable && AdminModule.isAttributeEditable(field.key);
-    
-    if (isEditable) {
-      // Make field editable
-      td.style.cursor = 'pointer';
-      td.style.position = 'relative';
-      td.innerHTML = formatValueForDisplay(field.value);
-      
-      // Add edit icon
-      const editIcon = document.createElement('span');
-      editIcon.className = 'badge bg-primary ms-2';
-      editIcon.innerHTML = '✎ Edit';
-      editIcon.style.cursor = 'pointer';
-      td.appendChild(editIcon);
-      
-      // Click handler for editing
-      td.onclick = function() {
-        makeFieldEditable(td, product, field.key, field.value);
-      };
-      
-      th.innerHTML = field.label + ' <span class="badge bg-warning text-dark ms-1" title="Editable">✎</span>';
-    } else {
-      td.innerHTML = formatValueForDisplay(field.value);
-    }
-    
-    tr.appendChild(th);
-    tr.appendChild(td);
-    tbody.appendChild(tr);
-});
+
+  
+    displayFields.forEach(function(field) {
+        // Check if user has permission to view this attribute
+        if (AdminModule.isAttributeVisible && !AdminModule.isAttributeVisible(field.key)) {
+          return; // Skip this field
+        }
+        
+        // Legacy price access check
+        if (!USERS_WITH_PRICE_ACCESS.includes(currentUser)) {
+          const keyLower = field.key.toLowerCase();
+          if (keyLower.includes('price') || keyLower.includes('cost') || keyLower.includes('msrp')) {
+            return;
+          }
+        }
+        
+        const tr = document.createElement('tr');
+        const th = document.createElement('th');
+        th.style.width = '30%';
+        th.textContent = field.label;
+        
+        const td = document.createElement('td');
+        
+        // Decide if this field is editable
+        const isAttributeEditable = AdminModule.isAttributeEditable && AdminModule.isAttributeEditable(field.key);
+        const isCategoriesField   = field.key === 'categories';
+        
+        const isEditable = isAttributeEditable || isCategoriesField;
+        
+        if (isEditable) {
+          td.style.cursor = 'pointer';
+          td.style.position = 'relative';
+          td.innerHTML = formatValueForDisplay(field.value);
+          
+          const editIcon = document.createElement('span');
+          editIcon.className = 'badge bg-primary ms-2';
+          editIcon.innerHTML = '✎ Edit';
+          editIcon.style.cursor = 'pointer';
+          td.appendChild(editIcon);
+          
+          if (isCategoriesField) {
+            // Special editor for categories
+            td.onclick = function() {
+              openCategoriesEditor(td, product);
+            };
+          } else {
+            // Normal attribute editor (handles dropdown / multiselect etc.)
+            td.onclick = function() {
+              makeFieldEditable(td, product, field.key, field.value);
+            };
+          }
+          
+          th.innerHTML = field.label + ' <span class="badge bg-warning text-dark ms-1" title="Editable">✎</span>';
+        } else {
+          td.innerHTML = formatValueForDisplay(field.value);
+        }
+        
+        tr.appendChild(th);
+        tr.appendChild(td);
+        tbody.appendChild(tr);
+    });
+
 
     
     table.appendChild(tbody);
