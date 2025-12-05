@@ -79,3 +79,17 @@ body { font-family: "Inter", sans-serif; }
   opacity: 1;
   filter: grayscale(0%);
 }
+
+
+
+
+
+select[multiple] {
+    height: 120px !important;
+    min-height: 100px;
+}
+select[multiple] option:checked {
+    background: #007bff !important;
+    color: white !important;
+}
+
