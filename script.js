@@ -1271,6 +1271,8 @@ function saveFieldValue(product, fieldKey, newValue, tdElement, originalContent)
     const updateData = {};
     updateData[fieldKey] = newValue;
     
+    console.log('Saving field:', fieldKey, 'with value:', newValue, 'for product:', product.id);
+    
     // Send to backend to update in Plytix
     fetch('fetch_plytix_data.php?action=update_product', {
         method: 'POST',
@@ -1285,6 +1287,7 @@ function saveFieldValue(product, fieldKey, newValue, tdElement, originalContent)
         return res.json();
     })
     .then(function(data) {
+        console.log('Update response:', data);
         if (data.success) {
             // Update local product object
             if (product.attributes && product.attributes[fieldKey] !== undefined) {
@@ -1306,6 +1309,7 @@ function saveFieldValue(product, fieldKey, newValue, tdElement, originalContent)
             // Show updated value
             tdElement.innerHTML = formatValueForDisplay(newValue) + 
                 ' <span class="badge bg-primary ms-2" style="cursor:pointer">✎ Edit</span>';
+            tdElement.style.cursor = 'pointer';
             tdElement.onclick = function() {
                 makeFieldEditable(tdElement, product, fieldKey, newValue);
             };
@@ -1319,12 +1323,18 @@ function saveFieldValue(product, fieldKey, newValue, tdElement, originalContent)
     .catch(function(err) {
         console.error('Failed to update field:', err);
         tdElement.innerHTML = originalContent;
+        tdElement.style.cursor = 'pointer';
         tdElement.onclick = function() {
             makeFieldEditable(tdElement, product, fieldKey, newValue);
         };
         showToast('✗ Failed to update: ' + err.message, 'danger');
     });
 }
+
+
+
+
+  
 
 function showToast(message, type) {
     const toast = document.createElement('div');
