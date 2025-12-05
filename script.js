@@ -568,16 +568,22 @@ function applyFilters() {
         // Status filter
         const enableDisableField = product.enable_disable_product;
         const attrEnableDisable = product.attributes?.enable_disable_product;
-        const isEnabled =
-            enableDisableField === true ||
-            enableDisableField === 'TRUE' ||
-            attrEnableDisable === true ||
-            attrEnableDisable === 'TRUE';
-
+        
+        // Product is DISABLED only if explicitly set to FALSE or 'FALSE'
+        const isDisabled =
+            enableDisableField === false ||
+            enableDisableField === 'FALSE' ||
+            attrEnableDisable === false ||
+            attrEnableDisable === 'FALSE';
+        
+        const isEnabled = !isDisabled;
+        
         const matchesStatus =
             statusFilter === 'all' ||
             (statusFilter === 'enabled' && isEnabled) ||
-            (statusFilter === 'disabled' && !isEnabled);
+            (statusFilter === 'disabled' && isDisabled);
+
+      
         if (!matchesStatus) return false;
 
         // Variant filter
