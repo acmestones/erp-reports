@@ -719,8 +719,8 @@ function fetchAllCategories($accessToken) {
         "attributes" => ["id", "name", "path"],
         "pagination" => [
             "page_size" => 500,
-            "page"      => 1,
-            "order"     => ""
+            "page" => 1,
+            "order" => ""
         ]
     ];
 
@@ -738,12 +738,16 @@ function fetchAllCategories($accessToken) {
     $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
 
+    error_log("fetchAllCategories: HTTP $httpCode");
+    error_log("fetchAllCategories response: " . substr($response, 0, 1000));
+
     if ($httpCode === 200) {
         $data = json_decode($response, true);
         return $data['data'] ?? [];
     }
     return [];
 }
+
 
 
 //Action: Get list of categories
