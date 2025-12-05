@@ -626,6 +626,55 @@ if ($action === 'update_product') {
 
 
 
+// ACTION: Get attribute definition
+if ($action === 'get_attribute_definition') {
+    $attrName = $_GET['attribute'] ?? null;
+    
+    if (!$attrName) {
+        echo json_encode(['success' => false, 'error' => 'Missing attribute name']);
+        exit;
+    }
+    
+    // Fetch attribute definition from Plytix
+    $url = "https://pim.plytix.com/api/v1/attributes?name=" . urlencode($attrName);
+    
+    $ch = curl_init($url);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+        'Authorization: Bearer ' . $PLYTIX_API_KEY,
+        'Content-Type: application/json'
+    ]);
+    
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    
+    if ($httpCode === 200) {
+        $data = json_decode($response, true);
+        if (!empty($data['data'])) {
+            $attribute = $data['data'][0];
+            echo json_encode([
+                'success' => true,
+                'attribute' => [
+                    'name' => $attribute['name'],
+                    'label' => $attribute['label'],
+                    'type' => $attribute['type'],
+                    'options' => $attribute['options'] ?? []
+                ]
+            ]);
+        } else {
+            echo json_encode(['success' => false, 'error' => 'Attribute not found']);
+        }
+    } else {
+        echo json_encode(['success' => false, 'error' => 'Failed to fetch attribute definition']);
+    }
+    exit;
+}
+
+
+
+
+
 
 
 echo json_encode(["error" => "Invalid action"]);
