@@ -1421,17 +1421,25 @@ function saveFieldValue(product, fieldKey, newValue, tdElement, originalContent)
 
     // Detect editor and attribute type (set earlier in makeFieldEditable)
     const editor = tdElement.querySelector('select, input, textarea');
-    
-    if (editor && editor.dataset) {
-        const attrType = editor.dataset.attrType;
+    let attrType = null;
 
-        // Multiselect → array of selected values
-        if (attrType === 'MultiSelectAttribute') {
-            finalValue = Array.from(editor.selectedOptions).map(opt => opt.value);
+    if (editor && editor.dataset && editor.dataset.attrType) {
+        attrType = editor.dataset.attrType; // "DropdownAttribute", "MultiSelectAttribute", etc.
+    }
+
+    // Normalize by type
+    if (attrType === 'MultiSelectAttribute') {
+        // Always send an array for multiselect
+        finalValue = Array.from(editor.selectedOptions || []).map(opt => opt.value);
+    } else if (attrType === 'DropdownAttribute') {
+        // Single dropdown: empty string -> null
+        if (finalValue === '') {
+            finalValue = null;
         }
-
-        // Single dropdown → string or null when cleared
-        if (attrType === 'DropdownAttribute') {
+    } else {
+        // Non-option attributes: leave as-is, but trim strings
+        if (typeof finalValue === 'string') {
+            finalValue = finalValue.trim();
             if (finalValue === '') {
                 finalValue = null;
             }
@@ -1440,7 +1448,7 @@ function saveFieldValue(product, fieldKey, newValue, tdElement, originalContent)
 
     updateData[fieldKey] = finalValue;
 
-    console.log('Saving field:', fieldKey, 'with value:', finalValue, 'for product:', product.id);
+    console.log('Saving field:', fieldKey, 'raw value:', newValue, 'normalized:', finalValue, 'for product:', product.id);
     console.log('Update payload:', updateData);
 
     // Send to backend to update in Plytix
@@ -1458,36 +1466,35 @@ function saveFieldValue(product, fieldKey, newValue, tdElement, originalContent)
     })
     .then(function(data) {
         console.log('Update response:', data);
-        if (data.success) {
-            // Update local product object with the actual value sent
-            if (product.attributes && product.attributes[fieldKey] !== undefined) {
-                product.attributes[fieldKey] = finalValue;
-            } else {
-                product[fieldKey] = finalValue;
-            }
-            
-            // Update in allProducts array
-            const productIndex = allProducts.findIndex(function(p) { return p.id === product.id; });
-            if (productIndex >= 0) {
-                if (allProducts[productIndex].attributes && allProducts[productIndex].attributes[fieldKey] !== undefined) {
-                    allProducts[productIndex].attributes[fieldKey] = finalValue;
-                } else {
-                    allProducts[productIndex][fieldKey] = finalValue;
-                }
-            }
-            
-            // Show updated value in UI
-            tdElement.innerHTML = formatValueForDisplay(finalValue) + 
-                ' <span class="badge bg-primary ms-2" style="cursor:pointer">✎ Edit</span>';
-            tdElement.style.cursor = 'pointer';
-            tdElement.onclick = function() {
-                makeFieldEditable(tdElement, product, fieldKey, finalValue);
-            };
-            
-            showToast('✓ Field updated successfully', 'success');
-        } else {
+        if (!data.success) {
             throw new Error(data.error || 'Update failed');
         }
+
+        // Use finalValue (what we actually sent) everywhere locally
+        if (product.attributes && product.attributes[fieldKey] !== undefined) {
+            product.attributes[fieldKey] = finalValue;
+        } else {
+            product[fieldKey] = finalValue;
+        }
+        
+        const productIndex = allProducts.findIndex(function(p) { return p.id === product.id; });
+        if (productIndex >= 0) {
+            if (allProducts[productIndex].attributes && allProducts[productIndex].attributes[fieldKey] !== undefined) {
+                allProducts[productIndex].attributes[fieldKey] = finalValue;
+            } else {
+                allProducts[productIndex][fieldKey] = finalValue;
+            }
+        }
+        
+        // Show updated value in UI
+        tdElement.innerHTML = formatValueForDisplay(finalValue) + 
+            ' <span class="badge bg-primary ms-2" style="cursor:pointer">✎ Edit</span>';
+        tdElement.style.cursor = 'pointer';
+        tdElement.onclick = function() {
+            makeFieldEditable(tdElement, product, fieldKey, finalValue);
+        };
+        
+        showToast('✓ Field updated successfully', 'success');
     })
     .catch(function(err) {
         console.error('Failed to update field:', err);
@@ -1499,6 +1506,7 @@ function saveFieldValue(product, fieldKey, newValue, tdElement, originalContent)
         showToast('✗ Failed to update: ' + err.message, 'danger');
     });
 }
+
 
 
 
