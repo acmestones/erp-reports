@@ -570,15 +570,14 @@ if ($action === 'update_product') {
         exit;
     }
     
-    // Plytix API uses simple key-value format for attributes
-    $payload = ['attributes' => $updates];
-    
     // Handle boolean string conversion
-    foreach ($payload['attributes'] as $key => $value) {
-        if ($value === 'true') $payload['attributes'][$key] = true;
-        if ($value === 'false') $payload['attributes'][$key] = false;
+    foreach ($updates as $key => $value) {
+        if ($value === 'true') $updates[$key] = true;
+        if ($value === 'false') $updates[$key] = false;
     }
     
+    // Plytix expects attributes wrapped in "attributes" object
+    $payload = ['attributes' => $updates];
     $payloadJson = json_encode($payload);
     
     error_log("Plytix Update - Product ID: {$productId}");
@@ -598,15 +597,10 @@ if ($action === 'update_product') {
     
     $response = curl_exec($ch);
     $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $curlError = curl_error($ch);
     curl_close($ch);
     
     error_log("Plytix Update - Response HTTP Code: {$httpCode}");
     error_log("Plytix Update - Response Body: {$response}");
-    
-    if ($curlError) {
-        error_log("Plytix Update - cURL Error: {$curlError}");
-    }
     
     if ($httpCode >= 200 && $httpCode < 300) {
         // Clear cache for this product
@@ -618,7 +612,7 @@ if ($action === 'update_product') {
         echo json_encode(['success' => true, 'message' => 'Product updated']);
     } else {
         $errorDetail = json_decode($response, true);
-        $errorMsg = isset($errorDetail['message']) ? $errorDetail['message'] : 'Failed to update product in Plytix';
+        $errorMsg = $errorDetail['error']['msg'] ?? 'Failed to update product in Plytix';
         
         echo json_encode([
             'success' => false, 
