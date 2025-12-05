@@ -947,12 +947,15 @@ function makeFieldEditable(tdElement, product, fieldKey, currentValue) {
     const cancelBtn = document.createElement('button');
     cancelBtn.className = 'btn btn-secondary btn-sm';
     cancelBtn.innerHTML = '✕ Cancel';
-    cancelBtn.onclick = function() {
-      tdElement.innerHTML = originalContent;
-      tdElement.onclick = function() {
-        makeFieldEditable(tdElement, product, fieldKey, currentValue);
-      };
+    cancelBtn.onclick = function(e) {
+        e.stopPropagation();
+        tdElement.innerHTML = originalContent;
+        tdElement.style.cursor = 'pointer';
+        tdElement.onclick = function() {
+            makeFieldEditable(tdElement, product, fieldKey, currentValue);
+        };
     };
+
     
     btnGroup.appendChild(saveBtn);
     btnGroup.appendChild(cancelBtn);
