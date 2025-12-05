@@ -726,12 +726,13 @@ function applyFilters() {
     const enableDisableField = product.enable_disable_product;
     const attrEnableDisable = product.attributes && product.attributes.enable_disable_product;
     
-    const isEnabled = enableDisableField === true || 
-                     enableDisableField === "TRUE" ||
-                     attrEnableDisable === true ||
-                     attrEnableDisable === "TRUE";
+    // Product is DISABLED only if explicitly set to FALSE or 'FALSE'
+    const isDisabled = enableDisableField === false || 
+                       enableDisableField === "FALSE" ||
+                       attrEnableDisable === false ||
+                       attrEnableDisable === "FALSE";
     
-    if (!isEnabled) {
+    if (isDisabled) {
       card.style.opacity = "0.5";
       card.style.filter = "grayscale(40%)";
     }
@@ -773,7 +774,7 @@ function applyFilters() {
     sku.className = "card-text text-muted small mb-0";
     sku.innerHTML = "<strong>SKU:</strong> " + (product.sku || "N/A");
     
-    if (!isEnabled) {
+    if (isDisabled) {
       const badge = document.createElement("span");
       badge.className = "badge bg-secondary mt-2";
       badge.textContent = "DISABLED";
@@ -790,6 +791,9 @@ function applyFilters() {
     col.appendChild(card);
     return col;
   }
+
+
+  
 
   function getFirstImage(product) {
     if (product.thumbnail && typeof product.thumbnail === 'object') {
