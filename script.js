@@ -1468,38 +1468,51 @@ function saveFieldValue(product, fieldKey, newValue, tdElement, originalContent)
         if (!res.ok) throw new Error('HTTP ' + res.status);
         return res.json();
     })
-    .then(function(data) {
-        console.log('Update response:', data);
-        if (!data.success) {
-            throw new Error(data.error || 'Update failed');
-        }
+.then(function(data) {
+    console.log('Update response:', data);
+    if (!data.success) {
+        throw new Error(data.error || 'Update failed');
+    }
 
-        // Use finalValue (what we actually sent) everywhere locally
-        if (product.attributes && product.attributes[fieldKey] !== undefined) {
-            product.attributes[fieldKey] = finalValue;
-        } else {
-            product[fieldKey] = finalValue;
-        }
+    // Re-fetch the product to get fresh data from Plytix
+    return fetch('fetch_plytix_data.php?action=fetch_products', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: [product.id] })
+    }).then(function(res) { return res.json(); });
+})
+.then(function(freshData) {
+    if (freshData.success && freshData.products && freshData.products.length > 0) {
+        const freshProduct = freshData.products[0];
         
+        // Replace local product object
+        Object.assign(product, freshProduct);
+        
+        // Update in allProducts array
         const productIndex = allProducts.findIndex(function(p) { return p.id === product.id; });
         if (productIndex >= 0) {
-            if (allProducts[productIndex].attributes && allProducts[productIndex].attributes[fieldKey] !== undefined) {
-                allProducts[productIndex].attributes[fieldKey] = finalValue;
-            } else {
-                allProducts[productIndex][fieldKey] = finalValue;
-            }
+            allProducts[productIndex] = freshProduct;
         }
         
-        // Show updated value in UI
-        tdElement.innerHTML = formatValueForDisplay(finalValue) + 
+        // Get the fresh value for display
+        const freshValue = (freshProduct.attributes && freshProduct.attributes[fieldKey] !== undefined)
+            ? freshProduct.attributes[fieldKey]
+            : freshProduct[fieldKey];
+        
+        // Update UI with fresh value
+        tdElement.innerHTML = formatValueForDisplay(freshValue) + 
             ' <span class="badge bg-primary ms-2" style="cursor:pointer">✎ Edit</span>';
         tdElement.style.cursor = 'pointer';
         tdElement.onclick = function() {
-            makeFieldEditable(tdElement, product, fieldKey, finalValue);
+            makeFieldEditable(tdElement, product, fieldKey, freshValue);
         };
         
         showToast('✓ Field updated successfully', 'success');
-    })
+    } else {
+        throw new Error('Could not reload updated product');
+    }
+})
+
     .catch(function(err) {
         console.error('Failed to update field:', err);
         tdElement.innerHTML = originalContent;
