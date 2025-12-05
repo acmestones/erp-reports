@@ -1020,37 +1020,43 @@ function makeFieldEditable(tdElement, product, fieldKey, currentValue) {
             tdElement.innerHTML = '';
             let inputElement;
             
-              // Check if it's a dropdown / multiselect (has options)
-              if (attrData.success && attrData.attribute.options && attrData.attribute.options.length > 0) {
-                  const type = attrData.attribute.type; // DropdownAttribute or MultiSelectAttribute
-                  inputElement = document.createElement('select');
-                  inputElement.className = 'form-select form-select-sm';
-              
-                  if (type === 'MultiSelectAttribute') {
-                      inputElement.multiple = true;
-                  } else {
-                      // Single dropdown: add empty option
-                      const emptyOption = document.createElement('option');
-                      emptyOption.value = '';
-                      emptyOption.textContent = '-- Select --';
-                      inputElement.appendChild(emptyOption);
-                  }
-              
-                  const currentArray = Array.isArray(currentValue) ? currentValue : [currentValue];
-              
-                  attrData.attribute.options.forEach(function(opt) {
-                      const option = document.createElement('option');
-                      option.value = opt;
-                      option.textContent = opt;
-                      if (currentArray.includes(opt)) {
-                          option.selected = true;
-                      }
-                      inputElement.appendChild(option);
-                  });
-              
-                  // Remember attribute type on the element so saveFieldValue knows how to serialize
-                  inputElement.dataset.attrType = type;
-              }
+                // Check if it's a dropdown / multiselect (has options)
+                if (attrData.success && attrData.attribute.options && attrData.attribute.options.length > 0) {
+                    const type = attrData.attribute.type;
+                    inputElement = document.createElement('select');
+                    inputElement.className = 'form-select form-select-sm';
+                
+                    if (type === 'MultiSelectAttribute') {
+                        inputElement.multiple = true;
+                        inputElement.size = Math.min(6, attrData.attribute.options.length + 1); // Show more options
+                    } else {
+                        const emptyOption = document.createElement('option');
+                        emptyOption.value = '';
+                        emptyOption.textContent = '-- Select --';
+                        inputElement.appendChild(emptyOption);
+                    }
+                
+                    // Fix: properly parse current value for multiselect
+                    let currentValues = [];
+                    if (Array.isArray(currentValue)) {
+                        currentValues = currentValue;
+                    } else if (typeof currentValue === 'string' && currentValue.trim()) {
+                        // Split comma-separated string and trim each value
+                        currentValues = currentValue.split(',').map(val => val.trim()).filter(val => val);
+                    }
+                
+                    attrData.attribute.options.forEach(function(opt) {
+                        const option = document.createElement('option');
+                        option.value = opt;
+                        option.textContent = opt;
+                        if (currentValues.includes(opt)) {
+                            option.selected = true;
+                        }
+                        inputElement.appendChild(option);
+                    });
+                
+                    inputElement.dataset.attrType = type;
+                }
 
 
 
