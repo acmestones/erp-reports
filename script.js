@@ -843,41 +843,34 @@ function renderProducts() {
     return String(value).trim();
   }
 
-  function formatValueForDisplay(value) {
-    if (value === null || value === undefined || value === "") {
-      return '<span class="text-muted">-</span>';
+  
+  
+  
+  
+ function formatValueForDisplay(value) {
+    if (value === null || value === undefined || value === '') {
+        return '<span class="text-muted">—</span>';
     }
-    
-    if (typeof value === 'boolean') return value ? 'TRUE' : 'FALSE';
     
     if (Array.isArray(value)) {
-      if (value.length === 0) return '<span class="text-muted">-</span>';
-      
-      if (value[0] && typeof value[0] === 'object' && value[0].name) {
-        return value.map(function(item) { return item.name; }).join(', ');
-      }
-      
-      return value.join(', ');
+        // **NEW: Handle multiselect arrays**
+        if (value.length === 0) {
+            return '<span class="text-muted">None</span>';
+        }
+        return value.map(v => `<span class="badge bg-secondary me-1">${v}</span>`).join(' ');
     }
     
-    if (typeof value === 'object') {
-      if (value.user_email) return value.user_email;
-      if (value.name) return value.name;
-      return '<pre class="mb-0 small" style="max-height:100px;overflow:auto;">' + JSON.stringify(value, null, 2) + '</pre>';
+    if (typeof value === 'boolean') {
+        return value ? '<span class="badge bg-success">TRUE</span>' : '<span class="badge bg-danger">FALSE</span>';
     }
     
-    if (typeof value === 'string' && (value.startsWith('http://') || value.startsWith('https://'))) {
-      return '<a href="' + value + '" target="_blank" class="text-break">' + value + '</a>';
+    if (typeof value === 'number') {
+        return value.toLocaleString();
     }
     
-    if (typeof value === 'string' && value.includes('<') && value.includes('>')) {
-      if (value.match(/<[a-z][\s\S]*>/i)) {
-        return '<code class="text-break">' + value.replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</code>';
-      }
-    }
-    
-    return '<span class="text-break">' + String(value) + '</span>';
-  }
+    return String(value).replace(/\n/g, '<br>');
+}
+
 
 
 
