@@ -663,7 +663,7 @@ if ($action === 'get_attribute_definition') {
     $url = "https://pim.plytix.com/api/v1/attributes/product/search";
 
     $postData = [
-        "filters" => [[["field" => "label", "operator" => "eq", "value" => $attrName]]],
+        "filters" => [[["field" => "label", "operator" => "like", "value" => $attrName]]],
         "attributes" => ["name", "label", "type_class", "options"],
         "pagination" => [
             "page_size" => 1,
