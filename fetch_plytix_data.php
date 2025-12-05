@@ -557,6 +557,57 @@ if ($action === 'get_families') {
 
 
 
+// ACTION: Update product field
+if ($action === 'update_product') {
+    $postData = file_get_contents('php://input');
+    $data = json_decode($postData, true);
+    
+    $productId = $data['productId'] ?? null;
+    $updates = $data['updates'] ?? [];
+    
+    if (!$productId || empty($updates)) {
+        echo json_encode(['success' => false, 'error' => 'Missing productId or updates']);
+        exit;
+    }
+    
+    // Call Plytix API to update product
+    $updateUrl = "https://pim.plytix.com/api/v1/products/{$productId}";
+    
+    $ch = curl_init($updateUrl);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'PATCH');
+    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+        'Authorization: Bearer ' . $PLYTIX_API_KEY,
+        'Content-Type: application/json'
+    ]);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode(['attributes' => $updates]));
+    
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    
+    if ($httpCode >= 200 && $httpCode < 300) {
+        // Clear cache for this product
+        $cacheFile = $cacheDir . '/' . $productId . '.json';
+        if (file_exists($cacheFile)) {
+            unlink($cacheFile);
+        }
+        
+        echo json_encode(['success' => true, 'message' => 'Product updated']);
+    } else {
+        error_log("Plytix update failed: HTTP {$httpCode} - {$response}");
+        echo json_encode(['success' => false, 'error' => 'Failed to update product in Plytix']);
+    }
+    exit;
+}
+
+
+
+
+
+
+
+
 echo json_encode(["error" => "Invalid action"]);
 
 
