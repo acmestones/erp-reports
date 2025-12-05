@@ -847,21 +847,25 @@ function renderProducts() {
   
   
   
- function formatValueForDisplay(value) {
+function formatValueForDisplay(value) {
     if (value === null || value === undefined || value === '') {
         return '<span class="text-muted">—</span>';
     }
     
     if (Array.isArray(value)) {
-        // **NEW: Handle multiselect arrays**
         if (value.length === 0) {
             return '<span class="text-muted">None</span>';
         }
-        return value.map(v => `<span class="badge bg-secondary me-1">${v}</span>`).join(' ');
+        // Map each value to a badge
+        return value.map(function(v) {
+            return '<span class="badge bg-secondary me-1">' + v + '</span>';
+        }).join(' ');
     }
     
     if (typeof value === 'boolean') {
-        return value ? '<span class="badge bg-success">TRUE</span>' : '<span class="badge bg-danger">FALSE</span>';
+        return value 
+            ? '<span class="badge bg-success">TRUE</span>' 
+            : '<span class="badge bg-danger">FALSE</span>';
     }
     
     if (typeof value === 'number') {
@@ -870,6 +874,7 @@ function renderProducts() {
     
     return String(value).replace(/\n/g, '<br>');
 }
+
 
 
 
