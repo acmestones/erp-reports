@@ -118,6 +118,22 @@ function init() {
     loadDefaultFilters();
   
     loadProducts();
+
+
+    // Wire up Save and Reset buttons
+    setTimeout(function() {
+        const saveBtn = document.getElementById('saveMyDefaultsBtn');
+        const resetBtn = document.getElementById('resetFiltersBtn');
+        
+        if (saveBtn) {
+            saveBtn.addEventListener('click', saveCurrentFiltersAsDefaults);
+        }
+        if (resetBtn) {
+            resetBtn.addEventListener('click', resetFiltersToDefault);
+        }
+    }, 0);
+
+  
 }
 
 
@@ -1158,20 +1174,6 @@ function resetFiltersToDefault() {
     applyFilters();
     console.log('Filters reset to DEFAULT_FILTERS:', DEFAULT_FILTERS);
 }
-
-// Wire up buttons
-window.addEventListener('DOMContentLoaded', function () {
-    const saveBtn = document.getElementById('saveMyDefaultsBtn');
-    const resetBtn = document.getElementById('resetFiltersBtn');
-    
-    if (saveBtn) {
-        saveBtn.addEventListener('click', saveCurrentFiltersAsDefaults);
-    }
-    
-    if (resetBtn) {
-        resetBtn.addEventListener('click', resetFiltersToDefault);
-    }
-});
 
 
 
