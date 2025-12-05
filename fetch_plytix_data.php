@@ -570,8 +570,25 @@ if ($action === 'update_product') {
         exit;
     }
     
+    // Plytix expects attributes in a specific format
+    $attributesPayload = [];
+    foreach ($updates as $key => $value) {
+        // Handle boolean conversion
+        if ($value === 'true') $value = true;
+        if ($value === 'false') $value = false;
+        
+        $attributesPayload[] = [
+            'name' => $key,
+            'value' => $value
+        ];
+    }
+    
     // Call Plytix API to update product
     $updateUrl = "https://pim.plytix.com/api/v1/products/{$productId}";
+    
+    $payload = json_encode(['attributes' => $attributesPayload]);
+    
+    error_log("Updating product {$productId} with payload: {$payload}");
     
     $ch = curl_init($updateUrl);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
@@ -580,11 +597,13 @@ if ($action === 'update_product') {
         'Authorization: Bearer ' . $PLYTIX_API_KEY,
         'Content-Type: application/json'
     ]);
-    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode(['attributes' => $updates]));
+    curl_setopt($ch, CURLOPT_POSTFIELDS, $payload);
     
     $response = curl_exec($ch);
     $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
+    
+    error_log("Plytix update response: HTTP {$httpCode} - {$response}");
     
     if ($httpCode >= 200 && $httpCode < 300) {
         // Clear cache for this product
@@ -595,8 +614,9 @@ if ($action === 'update_product') {
         
         echo json_encode(['success' => true, 'message' => 'Product updated']);
     } else {
-        error_log("Plytix update failed: HTTP {$httpCode} - {$response}");
-        echo json_encode(['success' => false, 'error' => 'Failed to update product in Plytix']);
+        $errorDetail = json_decode($response, true);
+        $errorMsg = $errorDetail['message'] ?? 'Failed to update product in Plytix';
+        echo json_encode(['success' => false, 'error' => $errorMsg, 'details' => $response]);
     }
     exit;
 }
