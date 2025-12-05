@@ -25,6 +25,7 @@
 
 
 
+
 function getUserFilterKey() {
     return USER_FILTER_KEY_PREFIX + (currentUser || 'guest');
 }
@@ -72,7 +73,6 @@ function loadDefaultFilters() {
     DEFAULT_FILTERS = userDefaults || getSystemDefaultFilters();
     console.log('Effective DEFAULT_FILTERS:', DEFAULT_FILTERS);
 }
-
 
 
 
@@ -883,6 +883,127 @@ function renderProducts() {
 
 
 
+
+
+
+
+
+function openCategoriesEditor(tdElement, product) {
+    const originalContent = tdElement.innerHTML;
+    const currentCategories = Array.isArray(product.categories) ? product.categories : [];
+
+    tdElement.innerHTML = '<span class="text-muted"><span class="spinner-border spinner-border-sm"></span> Loading categories...</span>';
+
+    // Fetch full category list from backend (reuse existing mechanism or add a new action)
+    fetch('fetch_plytix_data.php?action=get_all_categories')
+        .then(res => res.json())
+        .then(data => {
+            if (!data.success) throw new Error(data.error || 'Failed to load categories');
+
+            tdElement.innerHTML = '';
+
+            const select = document.createElement('select');
+            select.className = 'form-select form-select-sm';
+            select.multiple = true;
+            select.size = 6;
+
+            const selectedIds = currentCategories.map(c => c.id);
+
+            data.categories.forEach(cat => {
+                const opt = document.createElement('option');
+                opt.value = cat.id;
+                opt.textContent = cat.path.join(' / ');
+                if (selectedIds.includes(cat.id)) opt.selected = true;
+                select.appendChild(opt);
+            });
+
+            const btnGroup = document.createElement('div');
+            btnGroup.className = 'btn-group btn-group-sm mt-2';
+
+            const saveBtn = document.createElement('button');
+            saveBtn.className = 'btn btn-success btn-sm';
+            saveBtn.innerHTML = '✓ Save';
+            saveBtn.onclick = function(e) {
+                e.stopPropagation();
+                const newIds = Array.from(select.selectedOptions).map(o => o.value);
+                saveCategories(product, newIds, tdElement, originalContent);
+            };
+
+            const cancelBtn = document.createElement('button');
+            cancelBtn.className = 'btn btn-secondary btn-sm';
+            cancelBtn.innerHTML = '✕ Cancel';
+            cancelBtn.onclick = function(e) {
+                e.stopPropagation();
+                tdElement.innerHTML = originalContent;
+                tdElement.style.cursor = 'pointer';
+                tdElement.onclick = function() {
+                    openCategoriesEditor(tdElement, product);
+                };
+            };
+
+            btnGroup.appendChild(saveBtn);
+            btnGroup.appendChild(cancelBtn);
+
+            tdElement.appendChild(select);
+            tdElement.appendChild(btnGroup);
+            tdElement.onclick = null;
+        })
+        .catch(err => {
+            console.error('Failed to load categories:', err);
+            tdElement.innerHTML = originalContent;
+        });
+}
+
+function saveCategories(product, newCategoryIds, tdElement, originalContent) {
+    tdElement.innerHTML = '<span class="text-muted"><span class="spinner-border spinner-border-sm me-2"></span>Saving...</span>';
+
+    fetch('fetch_plytix_data.php?action=update_categories', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            productId: product.id,
+            categoryIds: newCategoryIds
+        })
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (!data.success) throw new Error(data.error || 'Update failed');
+
+        // Update local product object
+        product.categories = data.categories || product.categories;
+
+        // Update UI
+        const names = (product.categories || []).map(c => c.path ? c.path.join(' / ') : c.name);
+        tdElement.innerHTML = formatValueForDisplay(names.join(', ')) +
+            ' <span class="badge bg-primary ms-2" style="cursor:pointer">✎ Edit</span>';
+        tdElement.style.cursor = 'pointer';
+        tdElement.onclick = function() {
+            openCategoriesEditor(tdElement, product);
+        };
+
+        showToast('✓ Categories updated', 'success');
+    })
+    .catch(err => {
+        console.error('Failed to update categories:', err);
+        tdElement.innerHTML = originalContent;
+        tdElement.style.cursor = 'pointer';
+        tdElement.onclick = function() {
+            openCategoriesEditor(tdElement, product);
+        };
+        showToast('✗ Failed to update categories: ' + err.message, 'danger');
+    });
+}
+
+
+
+
+
+
+
+
+
+  
+
 function makeFieldEditable(tdElement, product, fieldKey, currentValue) {
     // Prevent multiple edits
     if (tdElement.querySelector('input, select, textarea')) {
@@ -899,28 +1020,44 @@ function makeFieldEditable(tdElement, product, fieldKey, currentValue) {
             tdElement.innerHTML = '';
             let inputElement;
             
-            // Check if it's a dropdown (has options)
-            if (attrData.success && attrData.attribute.options && attrData.attribute.options.length > 0) {
-                inputElement = document.createElement('select');
-                inputElement.className = 'form-select form-select-sm';
-                
-                // Add empty option
-                const emptyOption = document.createElement('option');
-                emptyOption.value = '';
-                emptyOption.textContent = '-- Select --';
-                inputElement.appendChild(emptyOption);
-                
-                // Add all options
-                attrData.attribute.options.forEach(function(opt) {
-                    const option = document.createElement('option');
-                    option.value = opt;
-                    option.textContent = opt;
-                    if (opt === currentValue || (Array.isArray(currentValue) && currentValue.includes(opt))) {
-                        option.selected = true;
-                    }
-                    inputElement.appendChild(option);
-                });
-            }
+              // Check if it's a dropdown / multiselect (has options)
+              if (attrData.success && attrData.attribute.options && attrData.attribute.options.length > 0) {
+                  const type = attrData.attribute.type; // DropdownAttribute or MultiSelectAttribute
+                  inputElement = document.createElement('select');
+                  inputElement.className = 'form-select form-select-sm';
+              
+                  if (type === 'MultiSelectAttribute') {
+                      inputElement.multiple = true;
+                  } else {
+                      // Single dropdown: add empty option
+                      const emptyOption = document.createElement('option');
+                      emptyOption.value = '';
+                      emptyOption.textContent = '-- Select --';
+                      inputElement.appendChild(emptyOption);
+                  }
+              
+                  const currentArray = Array.isArray(currentValue) ? currentValue : [currentValue];
+              
+                  attrData.attribute.options.forEach(function(opt) {
+                      const option = document.createElement('option');
+                      option.value = opt;
+                      option.textContent = opt;
+                      if (currentArray.includes(opt)) {
+                          option.selected = true;
+                      }
+                      inputElement.appendChild(option);
+                  });
+              
+                  // Remember attribute type on the element so saveFieldValue knows how to serialize
+                  inputElement.dataset.attrType = type;
+              }
+
+
+
+
+
+
+              
             // Boolean fields
             else if (typeof currentValue === 'boolean' || currentValue === 'TRUE' || currentValue === 'FALSE') {
                 inputElement = document.createElement('select');
@@ -1268,8 +1405,18 @@ function saveFieldValue(product, fieldKey, newValue, tdElement, originalContent)
     tdElement.innerHTML = '<span class="text-muted"><span class="spinner-border spinner-border-sm me-2"></span>Saving...</span>';
     
     // Prepare update payload
-    const updateData = {};
-    updateData[fieldKey] = newValue;
+      const updateData = {};
+      let finalValue = newValue;
+      
+      // Detect multiselect from the editor element, if present
+      const editor = tdElement.querySelector('select, input, textarea');
+      if (editor && editor.dataset && editor.dataset.attrType === 'MultiSelectAttribute') {
+          // Collect all selected options into an array
+          finalValue = Array.from(editor.selectedOptions).map(opt => opt.value);
+      }
+      
+      updateData[fieldKey] = finalValue;
+
     
     console.log('Saving field:', fieldKey, 'with value:', newValue, 'for product:', product.id);
     
