@@ -570,25 +570,22 @@ if ($action === 'update_product') {
         exit;
     }
     
-    // Plytix expects attributes in a specific format
-    $attributesPayload = [];
-    foreach ($updates as $key => $value) {
-        // Handle boolean conversion
-        if ($value === 'true') $value = true;
-        if ($value === 'false') $value = false;
-        
-        $attributesPayload[] = [
-            'name' => $key,
-            'value' => $value
-        ];
+    // Plytix API uses simple key-value format for attributes
+    $payload = ['attributes' => $updates];
+    
+    // Handle boolean string conversion
+    foreach ($payload['attributes'] as $key => $value) {
+        if ($value === 'true') $payload['attributes'][$key] = true;
+        if ($value === 'false') $payload['attributes'][$key] = false;
     }
+    
+    $payloadJson = json_encode($payload);
+    
+    error_log("Plytix Update - Product ID: {$productId}");
+    error_log("Plytix Update - Payload: {$payloadJson}");
     
     // Call Plytix API to update product
     $updateUrl = "https://pim.plytix.com/api/v1/products/{$productId}";
-    
-    $payload = json_encode(['attributes' => $attributesPayload]);
-    
-    error_log("Updating product {$productId} with payload: {$payload}");
     
     $ch = curl_init($updateUrl);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
@@ -597,13 +594,19 @@ if ($action === 'update_product') {
         'Authorization: Bearer ' . $PLYTIX_API_KEY,
         'Content-Type: application/json'
     ]);
-    curl_setopt($ch, CURLOPT_POSTFIELDS, $payload);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, $payloadJson);
     
     $response = curl_exec($ch);
     $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curlError = curl_error($ch);
     curl_close($ch);
     
-    error_log("Plytix update response: HTTP {$httpCode} - {$response}");
+    error_log("Plytix Update - Response HTTP Code: {$httpCode}");
+    error_log("Plytix Update - Response Body: {$response}");
+    
+    if ($curlError) {
+        error_log("Plytix Update - cURL Error: {$curlError}");
+    }
     
     if ($httpCode >= 200 && $httpCode < 300) {
         // Clear cache for this product
@@ -615,8 +618,14 @@ if ($action === 'update_product') {
         echo json_encode(['success' => true, 'message' => 'Product updated']);
     } else {
         $errorDetail = json_decode($response, true);
-        $errorMsg = $errorDetail['message'] ?? 'Failed to update product in Plytix';
-        echo json_encode(['success' => false, 'error' => $errorMsg, 'details' => $response]);
+        $errorMsg = isset($errorDetail['message']) ? $errorDetail['message'] : 'Failed to update product in Plytix';
+        
+        echo json_encode([
+            'success' => false, 
+            'error' => $errorMsg,
+            'httpCode' => $httpCode,
+            'details' => $response
+        ]);
     }
     exit;
 }
