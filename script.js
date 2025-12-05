@@ -890,82 +890,149 @@ function makeFieldEditable(tdElement, product, fieldKey, currentValue) {
     }
     
     const originalContent = tdElement.innerHTML;
-    tdElement.innerHTML = '';
+    tdElement.innerHTML = '<span class="text-muted"><span class="spinner-border spinner-border-sm"></span> Loading...</span>';
     
-    // Determine field type and create appropriate input
-    let inputElement;
-    
-    // Boolean fields
-    if (typeof currentValue === 'boolean' || currentValue === 'TRUE' || currentValue === 'FALSE') {
-      inputElement = document.createElement('select');
-      inputElement.className = 'form-select form-select-sm';
-      inputElement.innerHTML = `
-        <option value="true" ${currentValue === true || currentValue === 'TRUE' ? 'selected' : ''}>TRUE</option>
-        <option value="false" ${currentValue === false || currentValue === 'FALSE' ? 'selected' : ''}>FALSE</option>
-      `;
-    }
-    // Text fields
-    else if (typeof currentValue === 'string' && currentValue.length < 100) {
-      inputElement = document.createElement('input');
-      inputElement.type = 'text';
-      inputElement.className = 'form-control form-control-sm';
-      inputElement.value = currentValue || '';
-    }
-    // Long text fields
-    else if (typeof currentValue === 'string') {
-      inputElement = document.createElement('textarea');
-      inputElement.className = 'form-control form-control-sm';
-      inputElement.rows = 3;
-      inputElement.value = currentValue || '';
-    }
-    // Numbers
-    else if (typeof currentValue === 'number') {
-      inputElement = document.createElement('input');
-      inputElement.type = 'number';
-      inputElement.className = 'form-control form-control-sm';
-      inputElement.value = currentValue;
-    }
-    // Default to text
-    else {
-      inputElement = document.createElement('input');
-      inputElement.type = 'text';
-      inputElement.className = 'form-control form-control-sm';
-      inputElement.value = currentValue ? String(currentValue) : '';
-    }
-    
-    // Action buttons
-    const btnGroup = document.createElement('div');
-    btnGroup.className = 'btn-group btn-group-sm mt-2';
-    
-    const saveBtn = document.createElement('button');
-    saveBtn.className = 'btn btn-success btn-sm';
-    saveBtn.innerHTML = '✓ Save';
-    saveBtn.onclick = function() {
-      saveFieldValue(product, fieldKey, inputElement.value, tdElement, originalContent);
-    };
-    
-    const cancelBtn = document.createElement('button');
-    cancelBtn.className = 'btn btn-secondary btn-sm';
-    cancelBtn.innerHTML = '✕ Cancel';
-    cancelBtn.onclick = function(e) {
-        e.stopPropagation();
-        tdElement.innerHTML = originalContent;
-        tdElement.style.cursor = 'pointer';
-        tdElement.onclick = function() {
-            makeFieldEditable(tdElement, product, fieldKey, currentValue);
-        };
-    };
-
-    
-    btnGroup.appendChild(saveBtn);
-    btnGroup.appendChild(cancelBtn);
-    
-    tdElement.appendChild(inputElement);
-    tdElement.appendChild(btnGroup);
-    tdElement.onclick = null;
-    
-    inputElement.focus();
+    // Fetch attribute definition to check if it's a dropdown
+    fetch('fetch_plytix_data.php?action=get_attribute_definition&attribute=' + encodeURIComponent(fieldKey))
+        .then(function(res) { return res.json(); })
+        .then(function(attrData) {
+            tdElement.innerHTML = '';
+            let inputElement;
+            
+            // Check if it's a dropdown (has options)
+            if (attrData.success && attrData.attribute.options && attrData.attribute.options.length > 0) {
+                inputElement = document.createElement('select');
+                inputElement.className = 'form-select form-select-sm';
+                
+                // Add empty option
+                const emptyOption = document.createElement('option');
+                emptyOption.value = '';
+                emptyOption.textContent = '-- Select --';
+                inputElement.appendChild(emptyOption);
+                
+                // Add all options
+                attrData.attribute.options.forEach(function(opt) {
+                    const option = document.createElement('option');
+                    option.value = opt;
+                    option.textContent = opt;
+                    if (opt === currentValue || (Array.isArray(currentValue) && currentValue.includes(opt))) {
+                        option.selected = true;
+                    }
+                    inputElement.appendChild(option);
+                });
+            }
+            // Boolean fields
+            else if (typeof currentValue === 'boolean' || currentValue === 'TRUE' || currentValue === 'FALSE') {
+                inputElement = document.createElement('select');
+                inputElement.className = 'form-select form-select-sm';
+                inputElement.innerHTML = `
+                    <option value="true" ${currentValue === true || currentValue === 'TRUE' ? 'selected' : ''}>TRUE</option>
+                    <option value="false" ${currentValue === false || currentValue === 'FALSE' ? 'selected' : ''}>FALSE</option>
+                `;
+            }
+            // Text fields
+            else if (typeof currentValue === 'string' && currentValue.length < 100) {
+                inputElement = document.createElement('input');
+                inputElement.type = 'text';
+                inputElement.className = 'form-control form-control-sm';
+                inputElement.value = currentValue || '';
+            }
+            // Long text fields
+            else if (typeof currentValue === 'string') {
+                inputElement = document.createElement('textarea');
+                inputElement.className = 'form-control form-control-sm';
+                inputElement.rows = 3;
+                inputElement.value = currentValue || '';
+            }
+            // Numbers
+            else if (typeof currentValue === 'number') {
+                inputElement = document.createElement('input');
+                inputElement.type = 'number';
+                inputElement.className = 'form-control form-control-sm';
+                inputElement.value = currentValue;
+            }
+            // Default to text
+            else {
+                inputElement = document.createElement('input');
+                inputElement.type = 'text';
+                inputElement.className = 'form-control form-control-sm';
+                inputElement.value = currentValue ? String(currentValue) : '';
+            }
+            
+            // Action buttons
+            const btnGroup = document.createElement('div');
+            btnGroup.className = 'btn-group btn-group-sm mt-2';
+            
+            const saveBtn = document.createElement('button');
+            saveBtn.className = 'btn btn-success btn-sm';
+            saveBtn.innerHTML = '✓ Save';
+            saveBtn.onclick = function(e) {
+                e.stopPropagation();
+                saveFieldValue(product, fieldKey, inputElement.value, tdElement, originalContent);
+            };
+            
+            const cancelBtn = document.createElement('button');
+            cancelBtn.className = 'btn btn-secondary btn-sm';
+            cancelBtn.innerHTML = '✕ Cancel';
+            cancelBtn.onclick = function(e) {
+                e.stopPropagation();
+                tdElement.innerHTML = originalContent;
+                tdElement.style.cursor = 'pointer';
+                tdElement.onclick = function() {
+                    makeFieldEditable(tdElement, product, fieldKey, currentValue);
+                };
+            };
+            
+            btnGroup.appendChild(saveBtn);
+            btnGroup.appendChild(cancelBtn);
+            
+            tdElement.appendChild(inputElement);
+            tdElement.appendChild(btnGroup);
+            tdElement.onclick = null;
+            
+            inputElement.focus();
+        })
+        .catch(function(err) {
+            console.error('Failed to load attribute definition:', err);
+            // Fall back to text input
+            tdElement.innerHTML = '';
+            const inputElement = document.createElement('input');
+            inputElement.type = 'text';
+            inputElement.className = 'form-control form-control-sm';
+            inputElement.value = currentValue ? String(currentValue) : '';
+            tdElement.appendChild(inputElement);
+            
+            const btnGroup = document.createElement('div');
+            btnGroup.className = 'btn-group btn-group-sm mt-2';
+            
+            const saveBtn = document.createElement('button');
+            saveBtn.className = 'btn btn-success btn-sm';
+            saveBtn.innerHTML = '✓ Save';
+            saveBtn.onclick = function(e) {
+                e.stopPropagation();
+                saveFieldValue(product, fieldKey, inputElement.value, tdElement, originalContent);
+            };
+            
+            const cancelBtn = document.createElement('button');
+            cancelBtn.className = 'btn btn-secondary btn-sm';
+            cancelBtn.innerHTML = '✕ Cancel';
+            cancelBtn.onclick = function(e) {
+                e.stopPropagation();
+                tdElement.innerHTML = originalContent;
+                tdElement.style.cursor = 'pointer';
+                tdElement.onclick = function() {
+                    makeFieldEditable(tdElement, product, fieldKey, currentValue);
+                };
+            };
+            
+            btnGroup.appendChild(saveBtn);
+            btnGroup.appendChild(cancelBtn);
+            
+            tdElement.appendChild(btnGroup);
+            inputElement.focus();
+        });
 }
+
 
   
 
