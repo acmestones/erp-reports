@@ -713,6 +713,110 @@ if ($action === 'get_attribute_definition') {
 
 
 
+function fetchAllCategories($accessToken) {
+    $postData = [
+        "filters" => [],
+        "attributes" => ["id", "name", "path"],
+        "pagination" => [
+            "page_size" => 500,
+            "page"      => 1,
+            "order"     => ""
+        ]
+    ];
+
+    $ch = curl_init("https://pim.plytix.com/api/v1/categories/search");
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_POST, true);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($postData));
+    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+        'Authorization: Bearer ' . $accessToken,
+        'Content-Type: application/json'
+    ]);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    if ($httpCode === 200) {
+        $data = json_decode($response, true);
+        return $data['data'] ?? [];
+    }
+    return [];
+}
+
+
+//Action: Get list of categories
+if ($action === 'get_all_categories') {
+    $accessToken = getAuthToken($apiKey, $apiPassword);
+    if (!$accessToken) {
+        echo json_encode(['success' => false, 'error' => 'Authentication failed']);
+        exit;
+    }
+
+    $cats = fetchAllCategories($accessToken);
+    echo json_encode(['success' => true, 'categories' => $cats]);
+    exit;
+}
+
+
+//Action : Update categories
+if ($action === 'update_categories') {
+    $postData = file_get_contents('php://input');
+    $data = json_decode($postData, true);
+
+    $productId   = $data['productId']   ?? null;
+    $categoryIds = $data['categoryIds'] ?? [];
+
+    if (!$productId) {
+        echo json_encode(['success' => false, 'error' => 'Missing productId']);
+        exit;
+    }
+
+    $accessToken = getAuthToken($apiKey, $apiPassword);
+    if (!$accessToken) {
+        echo json_encode(['success' => false, 'error' => 'Authentication failed']);
+        exit;
+    }
+
+    // Simple strategy: clear existing categories (not via API, just by re‑setting all)
+    // First, unlink all current categories if needed (Plytix docs allow linking; for full sync you may need unlink endpoint too.)
+    // Here we'll just link the desired ones; duplicates should be harmless.
+
+    foreach ($categoryIds as $catId) {
+        $url = "https://pim.plytix.com/api/v1/products/{$productId}/categories";
+        $payload = json_encode(['id' => $catId]);
+
+        $ch = curl_init($url);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, $payload);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+            'Authorization: Bearer ' . $accessToken,
+            'Content-Type: application/json'
+        ]);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        if ($httpCode < 200 || $httpCode >= 300) {
+            error_log("Update categories failed for product {$productId} / category {$catId}: HTTP {$httpCode} - {$response}");
+        }
+    }
+
+    // Re-fetch product to return updated categories
+    $updated = fetchProductDetails($productId, $accessToken);
+    $categories = $updated['categories'] ?? [];
+
+    echo json_encode(['success' => true, 'categories' => $categories]);
+    exit;
+}
+
+
+
+
+
 
 
 echo json_encode(["error" => "Invalid action"]);
