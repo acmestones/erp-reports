@@ -882,6 +882,96 @@ function renderProducts() {
 
 
 
+
+function makeFieldEditable(tdElement, product, fieldKey, currentValue) {
+    // Prevent multiple edits
+    if (tdElement.querySelector('input, select, textarea')) {
+      return;
+    }
+    
+    const originalContent = tdElement.innerHTML;
+    tdElement.innerHTML = '';
+    
+    // Determine field type and create appropriate input
+    let inputElement;
+    
+    // Boolean fields
+    if (typeof currentValue === 'boolean' || currentValue === 'TRUE' || currentValue === 'FALSE') {
+      inputElement = document.createElement('select');
+      inputElement.className = 'form-select form-select-sm';
+      inputElement.innerHTML = `
+        <option value="true" ${currentValue === true || currentValue === 'TRUE' ? 'selected' : ''}>TRUE</option>
+        <option value="false" ${currentValue === false || currentValue === 'FALSE' ? 'selected' : ''}>FALSE</option>
+      `;
+    }
+    // Text fields
+    else if (typeof currentValue === 'string' && currentValue.length < 100) {
+      inputElement = document.createElement('input');
+      inputElement.type = 'text';
+      inputElement.className = 'form-control form-control-sm';
+      inputElement.value = currentValue || '';
+    }
+    // Long text fields
+    else if (typeof currentValue === 'string') {
+      inputElement = document.createElement('textarea');
+      inputElement.className = 'form-control form-control-sm';
+      inputElement.rows = 3;
+      inputElement.value = currentValue || '';
+    }
+    // Numbers
+    else if (typeof currentValue === 'number') {
+      inputElement = document.createElement('input');
+      inputElement.type = 'number';
+      inputElement.className = 'form-control form-control-sm';
+      inputElement.value = currentValue;
+    }
+    // Default to text
+    else {
+      inputElement = document.createElement('input');
+      inputElement.type = 'text';
+      inputElement.className = 'form-control form-control-sm';
+      inputElement.value = currentValue ? String(currentValue) : '';
+    }
+    
+    // Action buttons
+    const btnGroup = document.createElement('div');
+    btnGroup.className = 'btn-group btn-group-sm mt-2';
+    
+    const saveBtn = document.createElement('button');
+    saveBtn.className = 'btn btn-success btn-sm';
+    saveBtn.innerHTML = '✓ Save';
+    saveBtn.onclick = function() {
+      saveFieldValue(product, fieldKey, inputElement.value, tdElement, originalContent);
+    };
+    
+    const cancelBtn = document.createElement('button');
+    cancelBtn.className = 'btn btn-secondary btn-sm';
+    cancelBtn.innerHTML = '✕ Cancel';
+    cancelBtn.onclick = function() {
+      tdElement.innerHTML = originalContent;
+      tdElement.onclick = function() {
+        makeFieldEditable(tdElement, product, fieldKey, currentValue);
+      };
+    };
+    
+    btnGroup.appendChild(saveBtn);
+    btnGroup.appendChild(cancelBtn);
+    
+    tdElement.appendChild(inputElement);
+    tdElement.appendChild(btnGroup);
+    tdElement.onclick = null;
+    
+    inputElement.focus();
+}
+
+  
+
+
+
+
+
+  
+
   
 function showProductDetail(product) {
     const modalTitle = document.getElementById("modalTitle");
@@ -1026,37 +1116,56 @@ function showProductDetail(product) {
       return a.label.localeCompare(b.label);
     });
     
-    displayFields.forEach(function(field) {
-      // Check if user has permission to view this attribute (AdminModule check)
-      if (AdminModule.isAttributeVisible && !AdminModule.isAttributeVisible(field.key)) {
-        return; // Skip this field
+displayFields.forEach(function(field) {
+    // Check if user has permission to view this attribute
+    if (AdminModule.isAttributeVisible && !AdminModule.isAttributeVisible(field.key)) {
+      return; // Skip this field
+    }
+    
+    // Legacy price access check
+    if (!USERS_WITH_PRICE_ACCESS.includes(currentUser)) {
+      const keyLower = field.key.toLowerCase();
+      if (keyLower.includes('price') || keyLower.includes('cost') || keyLower.includes('msrp')) {
+        return;
       }
-      
-      // Legacy price access check (kept for backward compatibility)
-      if (!USERS_WITH_PRICE_ACCESS.includes(currentUser)) {
-        const keyLower = field.key.toLowerCase();
-        if (keyLower.includes('price') || keyLower.includes('cost') || keyLower.includes('msrp')) {
-          return;
-        }
-      }
-      
-      const tr = document.createElement("tr");
-      const th = document.createElement("th");
-      th.style.width = "30%";
-      th.textContent = field.label;
-      
-      const td = document.createElement("td");
+    }
+    
+    const tr = document.createElement('tr');
+    const th = document.createElement('th');
+    th.style.width = '30%';
+    th.textContent = field.label;
+    
+    const td = document.createElement('td');
+    const isEditable = AdminModule.isAttributeEditable && AdminModule.isAttributeEditable(field.key);
+    
+    if (isEditable) {
+      // Make field editable
+      td.style.cursor = 'pointer';
+      td.style.position = 'relative';
       td.innerHTML = formatValueForDisplay(field.value);
       
-      // If attribute is editable, show an indicator
-      if (AdminModule.isAttributeEditable && AdminModule.isAttributeEditable(field.key)) {
-        th.innerHTML = field.label + ' <span class="badge bg-warning text-dark ms-1" title="Editable">✏️</span>';
-      }
+      // Add edit icon
+      const editIcon = document.createElement('span');
+      editIcon.className = 'badge bg-primary ms-2';
+      editIcon.innerHTML = '✎ Edit';
+      editIcon.style.cursor = 'pointer';
+      td.appendChild(editIcon);
       
-      tr.appendChild(th);
-      tr.appendChild(td);
-      tbody.appendChild(tr);
-    });
+      // Click handler for editing
+      td.onclick = function() {
+        makeFieldEditable(td, product, field.key, field.value);
+      };
+      
+      th.innerHTML = field.label + ' <span class="badge bg-warning text-dark ms-1" title="Editable">✎</span>';
+    } else {
+      td.innerHTML = formatValueForDisplay(field.value);
+    }
+    
+    tr.appendChild(th);
+    tr.appendChild(td);
+    tbody.appendChild(tr);
+});
+
     
     table.appendChild(tbody);
     rightCol.appendChild(table);
@@ -1080,6 +1189,90 @@ function showProductDetail(product) {
 
 
 
+
+
+
+
+function saveFieldValue(product, fieldKey, newValue, tdElement, originalContent) {
+    // Show saving state
+    tdElement.innerHTML = '<span class="text-muted"><span class="spinner-border spinner-border-sm me-2"></span>Saving...</span>';
+    
+    // Prepare update payload
+    const updateData = {};
+    updateData[fieldKey] = newValue;
+    
+    // Send to backend to update in Plytix
+    fetch('fetch_plytix_data.php?action=update_product', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            productId: product.id,
+            updates: updateData
+        })
+    })
+    .then(function(res) {
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        return res.json();
+    })
+    .then(function(data) {
+        if (data.success) {
+            // Update local product object
+            if (product.attributes && product.attributes[fieldKey] !== undefined) {
+                product.attributes[fieldKey] = newValue;
+            } else {
+                product[fieldKey] = newValue;
+            }
+            
+            // Update in allProducts array
+            const productIndex = allProducts.findIndex(function(p) { return p.id === product.id; });
+            if (productIndex >= 0) {
+                if (allProducts[productIndex].attributes && allProducts[productIndex].attributes[fieldKey] !== undefined) {
+                    allProducts[productIndex].attributes[fieldKey] = newValue;
+                } else {
+                    allProducts[productIndex][fieldKey] = newValue;
+                }
+            }
+            
+            // Show updated value
+            tdElement.innerHTML = formatValueForDisplay(newValue) + 
+                ' <span class="badge bg-primary ms-2" style="cursor:pointer">✎ Edit</span>';
+            tdElement.onclick = function() {
+                makeFieldEditable(tdElement, product, fieldKey, newValue);
+            };
+            
+            // Show success toast
+            showToast('✓ Field updated successfully', 'success');
+        } else {
+            throw new Error(data.error || 'Update failed');
+        }
+    })
+    .catch(function(err) {
+        console.error('Failed to update field:', err);
+        tdElement.innerHTML = originalContent;
+        tdElement.onclick = function() {
+            makeFieldEditable(tdElement, product, fieldKey, newValue);
+        };
+        showToast('✗ Failed to update: ' + err.message, 'danger');
+    });
+}
+
+function showToast(message, type) {
+    const toast = document.createElement('div');
+    toast.className = 'alert alert-' + type + ' position-fixed top-0 end-0 m-3';
+    toast.style.zIndex = '9999';
+    toast.textContent = message;
+    document.body.appendChild(toast);
+    
+    setTimeout(function() {
+        toast.remove();
+    }, 3000);
+}
+
+
+
+
+
+  
 
 
 
