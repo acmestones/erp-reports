@@ -561,64 +561,76 @@ if ($action === 'get_families') {
 if ($action === 'update_product') {
     $postData = file_get_contents('php://input');
     $data = json_decode($postData, true);
-    
+
     $productId = $data['productId'] ?? null;
-    $updates = $data['updates'] ?? [];
-    
+    $updates   = $data['updates'] ?? [];
+
     if (!$productId || empty($updates)) {
         echo json_encode(['success' => false, 'error' => 'Missing productId or updates']);
         exit;
     }
-    
-    // Handle boolean string conversion
+
+    // Get access token using existing credentials
+    $accessToken = getAuthToken($apiKey, $apiPassword);
+    if (!$accessToken) {
+        http_response_code(500);
+        echo json_encode(['success' => false, 'error' => 'Authentication failed']);
+        exit;
+    }
+
+    // Convert 'true'/'false' strings to booleans
     foreach ($updates as $key => $value) {
-        if ($value === 'true') $updates[$key] = true;
+        if ($value === 'true')  $updates[$key] = true;
         if ($value === 'false') $updates[$key] = false;
     }
-    
-    // Plytix expects attributes wrapped in "attributes" object
+
+    // Payload format per Plytix docs
     $payload = ['attributes' => $updates];
     $payloadJson = json_encode($payload);
-    
+
     error_log("Plytix Update - Product ID: {$productId}");
     error_log("Plytix Update - Payload: {$payloadJson}");
-    
-    // Call Plytix API to update product
+
     $updateUrl = "https://pim.plytix.com/api/v1/products/{$productId}";
-    
+
     $ch = curl_init($updateUrl);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'PATCH');
     curl_setopt($ch, CURLOPT_HTTPHEADER, [
-        'Authorization: Bearer ' . $PLYTIX_API_KEY,
+        'Authorization: Bearer ' . $accessToken,
         'Content-Type: application/json'
     ]);
     curl_setopt($ch, CURLOPT_POSTFIELDS, $payloadJson);
-    
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+
+    $response  = curl_exec($ch);
+    $httpCode  = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curlError = curl_error($ch);
     curl_close($ch);
-    
+
     error_log("Plytix Update - Response HTTP Code: {$httpCode}");
     error_log("Plytix Update - Response Body: {$response}");
-    
+    if ($curlError) {
+        error_log("Plytix Update - cURL Error: {$curlError}");
+    }
+
     if ($httpCode >= 200 && $httpCode < 300) {
         // Clear cache for this product
-        $cacheFile = $cacheDir . '/' . $productId . '.json';
+        $cacheFile = $cacheDir . '/product_' . $productId . '.json';
         if (file_exists($cacheFile)) {
             unlink($cacheFile);
         }
-        
+
         echo json_encode(['success' => true, 'message' => 'Product updated']);
     } else {
         $errorDetail = json_decode($response, true);
         $errorMsg = $errorDetail['error']['msg'] ?? 'Failed to update product in Plytix';
-        
+
         echo json_encode([
-            'success' => false, 
-            'error' => $errorMsg,
+            'success'  => false,
+            'error'    => $errorMsg,
             'httpCode' => $httpCode,
-            'details' => $response
+            'details'  => $response
         ]);
     }
     exit;
@@ -629,39 +641,61 @@ if ($action === 'update_product') {
 
 
 
+
 // ACTION: Get attribute definition
 if ($action === 'get_attribute_definition') {
     $attrName = $_GET['attribute'] ?? null;
-    
+
     if (!$attrName) {
         echo json_encode(['success' => false, 'error' => 'Missing attribute name']);
         exit;
     }
-    
+
+    // Get access token
+    $accessToken = getAuthToken($apiKey, $apiPassword);
+    if (!$accessToken) {
+        http_response_code(500);
+        echo json_encode(['success' => false, 'error' => 'Authentication failed']);
+        exit;
+    }
+
     // Fetch attribute definition from Plytix
-    $url = "https://pim.plytix.com/api/v1/attributes?name=" . urlencode($attrName);
-    
+    $url = "https://pim.plytix.com/api/v1/attributes/product/search";
+
+    $postData = [
+        "filters" => [[["field" => "label", "operator" => "eq", "value" => $attrName]]],
+        "attributes" => ["name", "label", "type_class", "options"],
+        "pagination" => [
+            "page_size" => 1,
+            "page"      => 1,
+            "order"     => ""
+        ]
+    ];
+
     $ch = curl_init($url);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_POST, true);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($postData));
     curl_setopt($ch, CURLOPT_HTTPHEADER, [
-        'Authorization: Bearer ' . $PLYTIX_API_KEY,
+        'Authorization: Bearer ' . $accessToken,
         'Content-Type: application/json'
     ]);
-    
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+
     $response = curl_exec($ch);
     $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
-    
+
     if ($httpCode === 200) {
         $data = json_decode($response, true);
         if (!empty($data['data'])) {
             $attribute = $data['data'][0];
             echo json_encode([
-                'success' => true,
+                'success'   => true,
                 'attribute' => [
-                    'name' => $attribute['name'],
-                    'label' => $attribute['label'],
-                    'type' => $attribute['type'],
+                    'name'    => $attribute['name'],
+                    'label'   => $attribute['label'],
+                    'type'    => $attribute['type_class'],
                     'options' => $attribute['options'] ?? []
                 ]
             ]);
@@ -673,6 +707,7 @@ if ($action === 'get_attribute_definition') {
     }
     exit;
 }
+
 
 
 
