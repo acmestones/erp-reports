@@ -671,7 +671,7 @@ function renderProducts() {
     // Always update status to show current filter results
     status.innerHTML = '<span class="text-success">Showing ' + filteredProducts.length + ' of ' + allProducts.length + ' products</span>';
 
-    }
+  
     
     displayedCount = 0;
     grid.innerHTML = "";
