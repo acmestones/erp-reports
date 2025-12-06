@@ -1021,6 +1021,13 @@ function makeFieldEditable(tdElement, product, fieldKey, currentValue) {
     if (tdElement.querySelector('input, select, textarea')) {
         return;
     }
+
+    console.log('=== makeFieldEditable DEBUG ===');
+    console.log('fieldKey:', fieldKey);
+    console.log('currentValue:', currentValue);
+    console.log('typeof currentValue:', typeof currentValue);
+    console.log('product.attributes[fieldKey]:', product.attributes ? product.attributes[fieldKey] : 'N/A');
+  
     
     const originalContent = tdElement.innerHTML;
     tdElement.innerHTML = '<span class="text-muted"><span class="spinner-border spinner-border-sm"></span> Loading...</span>';
