@@ -614,26 +614,33 @@ if ($action === 'update_product') {
         error_log("Plytix Update - cURL Error: {$curlError}");
     }
 
-    if ($httpCode >= 200 && $httpCode < 300) {
-        // Clear cache for this product
-        $cacheFile = $cacheDir . '/product_' . $productId . '.json';
-        if (file_exists($cacheFile)) {
-            unlink($cacheFile);
-        }
-
-        echo json_encode(['success' => true, 'message' => 'Product updated']);
-    } else {
-        $errorDetail = json_decode($response, true);
-        $errorMsg = $errorDetail['error']['msg'] ?? 'Failed to update product in Plytix';
-
-        echo json_encode([
-            'success'  => false,
-            'error'    => $errorMsg,
-            'httpCode' => $httpCode,
-            'details'  => $response
-        ]);
+if ($httpCode >= 200 && $httpCode < 300) {
+    // Clear cache for this product
+    $cacheFile = $cacheDir . '/product_' . $productId . '.json';
+    if (file_exists($cacheFile)) {
+        unlink($cacheFile);
     }
-    exit;
+    
+    // Also clear consolidated cache to force rebuild
+    $consolidatedFile = $cacheDir . '/all_products_consolidated.json';
+    if (file_exists($consolidatedFile)) {
+        unlink($consolidatedFile);
+    }
+
+    echo json_encode(['success' => true, 'message' => 'Product updated']);
+} else {
+    $errorDetail = json_decode($response, true);
+    $errorMsg = $errorDetail['error']['msg'] ?? 'Failed to update product in Plytix';
+
+    echo json_encode([
+        'success'  => false,
+        'error'    => $errorMsg,
+        'httpCode' => $httpCode,
+        'details'  => $response
+    ]);
+}
+exit;
+
 }
 
 
