@@ -856,9 +856,23 @@ function formatValueForDisplay(value) {
         if (value.length === 0) {
             return '<span class="text-muted">None</span>';
         }
-        // Map each value to a badge
+        
+        // Handle array of objects (like categories)
         return value.map(function(v) {
-            return '<span class="badge bg-secondary me-1">' + v + '</span>';
+            let displayText;
+            if (typeof v === 'object' && v !== null) {
+                // For categories: use path or name
+                if (v.path && Array.isArray(v.path)) {
+                    displayText = v.path.join(' > ');
+                } else if (v.name) {
+                    displayText = v.name;
+                } else {
+                    displayText = JSON.stringify(v); // fallback
+                }
+            } else {
+                displayText = v; // simple string value
+            }
+            return '<span class="badge bg-secondary me-1">' + displayText + '</span>';
         }).join(' ');
     }
     
@@ -1005,11 +1019,19 @@ function saveCategories(product, newCategoryIds, tdElement, originalContent) {
 function makeFieldEditable(tdElement, product, fieldKey, currentValue) {
     // Prevent multiple edits
     if (tdElement.querySelector('input, select, textarea')) {
-      return;
+        return;
     }
     
     const originalContent = tdElement.innerHTML;
     tdElement.innerHTML = '<span class="text-muted"><span class="spinner-border spinner-border-sm"></span> Loading...</span>';
+    
+    // NORMALIZE currentValue for multiselect fields
+    // If it's a comma-separated string, convert to array for proper handling
+    let normalizedValue = currentValue;
+    if (typeof currentValue === 'string' && currentValue.includes(',') && !currentValue.includes('<')) {
+        // Split comma-separated string (but not if it contains HTML)
+        normalizedValue = currentValue.split(',').map(v => v.trim());
+    }
     
     // Fetch attribute definition to check if it's a dropdown
     fetch('fetch_plytix_data.php?action=get_attribute_definition&attribute=' + encodeURIComponent(fieldKey))
@@ -1018,86 +1040,86 @@ function makeFieldEditable(tdElement, product, fieldKey, currentValue) {
             tdElement.innerHTML = '';
             let inputElement;
             
-                // Check if it's a dropdown / multiselect (has options)
-                if (attrData.success && attrData.attribute.options && attrData.attribute.options.length > 0) {
-                    const type = attrData.attribute.type;
-                    inputElement = document.createElement('select');
-                    inputElement.className = 'form-select form-select-sm';
-                
-                    if (type === 'MultiSelectAttribute') {
-                        inputElement.multiple = true;
-                        inputElement.size = Math.min(6, attrData.attribute.options.length + 1); // Show more options
-                    } else {
-                        const emptyOption = document.createElement('option');
-                        emptyOption.value = '';
-                        emptyOption.textContent = '-- Select --';
-                        inputElement.appendChild(emptyOption);
-                    }
-                
-                    // Fix: properly parse current value for multiselect
-                    let currentValues = [];
-                    if (Array.isArray(currentValue)) {
-                        currentValues = currentValue;
-                    } else if (typeof currentValue === 'string' && currentValue.trim()) {
-                        // Split comma-separated string and trim each value
-                        currentValues = currentValue.split(',').map(val => val.trim()).filter(val => val);
-                    }
-                
-                    attrData.attribute.options.forEach(function(opt) {
-                        const option = document.createElement('option');
-                        option.value = opt;
-                        option.textContent = opt;
-                        if (currentValues.includes(opt)) {
-                            option.selected = true;
-                        }
-                        inputElement.appendChild(option);
-                    });
-                
-                    inputElement.dataset.attrType = type;
+            // Check if it's a dropdown / multiselect (has options)
+            if (attrData.success && attrData.attribute.options && attrData.attribute.options.length > 0) {
+                const type = attrData.attribute.type;
+                inputElement = document.createElement('select');
+                inputElement.className = 'form-select form-select-sm';
+            
+                if (type === 'MultiSelectAttribute') {
+                    inputElement.multiple = true;
+                    inputElement.size = Math.min(6, attrData.attribute.options.length + 1);
+                } else {
+                    const emptyOption = document.createElement('option');
+                    emptyOption.value = '';
+                    emptyOption.textContent = '-- Select --';
+                    inputElement.appendChild(emptyOption);
                 }
-
-
-
-
-
-
-              
+            
+                // Parse current value for multiselect - use normalizedValue
+                let currentValues = [];
+                if (Array.isArray(normalizedValue)) {
+                    currentValues = normalizedValue;
+                } else if (typeof normalizedValue === 'string' && normalizedValue.trim()) {
+                    // Split comma-separated string and trim each value
+                    currentValues = normalizedValue.split(',').map(val => val.trim()).filter(val => val);
+                }
+            
+                attrData.attribute.options.forEach(function(opt) {
+                    const option = document.createElement('option');
+                    option.value = opt;
+                    option.textContent = opt;
+                    if (currentValues.includes(opt)) {
+                        option.selected = true;
+                    }
+                    inputElement.appendChild(option);
+                });
+            
+                inputElement.dataset.attrType = type;
+            }
             // Boolean fields
-            else if (typeof currentValue === 'boolean' || currentValue === 'TRUE' || currentValue === 'FALSE') {
+            else if (typeof normalizedValue === 'boolean' || normalizedValue === 'TRUE' || normalizedValue === 'FALSE') {
                 inputElement = document.createElement('select');
                 inputElement.className = 'form-select form-select-sm';
                 inputElement.innerHTML = `
-                    <option value="true" ${currentValue === true || currentValue === 'TRUE' ? 'selected' : ''}>TRUE</option>
-                    <option value="false" ${currentValue === false || currentValue === 'FALSE' ? 'selected' : ''}>FALSE</option>
+                    <option value="true" ${normalizedValue === true || normalizedValue === 'TRUE' ? 'selected' : ''}>TRUE</option>
+                    <option value="false" ${normalizedValue === false || normalizedValue === 'FALSE' ? 'selected' : ''}>FALSE</option>
                 `;
             }
-            // Text fields
-            else if (typeof currentValue === 'string' && currentValue.length < 100) {
+            // Text fields (short)
+            else if (typeof normalizedValue === 'string' && normalizedValue.length < 100) {
                 inputElement = document.createElement('input');
                 inputElement.type = 'text';
                 inputElement.className = 'form-control form-control-sm';
-                inputElement.value = currentValue || '';
+                inputElement.value = normalizedValue || '';
             }
             // Long text fields
-            else if (typeof currentValue === 'string') {
+            else if (typeof normalizedValue === 'string') {
                 inputElement = document.createElement('textarea');
                 inputElement.className = 'form-control form-control-sm';
                 inputElement.rows = 3;
-                inputElement.value = currentValue || '';
+                inputElement.value = normalizedValue || '';
             }
             // Numbers
-            else if (typeof currentValue === 'number') {
+            else if (typeof normalizedValue === 'number') {
                 inputElement = document.createElement('input');
                 inputElement.type = 'number';
                 inputElement.className = 'form-control form-control-sm';
-                inputElement.value = currentValue;
+                inputElement.value = normalizedValue;
+            }
+            // Arrays (shouldn't reach here if multiselect, but fallback)
+            else if (Array.isArray(normalizedValue)) {
+                inputElement = document.createElement('input');
+                inputElement.type = 'text';
+                inputElement.className = 'form-control form-control-sm';
+                inputElement.value = normalizedValue.join(', ');
             }
             // Default to text
             else {
                 inputElement = document.createElement('input');
                 inputElement.type = 'text';
                 inputElement.className = 'form-control form-control-sm';
-                inputElement.value = currentValue ? String(currentValue) : '';
+                inputElement.value = normalizedValue ? String(normalizedValue) : '';
             }
             
             // Action buttons
@@ -1140,7 +1162,7 @@ function makeFieldEditable(tdElement, product, fieldKey, currentValue) {
             const inputElement = document.createElement('input');
             inputElement.type = 'text';
             inputElement.className = 'form-control form-control-sm';
-            inputElement.value = currentValue ? String(currentValue) : '';
+            inputElement.value = normalizedValue ? String(normalizedValue) : '';
             tdElement.appendChild(inputElement);
             
             const btnGroup = document.createElement('div');
