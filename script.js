@@ -1474,12 +1474,13 @@ function saveFieldValue(product, fieldKey, newValue, tdElement, originalContent)
         throw new Error(data.error || 'Update failed');
     }
 
-    // Re-fetch the product to get fresh data from Plytix
-    return fetch('fetch_plytix_data.php?action=fetch_products', {
+    // Re-fetch the product to get fresh data from Plytix (bypass cache)
+    return fetch('fetch_plytix_data.php?action=fetch_products&_t=' + Date.now(), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ids: [product.id] })
     }).then(function(res) { return res.json(); });
+
 })
 .then(function(freshData) {
     if (freshData.success && freshData.products && freshData.products.length > 0) {
