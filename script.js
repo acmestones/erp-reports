@@ -190,7 +190,7 @@ async function saveReportConfig(config) {
     const res = await fetch(`${API_BASE}?action=save_report_config`, {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({config: fullConfig}) // Must be the FULL config
+        body: JSON.stringify({config}) // Must be the FULL config
     });
     return res.json();
 }
