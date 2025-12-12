@@ -1992,6 +1992,53 @@ if (isset($_GET['action']) && $_GET['action'] == 'getattachedfiles') {
 
 
 
+// Proxy file downloads (PDFs, Excel, etc.) with authentication
+if (isset($_GET['action']) && $_GET['action'] == 'proxyfile') {
+    $fileurl = $_GET['fileurl'] ?? '';
+    
+    if (empty($fileurl)) {
+        header("HTTP/1.1 400 Bad Request");
+        echo "No file URL provided";
+        exit;
+    }
+    
+    // Build full ERPNext URL
+    if (!str_starts_with($fileurl, 'http')) {
+        $fileurl = ERPBASE . $fileurl;
+    }
+    
+    $ch = curl_init();
+    curl_setopt_array($ch, [
+        CURLOPT_URL => $fileurl,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HTTPHEADER => [
+            'Authorization: token ' . APIKEY . ':' . APISECRET
+        ],
+        CURLOPT_SSLVERIFYPEER => false,
+        CURLOPT_FOLLOWLOCATION => true
+    ]);
+    
+    $filedata = curl_exec($ch);
+    $contenttype = curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
+    $httpcode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    
+    if ($httpcode == 200 && $filedata) {
+        // Extract filename from URL
+        $filename = basename(parse_url($fileurl, PHP_URL_PATH));
+        
+        // Set appropriate headers for download
+        header('Content-Type: ' . $contenttype);
+        header('Content-Disposition: attachment; filename="' . $filename . '"');
+        header('Content-Length: ' . strlen($filedata));
+        header('Cache-Control: public, max-age=86400');
+        echo $filedata;
+    } else {
+        header("HTTP/1.1 404 Not Found");
+        echo "File not found";
+    }
+    exit;
+}
 
 
 
