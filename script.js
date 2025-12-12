@@ -1448,48 +1448,91 @@ async function showDetailModal(row, columns, reportName, config) {
                         imageUploadInput.click();
                     };
                     
-                    imageUploadInput.addEventListener('change', async function(event) {
-                        const file = event.target.files[0];
-                        if (!file) return;
-                        
-                        if (!file.type.startsWith('image/')) {
-                            alert('Please select an image file');
-                            return;
-                        }
-                        
-                        if (file.size > 2 * 1024 * 1024) {
-                            alert('Image size should be less than 2MB');
-                            return;
-                        }
-                        
-                        const reader = new FileReader();
-                        reader.onload = function(e) {
-                            const base64Image = e.target.result;
-                            editableDiv.focus();
-                            
-                            const img = document.createElement('img');
-                            img.src = base64Image;
-                            img.style.maxWidth = '100%';
-                            img.style.height = 'auto';
-                            img.style.display = 'block';
-                            img.style.margin = '10px 0';
-                            
-                            const selection = window.getSelection();
-                            if (selection.rangeCount > 0) {
-                                const range = selection.getRangeAt(0);
-                                range.deleteContents();
-                                range.insertNode(img);
-                                range.setStartAfter(img);
-                                range.setEndAfter(img);
-                                selection.removeAllRanges();
-                                selection.addRange(range);
-                            } else {
-                                editableDiv.appendChild(img);
-                            }
-                        };
-                        reader.readAsDataURL(file);
-                        event.target.value = '';
-                    });
+ imageUploadInput.addEventListener('change', async function(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    
+    if (!file.type.startsWith('image/')) {
+        alert('Please select an image file');
+        return;
+    }
+    
+    if (file.size > 5 * 1024 * 1024) {
+        alert('Image size should be less than 5MB');
+        return;
+    }
+    
+    // Show loading indicator
+    insertImageBtn.disabled = true;
+    insertImageBtn.textContent = 'Uploading...';
+    
+    try {
+        // Upload file to ERPNext as PUBLIC file
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('doctype', config.doctype || 'Work Order');
+        formData.append('docname', docName);
+        
+        const uploadResponse = await fetch(`${APIBASE}?action=uploadfile`, {
+            method: 'POST',
+            body: formData
+        });
+        
+        const uploadResult = await uploadResponse.json();
+        console.log('Upload result:', uploadResult);
+        
+        if (uploadResult.error) {
+            throw new Error(uploadResult.error);
+        }
+        
+        // Get the file URL from the response
+        let fileUrl = uploadResult.file_url;
+        
+        if (!fileUrl) {
+            throw new Error('No file URL in upload response');
+        }
+        
+        // The file is public, so use the /files/ URL directly
+        // The SQL REPLACE will convert /private/files/ to /files/ anyway
+        // But since we uploaded as public, it's already at /files/
+        
+        // Insert the image into the editor
+        editableDiv.focus();
+        
+        const img = document.createElement('img');
+        img.src = fileUrl; // Use the actual file URL, not base64
+        img.dataset.originalSrc = fileUrl; // Store for saving
+        img.style.maxWidth = '100%';
+        img.style.height = 'auto';
+        img.style.display = 'block';
+        img.style.margin = '10px 0';
+        
+        const selection = window.getSelection();
+        if (selection.rangeCount > 0) {
+            const range = selection.getRangeAt(0);
+            range.deleteContents();
+            range.insertNode(img);
+            range.setStartAfter(img);
+            range.setEndAfter(img);
+            selection.removeAllRanges();
+            selection.addRange(range);
+        } else {
+            editableDiv.appendChild(img);
+        }
+        
+        insertImageBtn.disabled = false;
+        insertImageBtn.textContent = 'Insert Image';
+        
+    } catch (error) {
+        console.error('Image upload error:', error);
+        alert('Failed to upload image: ' + error.message);
+        insertImageBtn.disabled = false;
+        insertImageBtn.textContent = 'Insert Image';
+    }
+    
+    event.target.value = '';
+});
+
                     
                     // Create Edit/Cancel/Save buttons
                     const buttonContainer = document.createElement('div');
