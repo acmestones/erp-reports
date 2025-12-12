@@ -1517,9 +1517,9 @@ async function showDetailModal(row, columns, reportName, config) {
     }
 }
 
-                            }
-                        }
-                    }
+                            
+                        
+                    
                     
                     // Fix image URLs in display
                     displayDiv.querySelectorAll('img').forEach(img => {
