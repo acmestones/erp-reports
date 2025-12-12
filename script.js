@@ -466,10 +466,10 @@ function fixImageUrl(url, isImage = true) {
         
         if (imageExts.includes(ext)) {
             // Image - use image proxy
-            return APIBASE + '?action=proxyimage&fileurl=' + encodeURIComponent(url);
+            return API_BASE + '?action=proxyimage&fileurl=' + encodeURIComponent(url);
         } else {
             // Non-image file - use file proxy for download
-            return APIBASE + '?action=proxyfile&fileurl=' + encodeURIComponent(url);
+            return API_BASE + '?action=proxyfile&fileurl=' + encodeURIComponent(url);
         }
     }
     
@@ -481,6 +481,7 @@ function fixImageUrl(url, isImage = true) {
     // Relative URL
     return 'https://acmestones.erpnext.com/' + url;
 }
+
 
 
 
