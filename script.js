@@ -444,34 +444,44 @@ function extractImageUrl(htmlContent) {
 }
 
 // Replace the existing fixImageUrl function with this enhanced version
-function fixImageUrl(url) {
+function fixImageUrl(url, isImage = true) {
     if (!url) return null;
     url = url.trim();
     
     // Already absolute URL
-    if (url.startsWith("http") || url.startsWith("https")) {
+    if (url.startsWith('http') || url.startsWith('https')) {
         return url;
     }
     
     // Protocol-relative URL
-    if (url.startsWith("//")) {
-        return "https:" + url;
+    if (url.startsWith('//')) {
+        return 'https:' + url;
     }
     
     // Handle private files by proxying through PHP
-    if (url.includes('/private/files/')) {
-        // Proxy through PHP to add authentication
-        return `${API_BASE}?action=proxy_image&file_url=${encodeURIComponent(url)}`;
+    if (url.includes('private/files')) {
+        // Determine if it's an image based on extension
+        const ext = url.split('.').pop().toLowerCase();
+        const imageExts = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg'];
+        
+        if (imageExts.includes(ext)) {
+            // Image - use image proxy
+            return APIBASE + '?action=proxyimage&fileurl=' + encodeURIComponent(url);
+        } else {
+            // Non-image file - use file proxy for download
+            return APIBASE + '?action=proxyfile&fileurl=' + encodeURIComponent(url);
+        }
     }
     
-    // Root-relative URL (including public /files/)
-    if (url.startsWith("/")) {
-        return `https://acmestones.erpnext.com${url}`;
+    // Root-relative URL including public files
+    if (url.startsWith('/')) {
+        return 'https://acmestones.erpnext.com' + url;
     }
     
     // Relative URL
-    return `https://acmestones.erpnext.com/${url}`;
+    return 'https://acmestones.erpnext.com/' + url;
 }
+
 
 
 
@@ -1468,43 +1478,43 @@ async function showDetailModal(row, columns, reportName, config) {
                                         
                                         imgDiv.appendChild(img);
                                         filesContainer.appendChild(imgDiv);
-                                    } else {
-                                        // Non-image file - show as download link
-                                        const fileDiv = document.createElement('div');
-                                        fileDiv.style.marginTop = '5px';
-                                        fileDiv.style.padding = '8px';
-                                        fileDiv.style.background = '#f8f9fa';
-                                        fileDiv.style.borderRadius = '4px';
-                                        fileDiv.style.margin = '2px 0';
-                                        
-                                        // Determine border color and icon based on file type
-                                        let borderColor = '#6f42c1';
-                                        let icon = '📎';
-                                        if (ext === 'pdf') { borderColor = '#dc3545'; icon = '📄'; }
-                                        else if (['dwg', 'dxf'].includes(ext)) { borderColor = '#28a745'; icon = '🔧'; }
-                                        else if (['step', 'iges'].includes(ext)) { borderColor = '#28a745'; icon = '⚙️'; }
-                                        else if (['doc', 'docx', 'rtf'].includes(ext)) { borderColor = '#0d6efd'; icon = '📝'; }
-                                        else if (['xls', 'xlsx', 'csv'].includes(ext)) { borderColor = '#198754'; icon = '📊'; }
-                                        else if (['zip', 'rar', '7z'].includes(ext)) { borderColor = '#fd7e14'; icon = '📦'; }
-                                        else if (['txt', 'log'].includes(ext)) { borderColor = '#6c757d'; icon = '📋'; }
-                                        
-                                        fileDiv.style.borderLeft = `3px solid ${borderColor}`;
-                                        
-                                        const link = document.createElement('a');
-                                        link.href = fileUrl;
-                                        link.target = '_blank';
-                                        link.rel = 'noopener noreferrer';
-                                        link.style.textDecoration = 'none';
-                                        link.style.color = '#212529';
-                                        link.style.fontWeight = '500';
-                                        link.style.display = 'flex';
-                                        link.style.alignItems = 'center';
-                                        
-                                        link.innerHTML = `${icon} <span style="margin-left: 8px;">${fileName}</span><span style="margin-left: auto; font-size: 10px; color: #6c757d; text-transform: uppercase;">${ext}</span>`;
-                                        
-                                        fileDiv.appendChild(link);
-                                        filesContainer.appendChild(fileDiv);
-                                    }
+                                                 } else {
+                                                    // Non-image file - show as download link
+                                                    const fileDiv = document.createElement('div');
+                                                    fileDiv.style.marginTop = '5px';
+                                                    fileDiv.style.padding = '8px';
+                                                    fileDiv.style.background = '#f8f9fa';
+                                                    fileDiv.style.borderRadius = '4px';
+                                                    fileDiv.style.margin = '2px 0';
+                                                    
+                                                    // Determine border color and icon based on file type
+                                                    let borderColor = '#6f42c1';
+                                                    let icon = '📎';
+                                                    if (ext === 'pdf') { borderColor = '#dc3545'; icon = '📄'; }
+                                                    else if (['dwg', 'dxf'].includes(ext)) { borderColor = '#28a745'; icon = '🔧'; }
+                                                    else if (['step', 'iges'].includes(ext)) { borderColor = '#28a745'; icon = '⚙️'; }
+                                                    else if (['doc', 'docx', 'rtf'].includes(ext)) { borderColor = '#0d6efd'; icon = '📝'; }
+                                                    else if (['xls', 'xlsx', 'csv'].includes(ext)) { borderColor = '#198754'; icon = '📊'; }
+                                                    else if (['zip', 'rar', '7z'].includes(ext)) { borderColor = '#fd7e14'; icon = '📦'; }
+                                                    else if (['txt', 'log'].includes(ext)) { borderColor = '#6c757d'; icon = '📋'; }
+                                                    
+                                                    fileDiv.style.borderLeft = `3px solid ${borderColor}`;
+                                                    
+                                                    const link = document.createElement('a');
+                                                    link.href = fileUrl; // fileUrl already processed by fixImageUrl
+                                                    link.download = fileName; // Force download
+                                                    link.style.textDecoration = 'none';
+                                                    link.style.color = '#212529';
+                                                    link.style.fontWeight = '500';
+                                                    link.style.display = 'flex';
+                                                    link.style.alignItems = 'center';
+                                                    
+                                                    link.innerHTML = `${icon} <span style="margin-left: 8px;">${fileName}</span><span style="margin-left: auto; font-size: 10px; color: #6c757d; text-transform: uppercase;">${ext}</span>`;
+                                                    
+                                                    fileDiv.appendChild(link);
+                                                    filesContainer.appendChild(fileDiv);
+                                                }
+
                                 });
                                 
                                 displayDiv.appendChild(filesContainer);
