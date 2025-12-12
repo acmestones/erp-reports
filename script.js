@@ -1449,7 +1449,7 @@ async function showDetailModal(row, columns, reportName, config) {
         const currentHtml = htmlValue.toLowerCase();
         
         const newFiles = attachedFiles.filter(file => {
-            const fileName = (file.file_name || '').toLowerCase();
+            const fileName = (file.filename || '').toLowerCase();
             return !currentHtml.includes(fileName);
         });
         
@@ -1459,7 +1459,7 @@ async function showDetailModal(row, columns, reportName, config) {
             
             newFiles.forEach(file => {
                 const fileUrl = fixImageUrl(file.file_url);
-                const fileName = file.file_name;
+                const fileName = file.filename;
                 const ext = fileName.split('.').pop().toLowerCase();
                 
                 if (['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'].includes(ext)) {
@@ -1689,68 +1689,79 @@ async function showDetailModal(row, columns, reportName, config) {
                     valueDiv.appendChild(saveBtn);
                 }
                 
-            } else if (hasValue) {
-                // Non-editable field with value - display only
-                if (typeof value === 'string' && (value.includes('<img') || value.includes('<a href'))) {
-                    // AGGRESSIVE FIX: Remove anchor wrappers from images in the HTML string first
-                    let processedHtml = value;
-                    
-                    // Replace <a...><img src="X"></a> with just <img src="X">
-                    processedHtml = processedHtml.replace(/<a[^>]*>(\s*<img[^>]*>\s*)<\/a>/gi, '$1');
-                    
-                    const tempDiv = document.createElement('div');
-                    tempDiv.innerHTML = processedHtml;
-                    
-                    // Fix all image URLs and add click handlers
-                    tempDiv.querySelectorAll('img').forEach(img => {
-                        const originalSrc = img.getAttribute('src');
-                        const fixedUrl = fixImageUrl(originalSrc);
-                        img.setAttribute('src', fixedUrl);
-                        img.style.cursor = 'pointer';
-                        img.style.maxWidth = '100%';
-                        
-                        img.onclick = function(e) {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            window.open(fixedUrl, '_blank', 'noopener,noreferrer');
-                        };
-                        
-                        img.onerror = function() {
-                            console.error('Failed to load image:', fixedUrl);
-                            this.style.border = '1px solid #ddd';
-                            this.style.padding = '5px';
-                            this.style.backgroundColor = '#f8f9fa';
-                            this.alt = 'Image not available';
-                        };
-                    });
-                    
-                    // Handle remaining links (non-image links)
-                    tempDiv.querySelectorAll('a').forEach(link => {
-                        const href = link.getAttribute('href');
-                        if (href) {
-                            link.href = fixImageUrl(href);
-                            link.target = '_blank';
-                            link.rel = 'noopener noreferrer';
-                            link.onclick = function(e) {
-                                e.stopPropagation();
-                            };
-                        }
-                    });
-                    
-                    valueDiv.appendChild(tempDiv);
-                } else if (col.fieldtype === 'Link' && col.options) {
-                    const link = document.createElement('a');
-                    const doctypeSlug = col.options.toLowerCase().replace(/ /g, '-');
-                    link.href = `https://acmestones.erpnext.com/app/${doctypeSlug}/${encodeURIComponent(value)}`;
-                    link.target = '_blank';
-                    link.rel = 'noopener noreferrer';
-                    link.className = 'link-field';
-                    link.textContent = value;
-                    valueDiv.appendChild(link);
-                } else {
-                    valueDiv.textContent = value;
-                }
+} else if (hasValue) {
+    // Non-editable field with value - display only
+    if (typeof value === 'string' && (value.includes('<') || value.includes('img') || value.includes('href'))) {
+        // Extract clean HTML content - handle Quill editor format
+        let displayHtml = value;
+        
+        // If it contains ql-editor, extract just the inner content
+        if (displayHtml.includes('ql-editor')) {
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = displayHtml;
+            const qlEditor = tempDiv.querySelector('.ql-editor');
+            if (qlEditor) {
+                displayHtml = qlEditor.innerHTML;
             }
+        }
+        
+        // Remove anchor wrappers from images
+        displayHtml = displayHtml.replace(/<a[^>]*>(\s*<img[^>]*>\s*)<\/a>/gi, '$1');
+        
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = displayHtml;
+        
+        // Fix all image URLs and add click handlers
+        tempDiv.querySelectorAll('img').forEach(img => {
+            const originalSrc = img.getAttribute('src');
+            const fixedUrl = fixImageUrl(originalSrc);
+            img.setAttribute('src', fixedUrl);
+            img.style.cursor = 'pointer';
+            img.style.maxWidth = '100%';
+            
+            img.onclick = function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                window.open(fixedUrl, '_blank', 'noopener,noreferrer');
+            };
+            
+            img.onerror = function() {
+                console.error('Failed to load image:', fixedUrl);
+                this.style.border = '1px solid #ddd';
+                this.style.padding = '5px';
+                this.style.backgroundColor = '#f8f9fa';
+                this.alt = 'Image not available';
+            };
+        });
+        
+        // Handle remaining links (non-image links)
+        tempDiv.querySelectorAll('a').forEach(link => {
+            const href = link.getAttribute('href');
+            if (href) {
+                link.href = fixImageUrl(href);
+                link.target = '_blank';
+                link.rel = 'noopener noreferrer';
+                link.onclick = function(e) {
+                    e.stopPropagation();
+                };
+            }
+        });
+        
+        valueDiv.appendChild(tempDiv);
+    } else if (col.fieldtype === 'Link' && col.options) {
+        const link = document.createElement('a');
+        const doctypeSlug = col.options.toLowerCase().replace(/ /g, '-');
+        link.href = `https://acmestones.erpnext.com/app/${doctypeSlug}/${encodeURIComponent(value)}`;
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        link.className = 'link-field';
+        link.textContent = value;
+        valueDiv.appendChild(link);
+    } else {
+        valueDiv.textContent = value;
+    }
+}
+
             
             fieldDiv.appendChild(labelDiv);
             fieldDiv.appendChild(valueDiv);
