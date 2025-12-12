@@ -1956,6 +1956,41 @@ if (isset($_GET['action']) && $_GET['action'] === 'save_card_priority') {
 
 
 
+// Get attached files for a document
+if (isset($_GET['action']) && $_GET['action'] == 'getattachedfiles') {
+    $doctype = $_GET['doctype'] ?? '';
+    $docname = $_GET['docname'] ?? '';
+    
+    if (empty($doctype) || empty($docname)) {
+        echo json_encode(['error' => 'Missing parameters']);
+        exit;
+    }
+    
+    $ch = curl_init();
+    $url = ERPBASE . '/api/resource/File?filters=[["attached_to_doctype","=","' . $doctype . '"],["attached_to_name","=","' . $docname . '"]]&fields=["name","file_name","file_url"]&limit_page_length=999';
+    curl_setopt_array($ch, [
+        CURLOPT_URL => $url,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HTTPHEADER => [
+            'Authorization: token ' . APIKEY . ':' . APISECRET
+        ],
+        CURLOPT_SSLVERIFYPEER => false
+    ]);
+    
+    $response = curl_exec($ch);
+    $httpcode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    
+    if ($httpcode == 200) {
+        $data = json_decode($response, true);
+        echo json_encode(['files' => $data['data'] ?? []]);
+    } else {
+        echo json_encode(['error' => 'Failed to fetch files', 'httpcode' => $httpcode]);
+    }
+    exit;
+}
+
+
 
 
 
