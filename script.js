@@ -1376,8 +1376,9 @@ async function showDetailModal(row, columns, reportName, config) {
                 
                 
                 
-               else if (col.fieldtype === "Text" || col.fieldtype === "Small Text" || 
-         col.fieldtype === "Long Text" || col.fieldtype === "Text Editor") {
+   else if (col.fieldtype === "Text" || col.fieldtype === "Small Text" || 
+           col.fieldtype === "Long Text" || col.fieldtype === "Text Editor" ||
+           col.fieldtype === "HTML" || col.fieldtype === "HTML Editor") {
     
     // Create container for display and edit modes
     const richTextContainer = document.createElement("div");
