@@ -1274,68 +1274,63 @@ function createCard(row, columns, reportName, config) {
 
 
 async function showDetailModal(row, columns, reportName, config) {
-    const modal = new bootstrap.Modal(document.getElementById("detailModal"));
-    
-    const titleField = config.title_field || 'work_order_id';
-    let docName = row[titleField] || row.name || row.work_order_id || row.id;
+    const modal = new bootstrap.Modal(document.getElementById('detailModal'));
+    const titleField = config.titlefield || 'workorderid';
+    let docName = row[titleField] || row.name || row.workorderid || row.id;
     
     const nameCol = columns.find(c => c.fieldname === 'name' || c.fieldname === titleField);
     if (nameCol && nameCol.fieldname !== titleField) {
         docName = row[nameCol.fieldname] || docName;
     }
     
-    document.getElementById("modalTitle").textContent = row[titleField] || docName || "Details";
+    document.getElementById('modalTitle').textContent = `${row[titleField] || docName} Details`;
+    const modalBody = document.getElementById('modalBody');
+    modalBody.innerHTML = '';
     
-    const modalBody = document.getElementById("modalBody");
-    modalBody.innerHTML = "";
-    
-    const userPerms = config.user_permissions?.[userEmail] || {};
-    const editableFields = userPerms.editable_fields || [];
-    const hiddenFields = userPerms.hidden_fields || [];
+    const userPerms = config.userpermissions?.[userEmail] || {};
+    const editableFields = userPerms.editablefields || [];
+    const hiddenFields = userPerms.hiddenfields || [];
     const canEdit = currentUser.can_edit;
     
     for (const col of columns) {
-        const reportFieldname = col.fieldname;  // Field name as shown in report
-        const actualFieldname = window.reportFieldMapping?.[reportFieldname] || reportFieldname;  // Real database field
-        const value = row[reportFieldname];  // Get value using report's field name
+        const reportFieldname = col.fieldname;
+        const actualFieldname = window.reportFieldMapping?.[reportFieldname] || reportFieldname;
+        const value = row[reportFieldname];
         
         if (hiddenFields.includes(reportFieldname)) continue;
         
-        const isEditable = canEdit && editableFields.includes(reportFieldname) && reportFieldname !== 'work_order_id';
+        const isEditable = canEdit && editableFields.includes(reportFieldname) && reportFieldname !== 'workorderid';
         const hasValue = value !== null && value !== undefined && value !== '';
         
         if (hasValue || isEditable) {
-            const fieldDiv = document.createElement("div");
-            fieldDiv.className = "mb-3 pb-2 border-bottom";
+            const fieldDiv = document.createElement('div');
+            fieldDiv.className = 'mb-3 pb-2 border-bottom';
             
             const label = fieldLabels[reportFieldname] || col.label || reportFieldname;
-            
-            const labelDiv = document.createElement("div");
-            labelDiv.className = "fw-bold text-muted small mb-1";
+            const labelDiv = document.createElement('div');
+            labelDiv.className = 'fw-bold text-muted small mb-1';
             labelDiv.textContent = label;
             
-            const valueDiv = document.createElement("div");
-            valueDiv.className = "mt-1";
+            const valueDiv = document.createElement('div');
+            valueDiv.className = 'mt-1';
             
             if (isEditable) {
                 // Editable field - use actual database field name
-                
-                if (col.fieldtype === 'Link' && col.options) {
-                    const select = document.createElement("select");
-                    select.className = "form-select form-select-sm";
-                    select.dataset.fieldname = actualFieldname;  // Use real database field name
+                if (col.fieldtype === "Link" && col.options) {
+                    const select = document.createElement('select');
+                    select.className = 'form-select form-select-sm';
+                    select.dataset.fieldname = actualFieldname;
                     select.dataset.docname = docName;
                     select.dataset.doctype = config.doctype || 'Work Order';
                     
                     const options = await getLinkOptions(col.options);
-                    
-                    const emptyOption = document.createElement("option");
-                    emptyOption.value = "";
-                    emptyOption.textContent = "-- Select --";
+                    const emptyOption = document.createElement('option');
+                    emptyOption.value = '';
+                    emptyOption.textContent = '-- Select --';
                     select.appendChild(emptyOption);
                     
                     options.forEach(opt => {
-                        const option = document.createElement("option");
+                        const option = document.createElement('option');
                         option.value = opt;
                         option.textContent = opt;
                         if (opt === value) option.selected = true;
@@ -1346,22 +1341,21 @@ async function showDetailModal(row, columns, reportName, config) {
                     valueDiv.appendChild(select);
                     valueDiv.appendChild(saveBtn);
                     
-                } else if (col.fieldtype === 'Select' && col.options) {
-                    const select = document.createElement("select");
-                    select.className = "form-select form-select-sm";
-                    select.dataset.fieldname = actualFieldname;  // Use real database field name
+                } else if (col.fieldtype === "Select" && col.options) {
+                    const select = document.createElement('select');
+                    select.className = 'form-select form-select-sm';
+                    select.dataset.fieldname = actualFieldname;
                     select.dataset.docname = docName;
                     select.dataset.doctype = config.doctype || 'Work Order';
                     
                     const options = col.options.split('\n');
-                    
-                    const emptyOption = document.createElement("option");
-                    emptyOption.value = "";
-                    emptyOption.textContent = "-- Select --";
+                    const emptyOption = document.createElement('option');
+                    emptyOption.value = '';
+                    emptyOption.textContent = '-- Select --';
                     select.appendChild(emptyOption);
                     
                     options.forEach(opt => {
-                        const option = document.createElement("option");
+                        const option = document.createElement('option');
                         option.value = opt;
                         option.textContent = opt;
                         if (opt === value) option.selected = true;
@@ -1372,218 +1366,193 @@ async function showDetailModal(row, columns, reportName, config) {
                     valueDiv.appendChild(select);
                     valueDiv.appendChild(saveBtn);
                     
-                } 
-                
-                
-                
-   else if (col.fieldtype === "Text" || col.fieldtype === "Small Text" || 
-           col.fieldtype === "Long Text" || col.fieldtype === "Text Editor" ||
-           col.fieldtype === "HTML" || col.fieldtype === "HTML Editor") {
-    
-    // Create container for display and edit modes
-    const richTextContainer = document.createElement("div");
-    richTextContainer.className = "richtext-container";
-    
-    // Create display mode (read-only view)
-    const displayDiv = document.createElement("div");
-    displayDiv.className = "richtext-display";
-    displayDiv.style.padding = "0.5rem";
-    displayDiv.style.border = "1px solid #dee2e6";
-    displayDiv.style.borderRadius = "0.25rem";
-    displayDiv.style.backgroundColor = "#f8f9fa";
-    displayDiv.style.minHeight = "50px";
-    displayDiv.style.overflowY = "auto";
-    
-    // Extract and set display HTML
-let htmlValue = value || `<p class="text-muted">No content</p>`;
-let originalHtmlValue = htmlValue; // Store original for saving
-
-// Extract HTML from Quill editor format if present
-if (typeof htmlValue === "string" && htmlValue.includes("ql-editor")) {
-    const tempDiv = document.createElement('div');
-    tempDiv.innerHTML = htmlValue;
-    const qlEditor = tempDiv.querySelector('.ql-editor');
-    htmlValue = qlEditor ? qlEditor.innerHTML : htmlValue;
-    originalHtmlValue = htmlValue;
-}
-
-// If the value is just raw text without HTML tags, wrap it in a paragraph
-if (typeof htmlValue === "string" && !htmlValue.trim().startsWith('<')) {
-    htmlValue = `<p>${htmlValue}</p>`;
-}
-
-displayDiv.innerHTML = htmlValue;
-
-    
-    // Fix image URLs in display (for viewing)
-    displayDiv.querySelectorAll('img').forEach(img => {
-        const originalSrc = img.getAttribute('src');
-        const fixedUrl = fixImageUrl(originalSrc);
-        img.setAttribute('src', fixedUrl);
-        img.style.maxWidth = '100%';
-        img.style.height = 'auto';
-    });
-    
-    // Create edit mode (contenteditable)
-    const editorContainer = document.createElement("div");
-    editorContainer.className = "richtext-editor-container";
-    editorContainer.style.display = "none"; // Hidden by default
-    
-    // Toolbar
-    const toolbar = document.createElement("div");
-    toolbar.className = "richtext-toolbar mb-2";
-    toolbar.innerHTML = `
-        <button type="button" class="btn btn-sm btn-outline-secondary" id="insertImageBtn">
-            📷 Insert Image
-        </button>
-        <input type="file" accept="image/*" style="display: none;" id="imageUploadInput" />
-    `;
-    
-    // Editable div
-    const editableDiv = document.createElement("div");
-    editableDiv.className = "form-control form-control-sm editable-richtext";
-    editableDiv.contentEditable = "true";
-    editableDiv.style.minHeight = "150px";
-    editableDiv.style.maxHeight = "400px";
-    editableDiv.style.overflowY = "auto";
-    editableDiv.style.whiteSpace = "pre-wrap";
-    editableDiv.innerHTML = originalHtmlValue;
-    
-    editableDiv.dataset.fieldname = actualFieldname;
-    editableDiv.dataset.docname = docName;
-    editableDiv.dataset.doctype = config.doctype || "Work Order";
-    
-    // Assemble editor
-    editorContainer.appendChild(toolbar);
-    editorContainer.appendChild(editableDiv);
-    
-    // Add image upload functionality
-    const insertImageBtn = toolbar.querySelector('#insertImageBtn');
-    const imageUploadInput = toolbar.querySelector('#imageUploadInput');
-    
-    insertImageBtn.onclick = (e) => {
-        e.preventDefault();
-        imageUploadInput.click();
-    };
-    
-    imageUploadInput.addEventListener('change', async function(event) {
-        const file = event.target.files[0];
-        if (!file) return;
-        
-        if (!file.type.startsWith('image/')) {
-            alert('Please select an image file');
-            return;
-        }
-        
-        if (file.size > 2 * 1024 * 1024) {
-            alert('Image size should be less than 2MB');
-            return;
-        }
-        
-        const reader = new FileReader();
-        reader.onload = function(e) {
-            const base64Image = e.target.result;
-            editableDiv.focus();
-            
-            const img = document.createElement('img');
-            img.src = base64Image;
-            img.style.maxWidth = '100%';
-            img.style.height = 'auto';
-            img.style.display = 'block';
-            img.style.margin = '10px 0';
-            
-            const selection = window.getSelection();
-            if (selection.rangeCount > 0) {
-                const range = selection.getRangeAt(0);
-                range.deleteContents();
-                range.insertNode(img);
-                range.setStartAfter(img);
-                range.setEndAfter(img);
-                selection.removeAllRanges();
-                selection.addRange(range);
-            } else {
-                editableDiv.appendChild(img);
-            }
-        };
-        
-        reader.readAsDataURL(file);
-        event.target.value = '';
-    });
-    
-    // Create Edit/Cancel/Save buttons
-    const buttonContainer = document.createElement("div");
-    buttonContainer.className = "mt-2";
-    
-    const editBtn = document.createElement("button");
-    editBtn.className = "btn btn-sm btn-primary";
-    editBtn.textContent = "✏️ Edit";
-    editBtn.onclick = () => {
-        // Set editor with original HTML
-        editableDiv.innerHTML = originalHtmlValue;
-        
-        // FIX: Now also fix image URLs in edit mode so they're visible
-        editableDiv.querySelectorAll('img').forEach(img => {
-            const originalSrc = img.getAttribute('src');
-            // Store the original URL in a data attribute
-            img.dataset.originalSrc = originalSrc;
-            // Fix the URL for display
-            const fixedUrl = fixImageUrl(originalSrc);
-            img.setAttribute('src', fixedUrl);
-            img.style.maxWidth = '100%';
-            img.style.height = 'auto';
-        });
-        
-        displayDiv.style.display = "none";
-        editorContainer.style.display = "block";
-        editBtn.style.display = "none";
-        cancelBtn.style.display = "inline-block";
-        saveBtn.style.display = "inline-block";
-    };
-    
-    const cancelBtn = document.createElement("button");
-    cancelBtn.className = "btn btn-sm btn-secondary me-2";
-    cancelBtn.textContent = "Cancel";
-    cancelBtn.style.display = "none";
-    cancelBtn.onclick = () => {
-        displayDiv.style.display = "block";
-        editorContainer.style.display = "none";
-        editBtn.style.display = "inline-block";
-        cancelBtn.style.display = "none";
-        saveBtn.style.display = "none";
-    };
-    
-    const saveBtn = createSaveButton(editableDiv, reportName, modal);
-    saveBtn.style.display = "none";
-    
-    buttonContainer.appendChild(editBtn);
-    buttonContainer.appendChild(cancelBtn);
-    buttonContainer.appendChild(saveBtn);
-    
-    // Assemble everything
-    richTextContainer.appendChild(displayDiv);
-    richTextContainer.appendChild(editorContainer);
-    
-    valueDiv.appendChild(richTextContainer);
-    valueDiv.appendChild(buttonContainer);
-}
-
-
-
-
-                
-                
-                
-                
-                
-                
-                
-                else {
-                    const input = document.createElement("input");
-                    input.type = "text";
-                    input.className = "form-control form-control-sm";
+                } else if (col.fieldtype === "Text" || col.fieldtype === "Small Text" || 
+                           col.fieldtype === "Long Text" || col.fieldtype === "Text Editor" ||
+                           col.fieldtype === "HTML" || col.fieldtype === "HTML Editor") {
+                    
+                    // Create container for display and edit modes
+                    const richTextContainer = document.createElement('div');
+                    richTextContainer.className = 'richtext-container';
+                    
+                    // Create display mode (read-only view)
+                    const displayDiv = document.createElement('div');
+                    displayDiv.className = 'richtext-display';
+                    displayDiv.style.padding = '0.5rem';
+                    displayDiv.style.border = '1px solid #dee2e6';
+                    displayDiv.style.borderRadius = '0.25rem';
+                    displayDiv.style.backgroundColor = '#f8f9fa';
+                    displayDiv.style.minHeight = '50px';
+                    displayDiv.style.overflowY = 'auto';
+                    
+                    // Extract and set display HTML
+                    let htmlValue = value || `<p class="text-muted">No content</p>`;
+                    let originalHtmlValue = htmlValue; // Store original for saving
+                    
+                    // Extract HTML from Quill editor format if present
+                    if (typeof htmlValue === "string" && htmlValue.includes("ql-editor")) {
+                        const tempDiv = document.createElement('div');
+                        tempDiv.innerHTML = htmlValue;
+                        const qlEditor = tempDiv.querySelector('.ql-editor');
+                        htmlValue = qlEditor ? qlEditor.innerHTML : htmlValue;
+                        originalHtmlValue = htmlValue;
+                    }
+                    
+                    displayDiv.innerHTML = htmlValue;
+                    
+                    // Fix image URLs in display for viewing
+                    displayDiv.querySelectorAll('img').forEach(img => {
+                        const originalSrc = img.getAttribute('src');
+                        const fixedUrl = fixImageUrl(originalSrc);
+                        img.setAttribute('src', fixedUrl);
+                        img.style.maxWidth = '100%';
+                        img.style.height = 'auto';
+                    });
+                    
+                    // Create edit mode (contenteditable)
+                    const editorContainer = document.createElement('div');
+                    editorContainer.className = 'richtext-editor-container';
+                    editorContainer.style.display = 'none'; // Hidden by default
+                    
+                    // Toolbar
+                    const toolbar = document.createElement('div');
+                    toolbar.className = 'richtext-toolbar mb-2';
+                    toolbar.innerHTML = `
+                        <button type="button" class="btn btn-sm btn-outline-secondary" id="insertImageBtn">Insert Image</button>
+                        <input type="file" accept="image/*" style="display: none;" id="imageUploadInput">
+                    `;
+                    
+                    // Editable div
+                    const editableDiv = document.createElement('div');
+                    editableDiv.className = 'form-control form-control-sm editable-richtext';
+                    editableDiv.contentEditable = true;
+                    editableDiv.style.minHeight = '150px';
+                    editableDiv.style.maxHeight = '400px';
+                    editableDiv.style.overflowY = 'auto';
+                    editableDiv.style.whiteSpace = 'pre-wrap';
+                    editableDiv.innerHTML = originalHtmlValue;
+                    editableDiv.dataset.fieldname = actualFieldname;
+                    editableDiv.dataset.docname = docName;
+                    editableDiv.dataset.doctype = config.doctype || 'Work Order';
+                    
+                    // Assemble editor
+                    editorContainer.appendChild(toolbar);
+                    editorContainer.appendChild(editableDiv);
+                    
+                    // Add image upload functionality
+                    const insertImageBtn = toolbar.querySelector('#insertImageBtn');
+                    const imageUploadInput = toolbar.querySelector('#imageUploadInput');
+                    
+                    insertImageBtn.onclick = (e) => {
+                        e.preventDefault();
+                        imageUploadInput.click();
+                    };
+                    
+                    imageUploadInput.addEventListener('change', async function(event) {
+                        const file = event.target.files[0];
+                        if (!file) return;
+                        
+                        if (!file.type.startsWith('image/')) {
+                            alert('Please select an image file');
+                            return;
+                        }
+                        
+                        if (file.size > 2 * 1024 * 1024) {
+                            alert('Image size should be less than 2MB');
+                            return;
+                        }
+                        
+                        const reader = new FileReader();
+                        reader.onload = function(e) {
+                            const base64Image = e.target.result;
+                            editableDiv.focus();
+                            
+                            const img = document.createElement('img');
+                            img.src = base64Image;
+                            img.style.maxWidth = '100%';
+                            img.style.height = 'auto';
+                            img.style.display = 'block';
+                            img.style.margin = '10px 0';
+                            
+                            const selection = window.getSelection();
+                            if (selection.rangeCount > 0) {
+                                const range = selection.getRangeAt(0);
+                                range.deleteContents();
+                                range.insertNode(img);
+                                range.setStartAfter(img);
+                                range.setEndAfter(img);
+                                selection.removeAllRanges();
+                                selection.addRange(range);
+                            } else {
+                                editableDiv.appendChild(img);
+                            }
+                        };
+                        reader.readAsDataURL(file);
+                        event.target.value = '';
+                    });
+                    
+                    // Create Edit/Cancel/Save buttons
+                    const buttonContainer = document.createElement('div');
+                    buttonContainer.className = 'mt-2';
+                    
+                    const editBtn = document.createElement('button');
+                    editBtn.className = 'btn btn-sm btn-primary';
+                    editBtn.textContent = 'Edit';
+                    editBtn.onclick = () => {
+                        // Set editor with original HTML
+                        editableDiv.innerHTML = originalHtmlValue;
+                        
+                        // Fix image URLs in edit mode so they're visible
+                        editableDiv.querySelectorAll('img').forEach(img => {
+                            const originalSrc = img.getAttribute('src');
+                            // Store the original URL in a data attribute
+                            img.dataset.originalSrc = originalSrc;
+                            // Fix the URL for display
+                            const fixedUrl = fixImageUrl(originalSrc);
+                            img.setAttribute('src', fixedUrl);
+                            img.style.maxWidth = '100%';
+                            img.style.height = 'auto';
+                        });
+                        
+                        displayDiv.style.display = 'none';
+                        editorContainer.style.display = 'block';
+                        editBtn.style.display = 'none';
+                        cancelBtn.style.display = 'inline-block';
+                        saveBtn.style.display = 'inline-block';
+                    };
+                    
+                    const cancelBtn = document.createElement('button');
+                    cancelBtn.className = 'btn btn-sm btn-secondary me-2';
+                    cancelBtn.textContent = 'Cancel';
+                    cancelBtn.style.display = 'none';
+                    cancelBtn.onclick = () => {
+                        displayDiv.style.display = 'block';
+                        editorContainer.style.display = 'none';
+                        editBtn.style.display = 'inline-block';
+                        cancelBtn.style.display = 'none';
+                        saveBtn.style.display = 'none';
+                    };
+                    
+                    const saveBtn = createSaveButton(editableDiv, reportName, modal);
+                    saveBtn.style.display = 'none';
+                    
+                    buttonContainer.appendChild(editBtn);
+                    buttonContainer.appendChild(cancelBtn);
+                    buttonContainer.appendChild(saveBtn);
+                    
+                    // Assemble everything
+                    richTextContainer.appendChild(displayDiv);
+                    richTextContainer.appendChild(editorContainer);
+                    valueDiv.appendChild(richTextContainer);
+                    valueDiv.appendChild(buttonContainer);
+                    
+                } else {
+                    // Regular text input for other types
+                    const input = document.createElement('input');
+                    input.type = 'text';
+                    input.className = 'form-control form-control-sm';
                     input.value = value || '';
                     input.placeholder = `Enter ${label}...`;
-                    input.dataset.fieldname = actualFieldname;  // Use real database field name
+                    input.dataset.fieldname = actualFieldname;
                     input.dataset.docname = docName;
                     input.dataset.doctype = config.doctype || 'Work Order';
                     
@@ -1591,23 +1560,20 @@ displayDiv.innerHTML = htmlValue;
                     valueDiv.appendChild(input);
                     valueDiv.appendChild(saveBtn);
                 }
-                
             } else if (hasValue) {
                 // Non-editable field with value - display only
-                if (typeof value === 'string' && (value.includes('<') || value.includes('href'))) {
-                    const tempDiv = document.createElement("div");
+                if (typeof value === 'string' && (value.includes('<img') || value.includes('<a href'))) {
+                    const tempDiv = document.createElement('div');
                     tempDiv.innerHTML = value;
                     
                     tempDiv.querySelectorAll('img').forEach(img => {
                         const originalSrc = img.getAttribute('src');
                         const fixedUrl = fixImageUrl(originalSrc);
-                        
                         img.setAttribute('src', fixedUrl);
                         img.style.cursor = 'pointer';
                         img.style.maxWidth = '100%';
                         
                         const imageUrl = fixedUrl;
-                        
                         img.onclick = function(e) {
                             e.preventDefault();
                             e.stopPropagation();
@@ -1615,7 +1581,7 @@ displayDiv.innerHTML = htmlValue;
                         };
                         
                         img.onerror = function() {
-                            console.error("Failed to load image:", imageUrl);
+                            console.error('Failed to load image:', imageUrl);
                             this.style.border = '1px solid #ddd';
                             this.style.padding = '5px';
                             this.style.backgroundColor = '#f8f9fa';
@@ -1636,9 +1602,8 @@ displayDiv.innerHTML = htmlValue;
                     });
                     
                     valueDiv.appendChild(tempDiv);
-                    
-                } else if (col.fieldtype === 'Link' && col.options) {
-                    const link = document.createElement("a");
+                } else if (col.fieldtype === "Link" && col.options) {
+                    const link = document.createElement('a');
                     const doctypeSlug = col.options.toLowerCase().replace(/\s+/g, '-');
                     link.href = `https://acmestones.erpnext.com/app/${doctypeSlug}/${encodeURIComponent(value)}`;
                     link.target = '_blank';
@@ -1659,6 +1624,15 @@ displayDiv.innerHTML = htmlValue;
     
     modal.show();
 }
+
+
+
+
+
+
+
+
+
 
 
 
