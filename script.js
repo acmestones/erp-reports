@@ -1394,18 +1394,25 @@ async function showDetailModal(row, columns, reportName, config) {
     displayDiv.style.overflowY = "auto";
     
     // Extract and set display HTML
-    let htmlValue = value || "<p class='text-muted'>No content</p>";
-    let originalHtmlValue = htmlValue; // Store original for saving
-    
-    if (typeof htmlValue === 'string' && htmlValue.includes('ql-editor')) {
-        const tempDiv = document.createElement('div');
-        tempDiv.innerHTML = htmlValue;
-        const qlEditor = tempDiv.querySelector('.ql-editor');
-        htmlValue = qlEditor ? qlEditor.innerHTML : htmlValue;
-        originalHtmlValue = htmlValue;
-    }
-    
-    displayDiv.innerHTML = htmlValue;
+let htmlValue = value || `<p class="text-muted">No content</p>`;
+let originalHtmlValue = htmlValue; // Store original for saving
+
+// Extract HTML from Quill editor format if present
+if (typeof htmlValue === "string" && htmlValue.includes("ql-editor")) {
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = htmlValue;
+    const qlEditor = tempDiv.querySelector('.ql-editor');
+    htmlValue = qlEditor ? qlEditor.innerHTML : htmlValue;
+    originalHtmlValue = htmlValue;
+}
+
+// If the value is just raw text without HTML tags, wrap it in a paragraph
+if (typeof htmlValue === "string" && !htmlValue.trim().startsWith('<')) {
+    htmlValue = `<p>${htmlValue}</p>`;
+}
+
+displayDiv.innerHTML = htmlValue;
+
     
     // Fix image URLs in display (for viewing)
     displayDiv.querySelectorAll('img').forEach(img => {
