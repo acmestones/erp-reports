@@ -1567,40 +1567,70 @@ async function showDetailModal(row, columns, reportName, config) {
                     const tempDiv = document.createElement('div');
                     tempDiv.innerHTML = value;
                     
-                    tempDiv.querySelectorAll('img').forEach(img => {
-                        const originalSrc = img.getAttribute('src');
-                        const fixedUrl = fixImageUrl(originalSrc);
-                        img.setAttribute('src', fixedUrl);
-                        img.style.cursor = 'pointer';
-                        img.style.maxWidth = '100%';
-                        
-                        const imageUrl = fixedUrl;
-                        img.onclick = function(e) {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            window.open(imageUrl, '_blank', 'noopener,noreferrer');
-                        };
-                        
-                        img.onerror = function() {
-                            console.error('Failed to load image:', imageUrl);
-                            this.style.border = '1px solid #ddd';
-                            this.style.padding = '5px';
-                            this.style.backgroundColor = '#f8f9fa';
-                            this.alt = 'Image not available';
-                        };
-                    });
-                    
-                    tempDiv.querySelectorAll('a').forEach(link => {
-                        const href = link.getAttribute('href');
-                        if (href) {
-                            link.href = fixImageUrl(href);
-                            link.target = '_blank';
-                            link.rel = 'noopener noreferrer';
-                            link.onclick = function(e) {
-                                e.stopPropagation();
-                            };
-                        }
-                    });
+// Handle anchor tags that wrap images (ERPNext format)
+tempDiv.querySelectorAll('a').forEach(link => {
+    const href = link.getAttribute('href');
+    const imgInside = link.querySelector('img');
+    
+    if (imgInside) {
+        // This is an image link from ERPNext
+        const fixedUrl = fixImageUrl(href || imgInside.getAttribute('src'));
+        imgInside.setAttribute('src', fixedUrl);
+        imgInside.style.cursor = 'pointer';
+        imgInside.style.maxWidth = '100%';
+        
+        // Prevent the anchor's default behavior and handle click on the link instead
+        link.onclick = function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            window.open(fixedUrl, '_blank', 'noopener,noreferrer');
+        };
+        
+        imgInside.onerror = function() {
+            console.error('Failed to load image:', fixedUrl);
+            this.style.border = '1px solid #ddd';
+            this.style.padding = '5px';
+            this.style.backgroundColor = '#f8f9fa';
+            this.alt = 'Image not available';
+        };
+    } else if (href) {
+        // Regular link (not an image)
+        link.href = fixImageUrl(href);
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        link.onclick = function(e) {
+            e.stopPropagation();
+        };
+    }
+});
+
+// Handle standalone images (not wrapped in anchors - from UI)
+tempDiv.querySelectorAll('img').forEach(img => {
+    // Skip images that are already inside anchor tags (handled above)
+    if (img.parentElement && img.parentElement.tagName === 'A') {
+        return;
+    }
+    
+    const originalSrc = img.getAttribute('src');
+    const fixedUrl = fixImageUrl(originalSrc);
+    img.setAttribute('src', fixedUrl);
+    img.style.cursor = 'pointer';
+    img.style.maxWidth = '100%';
+    const imageUrl = fixedUrl;
+    img.onclick = function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        window.open(imageUrl, '_blank', 'noopener,noreferrer');
+    };
+    img.onerror = function() {
+        console.error('Failed to load image:', imageUrl);
+        this.style.border = '1px solid #ddd';
+        this.style.padding = '5px';
+        this.style.backgroundColor = '#f8f9fa';
+        this.alt = 'Image not available';
+    };
+});
+
                     
                     valueDiv.appendChild(tempDiv);
                 } else if (col.fieldtype === "Link" && col.options) {
