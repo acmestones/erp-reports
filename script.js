@@ -448,7 +448,31 @@ function fixImageUrl(url, isImage = true) {
     if (!url) return null;
     url = url.trim();
     
-    // Already absolute URL
+    // Handle private files FIRST (before checking http/https)
+    // Private files need to be proxied regardless of whether they're absolute URLs
+    if (url.includes('private/files')) {
+        // Extract just the path if it's a full URL
+        let filePath = url;
+        if (url.startsWith('http')) {
+            // Extract path from full URL
+            const urlObj = new URL(url);
+            filePath = urlObj.pathname + urlObj.search;
+        }
+        
+        // Determine if it's an image based on extension
+        const ext = filePath.split('.').pop().toLowerCase().split('?')[0]; // Remove query params
+        const imageExts = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg'];
+        
+        if (imageExts.includes(ext)) {
+            // Image - use image proxy
+            return API_BASE + '?action=proxyimage&fileurl=' + encodeURIComponent(filePath);
+        } else {
+            // Non-image file - use file proxy for download
+            return API_BASE + '?action=proxyfile&fileurl=' + encodeURIComponent(filePath);
+        }
+    }
+    
+    // Already absolute URL (and not private)
     if (url.startsWith('http') || url.startsWith('https')) {
         return url;
     }
@@ -456,21 +480,6 @@ function fixImageUrl(url, isImage = true) {
     // Protocol-relative URL
     if (url.startsWith('//')) {
         return 'https:' + url;
-    }
-    
-    // Handle private files by proxying through PHP
-    if (url.includes('private/files')) {
-        // Determine if it's an image based on extension
-        const ext = url.split('.').pop().toLowerCase();
-        const imageExts = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg'];
-        
-        if (imageExts.includes(ext)) {
-            // Image - use image proxy
-            return API_BASE + '?action=proxyimage&fileurl=' + encodeURIComponent(url);
-        } else {
-            // Non-image file - use file proxy for download
-            return API_BASE + '?action=proxyfile&fileurl=' + encodeURIComponent(url);
-        }
     }
     
     // Root-relative URL including public files
@@ -481,6 +490,7 @@ function fixImageUrl(url, isImage = true) {
     // Relative URL
     return 'https://acmestones.erpnext.com/' + url;
 }
+
 
 
 
