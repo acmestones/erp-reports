@@ -910,6 +910,84 @@ if (isset($_GET['action']) && $_GET['action'] == 'upload_time_log_image') {
 
 
 
+// Generic file upload for rich text editor
+if (isset($_GET['action']) && $_GET['action'] == 'uploadfile') {
+    if (!isset($_FILES['file'])) {
+        echo json_encode(['error' => 'No file uploaded']);
+        exit;
+    }
+    
+    $file = $_FILES['file'];
+    $doctype = $_POST['doctype'] ?? 'Work Order';
+    $docname = $_POST['docname'] ?? '';
+    
+    // Create boundary
+    $boundary = '----WebKitFormBoundary' . uniqid();
+    
+    // Read file content
+    $fileContent = file_get_contents($file['tmp_name']);
+    
+    // Prepare multipart form data
+    $postData = "--$boundary\r\n";
+    $postData .= 'Content-Disposition: form-data; name="file"; filename="' . $file['name'] . '"' . "\r\n";
+    $postData .= 'Content-Type: ' . $file['type'] . "\r\n\r\n";
+    $postData .= $fileContent . "\r\n";
+    
+    $postData .= "--$boundary\r\n";
+    $postData .= 'Content-Disposition: form-data; name="is_private"' . "\r\n\r\n";
+    $postData .= '0' . "\r\n"; // PUBLIC FILE
+    
+    $postData .= "--$boundary\r\n";
+    $postData .= 'Content-Disposition: form-data; name="doctype"' . "\r\n\r\n";
+    $postData .= $doctype . "\r\n";
+    
+    $postData .= "--$boundary\r\n";
+    $postData .= 'Content-Disposition: form-data; name="docname"' . "\r\n\r\n";
+    $postData .= $docname . "\r\n";
+    
+    $postData .= "--$boundary--\r\n";
+    
+    // Upload to ERPNext
+    $ch = curl_init();
+    $url = ERPBASE . '/api/method/upload_file';
+    curl_setopt_array($ch, [
+        CURLOPT_URL => $url,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_POST => true,
+        CURLOPT_POSTFIELDS => $postData,
+        CURLOPT_HTTPHEADER => [
+            'Authorization: token ' . APIKEY . ':' . APISECRET,
+            'Content-Type: multipart/form-data; boundary=' . $boundary
+        ],
+        CURLOPT_SSLVERIFYPEER => false
+    ]);
+    
+    $response = curl_exec($ch);
+    $httpcode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    
+    logError("Upload response - HTTP $httpcode: $response");
+    
+    if ($httpcode == 200) {
+        $result = json_decode($response, true);
+        if (isset($result['message']['file_url'])) {
+            echo json_encode(['file_url' => $result['message']['file_url']]);
+        } else {
+            echo json_encode(['error' => 'Upload succeeded but no file URL returned', 'response' => $result]);
+        }
+    } else {
+        echo json_encode(['error' => 'Upload failed', 'httpcode' => $httpcode, 'response' => $response]);
+    }
+    exit;
+}
+
+
+
+
+
+
+
+
 
 
 
