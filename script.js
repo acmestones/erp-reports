@@ -1448,88 +1448,48 @@ async function showDetailModal(row, columns, reportName, config) {
                         imageUploadInput.click();
                     };
                     
-imageUploadInput.addEventListener('change', async function(event) {
-    const file = event.target.files[0];
-    if (!file) return;
-    
-    if (!file.type.startsWith('image/')) {
-        alert('Please select an image file');
-        return;
-    }
-    
-    if (file.size > 5 * 1024 * 1024) {
-        alert('Image size should be less than 5MB');
-        return;
-    }
-    
-    // Show loading indicator
-    insertImageBtn.disabled = true;
-    insertImageBtn.textContent = 'Uploading...';
-    
-    try {
-        // Upload file to ERPNext as PUBLIC file
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('doctype', config.doctype || 'Work Order');
-        formData.append('docname', docName);
-        
-        const uploadResponse = await fetch('erpproxy.php?action=uploadfile', {
-            method: 'POST',
-            body: formData
-        });
-        
-        const uploadResult = await uploadResponse.json();
-        console.log('Upload result:', uploadResult);
-        
-        if (uploadResult.error) {
-            throw new Error(uploadResult.error);
-        }
-        
-        // Get the file URL from the response
-        let fileUrl = uploadResult.file_url;
-        
-        if (!fileUrl) {
-            throw new Error('No file URL in upload response');
-        }
-        
-        // Insert the image into the editor
-        editableDiv.focus();
-        
-        const img = document.createElement('img');
-        img.src = fileUrl;
-        img.dataset.originalSrc = fileUrl;
-        img.style.maxWidth = '100%';
-        img.style.height = 'auto';
-        img.style.display = 'block';
-        img.style.margin = '10px 0';
-        
-        const selection = window.getSelection();
-        if (selection.rangeCount > 0) {
-            const range = selection.getRangeAt(0);
-            range.deleteContents();
-            range.insertNode(img);
-            range.setStartAfter(img);
-            range.setEndAfter(img);
-            selection.removeAllRanges();
-            selection.addRange(range);
-        } else {
-            editableDiv.appendChild(img);
-        }
-        
-        insertImageBtn.disabled = false;
-        insertImageBtn.textContent = 'Insert Image';
-        
-    } catch (error) {
-        console.error('Image upload error:', error);
-        alert('Failed to upload image: ' + error.message);
-        insertImageBtn.disabled = false;
-        insertImageBtn.textContent = 'Insert Image';
-    }
-    
-    event.target.value = '';
-});
-
-
+                    imageUploadInput.addEventListener('change', async function(event) {
+                        const file = event.target.files[0];
+                        if (!file) return;
+                        
+                        if (!file.type.startsWith('image/')) {
+                            alert('Please select an image file');
+                            return;
+                        }
+                        
+                        if (file.size > 2 * 1024 * 1024) {
+                            alert('Image size should be less than 2MB');
+                            return;
+                        }
+                        
+                        const reader = new FileReader();
+                        reader.onload = function(e) {
+                            const base64Image = e.target.result;
+                            editableDiv.focus();
+                            
+                            const img = document.createElement('img');
+                            img.src = base64Image;
+                            img.style.maxWidth = '100%';
+                            img.style.height = 'auto';
+                            img.style.display = 'block';
+                            img.style.margin = '10px 0';
+                            
+                            const selection = window.getSelection();
+                            if (selection.rangeCount > 0) {
+                                const range = selection.getRangeAt(0);
+                                range.deleteContents();
+                                range.insertNode(img);
+                                range.setStartAfter(img);
+                                range.setEndAfter(img);
+                                selection.removeAllRanges();
+                                selection.addRange(range);
+                            } else {
+                                editableDiv.appendChild(img);
+                            }
+                        };
+                        reader.readAsDataURL(file);
+                        event.target.value = '';
+                    });
                     
                     // Create Edit/Cancel/Save buttons
                     const buttonContainer = document.createElement('div');
@@ -1679,18 +1639,19 @@ imageUploadInput.addEventListener('change', async function(event) {
 
 
 function createSaveButton(inputElement, reportName, modal) {
-    const saveBtn = document.createElement('button');
-    saveBtn.className = 'btn btn-sm btn-success mt-1';
-    saveBtn.textContent = 'Save';
+    const saveBtn = document.createElement("button");
+    saveBtn.className = "btn btn-sm btn-success mt-1";
+    saveBtn.textContent = "Save";
+    
     saveBtn.onclick = async () => {
         saveBtn.disabled = true;
-        saveBtn.textContent = 'Saving...';
+        saveBtn.textContent = "Saving...";
         
         const doctype = inputElement.dataset.doctype;
         const docname = inputElement.dataset.docname;
         const fieldname = inputElement.dataset.fieldname;
-        let value;
         
+        let value;
         if (inputElement.classList.contains('editable-richtext')) {
             // FIX: Clone the content and restore original image URLs before saving
             const tempDiv = document.createElement('div');
@@ -1707,67 +1668,54 @@ function createSaveButton(inputElement, reportName, modal) {
             
             value = tempDiv.innerHTML;
         } else {
-            value = inputElement.value;
+            value = inputElement.value || '';
         }
         
-        if (typeof value === 'string' && !value.includes('<img') && !value.includes('<a')) {
+        if (typeof value === 'string' && !value.includes('<') && !value.includes('>')) {
             value = value.trim();
         }
         
         if (!value || value.trim() === '') {
-            alert('Please enter a value before saving.');
+            alert("Please enter a value before saving.");
             saveBtn.disabled = false;
-            saveBtn.textContent = 'Save';
+            saveBtn.textContent = "Save";
             return;
         }
         
-        // Wrap in Quill editor format if it's a rich text field
         if (inputElement.classList.contains('editable-richtext')) {
             if (!value.includes('ql-editor')) {
                 value = `<div class="ql-editor read-mode">${value}</div>`;
             }
         }
         
-        console.log('Saving field:', {doctype, docname, fieldname});
+        console.log("Saving field:", {doctype, docname, fieldname});
         
         try {
             const result = await updateField(doctype, docname, fieldname, value);
-            console.log('Update result:', result);
+            console.log("Update result:", result);
             
             if (result.error || result.exc) {
-                throw new Error(result.error || result.exc || 'Update failed');
+                throw new Error(result.error || result.exc || "Update failed");
             }
             
-            // SPECIAL CASE: If updating custom_item_description, also update custom_description_cleaned
-            if (fieldname === 'custom_item_description') {
-                console.log('Also updating custom_description_cleaned with the same value');
-                const result2 = await updateField(doctype, docname, 'custom_description_cleaned', value);
-                console.log('Update result for custom_description_cleaned:', result2);
-                
-                if (result2.error || result2.exc) {
-                    throw new Error('Failed to update custom_description_cleaned: ' + (result2.error || result2.exc));
-                }
-            }
-            
-            saveBtn.textContent = 'Saved';
-            saveBtn.classList.remove('btn-success');
-            saveBtn.classList.add('btn-secondary');
+            saveBtn.textContent = "✓ Saved";
+            saveBtn.classList.remove("btn-success");
+            saveBtn.classList.add("btn-secondary");
             
             setTimeout(() => {
                 loadReport(reportName);
                 modal.hide();
             }, 1500);
-            
         } catch (err) {
-            console.error('Save error:', err);
-            alert('Error saving: ' + err.message);
+            console.error("Save error:", err);
+            alert("Error saving: " + err.message);
             saveBtn.disabled = false;
-            saveBtn.textContent = 'Save';
+            saveBtn.textContent = "Save";
         }
     };
+    
     return saveBtn;
 }
-
 
 
 
@@ -5172,3 +5120,4 @@ function openMobileReorderModal(reportName, primaryGroup, secondaryGroup) {
 }
 
 // ========== END MOBILE REORDER MODAL FUNCTIONS ==========
+
