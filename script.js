@@ -1285,7 +1285,8 @@ async function getAttachedFiles(doctype, docname) {
 
 async function showDetailModal(row, columns, reportName, config) {
     const modal = new bootstrap.Modal(document.getElementById('detailModal'));
-    const titleField = config.titlefield || config.title_field || 'workorderid';
+    
+    const titleField = config.titlefield || 'workorderid';
     let docName = row[titleField] || row.name || row.workorderid || row.id;
     
     const nameCol = columns.find(c => c.fieldname === 'name' || c.fieldname === titleField);
@@ -1293,15 +1294,15 @@ async function showDetailModal(row, columns, reportName, config) {
         docName = row[nameCol.fieldname] || docName;
     }
     
-    document.getElementById('modalTitle').textContent = `${row[titleField] || docName} Details`;
+    document.getElementById('modalTitle').textContent = `${row[titleField]} - Details`;
+    
     const modalBody = document.getElementById('modalBody');
     modalBody.innerHTML = '';
     
-    // FIX: Use correct property names with underscores
-    const userPerms = config.user_permissions?.[userEmail] || config.userpermissions?.[userEmail] || {};
-    const editableFields = userPerms.editable_fields || userPerms.editablefields || [];
-    const hiddenFields = userPerms.hidden_fields || userPerms.hiddenfields || [];
-    const canEdit = currentUser.can_edit;
+    const userPerms = config.userpermissions?.[userEmail] || {};
+    const editableFields = userPerms.editablefields || [];
+    const hiddenFields = userPerms.hiddenfields || [];
+    const canEdit = currentUser.canedit;
     
     for (const col of columns) {
         const reportFieldname = col.fieldname;
@@ -1326,8 +1327,8 @@ async function showDetailModal(row, columns, reportName, config) {
             valueDiv.className = 'mt-1';
             
             if (isEditable) {
-                // Editable field - use actual database field name
-                if (col.fieldtype === "Link" && col.options) {
+                // Editable field
+                if (col.fieldtype === 'Link' && col.options) {
                     const select = document.createElement('select');
                     select.className = 'form-select form-select-sm';
                     select.dataset.fieldname = actualFieldname;
@@ -1352,7 +1353,7 @@ async function showDetailModal(row, columns, reportName, config) {
                     valueDiv.appendChild(select);
                     valueDiv.appendChild(saveBtn);
                     
-                } else if (col.fieldtype === "Select" && col.options) {
+                } else if (col.fieldtype === 'Select' && col.options) {
                     const select = document.createElement('select');
                     select.className = 'form-select form-select-sm';
                     select.dataset.fieldname = actualFieldname;
@@ -1377,15 +1378,15 @@ async function showDetailModal(row, columns, reportName, config) {
                     valueDiv.appendChild(select);
                     valueDiv.appendChild(saveBtn);
                     
-                } else if (col.fieldtype === "Text" || col.fieldtype === "Small Text" || 
-                           col.fieldtype === "Long Text" || col.fieldtype === "Text Editor" ||
-                           col.fieldtype === "HTML" || col.fieldtype === "HTML Editor") {
+                } else if (col.fieldtype === 'Text' || col.fieldtype === 'Small Text' || 
+                          col.fieldtype === 'Long Text' || col.fieldtype === 'Text Editor' ||
+                          col.fieldtype === 'HTML' || col.fieldtype === 'HTML Editor') {
                     
-                    // Create container for display and edit modes
+                    // Rich text editor
                     const richTextContainer = document.createElement('div');
                     richTextContainer.className = 'richtext-container';
                     
-                    // Create display mode (read-only view)
+                    // Display mode
                     const displayDiv = document.createElement('div');
                     displayDiv.className = 'richtext-display';
                     displayDiv.style.padding = '0.5rem';
@@ -1395,22 +1396,123 @@ async function showDetailModal(row, columns, reportName, config) {
                     displayDiv.style.minHeight = '50px';
                     displayDiv.style.overflowY = 'auto';
                     
-                    // Extract and set display HTML
-                    let htmlValue = value || `<p class="text-muted">No content</p>`;
-                    let originalHtmlValue = htmlValue; // Store original for saving
+                    let htmlValue = value || '<p class="text-muted">No content</p>';
+                    let originalHtmlValue = htmlValue;
                     
                     // Extract HTML from Quill editor format if present
-                    if (typeof htmlValue === "string" && htmlValue.includes("ql-editor")) {
+                    if (typeof htmlValue === 'string' && htmlValue.includes('ql-editor')) {
                         const tempDiv = document.createElement('div');
                         tempDiv.innerHTML = htmlValue;
                         const qlEditor = tempDiv.querySelector('.ql-editor');
-                        htmlValue = qlEditor ? qlEditor.innerHTML : htmlValue;
-                        originalHtmlValue = htmlValue;
+                        
+                        // Extract content from ql-editor BUT keep everything else (like appended images from SQL)
+                        if (qlEditor) {
+                            // Get everything that's NOT inside ql-editor (appended images, etc)
+                            const appendedContent = Array.from(tempDiv.childNodes)
+                                .filter(node => node !== qlEditor)
+                                .map(node => node.outerHTML || node.textContent)
+                                .join('');
+                            
+                            // Combine ql-editor content + appended content
+                            htmlValue = qlEditor.innerHTML + appendedContent;
+                        }
                     }
-                    
+                    originalHtmlValue = htmlValue;
                     displayDiv.innerHTML = htmlValue;
                     
-                    // Fix image URLs in display for viewing
+                    // Fetch and append attached files (that aren't already in the description)
+                    if (reportFieldname === 'item_description') {
+                        const attachedFiles = await getAttachedFiles(config.doctype || 'Work Order', docName);
+                        
+                        if (attachedFiles.length > 0) {
+                            // Get current description HTML to check which files are already shown
+                            const currentHtml = htmlValue.toLowerCase();
+                            
+                            // Filter files that aren't already in the description
+                            const newFiles = attachedFiles.filter(file => {
+                                const fileName = (file.file_name || '').toLowerCase();
+                                return !currentHtml.includes(fileName);
+                            });
+                            
+                            if (newFiles.length > 0) {
+                                const filesContainer = document.createElement('div');
+                                filesContainer.style.marginTop = '15px';
+                                
+                                newFiles.forEach(file => {
+                                    const fileUrl = fixImageUrl(file.file_url);
+                                    const fileName = file.file_name;
+                                    const ext = fileName.split('.').pop().toLowerCase();
+                                    
+                                    // Check if it's an image
+                                    if (['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'].includes(ext)) {
+                                        const imgDiv = document.createElement('div');
+                                        imgDiv.style.margin = '5px';
+                                        imgDiv.style.display = 'inline-block';
+                                        
+                                        const img = document.createElement('img');
+                                        img.src = fileUrl;
+                                        img.style.maxHeight = '80px';
+                                        img.style.maxWidth = '120px';
+                                        img.style.width = 'auto';
+                                        img.style.height = 'auto';
+                                        img.style.border = '1px solid #ddd';
+                                        img.style.borderRadius = '4px';
+                                        img.style.objectFit = 'contain';
+                                        img.style.cursor = 'pointer';
+                                        img.style.margin = '2px';
+                                        img.onclick = function(e) {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            window.open(fileUrl, '_blank', 'noopener,noreferrer');
+                                        };
+                                        
+                                        imgDiv.appendChild(img);
+                                        filesContainer.appendChild(imgDiv);
+                                    } else {
+                                        // Non-image file - show as download link
+                                        const fileDiv = document.createElement('div');
+                                        fileDiv.style.marginTop = '5px';
+                                        fileDiv.style.padding = '8px';
+                                        fileDiv.style.background = '#f8f9fa';
+                                        fileDiv.style.borderRadius = '4px';
+                                        fileDiv.style.margin = '2px 0';
+                                        
+                                        // Determine border color and icon based on file type
+                                        let borderColor = '#6f42c1';
+                                        let icon = '📎';
+                                        if (ext === 'pdf') { borderColor = '#dc3545'; icon = '📄'; }
+                                        else if (['dwg', 'dxf'].includes(ext)) { borderColor = '#28a745'; icon = '🔧'; }
+                                        else if (['step', 'iges'].includes(ext)) { borderColor = '#28a745'; icon = '⚙️'; }
+                                        else if (['doc', 'docx', 'rtf'].includes(ext)) { borderColor = '#0d6efd'; icon = '📝'; }
+                                        else if (['xls', 'xlsx', 'csv'].includes(ext)) { borderColor = '#198754'; icon = '📊'; }
+                                        else if (['zip', 'rar', '7z'].includes(ext)) { borderColor = '#fd7e14'; icon = '📦'; }
+                                        else if (['txt', 'log'].includes(ext)) { borderColor = '#6c757d'; icon = '📋'; }
+                                        
+                                        fileDiv.style.borderLeft = `3px solid ${borderColor}`;
+                                        
+                                        const link = document.createElement('a');
+                                        link.href = fileUrl;
+                                        link.target = '_blank';
+                                        link.rel = 'noopener noreferrer';
+                                        link.style.textDecoration = 'none';
+                                        link.style.color = '#212529';
+                                        link.style.fontWeight = '500';
+                                        link.style.display = 'flex';
+                                        link.style.alignItems = 'center';
+                                        
+                                        link.innerHTML = `${icon} <span style="margin-left: 8px;">${fileName}</span><span style="margin-left: auto; font-size: 10px; color: #6c757d; text-transform: uppercase;">${ext}</span>`;
+                                        
+                                        fileDiv.appendChild(link);
+                                        filesContainer.appendChild(fileDiv);
+                                    }
+                                });
+                                
+                                displayDiv.appendChild(filesContainer);
+                            }
+                        }
+                    }
+                    
+                    // Fix image URLs in display
                     displayDiv.querySelectorAll('img').forEach(img => {
                         const originalSrc = img.getAttribute('src');
                         const fixedUrl = fixImageUrl(originalSrc);
@@ -1419,10 +1521,10 @@ async function showDetailModal(row, columns, reportName, config) {
                         img.style.height = 'auto';
                     });
                     
-                    // Create edit mode (contenteditable)
+                    // Edit mode
                     const editorContainer = document.createElement('div');
                     editorContainer.className = 'richtext-editor-container';
-                    editorContainer.style.display = 'none'; // Hidden by default
+                    editorContainer.style.display = 'none';
                     
                     // Toolbar
                     const toolbar = document.createElement('div');
@@ -1435,7 +1537,7 @@ async function showDetailModal(row, columns, reportName, config) {
                     // Editable div
                     const editableDiv = document.createElement('div');
                     editableDiv.className = 'form-control form-control-sm editable-richtext';
-                    editableDiv.contentEditable = true;
+                    editableDiv.contentEditable = 'true';
                     editableDiv.style.minHeight = '150px';
                     editableDiv.style.maxHeight = '400px';
                     editableDiv.style.overflowY = 'auto';
@@ -1445,11 +1547,10 @@ async function showDetailModal(row, columns, reportName, config) {
                     editableDiv.dataset.docname = docName;
                     editableDiv.dataset.doctype = config.doctype || 'Work Order';
                     
-                    // Assemble editor
                     editorContainer.appendChild(toolbar);
                     editorContainer.appendChild(editableDiv);
                     
-                    // Add image upload functionality
+                    // Image upload
                     const insertImageBtn = toolbar.querySelector('#insertImageBtn');
                     const imageUploadInput = toolbar.querySelector('#imageUploadInput');
                     
@@ -1501,7 +1602,7 @@ async function showDetailModal(row, columns, reportName, config) {
                         event.target.value = '';
                     });
                     
-                    // Create Edit/Cancel/Save buttons
+                    // Buttons
                     const buttonContainer = document.createElement('div');
                     buttonContainer.className = 'mt-2';
                     
@@ -1509,15 +1610,12 @@ async function showDetailModal(row, columns, reportName, config) {
                     editBtn.className = 'btn btn-sm btn-primary';
                     editBtn.textContent = 'Edit';
                     editBtn.onclick = () => {
-                        // Set editor with original HTML
                         editableDiv.innerHTML = originalHtmlValue;
                         
-                        // Fix image URLs in edit mode so they're visible
+                        // Fix image URLs in edit mode
                         editableDiv.querySelectorAll('img').forEach(img => {
                             const originalSrc = img.getAttribute('src');
-                            // Store the original URL in a data attribute
                             img.dataset.originalSrc = originalSrc;
-                            // Fix the URL for display
                             const fixedUrl = fixImageUrl(originalSrc);
                             img.setAttribute('src', fixedUrl);
                             img.style.maxWidth = '100%';
@@ -1550,14 +1648,13 @@ async function showDetailModal(row, columns, reportName, config) {
                     buttonContainer.appendChild(cancelBtn);
                     buttonContainer.appendChild(saveBtn);
                     
-                    // Assemble everything
                     richTextContainer.appendChild(displayDiv);
                     richTextContainer.appendChild(editorContainer);
                     valueDiv.appendChild(richTextContainer);
                     valueDiv.appendChild(buttonContainer);
                     
                 } else {
-                    // Regular text input for other types
+                    // Regular text input
                     const input = document.createElement('input');
                     input.type = 'text';
                     input.className = 'form-control form-control-sm';
@@ -1571,95 +1668,69 @@ async function showDetailModal(row, columns, reportName, config) {
                     valueDiv.appendChild(input);
                     valueDiv.appendChild(saveBtn);
                 }
-} else if (hasValue) {
-    // Non-editable field with value - display only
-    if (typeof value === 'string' && (value.includes('<img') || value.includes('<a href'))) {
-        const tempDiv = document.createElement('div');
-        tempDiv.innerHTML = value;
-        
-        // Handle anchor tags that wrap images (ERPNext format) - UNWRAP THEM
-        tempDiv.querySelectorAll('a').forEach(link => {
-            const href = link.getAttribute('href');
-            const imgInside = link.querySelector('img');
-            
-            if (imgInside) {
-                // This is an image link from ERPNext - unwrap the image
-                const fixedUrl = fixImageUrl(href || imgInside.getAttribute('src'));
-                imgInside.setAttribute('src', fixedUrl);
-                imgInside.style.cursor = 'pointer';
-                imgInside.style.maxWidth = '100%';
                 
-                // Add click handler to the image
-                imgInside.onclick = function(e) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    window.open(fixedUrl, '_blank', 'noopener,noreferrer');
-                };
-                
-                imgInside.onerror = function() {
-                    console.error('Failed to load image:', fixedUrl);
-                    this.style.border = '1px solid #ddd';
-                    this.style.padding = '5px';
-                    this.style.backgroundColor = '#f8f9fa';
-                    this.alt = 'Image not available';
-                };
-                
-                // UNWRAP: Replace the anchor with just the image
-                link.parentNode.replaceChild(imgInside, link);
-                
-            } else if (href) {
-                // Regular link (not an image)
-                link.href = fixImageUrl(href);
-                link.target = '_blank';
-                link.rel = 'noopener noreferrer';
-                link.onclick = function(e) {
-                    e.stopPropagation();
-                };
+            } else if (hasValue) {
+                // Non-editable field with value - display only
+                if (typeof value === 'string' && (value.includes('<img') || value.includes('<a href'))) {
+                    // AGGRESSIVE FIX: Remove anchor wrappers from images in the HTML string first
+                    let processedHtml = value;
+                    
+                    // Replace <a...><img src="X"></a> with just <img src="X">
+                    processedHtml = processedHtml.replace(/<a[^>]*>(\s*<img[^>]*>\s*)<\/a>/gi, '$1');
+                    
+                    const tempDiv = document.createElement('div');
+                    tempDiv.innerHTML = processedHtml;
+                    
+                    // Fix all image URLs and add click handlers
+                    tempDiv.querySelectorAll('img').forEach(img => {
+                        const originalSrc = img.getAttribute('src');
+                        const fixedUrl = fixImageUrl(originalSrc);
+                        img.setAttribute('src', fixedUrl);
+                        img.style.cursor = 'pointer';
+                        img.style.maxWidth = '100%';
+                        
+                        img.onclick = function(e) {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            window.open(fixedUrl, '_blank', 'noopener,noreferrer');
+                        };
+                        
+                        img.onerror = function() {
+                            console.error('Failed to load image:', fixedUrl);
+                            this.style.border = '1px solid #ddd';
+                            this.style.padding = '5px';
+                            this.style.backgroundColor = '#f8f9fa';
+                            this.alt = 'Image not available';
+                        };
+                    });
+                    
+                    // Handle remaining links (non-image links)
+                    tempDiv.querySelectorAll('a').forEach(link => {
+                        const href = link.getAttribute('href');
+                        if (href) {
+                            link.href = fixImageUrl(href);
+                            link.target = '_blank';
+                            link.rel = 'noopener noreferrer';
+                            link.onclick = function(e) {
+                                e.stopPropagation();
+                            };
+                        }
+                    });
+                    
+                    valueDiv.appendChild(tempDiv);
+                } else if (col.fieldtype === 'Link' && col.options) {
+                    const link = document.createElement('a');
+                    const doctypeSlug = col.options.toLowerCase().replace(/ /g, '-');
+                    link.href = `https://acmestones.erpnext.com/app/${doctypeSlug}/${encodeURIComponent(value)}`;
+                    link.target = '_blank';
+                    link.rel = 'noopener noreferrer';
+                    link.className = 'link-field';
+                    link.textContent = value;
+                    valueDiv.appendChild(link);
+                } else {
+                    valueDiv.textContent = value;
+                }
             }
-        });
-        
-        // Handle standalone images (not wrapped in anchors - from UI)
-        tempDiv.querySelectorAll('img').forEach(img => {
-            // Check if it already has onclick (handled above)
-            if (img.onclick) {
-                return;
-            }
-            
-            const originalSrc = img.getAttribute('src');
-            const fixedUrl = fixImageUrl(originalSrc);
-            img.setAttribute('src', fixedUrl);
-            img.style.cursor = 'pointer';
-            img.style.maxWidth = '100%';
-            const imageUrl = fixedUrl;
-            img.onclick = function(e) {
-                e.preventDefault();
-                e.stopPropagation();
-                window.open(imageUrl, '_blank', 'noopener,noreferrer');
-            };
-            img.onerror = function() {
-                console.error('Failed to load image:', imageUrl);
-                this.style.border = '1px solid #ddd';
-                this.style.padding = '5px';
-                this.style.backgroundColor = '#f8f9fa';
-                this.alt = 'Image not available';
-            };
-        });
-        
-        valueDiv.appendChild(tempDiv);
-    } else if (col.fieldtype === 'Link' && col.options) {
-        const link = document.createElement('a');
-        const doctypeSlug = col.options.toLowerCase().replace(/ /g, '-');
-        link.href = `https://acmestones.erpnext.com/app/${doctypeSlug}/${encodeURIComponent(value)}`;
-        link.target = '_blank';
-        link.rel = 'noopener noreferrer';
-        link.className = 'link-field';
-        link.textContent = value;
-        valueDiv.appendChild(link);
-    } else {
-        valueDiv.textContent = value;
-    }
-}
-
             
             fieldDiv.appendChild(labelDiv);
             fieldDiv.appendChild(valueDiv);
@@ -1669,6 +1740,7 @@ async function showDetailModal(row, columns, reportName, config) {
     
     modal.show();
 }
+
 
 
 
