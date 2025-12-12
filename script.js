@@ -1639,13 +1639,12 @@ async function showDetailModal(row, columns, reportName, config) {
 
 
 function createSaveButton(inputElement, reportName, modal) {
-    const saveBtn = document.createElement("button");
-    saveBtn.className = "btn btn-sm btn-success mt-1";
-    saveBtn.textContent = "Save";
-    
+    const saveBtn = document.createElement('button');
+    saveBtn.className = 'btn btn-sm btn-success mt-1';
+    saveBtn.textContent = 'Save';
     saveBtn.onclick = async () => {
         saveBtn.disabled = true;
-        saveBtn.textContent = "Saving...";
+        saveBtn.textContent = 'Saving...';
         
         const doctype = inputElement.dataset.doctype;
         const docname = inputElement.dataset.docname;
@@ -1653,7 +1652,7 @@ function createSaveButton(inputElement, reportName, modal) {
         
         let value;
         if (inputElement.classList.contains('editable-richtext')) {
-            // FIX: Clone the content and restore original image URLs before saving
+            // Clone the content and restore original image URLs before saving
             const tempDiv = document.createElement('div');
             tempDiv.innerHTML = inputElement.innerHTML;
             
@@ -1668,7 +1667,7 @@ function createSaveButton(inputElement, reportName, modal) {
             
             value = tempDiv.innerHTML;
         } else {
-            value = inputElement.value || '';
+            value = inputElement.value;
         }
         
         if (typeof value === 'string' && !value.includes('<') && !value.includes('>')) {
@@ -1676,46 +1675,67 @@ function createSaveButton(inputElement, reportName, modal) {
         }
         
         if (!value || value.trim() === '') {
-            alert("Please enter a value before saving.");
+            alert('Please enter a value before saving.');
             saveBtn.disabled = false;
-            saveBtn.textContent = "Save";
+            saveBtn.textContent = 'Save';
             return;
         }
         
+        // Wrap in Quill editor format if it's a rich text field
         if (inputElement.classList.contains('editable-richtext')) {
             if (!value.includes('ql-editor')) {
                 value = `<div class="ql-editor read-mode">${value}</div>`;
             }
         }
         
-        console.log("Saving field:", {doctype, docname, fieldname});
+        console.log('Saving field:', doctype, docname, fieldname);
         
         try {
-            const result = await updateField(doctype, docname, fieldname, value);
-            console.log("Update result:", result);
-            
-            if (result.error || result.exc) {
-                throw new Error(result.error || result.exc || "Update failed");
+            // SPECIAL CASE: If updating custom_item_description, also update custom_description_cleaned
+            if (fieldname === 'custom_item_description') {
+                console.log('Saving to BOTH custom_item_description and custom_description_cleaned');
+                
+                // Save to custom_item_description (with HTML wrapper)
+                const result1 = await updateField(doctype, docname, 'custom_item_description', value);
+                console.log('custom_item_description saved:', result1);
+                
+                // Also save to custom_description_cleaned (same content)
+                const result2 = await updateField(doctype, docname, 'custom_description_cleaned', value);
+                console.log('custom_description_cleaned saved:', result2);
+                
+                if ((result1.error || result1.exc) || (result2.error || result2.exc)) {
+                    throw new Error((result1.error || result1.exc || result2.error || result2.exc) + ' - Update failed');
+                }
+            } else {
+                // Normal single field update
+                const result = await updateField(doctype, docname, fieldname, value);
+                console.log('Update result:', result);
+                
+                if (result.error || result.exc) {
+                    throw new Error((result.error || result.exc) + ' - Update failed');
+                }
             }
             
-            saveBtn.textContent = "✓ Saved";
-            saveBtn.classList.remove("btn-success");
-            saveBtn.classList.add("btn-secondary");
+            saveBtn.textContent = 'Saved';
+            saveBtn.classList.remove('btn-success');
+            saveBtn.classList.add('btn-secondary');
             
             setTimeout(() => {
                 loadReport(reportName);
                 modal.hide();
             }, 1500);
+            
         } catch (err) {
-            console.error("Save error:", err);
-            alert("Error saving: " + err.message);
+            console.error('Save error:', err);
+            alert('Error saving: ' + err.message);
             saveBtn.disabled = false;
-            saveBtn.textContent = "Save";
+            saveBtn.textContent = 'Save';
         }
     };
     
     return saveBtn;
 }
+
 
 
 
