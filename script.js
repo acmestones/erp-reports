@@ -1448,7 +1448,7 @@ async function showDetailModal(row, columns, reportName, config) {
                         imageUploadInput.click();
                     };
                     
- imageUploadInput.addEventListener('change', async function(event) {
+imageUploadInput.addEventListener('change', async function(event) {
     const file = event.target.files[0];
     if (!file) return;
     
@@ -1473,7 +1473,7 @@ async function showDetailModal(row, columns, reportName, config) {
         formData.append('doctype', config.doctype || 'Work Order');
         formData.append('docname', docName);
         
-        const uploadResponse = await fetch(`${APIBASE}?action=uploadfile`, {
+        const uploadResponse = await fetch('erpproxy.php?action=uploadfile', {
             method: 'POST',
             body: formData
         });
@@ -1492,16 +1492,12 @@ async function showDetailModal(row, columns, reportName, config) {
             throw new Error('No file URL in upload response');
         }
         
-        // The file is public, so use the /files/ URL directly
-        // The SQL REPLACE will convert /private/files/ to /files/ anyway
-        // But since we uploaded as public, it's already at /files/
-        
         // Insert the image into the editor
         editableDiv.focus();
         
         const img = document.createElement('img');
-        img.src = fileUrl; // Use the actual file URL, not base64
-        img.dataset.originalSrc = fileUrl; // Store for saving
+        img.src = fileUrl;
+        img.dataset.originalSrc = fileUrl;
         img.style.maxWidth = '100%';
         img.style.height = 'auto';
         img.style.display = 'block';
@@ -1532,6 +1528,7 @@ async function showDetailModal(row, columns, reportName, config) {
     
     event.target.value = '';
 });
+
 
                     
                     // Create Edit/Cancel/Save buttons
