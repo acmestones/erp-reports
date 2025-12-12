@@ -1431,93 +1431,92 @@ async function showDetailModal(row, columns, reportName, config) {
                     displayDiv.innerHTML = htmlValue;
                     
                     // Fetch and append attached files (that aren't already in the description)
-                    if (reportFieldname === 'item_description') {
-                        const attachedFiles = await getAttachedFiles(config.doctype || 'Work Order', docName);
-                        
-                        if (attachedFiles.length > 0) {
-                            // Get current description HTML to check which files are already shown
-                            const currentHtml = htmlValue.toLowerCase();
-                            
-                            // Filter files that aren't already in the description
-                            const newFiles = attachedFiles.filter(file => {
-                                const fileName = (file.file_name || '').toLowerCase();
-                                return !currentHtml.includes(fileName);
-                            });
-                            
-                            if (newFiles.length > 0) {
-                                const filesContainer = document.createElement('div');
-                                filesContainer.style.marginTop = '15px';
-                                
-                                newFiles.forEach(file => {
-                                    const fileUrl = fixImageUrl(file.file_url);
-                                    const fileName = file.file_name;
-                                    const ext = fileName.split('.').pop().toLowerCase();
-                                    
-                                    // Check if it's an image
-                                    if (['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'].includes(ext)) {
-                                        const imgDiv = document.createElement('div');
-                                        imgDiv.style.margin = '5px';
-                                        imgDiv.style.display = 'inline-block';
-                                        
-                                        const img = document.createElement('img');
-                                        img.src = fileUrl;
-                                        img.style.maxHeight = '80px';
-                                        img.style.maxWidth = '120px';
-                                        img.style.width = 'auto';
-                                        img.style.height = 'auto';
-                                        img.style.border = '1px solid #ddd';
-                                        img.style.borderRadius = '4px';
-                                        img.style.objectFit = 'contain';
-                                        img.style.cursor = 'pointer';
-                                        img.style.margin = '2px';
-                                        img.onclick = function(e) {
-                                            e.preventDefault();
-                                            e.stopPropagation();
-                                            window.open(fileUrl, '_blank', 'noopener,noreferrer');
-                                        };
-                                        
-                                        imgDiv.appendChild(img);
-                                        filesContainer.appendChild(imgDiv);
-                                                 } else {
-                                                    // Non-image file - show as download link
-                                                    const fileDiv = document.createElement('div');
-                                                    fileDiv.style.marginTop = '5px';
-                                                    fileDiv.style.padding = '8px';
-                                                    fileDiv.style.background = '#f8f9fa';
-                                                    fileDiv.style.borderRadius = '4px';
-                                                    fileDiv.style.margin = '2px 0';
-                                                    
-                                                    // Determine border color and icon based on file type
-                                                    let borderColor = '#6f42c1';
-                                                    let icon = '📎';
-                                                    if (ext === 'pdf') { borderColor = '#dc3545'; icon = '📄'; }
-                                                    else if (['dwg', 'dxf'].includes(ext)) { borderColor = '#28a745'; icon = '🔧'; }
-                                                    else if (['step', 'iges'].includes(ext)) { borderColor = '#28a745'; icon = '⚙️'; }
-                                                    else if (['doc', 'docx', 'rtf'].includes(ext)) { borderColor = '#0d6efd'; icon = '📝'; }
-                                                    else if (['xls', 'xlsx', 'csv'].includes(ext)) { borderColor = '#198754'; icon = '📊'; }
-                                                    else if (['zip', 'rar', '7z'].includes(ext)) { borderColor = '#fd7e14'; icon = '📦'; }
-                                                    else if (['txt', 'log'].includes(ext)) { borderColor = '#6c757d'; icon = '📋'; }
-                                                    
-                                                    fileDiv.style.borderLeft = `3px solid ${borderColor}`;
-                                                    
-                                                    const link = document.createElement('a');
-                                                    link.href = fileUrl; // fileUrl already processed by fixImageUrl
-                                                    link.download = fileName; // Force download
-                                                    link.style.textDecoration = 'none';
-                                                    link.style.color = '#212529';
-                                                    link.style.fontWeight = '500';
-                                                    link.style.display = 'flex';
-                                                    link.style.alignItems = 'center';
-                                                    
-                                                    link.innerHTML = `${icon} <span style="margin-left: 8px;">${fileName}</span><span style="margin-left: auto; font-size: 10px; color: #6c757d; text-transform: uppercase;">${ext}</span>`;
-                                                    
-                                                    fileDiv.appendChild(link);
-                                                    filesContainer.appendChild(fileDiv);
-                                                }
+ if (reportFieldname === 'item_description') {
+    const attachedFiles = await getAttachedFiles(config.doctype || 'Work Order', docName);
+    
+    if (attachedFiles.length > 0) {
+        const currentHtml = htmlValue.toLowerCase();
+        
+        const newFiles = attachedFiles.filter(file => {
+            const fileName = (file.file_name || '').toLowerCase();
+            return !currentHtml.includes(fileName);
+        });
+        
+        if (newFiles.length > 0) {
+            const filesContainer = document.createElement('div');
+            filesContainer.style.marginTop = '15px';
+            
+            newFiles.forEach(file => {
+                const fileUrl = fixImageUrl(file.file_url);
+                const fileName = file.file_name;
+                const ext = fileName.split('.').pop().toLowerCase();
+                
+                if (['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'].includes(ext)) {
+                    const imgDiv = document.createElement('div');
+                    imgDiv.style.margin = '5px';
+                    imgDiv.style.display = 'inline-block';
+                    
+                    const img = document.createElement('img');
+                    img.src = fileUrl;
+                    img.style.maxHeight = '80px';
+                    img.style.maxWidth = '120px';
+                    img.style.width = 'auto';
+                    img.style.height = 'auto';
+                    img.style.border = '1px solid #ddd';
+                    img.style.borderRadius = '4px';
+                    img.style.objectFit = 'contain';
+                    img.style.cursor = 'pointer';
+                    img.style.margin = '2px';
+                    img.onclick = function(e) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        window.open(fileUrl, '_blank', 'noopener,noreferrer');
+                    };
+                    
+                    imgDiv.appendChild(img);
+                    filesContainer.appendChild(imgDiv);
+                } else {
+                    // Non-image file - show as download link
+                    const fileDiv = document.createElement('div');
+                    fileDiv.style.marginTop = '5px';
+                    fileDiv.style.padding = '8px';
+                    fileDiv.style.background = '#f8f9fa';
+                    fileDiv.style.borderRadius = '4px';
+                    fileDiv.style.margin = '2px 0';
+                    
+                    let borderColor = '#6f42c1';
+                    let icon = '📎';
+                    if (ext === 'pdf') { borderColor = '#dc3545'; icon = '📄'; }
+                    else if (['dwg', 'dxf'].includes(ext)) { borderColor = '#28a745'; icon = '🔧'; }
+                    else if (['step', 'iges'].includes(ext)) { borderColor = '#28a745'; icon = '⚙️'; }
+                    else if (['doc', 'docx', 'rtf'].includes(ext)) { borderColor = '#0d6efd'; icon = '📝'; }
+                    else if (['xls', 'xlsx', 'csv'].includes(ext)) { borderColor = '#198754'; icon = '📊'; }
+                    else if (['zip', 'rar', '7z'].includes(ext)) { borderColor = '#fd7e14'; icon = '📦'; }
+                    else if (['txt', 'log'].includes(ext)) { borderColor = '#6c757d'; icon = '📋'; }
+                    
+                    fileDiv.style.borderLeft = `3px solid ${borderColor}`;
+                    
+                    const link = document.createElement('a');
+                    link.href = fileUrl;
+                    link.download = fileName;
+                    link.style.textDecoration = 'none';
+                    link.style.color = '#212529';
+                    link.style.fontWeight = '500';
+                    link.style.display = 'flex';
+                    link.style.alignItems = 'center';
+                    
+                    link.innerHTML = `${icon} <span style="margin-left: 8px;">${fileName}</span><span style="margin-left: auto; font-size: 10px; color: #6c757d; text-transform: uppercase;">${ext}</span>`;
+                    
+                    fileDiv.appendChild(link);
+                    filesContainer.appendChild(fileDiv);
+                }
+            });
+            
+            displayDiv.appendChild(filesContainer);
+        }
+    }
+}
 
-                                });
-                                
-                                displayDiv.appendChild(filesContainer);
                             }
                         }
                     }
