@@ -1267,6 +1267,16 @@ function createCard(row, columns, reportName, config) {
 
 
 
+async function getAttachedFiles(doctype, docname) {
+    try {
+        const response = await fetch(`${APIBASE}?action=getattachedfiles&doctype=${encodeURIComponent(doctype)}&docname=${encodeURIComponent(docname)}`);
+        const result = await response.json();
+        return result.files || [];
+    } catch (error) {
+        console.error('Error fetching attached files:', error);
+        return [];
+    }
+}
 
 
 
