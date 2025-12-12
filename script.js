@@ -1275,7 +1275,7 @@ function createCard(row, columns, reportName, config) {
 
 async function showDetailModal(row, columns, reportName, config) {
     const modal = new bootstrap.Modal(document.getElementById('detailModal'));
-    const titleField = config.titlefield || 'workorderid';
+    const titleField = config.titlefield || config.title_field || 'workorderid';
     let docName = row[titleField] || row.name || row.workorderid || row.id;
     
     const nameCol = columns.find(c => c.fieldname === 'name' || c.fieldname === titleField);
@@ -1287,9 +1287,10 @@ async function showDetailModal(row, columns, reportName, config) {
     const modalBody = document.getElementById('modalBody');
     modalBody.innerHTML = '';
     
-    const userPerms = config.userpermissions?.[userEmail] || {};
-    const editableFields = userPerms.editablefields || [];
-    const hiddenFields = userPerms.hiddenfields || [];
+    // FIX: Use correct property names with underscores
+    const userPerms = config.user_permissions?.[userEmail] || config.userpermissions?.[userEmail] || {};
+    const editableFields = userPerms.editable_fields || userPerms.editablefields || [];
+    const hiddenFields = userPerms.hidden_fields || userPerms.hiddenfields || [];
     const canEdit = currentUser.can_edit;
     
     for (const col of columns) {
