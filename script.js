@@ -555,39 +555,142 @@ async function getPlantOptions() {
 
 
 // Build a mapping of report field names to actual database field names
-function buildFieldMapping(columns) {
+// Cache for DocType metadata
+let doctypeFieldsCache = {};
+
+async function fetchDoctypeFields(doctype) {
+    if (doctypeFieldsCache[doctype]) {
+        console.log(`📦 Using cached fields for ${doctype}`);
+        return doctypeFieldsCache[doctype];
+    }
+    
+    try {
+        const res = await fetch(`${API_BASE}?action=get_doctype_meta&doctype=${encodeURIComponent(doctype)}`);
+        const data = await res.json();
+        if (data.success) {
+            doctypeFieldsCache[doctype] = data.fields;
+            console.log(`✅ Fetched ${data.fields.length} fields for ${doctype}`);
+            return data.fields;
+        }
+    } catch (err) {
+        console.error('Error fetching DocType fields:', err);
+    }
+    return [];
+}
+
+async function buildFieldMapping(columns, reportName) {
     const mapping = {};
+    const config = reportConfig[reportName] || {};
+    const doctype = config.doctype || 'Work Order';
     
-    // List of standard ERPNext Work Order fields (non-custom)
-    const standardFields = [
-        'name', 'owner', 'creation', 'modified', 'modified_by', 'docstatus', 'idx',
-        'status', 'company', 'qty', 'description', 'remarks', 'workstation', 
-        'operation', 'production_item', 'sales_order', 'bom_no', 'item_name',
-        'fg_warehouse', 'wip_warehouse', 'source_warehouse', 'planned_start_date',
-        'planned_end_date', 'expected_delivery_date', 'stock_uom', 'produced_qty',
-        'material_transferred_for_manufacturing', 'transaction_date'
-    ];
+    console.log(`🔍 Building field mapping for report: ${reportName}, DocType: ${doctype}`);
     
-    columns.forEach(col => {
+    // Fetch actual ERP fields
+    const erpFields = await fetchDoctypeFields(doctype);
+    
+    // Get manual mappings from config
+    const manualMappings = config.field_mappings || {};
+    
+    // Track unmapped fields
+    const unmappedFields = [];
+    
+    for (const col of columns) {
         const reportFieldname = col.fieldname;
         
-        // If it already has custom_ prefix, use as-is
-        if (reportFieldname.startsWith('custom_')) {
-            mapping[reportFieldname] = reportFieldname;
+        // Priority 1: Manual mapping from config
+        if (manualMappings[reportFieldname]) {
+            const erpField = erpFields.find(f => f.fieldname === manualMappings[reportFieldname]);
+            mapping[reportFieldname] = {
+                erpField: manualMappings[reportFieldname],
+                isEditable: erpField ? (!erpField.read_only || erpField.allow_on_submit) : false,
+                isComputed: false,
+                fieldtype: erpField?.fieldtype,
+                options: erpField?.options,
+                label: erpField?.label || manualMappings[reportFieldname]
+            };
+            console.log(`✅ Manual: ${reportFieldname} → ${manualMappings[reportFieldname]}`);
+            continue;
         }
-        // If it's a standard field, use as-is
-        else if (standardFields.includes(reportFieldname)) {
-            mapping[reportFieldname] = reportFieldname;
+        
+        // Priority 2: Exact fieldname match
+        const exactMatch = erpFields.find(f => f.fieldname === reportFieldname);
+        if (exactMatch) {
+            mapping[reportFieldname] = {
+                erpField: exactMatch.fieldname,
+                isEditable: !exactMatch.read_only || exactMatch.allow_on_submit,
+                isComputed: false,
+                fieldtype: exactMatch.fieldtype,
+                options: exactMatch.options,
+                label: exactMatch.label
+            };
+            console.log(`✅ Exact: ${reportFieldname}`);
+            continue;
         }
-        // Otherwise, assume it needs custom_ prefix
-        else {
-            mapping[reportFieldname] = 'custom_' + reportFieldname;
-            console.log(`📋 Auto-mapping: ${reportFieldname} → custom_${reportFieldname}`);
+        
+        // Priority 3: Try with custom_ prefix
+        const customFieldname = reportFieldname.startsWith('custom_') ? reportFieldname : 'custom_' + reportFieldname;
+        const customMatch = erpFields.find(f => f.fieldname === customFieldname);
+        if (customMatch) {
+            mapping[reportFieldname] = {
+                erpField: customMatch.fieldname,
+                isEditable: !customMatch.read_only || customMatch.allow_on_submit,
+                isComputed: false,
+                fieldtype: customMatch.fieldtype,
+                options: customMatch.options,
+                label: customMatch.label
+            };
+            console.log(`✅ Custom: ${reportFieldname} → ${customFieldname}`);
+            continue;
         }
-    });
+        
+        // Priority 4: Label matching (fuzzy)
+        const normalizeLabel = (str) => str.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+        const reportLabel = normalizeLabel(col.label || reportFieldname);
+        
+        const labelMatch = erpFields.find(f => {
+            const erpLabel = normalizeLabel(f.label || '');
+            return erpLabel && erpLabel === reportLabel;
+        });
+        
+        if (labelMatch) {
+            mapping[reportFieldname] = {
+                erpField: labelMatch.fieldname,
+                isEditable: !labelMatch.read_only || labelMatch.allow_on_submit,
+                isComputed: false,
+                fieldtype: labelMatch.fieldtype,
+                options: labelMatch.options,
+                label: labelMatch.label
+            };
+            console.log(`✅ Label: ${reportFieldname} → ${labelMatch.fieldname} (via label: "${col.label}")`);
+            continue;
+        }
+        
+        // No match found - mark as computed/unmapped
+        mapping[reportFieldname] = {
+            erpField: null,
+            isEditable: false,
+            isComputed: true,
+            label: col.label || reportFieldname
+        };
+        unmappedFields.push({
+            reportField: reportFieldname,
+            label: col.label || reportFieldname
+        });
+        console.log(`⚠️ Unmapped: ${reportFieldname} (${col.label})`);
+    }
+    
+    // Store unmapped fields in config for manual mapping UI
+    if (unmappedFields.length > 0) {
+        if (!reportConfig[reportName]) {
+            reportConfig[reportName] = {};
+        }
+        reportConfig[reportName].unmapped_fields = unmappedFields;
+        console.log(`⚠️ ${unmappedFields.length} fields need manual mapping`);
+    }
     
     return mapping;
 }
+
 
 
 
@@ -680,7 +783,7 @@ async function loadReport(reportName) {
         currentReportColumns = columns;
         
         // Build field name mapping from report names to actual database field names
-        const fieldMapping = buildFieldMapping(columns);
+        const fieldMapping = await buildFieldMapping(columns, reportName);
         window.reportFieldMapping = fieldMapping;
         console.log("Field mapping created:", fieldMapping);
         
