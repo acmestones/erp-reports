@@ -29,7 +29,37 @@ document.getElementById("userEmail").textContent = userEmail;
         
         if (currentUser.role === 'admin') {
             document.getElementById("adminControls").style.display = 'block';
-            document.getElementById("settingsBtn").addEventListener("click", openAdminSettings);
+                    document.getElementById("settingsBtn").addEventListener("click", () => {
+                        const reportName = currentReportData?.reportName || '';
+                        
+                        if (!reportName) {
+                            alert('Please load a report first');
+                            return;
+                        }
+                        
+                        const menuHtml = `
+                            <div class="d-grid gap-2">
+                                <button class="btn btn-outline-primary" onclick="openAdminSettings()">
+                                    👥 User Management
+                                </button>
+                                <button class="btn btn-outline-primary" onclick="openReportConfig()">
+                                    ⚙️ Report Configuration
+                                </button>
+                                <button class="btn btn-outline-primary" onclick="openFieldMappingConfig('${reportName}')">
+                                    🔗 Field Mappings
+                                </button>
+                            </div>
+                        `;
+                        
+                        const modal = new bootstrap.Modal(document.getElementById('adminModal'));
+                        const modalBody = document.querySelector('#adminModal .modal-body');
+                        const modalTitle = document.querySelector('#adminModal .modal-title');
+                        
+                        modalTitle.textContent = 'Admin Settings';
+                        modalBody.innerHTML = menuHtml;
+                        modal.show();
+                    });
+
         }
 
 
