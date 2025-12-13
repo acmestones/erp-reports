@@ -605,12 +605,13 @@ async function fetchDoctypeFields(doctype) {
     return [];
 }
 
-async function buildFieldMapping(reportColumns, doctype) {
+
+async function buildFieldMapping(reportColumns, doctype, reportName) {
     const mapping = {};
     const erpFields = await fetchDoctypeFields(doctype);
     
     // Get user-configured mappings from report config
-    const config = reportConfig[currentReportName] || {};
+    const config = reportConfig[reportName] || {};
     const manualMappings = config.field_mappings || {};
     
     console.log('🔍 Building field mapping...');
@@ -689,6 +690,7 @@ async function buildFieldMapping(reportColumns, doctype) {
     
     return mapping;
 }
+
 
 
 
@@ -929,7 +931,8 @@ async function loadReport(reportName) {
 
         // Build field mapping dynamically from ERPNext
         console.log('🔄 Building dynamic field mapping for DocType:', doctype);
-        const fieldMapping = await buildFieldMapping(columns, doctype);
+        const fieldMapping = await buildFieldMapping(columns, doctype, reportName);
+
         window.reportFieldMapping = fieldMapping;  // Store globally for use in modal
         
         console.log("✅ Field mapping created:", fieldMapping);
