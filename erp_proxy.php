@@ -1958,6 +1958,55 @@ if (isset($_GET['action']) && $_GET['action'] === 'save_card_priority') {
 
 
 
+// Get DocType metadata (field definitions)
+if (isset($_GET['action']) && $_GET['action'] === 'get_doctype_meta') {
+    $doctype = $_GET['doctype'] ?? '';
+    if (empty($doctype)) {
+        echo json_encode(['error' => 'DocType not specified']);
+        exit;
+    }
+    
+    $ch = curl_init();
+    $url = ERP_BASE . "/api/resource/DocType/" . urlencode($doctype);
+    curl_setopt_array($ch, [
+        CURLOPT_URL => $url,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HTTPHEADER => [
+            "Authorization: token " . API_KEY . ":" . API_SECRET
+        ],
+        CURLOPT_SSL_VERIFYPEER => false
+    ]);
+    
+    $res = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    
+    if ($httpCode === 200) {
+        $data = json_decode($res, true);
+        // Extract only the fields array with relevant info
+        $fields = [];
+        if (isset($data['data']['fields'])) {
+            foreach ($data['data']['fields'] as $field) {
+                $fields[] = [
+                    'fieldname' => $field['fieldname'],
+                    'label' => $field['label'],
+                    'fieldtype' => $field['fieldtype'],
+                    'options' => $field['options'] ?? null,
+                    'read_only' => $field['read_only'] ?? 0,
+                    'in_list_view' => $field['in_list_view'] ?? 0
+                ];
+            }
+        }
+        echo json_encode(['success' => true, 'fields' => $fields]);
+    } else {
+        echo json_encode(['error' => 'Failed to fetch DocType meta', 'http_code' => $httpCode]);
+    }
+    exit;
+}
+
+
+
+
 
 
 
