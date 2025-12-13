@@ -1278,202 +1278,415 @@ function renderGroupedCards(grouped, columns, reportName) {
 function createCard(row, columns, reportName, config) {
     const card = document.createElement("div");
     card.className = "card card-report h-100";
-
-    // ========== SMART DOCNAME DETECTION ==========
-    // Priority order:
-    // 1. Use title_field from config (the displayed title)
-    // 2. Fall back to row.name (ERPNext document name)
-    // 3. Try common ID fields
-    // 4. Use first available field
     
-    const titleField = config.title_field || "work_order_id";
+    const titleField = config.titlefield || 'name';
+    const cardFields = config.cardfields || [];
+    const imageFields = config.imagefields || ['item_description', 'custom_description_cleaned', 'description'];
+    
     const possibleIds = [
-        row.name,                    // ERPNext document name (e.g., "WO-00123")
-        row[titleField],             // Whatever is configured as title
-        row.work_order_id,           // Work Order ID
-        row.sales_order_id,          // Sales Order ID  
-        row.job_card,                // Job Card ID
-        row.item_code,               // Item Code
-        row.customer,                // Customer name
-        ''                           // Empty fallback
+        row.name,
+        row[titleField],
+        row['work_order_id'],
+        row['sales_order_id'],
+        row['job_card'],
+        row['item_code'],
+        row['customer']
     ];
+    const docName = possibleIds.find(id => id && id !== '') || 'Unknown';
+    card.dataset.docname = docName;
     
-    // Find the first non-empty value
-    card.dataset.docname = possibleIds.find(id => id && id !== '') || '';
-    
-    // Warn if no valid ID found
-    if (!card.dataset.docname) {
-        console.warn('⚠️ No valid docname found. Title field:', titleField, 'Row:', row);
-    }
-    
-    console.log('Card docname set to:', card.dataset.docname, 'from field:', titleField);
-    // ========== END SMART DETECTION ==========
-    
-    const userPerms = config.user_permissions?.[userEmail];
-    const hiddenFields = userPerms?.hidden_fields || [];
-    const cardFields = config.card_fields || ["customer", "production_item", "quantity_to_manufacture", "completed_qty", "workstation"];
-    const imageFields = config.image_fields || [];
-    
-    const name = row[titleField] || row.name || row["work_order_id"] || row["item_code"] || "Record";
-    
-    const statusFields = ["status", "operation_status", "work_order_status"];
-    let status;
-    for (const sf of statusFields) {
-        if (row[sf]) {
-            status = row[sf];
-            break;
-        }
-    }
-    
+    // Extract image
     const imgUrl = extractImageFromRow(row, columns, imageFields);
-    if (imgUrl) {
-        const img = document.createElement("img");
-        img.className = "card-img-top";
-        img.src = imgUrl;
-        img.alt = name;
-        img.style.height = "180px";
-        img.style.objectFit = "cover";
-        img.onerror = function() {
-            console.error("Failed to load image:", imgUrl);
-            this.style.display = "none";
-        };
-        card.appendChild(img);
-    }
     
     const cardBody = document.createElement("div");
-    cardBody.className = "card-body";
-
-
-        // ========== ADD DRAG HANDLE FOR MOBILE ==========
-        if (currentUser && currentUser.role === 'admin') {
-            const dragHandle = document.createElement("div");
-            dragHandle.className = "drag-handle";
-            dragHandle.innerHTML = '<i class="bi bi-grip-vertical"></i>';
-            
-            // Check if mobile
-            const isMobile = window.innerWidth <= 768;
-            
-            if (isMobile) {
-                dragHandle.title = "Tap to reorder";
-                dragHandle.style.cursor = "pointer";
-                
-                // Store data for mobile reorder
-                dragHandle.dataset.reportName = reportName;
-                dragHandle.dataset.primaryGroup = config.group_by?.[0] ? row[config.group_by[0]] : 'All';
-                dragHandle.dataset.secondaryGroup = config.group_by?.[1] ? row[config.group_by[1]] : 'All';
-                
-                // Open mobile reorder modal on tap
-                dragHandle.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    openMobileReorderModal(
-                        dragHandle.dataset.reportName,
-                        dragHandle.dataset.primaryGroup,
-                        dragHandle.dataset.secondaryGroup
-                    );
-                });
-            } else {
-                dragHandle.title = "Hold and drag to reorder";
-            }
-            
-            cardBody.appendChild(dragHandle);
-        }
-        // ========== END DRAG HANDLE ==========
-
-
+    cardBody.className = "card-body d-flex flex-column";
     
-    if (status) {
-        const badge = document.createElement("span");
-        badge.className = "badge bg-secondary mb-2";
-        badge.style.fontSize = "0.7rem";
-        badge.style.padding = "0.25rem 0.5rem";
-        badge.textContent = status;
-        cardBody.appendChild(badge);
+    // Image section
+    if (imgUrl) {
+        const imgContainer = document.createElement("div");
+        imgContainer.className = "card-image-container mb-2";
+        const img = document.createElement("img");
+        img.src = imgUrl;
+        img.className = "card-img-top";
+        img.style.width = "100%";
+        img.style.height = "auto";
+        img.style.maxHeight = "150px";
+        img.style.objectFit = "contain";
+        img.onerror = function() {
+            this.style.display = 'none';
+        };
+        imgContainer.appendChild(img);
+        cardBody.appendChild(imgContainer);
     }
     
+    // Title
     const title = document.createElement("h6");
-    title.className = "card-title mb-2";
-    title.textContent = name;
+    title.className = "card-title";
+    title.textContent = docName;
     cardBody.appendChild(title);
     
-    let count = 0;
-    cardFields.forEach(fieldKey => {
-        if (count >= 5) return;
-        if (hiddenFields.includes(fieldKey)) return;
-        if (row[fieldKey] !== null && row[fieldKey] !== undefined && row[fieldKey] !== "") {
-            const col = columns.find(c => c.fieldname === fieldKey);
-            const label = col ? (fieldLabels[fieldKey] || col.label || fieldKey) : fieldKey;
-            
-            const p = document.createElement("p");
-            p.className = "mb-1 small";
-            
-            let value = row[fieldKey];
-            if (typeof value === "string" && value.length > 40) {
-                value = value.substring(0, 40) + "...";
-            }
-            
-            p.innerHTML = `<strong>${label}:</strong> ${value}`;
-            cardBody.appendChild(p);
-            count++;
+    // Card fields
+    cardFields.forEach(fieldname => {
+        const col = columns.find(c => c.fieldname === fieldname);
+        if (!col) return;
+        
+        const value = row[fieldname];
+        if (!value || value === '') return;
+        
+        const fieldContainer = document.createElement("div");
+        fieldContainer.className = "mb-1 small";
+        
+        const fieldLabel = document.createElement("strong");
+        fieldLabel.textContent = (col.label || col.fieldname) + ": ";
+        fieldContainer.appendChild(fieldLabel);
+        
+        const fieldValue = document.createElement("span");
+        if (typeof value === 'string' && value.length > 50) {
+            fieldValue.textContent = value.substring(0, 50) + '...';
+        } else {
+            fieldValue.textContent = value;
         }
+        fieldContainer.appendChild(fieldValue);
+        cardBody.appendChild(fieldContainer);
     });
     
-    // Create buttons container
-    const buttonsContainer = document.createElement("div");
-    buttonsContainer.className = "d-flex flex-column gap-2 mt-2";
-    
-    // View Details button (always present)
-    const detailsBtn = document.createElement("button");
-    detailsBtn.className = "btn btn-sm btn-outline-primary";
-    detailsBtn.textContent = "View Details";
-    detailsBtn.addEventListener("click", () => {
-        showDetailModal(row, columns, reportName, config);
-    });
-    buttonsContainer.appendChild(detailsBtn);
-    
-    // Add Time Logs button if configured
-    if (config.show_time_logs_button && row['job_card']) {
-        const timeLogsPerms = config.time_logs_permissions?.[userEmail] || {};
-        
-        if (timeLogsPerms.can_view) {
-            const timeLogsBtn = document.createElement("button");
-            timeLogsBtn.className = "btn btn-sm btn-outline-info";
-            timeLogsBtn.innerHTML = '<i class="bi bi-clock-history"></i> Time Logs';
-            timeLogsBtn.addEventListener("click", () => {
-                // Extract plain text from HTML link if it exists
-                let jobCardName = row['job_card'];
-                
-                // If it's an HTML string, extract the text content
-                if (typeof jobCardName === 'string' && jobCardName.includes('<a')) {
-                    const tempDiv = document.createElement('div');
-                    tempDiv.innerHTML = jobCardName;
-                    jobCardName = tempDiv.textContent || tempDiv.innerText || jobCardName;
-                }
-                
-                showTimeLogsModal(jobCardName, reportName, config);
-            });
-            buttonsContainer.appendChild(timeLogsBtn);
-        }
+    // Drag handle for admin
+    if (currentUser && currentUser.role === 'admin') {
+        const dragHandle = document.createElement("div");
+        dragHandle.className = "drag-handle";
+        dragHandle.innerHTML = "⋮⋮";
+        dragHandle.title = "Drag to reorder";
+        card.appendChild(dragHandle);
     }
     
-    // Add Operation Planning button if configured
-    if (config.show_operation_planning_button !== false) {
-        const opPerms = config.operation_planning_permissions?.[userEmail] || {};
-        
-        if (opPerms.can_view) {
-            const opPlanningBtn = document.createElement("button");
-            opPlanningBtn.className = "btn btn-sm btn-outline-success";
-            opPlanningBtn.innerHTML = '<i class="bi bi-diagram-3"></i> Operation Planning';
-            opPlanningBtn.addEventListener("click", () => {
-                console.log('Row data:', row);
-                console.log('Work Order ID:', row.work_order_id || row.name);
-                openOperationPlanningModal(row, config, reportName);
-            });
-            buttonsContainer.appendChild(opPlanningBtn);
-        }
-    }
-    
-    cardBody.appendChild(buttonsContainer);
     card.appendChild(cardBody);
+    
+    // Click handler to open modal
+    card.addEventListener("click", () => {
+        const modalEl = document.getElementById("cardModal");
+        const modal = new bootstrap.Modal(modalEl);
+        const modalBody = modalEl.querySelector(".modal-body");
+        const modalTitle = modalEl.querySelector(".modal-title");
+
+        const config = reportConfig[reportName] || {};
+        const doctype = config.doctype || 'Work Order';
+        const docName = row.name || row['Work Order ID'] || 'Unknown';
+
+        modalTitle.textContent = `${docName}`;
+        modalBody.innerHTML = "";
+
+        // Get field mapping
+        const fieldMapping = window.reportFieldMapping || {};
+
+        for (const col of columns) {
+            const value = row[col.fieldname];
+            const label = col.label || col.fieldname;
+            const hasValue = value !== null && value !== undefined && value !== '';
+            
+            // Get field mapping info
+            const fieldInfo = fieldMapping[col.fieldname] || {
+                erpField: null,
+                isEditable: false,
+                isComputed: true
+            };
+
+            console.log(`Field: ${col.fieldname}, Mapping:`, fieldInfo);
+
+            const fieldDiv = document.createElement("div");
+            fieldDiv.className = "mb-3 border-bottom pb-2";
+
+            const labelDiv = document.createElement("div");
+            labelDiv.className = "text-muted small mb-1";
+            labelDiv.textContent = label;
+
+            const valueDiv = document.createElement("div");
+
+            // Determine if field is editable
+            const isEditable = config.editable_fields?.includes(col.fieldname) && 
+                              fieldInfo.erpField && 
+                              fieldInfo.isEditable;
+
+            if (isEditable && hasValue) {
+                // EDITABLE FIELD
+                const actualFieldname = fieldInfo.erpField;
+
+                if (col.fieldtype === "Text Editor" || col.fieldtype === "Text" || col.fieldname.toLowerCase().includes('description')) {
+                    // Rich Text Editor
+                    const richTextContainer = document.createElement('div');
+                    richTextContainer.className = 'richtext-container';
+
+                    // Display mode
+                    const displayDiv = document.createElement('div');
+                    displayDiv.className = 'richtext-display';
+                    let htmlValue = value || '';
+                    let originalHtmlValue = htmlValue;
+
+                    // Extract HTML from Quill editor format if present
+                    if (typeof htmlValue === "string" && htmlValue.includes("ql-editor")) {
+                        const tempDiv = document.createElement('div');
+                        tempDiv.innerHTML = htmlValue;
+                        const qlEditor = tempDiv.querySelector('.ql-editor');
+                        htmlValue = qlEditor ? qlEditor.innerHTML : htmlValue;
+                        originalHtmlValue = htmlValue;
+                    }
+
+                    displayDiv.innerHTML = htmlValue;
+
+                    // Fix image URLs in display for viewing
+                    displayDiv.querySelectorAll('img').forEach(img => {
+                        const originalSrc = img.getAttribute('src');
+                        const fixedUrl = fixImageUrl(originalSrc);
+                        img.setAttribute('src', fixedUrl);
+                        img.style.maxWidth = '100%';
+                        img.style.height = 'auto';
+                    });
+
+                    // Create edit mode (contenteditable)
+                    const editorContainer = document.createElement('div');
+                    editorContainer.className = 'richtext-editor-container';
+                    editorContainer.style.display = 'none';
+
+                    // Toolbar
+                    const toolbar = document.createElement('div');
+                    toolbar.className = 'richtext-toolbar mb-2';
+                    toolbar.innerHTML = `
+                        <button class="btn btn-sm btn-outline-secondary" data-command="bold" title="Bold"><b>B</b></button>
+                        <button class="btn btn-sm btn-outline-secondary" data-command="italic" title="Italic"><i>I</i></button>
+                        <button class="btn btn-sm btn-outline-secondary" data-command="underline" title="Underline"><u>U</u></button>
+                        <button class="btn btn-sm btn-outline-secondary" data-command="insertUnorderedList" title="Bullet List">• List</button>
+                        <button class="btn btn-sm btn-outline-secondary" data-command="insertOrderedList" title="Numbered List">1. List</button>
+                        <button class="btn btn-sm btn-outline-primary" id="insertImageBtn" title="Insert Image">📷 Image</button>
+                        <input type="file" id="imageUploadInput" accept="image/*" style="display: none;">
+                    `;
+
+                    // Editable div
+                    const editableDiv = document.createElement('div');
+                    editableDiv.className = 'form-control form-control-sm editable-richtext';
+                    editableDiv.contentEditable = true;
+                    editableDiv.style.minHeight = '150px';
+                    editableDiv.style.maxHeight = '400px';
+                    editableDiv.style.overflowY = 'auto';
+                    editableDiv.style.whiteSpace = 'pre-wrap';
+                    editableDiv.innerHTML = originalHtmlValue;
+                    editableDiv.dataset.fieldname = actualFieldname;
+                    editableDiv.dataset.docname = docName;
+                    editableDiv.dataset.doctype = doctype;
+
+                    // Assemble editor
+                    editorContainer.appendChild(toolbar);
+                    editorContainer.appendChild(editableDiv);
+
+                    // Add image upload functionality
+                    const insertImageBtn = toolbar.querySelector('#insertImageBtn');
+                    const imageUploadInput = toolbar.querySelector('#imageUploadInput');
+
+                    insertImageBtn.onclick = (e) => {
+                        e.preventDefault();
+                        imageUploadInput.click();
+                    };
+
+                    imageUploadInput.addEventListener('change', async function(event) {
+                        const file = event.target.files[0];
+                        if (!file) return;
+
+                        if (!file.type.startsWith('image/')) {
+                            alert('Please select an image file');
+                            return;
+                        }
+
+                        if (file.size > 2 * 1024 * 1024) {
+                            alert('Image size should be less than 2MB');
+                            return;
+                        }
+
+                        const reader = new FileReader();
+                        reader.onload = function(e) {
+                            const base64Image = e.target.result;
+                            editableDiv.focus();
+
+                            const img = document.createElement('img');
+                            img.src = base64Image;
+                            img.style.maxWidth = '100%';
+                            img.style.height = 'auto';
+                            img.style.display = 'block';
+                            img.style.margin = '10px 0';
+
+                            const selection = window.getSelection();
+                            if (selection.rangeCount > 0) {
+                                const range = selection.getRangeAt(0);
+                                range.deleteContents();
+                                range.insertNode(img);
+                                range.setStartAfter(img);
+                                range.setEndAfter(img);
+                                selection.removeAllRanges();
+                                selection.addRange(range);
+                            } else {
+                                editableDiv.appendChild(img);
+                            }
+                        };
+                        reader.readAsDataURL(file);
+                        event.target.value = '';
+                    });
+
+                    // Toolbar button handlers
+                    toolbar.querySelectorAll('[data-command]').forEach(btn => {
+                        btn.addEventListener('click', (e) => {
+                            e.preventDefault();
+                            const command = btn.dataset.command;
+                            document.execCommand(command, false, null);
+                            editableDiv.focus();
+                        });
+                    });
+
+                    // Create Edit/Cancel/Save buttons
+                    const buttonContainer = document.createElement('div');
+                    buttonContainer.className = 'mt-2';
+
+                    const editBtn = document.createElement('button');
+                    editBtn.className = 'btn btn-sm btn-primary';
+                    editBtn.textContent = 'Edit';
+                    editBtn.onclick = () => {
+                        editableDiv.innerHTML = originalHtmlValue;
+                        editableDiv.querySelectorAll('img').forEach(img => {
+                            const originalSrc = img.getAttribute('src');
+                            img.dataset.originalSrc = originalSrc;
+                            const fixedUrl = fixImageUrl(originalSrc);
+                            img.setAttribute('src', fixedUrl);
+                            img.style.maxWidth = '100%';
+                            img.style.height = 'auto';
+                        });
+
+                        displayDiv.style.display = 'none';
+                        editorContainer.style.display = 'block';
+                        editBtn.style.display = 'none';
+                        cancelBtn.style.display = 'inline-block';
+                        saveBtn.style.display = 'inline-block';
+                    };
+
+                    const cancelBtn = document.createElement('button');
+                    cancelBtn.className = 'btn btn-sm btn-secondary me-2';
+                    cancelBtn.textContent = 'Cancel';
+                    cancelBtn.style.display = 'none';
+                    cancelBtn.onclick = () => {
+                        displayDiv.style.display = 'block';
+                        editorContainer.style.display = 'none';
+                        editBtn.style.display = 'inline-block';
+                        cancelBtn.style.display = 'none';
+                        saveBtn.style.display = 'none';
+                    };
+
+                    const saveBtn = createSaveButton(editableDiv, reportName, modal);
+                    saveBtn.style.display = 'none';
+
+                    buttonContainer.appendChild(editBtn);
+                    buttonContainer.appendChild(cancelBtn);
+                    buttonContainer.appendChild(saveBtn);
+
+                    richTextContainer.appendChild(displayDiv);
+                    richTextContainer.appendChild(editorContainer);
+                    valueDiv.appendChild(richTextContainer);
+                    valueDiv.appendChild(buttonContainer);
+
+                } else {
+                    // Regular text input for other types
+                    const input = document.createElement('input');
+                    input.type = 'text';
+                    input.className = 'form-control form-control-sm';
+                    input.value = value || '';
+                    input.placeholder = `Enter ${label}...`;
+                    input.dataset.fieldname = actualFieldname;
+                    input.dataset.docname = docName;
+                    input.dataset.doctype = doctype;
+
+                    const saveBtn = createSaveButton(input, reportName, modal);
+
+                    valueDiv.appendChild(input);
+                    valueDiv.appendChild(saveBtn);
+                }
+
+            } else if (hasValue) {
+                // NON-EDITABLE FIELD - DISPLAY ONLY
+                if (typeof value === 'string' && (value.includes('<img') || value.includes('<a') || value.includes('<div'))) {
+                    // HTML content
+                    const tempDiv = document.createElement('div');
+                    tempDiv.innerHTML = value;
+
+                    // Fix image URLs
+                    tempDiv.querySelectorAll('img').forEach(img => {
+                        const originalSrc = img.getAttribute('src');
+                        const fixedUrl = fixImageUrl(originalSrc);
+                        img.setAttribute('src', fixedUrl);
+                        img.style.cursor = 'pointer';
+                        img.style.maxWidth = '100%';
+                        const imageUrl = fixedUrl;
+
+                        img.onclick = function(e) {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            window.open(imageUrl, '_blank', 'noopener,noreferrer');
+                        };
+
+                        img.onerror = function() {
+                            console.error('Failed to load image:', imageUrl);
+                            this.style.border = '1px solid #ddd';
+                            this.style.padding = '5px';
+                            this.style.backgroundColor = '#f8f9fa';
+                            this.alt = 'Image not available';
+                        };
+                    });
+
+                    // Fix links
+                    tempDiv.querySelectorAll('a').forEach(link => {
+                        const href = link.getAttribute('href');
+                        if (href) {
+                            link.href = fixImageUrl(href);
+                            link.target = '_blank';
+                            link.rel = 'noopener noreferrer';
+                            link.onclick = function(e) {
+                                e.stopPropagation();
+                            };
+                        }
+                    });
+
+                    valueDiv.appendChild(tempDiv);
+
+                } else if (col.fieldtype === "Link" && col.options) {
+                    // Link field
+                    const link = document.createElement('a');
+                    const doctypeSlug = col.options.toLowerCase().replace(/\s+/g, '-');
+                    link.href = `https://acmestones.erpnext.com/app/${doctypeSlug}/${encodeURIComponent(value)}`;
+                    link.target = '_blank';
+                    link.rel = 'noopener noreferrer';
+                    link.className = 'link-field';
+                    link.textContent = value;
+                    valueDiv.appendChild(link);
+
+                } else {
+                    // Plain text
+                    valueDiv.textContent = value;
+                }
+
+                // Add note if computed/read-only
+                if (fieldInfo.isComputed) {
+                    const note = document.createElement('small');
+                    note.className = 'text-muted d-block mt-1';
+                    note.textContent = '(Computed field - read only)';
+                    valueDiv.appendChild(note);
+                } else if (!fieldInfo.isEditable) {
+                    const note = document.createElement('small');
+                    note.className = 'text-muted d-block mt-1';
+                    note.textContent = '(Read only)';
+                    valueDiv.appendChild(note);
+                }
+            }
+
+            fieldDiv.appendChild(labelDiv);
+            fieldDiv.appendChild(valueDiv);
+            modalBody.appendChild(fieldDiv);
+        }
+
+        modal.show();
+    });
     
     return card;
 }
