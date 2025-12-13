@@ -1398,7 +1398,7 @@ async function showDetailModal(row, columns, reportName, config) {
     
     for (const col of columns) {
         const reportFieldname = col.fieldname;
-        const actualFieldname = window.reportFieldMapping?.[reportFieldname] || reportFieldname;
+        const actualFieldname = window.reportFieldMapping?.[reportFieldname]?.erpField ?? reportFieldname;
         const value = row[reportFieldname];
         
         if (hiddenFields.includes(reportFieldname)) continue;
