@@ -442,13 +442,25 @@ async function getDocCached(doctype, docname) {
  * if not, returns null (treat as computed / not editable).
  */
 function resolveTargetField(reportFieldname, config, doc = null) {
-  const override = config?.field_target_map?.[reportFieldname];
-  const autoMap = window.reportFieldMapping?.[reportFieldname];
-  const candidate = override || autoMap || reportFieldname;
+  // Support both possible config key styles
+  const mapA = config?.field_target_map || {};
+  const mapB = config?.fieldTargetMap || {};
+  const override = mapA?.[reportFieldname] || mapB?.[reportFieldname];
 
-  if (!doc) return candidate;
-  return (candidate in doc) ? candidate : null;
+  const autoMap = window.reportFieldMapping?.[reportFieldname];
+  const candidate = (override || autoMap || reportFieldname || '').trim();
+
+  if (!candidate) return null;
+
+  // If doc is provided, validate field exists (prevents "saving" into non-existent fields)
+  if (doc) {
+    return (candidate in doc) ? candidate : null;
+  }
+
+  // If doc is not available, still return candidate (allows editing UI to appear)
+  return candidate;
 }
+
 
 
 
@@ -1344,71 +1356,87 @@ function createCard(row, columns, reportName, config) {
 async function showDetailModal(row, columns, reportName, config) {
   const modal = new bootstrap.Modal(document.getElementById('detailModal'));
 
+  // ---------- Robust permissions reading (supports both config styles) ----------
+  const userEmail = localStorage.getItem('userEmail');
+
+  const permsA = config?.userpermissions?.[userEmail] || {};
+  const permsB = config?.user_permissions?.[userEmail] || {};
+  const userPerms = Object.keys(permsA).length ? permsA : permsB;
+
+  const editableFields = userPerms.editablefields || userPerms.editable_fields || [];
+  const hiddenFields = userPerms.hiddenfields || userPerms.hidden_fields || [];
+
+  const canEdit = !!(currentUser?.canedit || currentUser?.can_edit);
+
+  // ---------- Determine docName reliably ----------
   const titleField = (config && config.titlefield) ? config.titlefield : 'workorderid';
 
-  // Try to compute docName the same way your cards do
-  let docName =
-    row?.[titleField] ||
-    row?.name ||
-    row?.workorderid ||
-    row?.id;
+  // Use the same “possible ids” idea used in createCard() in your file
+  const possibleIds = [
+    row?.name,
+    row?.[titleField],
+    row?.workorderid,
+    row?.work_order,
+    row?.work_order_id,
+    row?.salesorderid,
+    row?.sales_order,
+    row?.jobcard,
+    row?.job_card,
+    row?.id
+  ].filter(v => v !== null && v !== undefined && String(v).trim() !== '');
 
-  const nameCol = columns.find(c => c.fieldname === 'name' || c.fieldname === titleField);
-  if (nameCol && nameCol.fieldname !== titleField) {
-    docName = row?.[nameCol.fieldname] || docName;
-  }
+  const docName = possibleIds.length ? String(possibleIds[0]) : '';
 
   document.getElementById('modalTitle').textContent = `${row?.[titleField] || docName || 'Details'}`;
 
   const modalBody = document.getElementById('modalBody');
   modalBody.innerHTML = '';
 
-  const userEmail = localStorage.getItem('userEmail');
+  // ---------- Doctype + doc fetch (but do NOT block UI if it fails) ----------
+  const doctype = (config?.doctype && String(config.doctype).trim()) ? String(config.doctype).trim() : 'Work Order';
 
-  // Permissions
-  const userPerms = config?.userpermissions?.[userEmail] || {};
-  const editableFields = userPerms.editablefields || [];
-  const hiddenFields = userPerms.hiddenfields || [];
-  const canEdit = !!currentUser?.canedit;
-
-  const doctype = config?.doctype || 'Work Order';
-
-  // Fetch doc only if editing is even possible (and cache it)
   let doc = null;
-  if (canEdit && editableFields.length > 0 && docName) {
+  if (docName) {
     try {
+      // getDocCached() must exist from your earlier changes; if not, replace with direct fetch
       doc = await getDocCached(doctype, docName);
     } catch (err) {
-      console.warn('Could not fetch doc for edit validation; falling back to read-only view:', err);
+      console.warn('Doc fetch failed; continuing with mapping-only edit mode:', { doctype, docName, err });
       doc = null;
     }
   }
 
+  // ---------- Render each field ----------
   for (const col of columns) {
     const reportFieldname = col.fieldname;
 
-    // Skip hidden fields
     if (hiddenFields.includes(reportFieldname)) continue;
 
-    // IMPORTANT: Always display the report value (so computed fields show correctly)
-    const value = row?.[reportFieldname];
-
-    const hasValue = value !== null && value !== undefined && value !== '';
     const label = (fieldLabels && fieldLabels[reportFieldname]) ? fieldLabels[reportFieldname] : (col.label || reportFieldname);
 
-    // Resolve DB target field; if it doesn't exist in doc, treat as computed (read-only)
-    const targetFieldname = doc ? resolveTargetField(reportFieldname, config, doc) : null;
+    // ALWAYS display report value (so computed HTML shows exactly)
+    const value = row?.[reportFieldname];
+    const hasValue = value !== null && value !== undefined && value !== '';
 
-    // Editable only when:
-    // - user can edit
-    // - field is marked editable in config
-    // - not the title field
-    // - AND we can map it to a real DocType field (targetFieldname exists)
+    // Resolve mapping (candidate does not require doc)
+    const targetCandidate = resolveTargetField(reportFieldname, config, null);
+
+    // If doc exists, validate the target field actually exists in doc
+    const targetValidated = doc ? resolveTargetField(reportFieldname, config, doc) : targetCandidate;
+
+    // Editable if:
+    // 1) user can edit
+    // 2) field is allowed by permissions
+    // 3) not the title field
+    // 4) we at least have a target candidate (mapping/auto-mapping)
     const isEditable =
       canEdit &&
       editableFields.includes(reportFieldname) &&
       reportFieldname !== titleField &&
-      !!targetFieldname;
+      !!targetCandidate;
+
+    // If doc was fetched and the mapped field doesn't exist in doc, force read-only
+    const isTrulyWritable = isEditable && (!doc || !!targetValidated);
 
     const fieldDiv = document.createElement('div');
     fieldDiv.className = 'mb-3 pb-2 border-bottom';
@@ -1417,12 +1445,12 @@ async function showDetailModal(row, columns, reportName, config) {
     labelDiv.className = 'fw-bold text-muted small mb-1';
     labelDiv.textContent = label;
 
-    // If user marked editable but it is computed/unmappable, show a small indicator
-    if (canEdit && editableFields.includes(reportFieldname) && !isEditable) {
+    // Show a badge if user expects editable but it’s not writable
+    if (isEditable && !isTrulyWritable) {
       const badge = document.createElement('span');
       badge.className = 'badge bg-info ms-2';
       badge.textContent = 'Computed';
-      badge.title = 'This column is computed by the report and cannot be edited.';
+      badge.title = 'This report column cannot be mapped to a real DocType field (or field missing in DocType).';
       labelDiv.appendChild(badge);
     }
 
@@ -1430,14 +1458,16 @@ async function showDetailModal(row, columns, reportName, config) {
     valueDiv.className = 'mt-1';
 
     // -------------------------
-    // EDITABLE FIELDS
+    // EDITABLE MODE (even if empty)
     // -------------------------
-    if (hasValue && isEditable) {
+    if (isTrulyWritable) {
+      const actualFieldnameToSave = targetValidated || targetCandidate;
+
       // Link
       if (col.fieldtype === 'Link' && col.options) {
         const select = document.createElement('select');
         select.className = 'form-select form-select-sm';
-        select.dataset.fieldname = targetFieldname;
+        select.dataset.fieldname = actualFieldnameToSave;
         select.dataset.docname = docName;
         select.dataset.doctype = doctype;
 
@@ -1464,7 +1494,7 @@ async function showDetailModal(row, columns, reportName, config) {
       else if (col.fieldtype === 'Select' && col.options) {
         const select = document.createElement('select');
         select.className = 'form-select form-select-sm';
-        select.dataset.fieldname = targetFieldname;
+        select.dataset.fieldname = actualFieldnameToSave;
         select.dataset.docname = docName;
         select.dataset.doctype = doctype;
 
@@ -1487,7 +1517,7 @@ async function showDetailModal(row, columns, reportName, config) {
         valueDiv.appendChild(saveBtn);
       }
 
-      // Rich text / HTML editor types
+      // Rich text / HTML-like
       else if (
         col.fieldtype === 'Text' ||
         col.fieldtype === 'Small Text' ||
@@ -1499,7 +1529,6 @@ async function showDetailModal(row, columns, reportName, config) {
         const richTextContainer = document.createElement('div');
         richTextContainer.className = 'richtext-container';
 
-        // Display mode
         const displayDiv = document.createElement('div');
         displayDiv.className = 'richtext-display';
         displayDiv.style.padding = '0.5rem';
@@ -1510,10 +1539,9 @@ async function showDetailModal(row, columns, reportName, config) {
         displayDiv.style.maxHeight = '400px';
         displayDiv.style.overflowY = 'auto';
 
-        let htmlValue = hasValue ? value : '<p class="text-muted">No content</p>';
+        let htmlValue = hasValue ? value : '<em class="text-muted">No content</em>';
         let originalHtmlValue = htmlValue;
 
-        // If Quill format sneaks in, extract editor body
         if (typeof htmlValue === 'string' && htmlValue.includes('ql-editor')) {
           const tempDiv = document.createElement('div');
           tempDiv.innerHTML = htmlValue;
@@ -1524,7 +1552,6 @@ async function showDetailModal(row, columns, reportName, config) {
 
         displayDiv.innerHTML = htmlValue;
 
-        // Fix image URLs in display
         displayDiv.querySelectorAll('img').forEach(img => {
           const originalSrc = img.getAttribute('src');
           const fixedUrl = fixImageUrl(originalSrc);
@@ -1533,7 +1560,6 @@ async function showDetailModal(row, columns, reportName, config) {
           img.style.height = 'auto';
         });
 
-        // Edit mode container
         const editorContainer = document.createElement('div');
         editorContainer.className = 'richtext-editor-container';
         editorContainer.style.display = 'none';
@@ -1555,14 +1581,13 @@ async function showDetailModal(row, columns, reportName, config) {
         editableDiv.style.overflowY = 'auto';
         editableDiv.style.whiteSpace = 'pre-wrap';
         editableDiv.innerHTML = originalHtmlValue;
-        editableDiv.dataset.fieldname = targetFieldname;
+        editableDiv.dataset.fieldname = actualFieldnameToSave;
         editableDiv.dataset.docname = docName;
         editableDiv.dataset.doctype = doctype;
 
         editorContainer.appendChild(toolbar);
         editorContainer.appendChild(editableDiv);
 
-        // Image insertion
         const insertImageBtn = toolbar.querySelector('#insertImageBtn');
         const imageUploadInput = toolbar.querySelector('#imageUploadInput');
 
@@ -1614,7 +1639,6 @@ async function showDetailModal(row, columns, reportName, config) {
           event.target.value = '';
         });
 
-        // Buttons (Edit/Cancel/Save)
         const buttonContainer = document.createElement('div');
         buttonContainer.className = 'mt-2';
 
@@ -1633,7 +1657,6 @@ async function showDetailModal(row, columns, reportName, config) {
         editBtn.onclick = () => {
           editableDiv.innerHTML = originalHtmlValue;
 
-          // Fix image URLs for editing visibility, but keep originals for saving
           editableDiv.querySelectorAll('img').forEach(img => {
             const originalSrc = img.getAttribute('src');
             img.dataset.originalSrc = originalSrc;
@@ -1674,9 +1697,9 @@ async function showDetailModal(row, columns, reportName, config) {
         const input = document.createElement('input');
         input.type = 'text';
         input.className = 'form-control form-control-sm';
-        input.value = value || '';
+        input.value = hasValue ? value : '';
         input.placeholder = `Enter ${label}...`;
-        input.dataset.fieldname = targetFieldname;
+        input.dataset.fieldname = actualFieldnameToSave;
         input.dataset.docname = docName;
         input.dataset.doctype = doctype;
 
@@ -1687,20 +1710,20 @@ async function showDetailModal(row, columns, reportName, config) {
     }
 
     // -------------------------
-    // READ-ONLY FIELDS
+    // READ-ONLY MODE
     // -------------------------
-    else if (hasValue) {
-      if (typeof value === 'string' && (value.includes('<') || value.includes('img') || value.includes('href'))) {
+    else {
+      if (!hasValue) {
+        valueDiv.innerHTML = '<em class="text-muted">No value</em>';
+      } else if (typeof value === 'string' && (value.includes('<') || value.includes('img') || value.includes('href'))) {
         const tempDiv = document.createElement('div');
         tempDiv.innerHTML = value;
 
-        // Fix images
         tempDiv.querySelectorAll('img').forEach(img => {
           const originalSrc = img.getAttribute('src');
           if (originalSrc) {
             const fixedUrl = fixImageUrl(originalSrc);
             if (fixedUrl) img.setAttribute('src', fixedUrl);
-
             img.style.cursor = 'pointer';
             img.style.maxWidth = '100%';
 
@@ -1709,37 +1732,23 @@ async function showDetailModal(row, columns, reportName, config) {
               e.stopPropagation();
               window.open(fixedUrl, '_blank', 'noopener,noreferrer');
             };
-
-            img.onerror = function () {
-              console.error('Failed to load image:', fixedUrl);
-              this.style.border = '1px solid #ddd';
-              this.style.padding = '5px';
-              this.style.backgroundColor = '#f8f9fa';
-              this.alt = 'Image not available';
-            };
           }
         });
 
-        // Fix links (downloads, files, etc.)
         tempDiv.querySelectorAll('a').forEach(link => {
           const href = link.getAttribute('href');
           if (href) {
-            if (href.includes('/files/') || href.includes('/private/')) {
-              link.href = fixImageUrl(href);
-            } else if (!href.startsWith('http') && !href.startsWith('/app/')) {
-              link.href = fixImageUrl(href);
-            }
+            if (href.includes('/files/') || href.includes('/private/')) link.href = fixImageUrl(href);
+            else if (!href.startsWith('http') && !href.startsWith('/app/')) link.href = fixImageUrl(href);
+
             link.target = '_blank';
             link.rel = 'noopener noreferrer';
-            link.onclick = function (e) {
-              e.stopPropagation();
-            };
+            link.onclick = function (e) { e.stopPropagation(); };
           }
         });
 
         valueDiv.appendChild(tempDiv);
-      }
-      else if (col.fieldtype === 'Link' && col.options) {
+      } else if (col.fieldtype === 'Link' && col.options) {
         const link = document.createElement('a');
         const doctypeSlug = String(col.options).toLowerCase().replace(/\s+/g, '-');
         link.href = `https://acmestones.erpnext.com/app/${doctypeSlug}/${encodeURIComponent(value)}`;
@@ -1748,13 +1757,9 @@ async function showDetailModal(row, columns, reportName, config) {
         link.className = 'link-field';
         link.textContent = value;
         valueDiv.appendChild(link);
-      }
-      else {
+      } else {
         valueDiv.textContent = value;
       }
-    }
-    else {
-      valueDiv.innerHTML = '<em class="text-muted">No value</em>';
     }
 
     fieldDiv.appendChild(labelDiv);
