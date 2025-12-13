@@ -4996,6 +4996,11 @@ function initFieldMappingsTab() {
     });
 }
 
+
+
+
+
+
 async function loadFieldMappingsForReport(reportName) {
     const container = document.getElementById('fieldMappingContainer');
     const mappingsList = document.getElementById('fieldMappingsList');
@@ -5008,8 +5013,26 @@ async function loadFieldMappingsForReport(reportName) {
     const doctype = config.doctype || 'Work Order';
     doctypeInput.value = doctype;
     
+    console.log('🔄 Loading field mappings for:', reportName, 'DocType:', doctype);
+    
     // Fetch ERP fields
     const erpFields = await fetchDoctypeFields(doctype);
+    
+    console.log('📦 Fetched ERP fields:', erpFields.length, 'fields');
+    
+    if (erpFields.length === 0) {
+        mappingsList.innerHTML = `
+            <div class="alert alert-danger">
+                ❌ Failed to load fields from DocType "${doctype}". 
+                Please check:
+                <ul>
+                    <li>DocType name is correct</li>
+                    <li>API connection is working</li>
+                    <li>Browser console for errors (F12)</li>
+                </ul>
+            </div>`;
+        return;
+    }
     
     // Get unmapped fields from current mapping
     const unmappedFields = config.unmapped_fields || [];
@@ -5022,19 +5045,21 @@ async function loadFieldMappingsForReport(reportName) {
             reportField: col.fieldname,
             label: col.label || col.fieldname
         }));
+        console.log('✅ Using report columns:', allReportFields.length);
     } else {
         // Use unmapped fields only
         allReportFields = unmappedFields;
+        console.log('⚠️ Report not loaded, using unmapped fields only:', allReportFields.length);
     }
     
     if (allReportFields.length === 0) {
-        mappingsList.innerHTML = '<p class="text-muted">Load the report first to see field mappings.</p>';
+        mappingsList.innerHTML = '<div class="alert alert-warning">📊 Please load the report first by clicking on it in the main view, then return here to configure mappings.</div>';
         return;
     }
     
     // Render mapping UI
-    let html = '<div class="table-responsive"><table class="table table-sm table-bordered">';
-    html += '<thead><tr><th>Report Field</th><th>Label</th><th>Maps To (ERP Field)</th><th>Status</th></tr></thead><tbody>';
+    let html = '<div class="table-responsive"><table class="table table-sm table-bordered table-hover">';
+    html += '<thead class="table-light"><tr><th>Report Field</th><th>Label</th><th>Maps To (ERP Field)</th><th>Status</th></tr></thead><tbody>';
     
     allReportFields.forEach(field => {
         const reportField = field.reportField;
@@ -5051,16 +5076,20 @@ async function loadFieldMappingsForReport(reportName) {
             statusBadge = '<span class="badge bg-warning">Unmapped</span>';
         }
         
+        // Build options for this dropdown
+        let optionsHtml = '<option value="">-- No Mapping --</option>';
+        erpFields.forEach(f => {
+            const selected = (currentMapping === f.fieldname || fieldInfo?.erpField === f.fieldname) ? 'selected' : '';
+            const readOnlyMarker = f.read_only && !f.allow_on_submit ? '🔒' : '';
+            optionsHtml += `<option value="${f.fieldname}" ${selected}>${readOnlyMarker} ${f.label || f.fieldname} (${f.fieldname})</option>`;
+        });
+        
         html += `<tr>
-            <td><code>${reportField}</code></td>
-            <td>${label}</td>
+            <td><code class="text-danger">${reportField}</code></td>
+            <td><strong>${label}</strong></td>
             <td>
                 <select class="form-select form-select-sm field-mapping-select" data-report-field="${reportField}">
-                    <option value="">-- No Mapping --</option>
-                    ${erpFields.map(f => {
-                        const selected = (currentMapping === f.fieldname || fieldInfo?.erpField === f.fieldname) ? 'selected' : '';
-                        return `<option value="${f.fieldname}" ${selected}>${f.label || f.fieldname} (${f.fieldname})</option>`;
-                    }).join('')}
+                    ${optionsHtml}
                 </select>
             </td>
             <td>${statusBadge}</td>
@@ -5068,7 +5097,11 @@ async function loadFieldMappingsForReport(reportName) {
     });
     
     html += '</tbody></table></div>';
-    html += `<button class="btn btn-primary mt-3" id="saveMappingsBtn">Save Mappings</button>`;
+    html += `
+        <div class="d-flex justify-content-between align-items-center mt-3">
+            <small class="text-muted">🔒 = Read-only field</small>
+            <button class="btn btn-primary" id="saveMappingsBtn">💾 Save Mappings</button>
+        </div>`;
     
     mappingsList.innerHTML = html;
     
@@ -5077,6 +5110,11 @@ async function loadFieldMappingsForReport(reportName) {
         saveMappingsForReport(reportName);
     });
 }
+
+
+
+
+
 
 async function saveMappingsForReport(reportName) {
     const selects = document.querySelectorAll('.field-mapping-select');
