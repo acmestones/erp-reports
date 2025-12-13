@@ -123,7 +123,7 @@ document.getElementById("logoutBtn").addEventListener("click", () => {
 
 
 async function getUsers() {
-    const res = await fetch(`${API_BASE}?action=getusers`);
+    const res = await fetch(`${API_BASE}?action=get_users`);
     if (!res.ok) throw new Error("Failed to fetch users");
     return res.json();
 }
@@ -135,13 +135,13 @@ async function getReport(name) {
 }
 
 async function getAllReports() {
-    const res = await fetch(`${API_BASE}?action=getallreports`);
+    const res = await fetch(`${API_BASE}?action=get_all_reports`);
     if (!res.ok) throw new Error("Failed to fetch reports list");
     return res.json();
 }
 
 async function getReportConfig() {
-    const res = await fetch(`${API_BASE}?action=getreportconfig`);
+    const res = await fetch(`${API_BASE}?action=get_report_config`);
     if (!res.ok) return {};
     return res.json();
 }
@@ -187,7 +187,7 @@ function getGroups(report, level) {
 
 
 async function saveReportConfig(config) {
-    const res = await fetch(`${API_BASE}?action=savereportconfig`, {
+    const res = await fetch(`${API_BASE}?action=save_report_config`, {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({config}) // Must be the FULL config
@@ -199,19 +199,18 @@ async function saveReportConfig(config) {
 
 
 async function saveCardPriority(reportName, primaryGroup, secondaryGroup, cardOrder) {
-  const res = await fetch(`${API_BASE}?action=savecardpriority`, {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({
-      reportname: reportName,
-      primarygroup: primaryGroup,
-      secondarygroup: secondaryGroup,
-      cardorder: cardOrder
-    })
-  });
-  return res.json();
+    const res = await fetch(`${API_BASE}?action=save_card_priority`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            report_name: reportName,
+            primary_group: primaryGroup,
+            secondary_group: secondaryGroup,
+            card_order: cardOrder
+        })
+    });
+    return res.json();
 }
-
 
 
 
@@ -364,7 +363,7 @@ async function getLinkOptions(doctype) {
         return linkFieldOptions[doctype];
     }
     
-    const res = await fetch(`${API_BASE}?action=getlinkoptions&doctype=${encodeURIComponent(doctype)}`);
+    const res = await fetch(`${API_BASE}?action=get_link_options&doctype=${encodeURIComponent(doctype)}`);
     if (!res.ok) return [];
     const data = await res.json();
     
@@ -376,7 +375,7 @@ async function getLinkOptions(doctype) {
 }
 
 async function updateField(doctype, docname, fieldname, value) {
-    const res = await fetch(`${API_BASE}?action=updatefield`, {
+    const res = await fetch(`${API_BASE}?action=update_field`, {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({doctype, docname, fieldname, value})
@@ -402,74 +401,6 @@ async function updateField(doctype, docname, fieldname, value) {
         return { message: "Updated successfully" };
     }
 }
-
-
-
-
-
-// ============================================================================
-// GENERIC FIELD RESOLUTION (NO HARDCODED "COMPUTED FIELDS")
-// ============================================================================
-
-const __docCache = new Map(); // key: `${doctype}::${docname}` -> doc object
-
-async function getDocCached(doctype, docname) {
-  const key = `${doctype}::${docname}`;
-  if (__docCache.has(key)) return __docCache.get(key);
-
-  const res = await fetch(
-    `${API_BASE}?action=getdoc&doctype=${encodeURIComponent(doctype)}&docname=${encodeURIComponent(docname)}`
-  );
-
-  if (!res.ok) {
-    throw new Error(`Failed to fetch doc (${doctype}/${docname}). HTTP ${res.status}`);
-  }
-
-  const data = await res.json();
-  const doc = (data && data.data) ? data.data : {};
-  __docCache.set(key, doc);
-  return doc;
-}
-
-/**
- * Resolve which DocType field should be updated for a report column.
- *
- * Priority:
- * 1) config.field_target_map[reportFieldname]   (per-report explicit mapping, optional)
- * 2) window.reportFieldMapping[reportFieldname] (your existing auto mapping)
- * 3) reportFieldname                            (fallback)
- *
- * If doc is provided, it validates the resolved field exists in the doc;
- * if not, returns null (treat as computed / not editable).
- */
-function resolveTargetField(reportFieldname, config, doc = null) {
-  // Support config key styles (your codebase has mixed naming)
-  const mapA = config?.field_target_map || {};
-  const mapB = config?.fieldTargetMap || {};
-  const mapC = config?.fieldtargetmap || {}; // <-- important for your UI
-  const override = mapA?.[reportFieldname] || mapB?.[reportFieldname];
-
-  const autoMap = window.reportFieldMapping?.[reportFieldname];
-  const candidate = (override || autoMap || reportFieldname || '').trim();
-
-  if (!candidate) return null;
-
-  // If doc is provided, validate field exists (prevents "saving" into non-existent fields)
-  if (doc) {
-    return (candidate in doc) ? candidate : null;
-  }
-
-  // If doc is not available, still return candidate (allows editing UI to appear)
-  return candidate;
-}
-
-
-
-
-
-
-
-
 
 function extractImageFromRow(row, columns, imageFieldsList) {
     if (imageFieldsList && imageFieldsList.length > 0) {
@@ -517,43 +448,30 @@ function fixImageUrl(url) {
     if (!url) return null;
     url = url.trim();
     
-    // Handle private files - MUST be proxied with authentication
-    if (url.includes('/private/files/')) {
-        // Extract just the path
-        let filePath = url;
-        if (url.startsWith('http')) {
-            const urlObj = new URL(url);
-            filePath = urlObj.pathname + urlObj.search;
-        }
-        
-        // Always proxy private files through PHP for authentication
-        return API_BASE + '?action=proxyimage&file_url=' + encodeURIComponent(filePath);
-    }
-    
-    // Already absolute URL (public files)
-    if (url.startsWith('http://') || url.startsWith('https://')) {
+    // Already absolute URL
+    if (url.startsWith("http") || url.startsWith("https")) {
         return url;
     }
     
     // Protocol-relative URL
-    if (url.startsWith('//')) {
-        return 'https:' + url;
+    if (url.startsWith("//")) {
+        return "https:" + url;
     }
     
-    // Root-relative URL (public files)
-    if (url.startsWith('/files/')) {
-        return 'https://acmestones.erpnext.com' + url;
+    // Handle private files by proxying through PHP
+    if (url.includes('/private/files/')) {
+        // Proxy through PHP to add authentication
+        return `${API_BASE}?action=proxy_image&file_url=${encodeURIComponent(url)}`;
     }
     
-    // Other root-relative URLs
-    if (url.startsWith('/')) {
-        return 'https://acmestones.erpnext.com' + url;
+    // Root-relative URL (including public /files/)
+    if (url.startsWith("/")) {
+        return `https://acmestones.erpnext.com${url}`;
     }
     
     // Relative URL
-    return 'https://acmestones.erpnext.com/' + url;
+    return `https://acmestones.erpnext.com/${url}`;
 }
-
 
 
 
@@ -1356,422 +1274,357 @@ function createCard(row, columns, reportName, config) {
 
 
 async function showDetailModal(row, columns, reportName, config) {
-  const modal = new bootstrap.Modal(document.getElementById('detailModal'));
-
-  // ---------- Robust permissions reading (supports both config styles) ----------
-  const userEmail = localStorage.getItem('userEmail');
-
-  const permsA = config?.userpermissions?.[userEmail] || {};
-  const permsB = config?.user_permissions?.[userEmail] || {};
-  const userPerms = Object.keys(permsA).length ? permsA : permsB;
-
-  const editableFields = userPerms.editablefields || userPerms.editable_fields || [];
-  const hiddenFields = userPerms.hiddenfields || userPerms.hidden_fields || [];
-
-  const canEdit = !!(currentUser?.canedit || currentUser?.can_edit);
-
-  // ---------- Determine docName reliably ----------
-  const titleField = (config && config.titlefield) ? config.titlefield : 'workorderid';
-
-  // Use the same “possible ids” idea used in createCard() in your file
-  const possibleIds = [
-    row?.name,
-    row?.[titleField],
-    row?.workorderid,
-    row?.work_order,
-    row?.work_order_id,
-    row?.salesorderid,
-    row?.sales_order,
-    row?.jobcard,
-    row?.job_card,
-    row?.id
-  ].filter(v => v !== null && v !== undefined && String(v).trim() !== '');
-
-  const docName = possibleIds.length ? String(possibleIds[0]) : '';
-
-  document.getElementById('modalTitle').textContent = `${row?.[titleField] || docName || 'Details'}`;
-
-  const modalBody = document.getElementById('modalBody');
-  modalBody.innerHTML = '';
-
-  // ---------- Doctype + doc fetch (but do NOT block UI if it fails) ----------
-  const doctype = (config?.doctype && String(config.doctype).trim()) ? String(config.doctype).trim() : 'Work Order';
-
-  let doc = null;
-  if (docName) {
-    try {
-      // getDocCached() must exist from your earlier changes; if not, replace with direct fetch
-      doc = await getDocCached(doctype, docName);
-    } catch (err) {
-      console.warn('Doc fetch failed; continuing with mapping-only edit mode:', { doctype, docName, err });
-      doc = null;
+    const modal = new bootstrap.Modal(document.getElementById('detailModal'));
+    const titleField = config.titlefield || config.title_field || 'workorderid';
+    let docName = row[titleField] || row.name || row.workorderid || row.id;
+    
+    const nameCol = columns.find(c => c.fieldname === 'name' || c.fieldname === titleField);
+    if (nameCol && nameCol.fieldname !== titleField) {
+        docName = row[nameCol.fieldname] || docName;
     }
-  }
-
-  // ---------- Render each field ----------
-  for (const col of columns) {
-    const reportFieldname = col.fieldname;
-
-    if (hiddenFields.includes(reportFieldname)) continue;
-
-    const label = (fieldLabels && fieldLabels[reportFieldname]) ? fieldLabels[reportFieldname] : (col.label || reportFieldname);
-
-    // ALWAYS display report value (so computed HTML shows exactly)
-    const value = row?.[reportFieldname];
-    const hasValue = value !== null && value !== undefined && value !== '';
-
-    // Resolve mapping (candidate does not require doc)
-    const targetCandidate = resolveTargetField(reportFieldname, config, null);
-
-    // If doc exists, validate the target field actually exists in doc
-    const targetValidated = doc ? resolveTargetField(reportFieldname, config, doc) : targetCandidate;
-
-    // Editable if:
-    // 1) user can edit
-    // 2) field is allowed by permissions
-    // 3) not the title field
-    // 4) we at least have a target candidate (mapping/auto-mapping)
-    const isEditable =
-      canEdit &&
-      editableFields.includes(reportFieldname) &&
-      reportFieldname !== titleField &&
-      !!targetCandidate;
-
-    // If doc was fetched and the mapped field doesn't exist in doc, force read-only
-    const isTrulyWritable = isEditable && (!doc || !!targetValidated);
-
-    const fieldDiv = document.createElement('div');
-    fieldDiv.className = 'mb-3 pb-2 border-bottom';
-
-    const labelDiv = document.createElement('div');
-    labelDiv.className = 'fw-bold text-muted small mb-1';
-    labelDiv.textContent = label;
-
-    // Show a badge if user expects editable but it’s not writable
-    if (isEditable && !isTrulyWritable) {
-      const badge = document.createElement('span');
-      badge.className = 'badge bg-info ms-2';
-      badge.textContent = 'Computed';
-      badge.title = 'This report column cannot be mapped to a real DocType field (or field missing in DocType).';
-      labelDiv.appendChild(badge);
-    }
-
-    const valueDiv = document.createElement('div');
-    valueDiv.className = 'mt-1';
-
-    // -------------------------
-    // EDITABLE MODE (even if empty)
-    // -------------------------
-    if (isTrulyWritable) {
-      const actualFieldnameToSave = targetValidated || targetCandidate;
-
-      // Link
-      if (col.fieldtype === 'Link' && col.options) {
-        const select = document.createElement('select');
-        select.className = 'form-select form-select-sm';
-        select.dataset.fieldname = actualFieldnameToSave;
-        select.dataset.docname = docName;
-        select.dataset.doctype = doctype;
-
-        const options = await getLinkOptions(col.options);
-        const emptyOption = document.createElement('option');
-        emptyOption.value = '';
-        emptyOption.textContent = '-- Select --';
-        select.appendChild(emptyOption);
-
-        (options || []).forEach(opt => {
-          const option = document.createElement('option');
-          option.value = opt;
-          option.textContent = opt;
-          if (opt === value) option.selected = true;
-          select.appendChild(option);
-        });
-
-        const saveBtn = createSaveButton(select, reportName, modal);
-        valueDiv.appendChild(select);
-        valueDiv.appendChild(saveBtn);
-      }
-
-      // Select
-      else if (col.fieldtype === 'Select' && col.options) {
-        const select = document.createElement('select');
-        select.className = 'form-select form-select-sm';
-        select.dataset.fieldname = actualFieldnameToSave;
-        select.dataset.docname = docName;
-        select.dataset.doctype = doctype;
-
-        const emptyOption = document.createElement('option');
-        emptyOption.value = '';
-        emptyOption.textContent = '-- Select --';
-        select.appendChild(emptyOption);
-
-        const options = String(col.options).split('\n').map(s => s.trim()).filter(Boolean);
-        options.forEach(opt => {
-          const option = document.createElement('option');
-          option.value = opt;
-          option.textContent = opt;
-          if (opt === value) option.selected = true;
-          select.appendChild(option);
-        });
-
-        const saveBtn = createSaveButton(select, reportName, modal);
-        valueDiv.appendChild(select);
-        valueDiv.appendChild(saveBtn);
-      }
-
-      // Rich text / HTML-like
-      else if (
-        col.fieldtype === 'Text' ||
-        col.fieldtype === 'Small Text' ||
-        col.fieldtype === 'Long Text' ||
-        col.fieldtype === 'Text Editor' ||
-        col.fieldtype === 'HTML' ||
-        col.fieldtype === 'HTML Editor'
-      ) {
-        const richTextContainer = document.createElement('div');
-        richTextContainer.className = 'richtext-container';
-
-        const displayDiv = document.createElement('div');
-        displayDiv.className = 'richtext-display';
-        displayDiv.style.padding = '0.5rem';
-        displayDiv.style.border = '1px solid #dee2e6';
-        displayDiv.style.borderRadius = '0.25rem';
-        displayDiv.style.backgroundColor = '#f8f9fa';
-        displayDiv.style.minHeight = '50px';
-        displayDiv.style.maxHeight = '400px';
-        displayDiv.style.overflowY = 'auto';
-
-        let htmlValue = hasValue ? value : '<em class="text-muted">No content</em>';
-        let originalHtmlValue = htmlValue;
-
-        if (typeof htmlValue === 'string' && htmlValue.includes('ql-editor')) {
-          const tempDiv = document.createElement('div');
-          tempDiv.innerHTML = htmlValue;
-          const qlEditor = tempDiv.querySelector('.ql-editor');
-          htmlValue = qlEditor ? qlEditor.innerHTML : htmlValue;
-          originalHtmlValue = htmlValue;
-        }
-
-        displayDiv.innerHTML = htmlValue;
-
-        displayDiv.querySelectorAll('img').forEach(img => {
-          const originalSrc = img.getAttribute('src');
-          const fixedUrl = fixImageUrl(originalSrc);
-          if (fixedUrl) img.setAttribute('src', fixedUrl);
-          img.style.maxWidth = '100%';
-          img.style.height = 'auto';
-        });
-
-        const editorContainer = document.createElement('div');
-        editorContainer.className = 'richtext-editor-container';
-        editorContainer.style.display = 'none';
-
-        const toolbar = document.createElement('div');
-        toolbar.className = 'richtext-toolbar mb-2';
-        toolbar.innerHTML = `
-          <button type="button" class="btn btn-sm btn-outline-secondary" id="insertImageBtn">
-            <i class="bi bi-image"></i> Insert Image
-          </button>
-          <input type="file" id="imageUploadInput" accept="image/*" style="display:none;">
-        `;
-
-        const editableDiv = document.createElement('div');
-        editableDiv.className = 'form-control form-control-sm editable-richtext';
-        editableDiv.contentEditable = true;
-        editableDiv.style.minHeight = '150px';
-        editableDiv.style.maxHeight = '400px';
-        editableDiv.style.overflowY = 'auto';
-        editableDiv.style.whiteSpace = 'pre-wrap';
-        editableDiv.innerHTML = originalHtmlValue;
-        editableDiv.dataset.fieldname = actualFieldnameToSave;
-        editableDiv.dataset.docname = docName;
-        editableDiv.dataset.doctype = doctype;
-
-        editorContainer.appendChild(toolbar);
-        editorContainer.appendChild(editableDiv);
-
-        const insertImageBtn = toolbar.querySelector('#insertImageBtn');
-        const imageUploadInput = toolbar.querySelector('#imageUploadInput');
-
-        insertImageBtn.onclick = (e) => {
-          e.preventDefault();
-          imageUploadInput.click();
-        };
-
-        imageUploadInput.addEventListener('change', async function (event) {
-          const file = event.target.files[0];
-          if (!file) return;
-
-          if (!file.type.startsWith('image/')) {
-            alert('Please select an image file');
-            return;
-          }
-
-          if (file.size > 2 * 1024 * 1024) {
-            alert('Image size should be less than 2MB');
-            return;
-          }
-
-          const reader = new FileReader();
-          reader.onload = function (e) {
-            const base64Image = e.target.result;
-            editableDiv.focus();
-
-            const img = document.createElement('img');
-            img.src = base64Image;
-            img.style.maxWidth = '100%';
-            img.style.height = 'auto';
-            img.style.display = 'block';
-            img.style.margin = '10px 0';
-
-            const selection = window.getSelection();
-            if (selection && selection.rangeCount > 0) {
-              const range = selection.getRangeAt(0);
-              range.deleteContents();
-              range.insertNode(img);
-              range.setStartAfter(img);
-              range.setEndAfter(img);
-              selection.removeAllRanges();
-              selection.addRange(range);
-            } else {
-              editableDiv.appendChild(img);
+    
+    document.getElementById('modalTitle').textContent = `${row[titleField] || docName} Details`;
+    const modalBody = document.getElementById('modalBody');
+    modalBody.innerHTML = '';
+    
+    // FIX: Use correct property names with underscores
+    const userPerms = config.user_permissions?.[userEmail] || config.userpermissions?.[userEmail] || {};
+    const editableFields = userPerms.editable_fields || userPerms.editablefields || [];
+    const hiddenFields = userPerms.hidden_fields || userPerms.hiddenfields || [];
+    const canEdit = currentUser.can_edit;
+    
+    for (const col of columns) {
+        const reportFieldname = col.fieldname;
+        const actualFieldname = window.reportFieldMapping?.[reportFieldname] || reportFieldname;
+        const value = row[reportFieldname];
+        
+        if (hiddenFields.includes(reportFieldname)) continue;
+        
+        const isEditable = canEdit && editableFields.includes(reportFieldname) && reportFieldname !== 'workorderid';
+        const hasValue = value !== null && value !== undefined && value !== '';
+        
+        if (hasValue || isEditable) {
+            const fieldDiv = document.createElement('div');
+            fieldDiv.className = 'mb-3 pb-2 border-bottom';
+            
+            const label = fieldLabels[reportFieldname] || col.label || reportFieldname;
+            const labelDiv = document.createElement('div');
+            labelDiv.className = 'fw-bold text-muted small mb-1';
+            labelDiv.textContent = label;
+            
+            const valueDiv = document.createElement('div');
+            valueDiv.className = 'mt-1';
+            
+            if (isEditable) {
+                // Editable field - use actual database field name
+                if (col.fieldtype === "Link" && col.options) {
+                    const select = document.createElement('select');
+                    select.className = 'form-select form-select-sm';
+                    select.dataset.fieldname = actualFieldname;
+                    select.dataset.docname = docName;
+                    select.dataset.doctype = config.doctype || 'Work Order';
+                    
+                    const options = await getLinkOptions(col.options);
+                    const emptyOption = document.createElement('option');
+                    emptyOption.value = '';
+                    emptyOption.textContent = '-- Select --';
+                    select.appendChild(emptyOption);
+                    
+                    options.forEach(opt => {
+                        const option = document.createElement('option');
+                        option.value = opt;
+                        option.textContent = opt;
+                        if (opt === value) option.selected = true;
+                        select.appendChild(option);
+                    });
+                    
+                    const saveBtn = createSaveButton(select, reportName, modal);
+                    valueDiv.appendChild(select);
+                    valueDiv.appendChild(saveBtn);
+                    
+                } else if (col.fieldtype === "Select" && col.options) {
+                    const select = document.createElement('select');
+                    select.className = 'form-select form-select-sm';
+                    select.dataset.fieldname = actualFieldname;
+                    select.dataset.docname = docName;
+                    select.dataset.doctype = config.doctype || 'Work Order';
+                    
+                    const options = col.options.split('\n');
+                    const emptyOption = document.createElement('option');
+                    emptyOption.value = '';
+                    emptyOption.textContent = '-- Select --';
+                    select.appendChild(emptyOption);
+                    
+                    options.forEach(opt => {
+                        const option = document.createElement('option');
+                        option.value = opt;
+                        option.textContent = opt;
+                        if (opt === value) option.selected = true;
+                        select.appendChild(option);
+                    });
+                    
+                    const saveBtn = createSaveButton(select, reportName, modal);
+                    valueDiv.appendChild(select);
+                    valueDiv.appendChild(saveBtn);
+                    
+                } else if (col.fieldtype === "Text" || col.fieldtype === "Small Text" || 
+                           col.fieldtype === "Long Text" || col.fieldtype === "Text Editor" ||
+                           col.fieldtype === "HTML" || col.fieldtype === "HTML Editor") {
+                    
+                    // Create container for display and edit modes
+                    const richTextContainer = document.createElement('div');
+                    richTextContainer.className = 'richtext-container';
+                    
+                    // Create display mode (read-only view)
+                    const displayDiv = document.createElement('div');
+                    displayDiv.className = 'richtext-display';
+                    displayDiv.style.padding = '0.5rem';
+                    displayDiv.style.border = '1px solid #dee2e6';
+                    displayDiv.style.borderRadius = '0.25rem';
+                    displayDiv.style.backgroundColor = '#f8f9fa';
+                    displayDiv.style.minHeight = '50px';
+                    displayDiv.style.overflowY = 'auto';
+                    
+                    // Extract and set display HTML
+                    let htmlValue = value || `<p class="text-muted">No content</p>`;
+                    let originalHtmlValue = htmlValue; // Store original for saving
+                    
+                    // Extract HTML from Quill editor format if present
+                    if (typeof htmlValue === "string" && htmlValue.includes("ql-editor")) {
+                        const tempDiv = document.createElement('div');
+                        tempDiv.innerHTML = htmlValue;
+                        const qlEditor = tempDiv.querySelector('.ql-editor');
+                        htmlValue = qlEditor ? qlEditor.innerHTML : htmlValue;
+                        originalHtmlValue = htmlValue;
+                    }
+                    
+                    displayDiv.innerHTML = htmlValue;
+                    
+                    // Fix image URLs in display for viewing
+                    displayDiv.querySelectorAll('img').forEach(img => {
+                        const originalSrc = img.getAttribute('src');
+                        const fixedUrl = fixImageUrl(originalSrc);
+                        img.setAttribute('src', fixedUrl);
+                        img.style.maxWidth = '100%';
+                        img.style.height = 'auto';
+                    });
+                    
+                    // Create edit mode (contenteditable)
+                    const editorContainer = document.createElement('div');
+                    editorContainer.className = 'richtext-editor-container';
+                    editorContainer.style.display = 'none'; // Hidden by default
+                    
+                    // Toolbar
+                    const toolbar = document.createElement('div');
+                    toolbar.className = 'richtext-toolbar mb-2';
+                    toolbar.innerHTML = `
+                        <button type="button" class="btn btn-sm btn-outline-secondary" id="insertImageBtn">Insert Image</button>
+                        <input type="file" accept="image/*" style="display: none;" id="imageUploadInput">
+                    `;
+                    
+                    // Editable div
+                    const editableDiv = document.createElement('div');
+                    editableDiv.className = 'form-control form-control-sm editable-richtext';
+                    editableDiv.contentEditable = true;
+                    editableDiv.style.minHeight = '150px';
+                    editableDiv.style.maxHeight = '400px';
+                    editableDiv.style.overflowY = 'auto';
+                    editableDiv.style.whiteSpace = 'pre-wrap';
+                    editableDiv.innerHTML = originalHtmlValue;
+                    editableDiv.dataset.fieldname = actualFieldname;
+                    editableDiv.dataset.docname = docName;
+                    editableDiv.dataset.doctype = config.doctype || 'Work Order';
+                    
+                    // Assemble editor
+                    editorContainer.appendChild(toolbar);
+                    editorContainer.appendChild(editableDiv);
+                    
+                    // Add image upload functionality
+                    const insertImageBtn = toolbar.querySelector('#insertImageBtn');
+                    const imageUploadInput = toolbar.querySelector('#imageUploadInput');
+                    
+                    insertImageBtn.onclick = (e) => {
+                        e.preventDefault();
+                        imageUploadInput.click();
+                    };
+                    
+                    imageUploadInput.addEventListener('change', async function(event) {
+                        const file = event.target.files[0];
+                        if (!file) return;
+                        
+                        if (!file.type.startsWith('image/')) {
+                            alert('Please select an image file');
+                            return;
+                        }
+                        
+                        if (file.size > 2 * 1024 * 1024) {
+                            alert('Image size should be less than 2MB');
+                            return;
+                        }
+                        
+                        const reader = new FileReader();
+                        reader.onload = function(e) {
+                            const base64Image = e.target.result;
+                            editableDiv.focus();
+                            
+                            const img = document.createElement('img');
+                            img.src = base64Image;
+                            img.style.maxWidth = '100%';
+                            img.style.height = 'auto';
+                            img.style.display = 'block';
+                            img.style.margin = '10px 0';
+                            
+                            const selection = window.getSelection();
+                            if (selection.rangeCount > 0) {
+                                const range = selection.getRangeAt(0);
+                                range.deleteContents();
+                                range.insertNode(img);
+                                range.setStartAfter(img);
+                                range.setEndAfter(img);
+                                selection.removeAllRanges();
+                                selection.addRange(range);
+                            } else {
+                                editableDiv.appendChild(img);
+                            }
+                        };
+                        reader.readAsDataURL(file);
+                        event.target.value = '';
+                    });
+                    
+                    // Create Edit/Cancel/Save buttons
+                    const buttonContainer = document.createElement('div');
+                    buttonContainer.className = 'mt-2';
+                    
+                    const editBtn = document.createElement('button');
+                    editBtn.className = 'btn btn-sm btn-primary';
+                    editBtn.textContent = 'Edit';
+                    editBtn.onclick = () => {
+                        // Set editor with original HTML
+                        editableDiv.innerHTML = originalHtmlValue;
+                        
+                        // Fix image URLs in edit mode so they're visible
+                        editableDiv.querySelectorAll('img').forEach(img => {
+                            const originalSrc = img.getAttribute('src');
+                            // Store the original URL in a data attribute
+                            img.dataset.originalSrc = originalSrc;
+                            // Fix the URL for display
+                            const fixedUrl = fixImageUrl(originalSrc);
+                            img.setAttribute('src', fixedUrl);
+                            img.style.maxWidth = '100%';
+                            img.style.height = 'auto';
+                        });
+                        
+                        displayDiv.style.display = 'none';
+                        editorContainer.style.display = 'block';
+                        editBtn.style.display = 'none';
+                        cancelBtn.style.display = 'inline-block';
+                        saveBtn.style.display = 'inline-block';
+                    };
+                    
+                    const cancelBtn = document.createElement('button');
+                    cancelBtn.className = 'btn btn-sm btn-secondary me-2';
+                    cancelBtn.textContent = 'Cancel';
+                    cancelBtn.style.display = 'none';
+                    cancelBtn.onclick = () => {
+                        displayDiv.style.display = 'block';
+                        editorContainer.style.display = 'none';
+                        editBtn.style.display = 'inline-block';
+                        cancelBtn.style.display = 'none';
+                        saveBtn.style.display = 'none';
+                    };
+                    
+                    const saveBtn = createSaveButton(editableDiv, reportName, modal);
+                    saveBtn.style.display = 'none';
+                    
+                    buttonContainer.appendChild(editBtn);
+                    buttonContainer.appendChild(cancelBtn);
+                    buttonContainer.appendChild(saveBtn);
+                    
+                    // Assemble everything
+                    richTextContainer.appendChild(displayDiv);
+                    richTextContainer.appendChild(editorContainer);
+                    valueDiv.appendChild(richTextContainer);
+                    valueDiv.appendChild(buttonContainer);
+                    
+                } else {
+                    // Regular text input for other types
+                    const input = document.createElement('input');
+                    input.type = 'text';
+                    input.className = 'form-control form-control-sm';
+                    input.value = value || '';
+                    input.placeholder = `Enter ${label}...`;
+                    input.dataset.fieldname = actualFieldname;
+                    input.dataset.docname = docName;
+                    input.dataset.doctype = config.doctype || 'Work Order';
+                    
+                    const saveBtn = createSaveButton(input, reportName, modal);
+                    valueDiv.appendChild(input);
+                    valueDiv.appendChild(saveBtn);
+                }
+            } else if (hasValue) {
+                // Non-editable field with value - display only
+                if (typeof value === 'string' && (value.includes('<img') || value.includes('<a href'))) {
+                    const tempDiv = document.createElement('div');
+                    tempDiv.innerHTML = value;
+                    
+                    tempDiv.querySelectorAll('img').forEach(img => {
+                        const originalSrc = img.getAttribute('src');
+                        const fixedUrl = fixImageUrl(originalSrc);
+                        img.setAttribute('src', fixedUrl);
+                        img.style.cursor = 'pointer';
+                        img.style.maxWidth = '100%';
+                        
+                        const imageUrl = fixedUrl;
+                        img.onclick = function(e) {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            window.open(imageUrl, '_blank', 'noopener,noreferrer');
+                        };
+                        
+                        img.onerror = function() {
+                            console.error('Failed to load image:', imageUrl);
+                            this.style.border = '1px solid #ddd';
+                            this.style.padding = '5px';
+                            this.style.backgroundColor = '#f8f9fa';
+                            this.alt = 'Image not available';
+                        };
+                    });
+                    
+                    tempDiv.querySelectorAll('a').forEach(link => {
+                        const href = link.getAttribute('href');
+                        if (href) {
+                            link.href = fixImageUrl(href);
+                            link.target = '_blank';
+                            link.rel = 'noopener noreferrer';
+                            link.onclick = function(e) {
+                                e.stopPropagation();
+                            };
+                        }
+                    });
+                    
+                    valueDiv.appendChild(tempDiv);
+                } else if (col.fieldtype === "Link" && col.options) {
+                    const link = document.createElement('a');
+                    const doctypeSlug = col.options.toLowerCase().replace(/\s+/g, '-');
+                    link.href = `https://acmestones.erpnext.com/app/${doctypeSlug}/${encodeURIComponent(value)}`;
+                    link.target = '_blank';
+                    link.rel = 'noopener noreferrer';
+                    link.className = 'link-field';
+                    link.textContent = value;
+                    valueDiv.appendChild(link);
+                } else {
+                    valueDiv.textContent = value;
+                }
             }
-          };
-          reader.readAsDataURL(file);
-          event.target.value = '';
-        });
-
-        const buttonContainer = document.createElement('div');
-        buttonContainer.className = 'mt-2';
-
-        const editBtn = document.createElement('button');
-        editBtn.className = 'btn btn-sm btn-primary';
-        editBtn.textContent = 'Edit';
-
-        const cancelBtn = document.createElement('button');
-        cancelBtn.className = 'btn btn-sm btn-secondary me-2';
-        cancelBtn.textContent = 'Cancel';
-        cancelBtn.style.display = 'none';
-
-        const saveBtn = createSaveButton(editableDiv, reportName, modal);
-        saveBtn.style.display = 'none';
-
-        editBtn.onclick = () => {
-          editableDiv.innerHTML = originalHtmlValue;
-
-          editableDiv.querySelectorAll('img').forEach(img => {
-            const originalSrc = img.getAttribute('src');
-            img.dataset.originalSrc = originalSrc;
-            const fixedUrl = fixImageUrl(originalSrc);
-            if (fixedUrl) img.setAttribute('src', fixedUrl);
-            img.style.maxWidth = '100%';
-            img.style.height = 'auto';
-          });
-
-          displayDiv.style.display = 'none';
-          editorContainer.style.display = 'block';
-          editBtn.style.display = 'none';
-          cancelBtn.style.display = 'inline-block';
-          saveBtn.style.display = 'inline-block';
-        };
-
-        cancelBtn.onclick = () => {
-          displayDiv.style.display = 'block';
-          editorContainer.style.display = 'none';
-          editBtn.style.display = 'inline-block';
-          cancelBtn.style.display = 'none';
-          saveBtn.style.display = 'none';
-        };
-
-        buttonContainer.appendChild(editBtn);
-        buttonContainer.appendChild(cancelBtn);
-        buttonContainer.appendChild(saveBtn);
-
-        richTextContainer.appendChild(displayDiv);
-        richTextContainer.appendChild(editorContainer);
-
-        valueDiv.appendChild(richTextContainer);
-        valueDiv.appendChild(buttonContainer);
-      }
-
-      // Default input
-      else {
-        const input = document.createElement('input');
-        input.type = 'text';
-        input.className = 'form-control form-control-sm';
-        input.value = hasValue ? value : '';
-        input.placeholder = `Enter ${label}...`;
-        input.dataset.fieldname = actualFieldnameToSave;
-        input.dataset.docname = docName;
-        input.dataset.doctype = doctype;
-
-        const saveBtn = createSaveButton(input, reportName, modal);
-        valueDiv.appendChild(input);
-        valueDiv.appendChild(saveBtn);
-      }
+            
+            fieldDiv.appendChild(labelDiv);
+            fieldDiv.appendChild(valueDiv);
+            modalBody.appendChild(fieldDiv);
+        }
     }
-
-    // -------------------------
-    // READ-ONLY MODE
-    // -------------------------
-    else {
-      if (!hasValue) {
-        valueDiv.innerHTML = '<em class="text-muted">No value</em>';
-      } else if (typeof value === 'string' && (value.includes('<') || value.includes('img') || value.includes('href'))) {
-        const tempDiv = document.createElement('div');
-        tempDiv.innerHTML = value;
-
-        tempDiv.querySelectorAll('img').forEach(img => {
-          const originalSrc = img.getAttribute('src');
-          if (originalSrc) {
-            const fixedUrl = fixImageUrl(originalSrc);
-            if (fixedUrl) img.setAttribute('src', fixedUrl);
-            img.style.cursor = 'pointer';
-            img.style.maxWidth = '100%';
-
-            img.onclick = function (e) {
-              e.preventDefault();
-              e.stopPropagation();
-              window.open(fixedUrl, '_blank', 'noopener,noreferrer');
-            };
-          }
-        });
-
-        tempDiv.querySelectorAll('a').forEach(link => {
-          const href = link.getAttribute('href');
-          if (href) {
-            if (href.includes('/files/') || href.includes('/private/')) link.href = fixImageUrl(href);
-            else if (!href.startsWith('http') && !href.startsWith('/app/')) link.href = fixImageUrl(href);
-
-            link.target = '_blank';
-            link.rel = 'noopener noreferrer';
-            link.onclick = function (e) { e.stopPropagation(); };
-          }
-        });
-
-        valueDiv.appendChild(tempDiv);
-      } else if (col.fieldtype === 'Link' && col.options) {
-        const link = document.createElement('a');
-        const doctypeSlug = String(col.options).toLowerCase().replace(/\s+/g, '-');
-        link.href = `https://acmestones.erpnext.com/app/${doctypeSlug}/${encodeURIComponent(value)}`;
-        link.target = '_blank';
-        link.rel = 'noopener noreferrer';
-        link.className = 'link-field';
-        link.textContent = value;
-        valueDiv.appendChild(link);
-      } else {
-        valueDiv.textContent = value;
-      }
-    }
-
-    fieldDiv.appendChild(labelDiv);
-    fieldDiv.appendChild(valueDiv);
-    modalBody.appendChild(fieldDiv);
-  }
-
-  modal.show();
+    
+    modal.show();
 }
-
 
 
 
@@ -2478,571 +2331,490 @@ function renderGroupVisibilityCheckboxesForReport(userEmail, reportName, tabIdx)
 
 
 
-// ============================================================================
-// FIELD TARGET MAP UI HELPERS (for Configure Report modal)
-// Stores mapping in: reportConfig[reportName].field_target_map
-// ============================================================================
-
-function addFieldTargetMapRow(columns, reportFieldValue = '', targetFieldValue = '') {
-  const tbody = document.getElementById('fieldTargetMapTbody');
-  if (!tbody) return;
-
-  const rowId = `ftm_${Date.now()}_${Math.random().toString(16).slice(2)}`;
-
-  const optionsHtml = (columns || []).map(c => {
-    const selected = (c.fieldname === reportFieldValue) ? 'selected' : '';
-    const label = (c.label || c.fieldname);
-    return `<option value="${c.fieldname}" ${selected}>${label} (${c.fieldname})</option>`;
-  }).join('');
-
-  const tr = document.createElement('tr');
-  tr.dataset.rowId = rowId;
-  tr.innerHTML = `
-    <td style="width: 45%;">
-      <select class="form-select form-select-sm ftm-report-field">
-        <option value="">-- Select report column --</option>
-        ${optionsHtml}
-      </select>
-    </td>
-    <td style="width: 45%;">
-      <input type="text"
-             class="form-control form-control-sm ftm-target-field"
-             placeholder="Enter DocType fieldname (e.g. custom_description_cleaned)"
-             value="${targetFieldValue || ''}">
-      <div class="form-text">
-        This is the real DB field to save into (DocType fieldname).
-      </div>
-    </td>
-    <td style="width: 10%;" class="text-end">
-      <button type="button" class="btn btn-sm btn-outline-danger ftm-remove-btn">Remove</button>
-    </td>
-  `;
-
-  tr.querySelector('.ftm-remove-btn').addEventListener('click', () => tr.remove());
-  tbody.appendChild(tr);
-}
-
-function readFieldTargetMapFromUI() {
-  const tbody = document.getElementById('fieldTargetMapTbody');
-  if (!tbody) return {};
-
-  const mapping = {};
-  const rows = Array.from(tbody.querySelectorAll('tr'));
-
-  rows.forEach(tr => {
-    const reportField = tr.querySelector('.ftm-report-field')?.value?.trim() || '';
-    const targetField = tr.querySelector('.ftm-target-field')?.value?.trim() || '';
-    if (reportField && targetField) mapping[reportField] = targetField;
-  });
-
-  return mapping;
-}
-
-
-
-
-
-
-
-
 
 
 
 async function openGlobalReportConfigModal(reportName) {
-  const configModalHtml = `
-    <div class="modal fade" id="globalReportConfigModal" tabindex="-1">
-      <div class="modal-dialog modal-xl">
-        <div class="modal-content">
-          <div class="modal-header">
-            <h5 class="modal-title">Configure ${reportName}</h5>
-            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-          </div>
-
-          <div class="modal-body" style="max-height: 70vh; overflow-y: auto;">
-            <div id="globalConfigContent"></div>
-          </div>
-
-          <div class="modal-footer">
-            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-            <button type="button" class="btn btn-primary" id="saveGlobalConfigBtn">Save Configuration</button>
-          </div>
-        </div>
-      </div>
-    </div>
-  `;
-
-  const existingModal = document.getElementById('globalReportConfigModal');
-  if (existingModal) existingModal.remove();
-
-  document.body.insertAdjacentHTML('beforeend', configModalHtml);
-  const configModal = new bootstrap.Modal(document.getElementById('globalReportConfigModal'));
-
-  // Load config + report metadata
-  const config = reportConfig[reportName] || {};
-  const reportData = await getReport(reportName);
-  const columns = reportData?.message?.columns || [];
-  const rows = reportData?.message?.result || [];
-
-  // Normalize key names (your file has mixed styles in places)
-  const existingGroupBy = config.group_by || config.groupby || [];
-  const groupBy = Array.isArray(existingGroupBy) ? existingGroupBy : (String(existingGroupBy).split(',').map(s => s.trim()).filter(Boolean));
-  const group1Field = groupBy[0] || '';
-  const group2Field = groupBy[1] || '';
-
-  const existingGroupSort = config.group_sort || config.groupsort || {};
-  const existingFieldOrder = config.field_order || config.fieldorder || [];
-  const existingCardFields = config.card_fields || config.cardfields || [];
-  const existingImageFields = config.image_fields || config.imagefields || [];
-  const existingSortBy = config.sort_by || config.sortby || '';
-  const existingSortOrder = config.sort_order || config.sortorder || 'asc';
-
-  const existingTimeLogsEnabled = (config.show_time_logs_button ?? config.showtimelogsbutton ?? false) === true;
-  const existingOpPlanningEnabled = (config.show_operation_planning_button ?? config.showoperationplanningbutton ?? true) !== false;
-
-  const existingTimeLogsPerms = config.time_logs_permissions || config.timelogspermissions || {};
-  const existingOpPlanningPerms = config.operation_planning_permissions || config.operationplanningpermissions || {};
-
-  // Mapping config (NEW)
-  const existingFieldTargetMap = config.field_target_map || {};
-
-  // Group values for sorting lists
-  const uniq = (arr) => Array.from(new Set(arr.filter(v => v !== null && v !== undefined && v !== '')));
-  let group1Values = group1Field ? uniq(rows.map(r => r[group1Field])) : [];
-  let group2Values = group2Field ? uniq(rows.map(r => r[group2Field])) : [];
-
-  // Respect saved order if present
-  if (group1Field && existingGroupSort?.[group1Field]?.length) {
-    const order = existingGroupSort[group1Field];
-    group1Values.sort((a, b) => {
-      const ia = order.indexOf(a);
-      const ib = order.indexOf(b);
-      if (ia === -1 && ib === -1) return String(a).localeCompare(String(b));
-      if (ia === -1) return 1;
-      if (ib === -1) return -1;
-      return ia - ib;
-    });
-  } else {
-    group1Values.sort((a, b) => String(a).localeCompare(String(b)));
-  }
-
-  if (group2Field && existingGroupSort?.[group2Field]?.length) {
-    const order = existingGroupSort[group2Field];
-    group2Values.sort((a, b) => {
-      const ia = order.indexOf(a);
-      const ib = order.indexOf(b);
-      if (ia === -1 && ib === -1) return String(a).localeCompare(String(b));
-      if (ia === -1) return 1;
-      if (ib === -1) return -1;
-      return ia - ib;
-    });
-  } else {
-    group2Values.sort((a, b) => String(a).localeCompare(String(b)));
-  }
-
-  // Users for permissions tables
-  const users = await getUsers();
-  const usersList = users?.users || [];
-
-  const columnsOptionsHtml = columns.map(c => `<option value="${c.fieldname}">${c.label || c.fieldname} (${c.fieldname})</option>`).join('');
-
-  const contentHtml = `
-    <div class="row">
-      <div class="col-md-6">
-        <h6>Basic Settings</h6>
-
-        <label class="small fw-bold">DocType</label>
-        <input type="text" class="form-control form-control-sm mb-2"
-               id="configDoctype"
-               value="${config.doctype || ''}"
-               placeholder="e.g., Work Order">
-
-        <label class="small fw-bold">Title field for cards</label>
-        <select class="form-select form-select-sm mb-2" id="configTitleField">
-          ${columns.map(c => {
-            const selected = (config.titlefield === c.fieldname) ? 'selected' : '';
-            return `<option value="${c.fieldname}" ${selected}>${c.label || c.fieldname} (${c.fieldname})</option>`;
-          }).join('')}
-        </select>
-
-        <label class="small fw-bold">Card fields (select up to 5)</label>
-        <div class="border rounded p-2 mb-3" style="max-height: 200px; overflow-y: auto;">
-          ${columns.map(c => {
-            const checked = existingCardFields.includes(c.fieldname) ? 'checked' : '';
-            return `
-              <div class="form-check">
-                <input class="form-check-input card-field-check" type="checkbox" value="${c.fieldname}" id="card_${c.fieldname}" ${checked}>
-                <label class="form-check-label small" for="card_${c.fieldname}">${c.label || c.fieldname} (${c.fieldname})</label>
-              </div>
-            `;
-          }).join('')}
-        </div>
-
-        <label class="small fw-bold">Image fields (usually description/html fields)</label>
-        <div class="border rounded p-2 mb-3" style="max-height: 150px; overflow-y: auto;">
-          ${columns
-            .filter(c => String(c.fieldname).toLowerCase().includes('description'))
-            .map(c => {
-              const checked = existingImageFields.includes(c.fieldname) ? 'checked' : '';
-              return `
-                <div class="form-check">
-                  <input class="form-check-input image-field-check" type="checkbox" value="${c.fieldname}" id="img_${c.fieldname}" ${checked}>
-                  <label class="form-check-label small" for="img_${c.fieldname}">${c.label || c.fieldname} (${c.fieldname})</label>
+    const configModalHtml = `
+        <div class="modal fade" id="globalReportConfigModal" tabindex="-1">
+            <div class="modal-dialog modal-xl">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Configure: ${reportName}</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body" style="max-height: 70vh; overflow-y: auto;">
+                        <div id="globalConfigContent"></div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                        <button type="button" class="btn btn-primary" id="saveGlobalConfigBtn">Save Configuration</button>
+                    </div>
                 </div>
-              `;
-            }).join('')}
+            </div>
         </div>
-
-        <hr>
-
-        <h6>Grouping & Sorting</h6>
-
-        <label class="small fw-bold">Primary grouping field</label>
-        <select class="form-select form-select-sm mb-2" id="configGroup1">
-          <option value="">-- None --</option>
-          ${columns.map(c => {
-            const selected = (group1Field === c.fieldname) ? 'selected' : '';
-            return `<option value="${c.fieldname}" ${selected}>${c.label || c.fieldname} (${c.fieldname})</option>`;
-          }).join('')}
-        </select>
-
-        <label class="small fw-bold">Secondary grouping field</label>
-        <select class="form-select form-select-sm mb-2" id="configGroup2">
-          <option value="">-- None --</option>
-          ${columns.map(c => {
-            const selected = (group2Field === c.fieldname) ? 'selected' : '';
-            return `<option value="${c.fieldname}" ${selected}>${c.label || c.fieldname} (${c.fieldname})</option>`;
-          }).join('')}
-        </select>
-
-        <label class="small fw-bold">Sort records by</label>
-        <select class="form-select form-select-sm mb-2" id="configSortBy">
-          <option value="">-- None --</option>
-          ${columns.map(c => {
-            const selected = (existingSortBy === c.fieldname) ? 'selected' : '';
-            return `<option value="${c.fieldname}" ${selected}>${c.label || c.fieldname} (${c.fieldname})</option>`;
-          }).join('')}
-        </select>
-
-        <select class="form-select form-select-sm mb-2" id="configSortOrder">
-          <option value="asc" ${existingSortOrder === 'asc' ? 'selected' : ''}>Ascending</option>
-          <option value="desc" ${existingSortOrder === 'desc' ? 'selected' : ''}>Descending</option>
-        </select>
-
-        <div class="form-check mb-3">
-          <input class="form-check-input" type="checkbox" id="configCollapsed" ${config.collapsed !== false ? 'checked' : ''}>
-          <label class="form-check-label" for="configCollapsed">Start with groups collapsed</label>
-        </div>
-
-        <hr>
-
-        <h6>Computed Field Mapping</h6>
-        <div class="alert alert-info small">
-          Use this when a report column is computed (HTML/joins/sums) but you still want to edit/save to a real DocType field.
-        </div>
-
-        <div class="d-flex justify-content-between align-items-center mb-2">
-          <label class="small fw-bold mb-0">Map report column → DocType field</label>
-          <button type="button" class="btn btn-sm btn-outline-primary" id="addFieldTargetMapRowBtn">+ Add mapping</button>
-        </div>
-
-        <div class="table-responsive">
-          <table class="table table-sm table-bordered align-middle">
-            <thead class="table-light">
-              <tr>
-                <th>Report column</th>
-                <th>DocType fieldname</th>
-                <th class="text-end">Action</th>
-              </tr>
-            </thead>
-            <tbody id="fieldTargetMapTbody"></tbody>
-          </table>
-        </div>
-
-        <hr>
-
-        <h6 class="mt-3">Time Logs Settings</h6>
-        <div class="form-check mb-3">
-          <input class="form-check-input" type="checkbox" id="configShowTimeLogs" ${existingTimeLogsEnabled ? 'checked' : ''}>
-          <label class="form-check-label" for="configShowTimeLogs">Show Time Logs Button</label>
-        </div>
-
-        <div id="timeLogsPermissionsSection" style="display: ${existingTimeLogsEnabled ? 'block' : 'none'};">
-          <label class="small fw-bold">User Permissions for Time Logs</label>
-          <div class="table-responsive" style="max-height: 250px; overflow-y: auto;">
-            <table class="table table-sm table-bordered">
-              <thead class="table-light sticky-top">
-                <tr>
-                  <th style="min-width: 150px;">User</th>
-                  <th class="text-center" style="width: 60px;">View</th>
-                  <th class="text-center" style="width: 60px;">Add</th>
-                  <th class="text-center" style="width: 60px;">Edit</th>
-                  <th class="text-center" style="width: 60px;">Delete</th>
-                  <th class="text-center" style="width: 80px;">Edit WS</th>
-                  <th class="text-center" style="width: 90px;">Edit Time</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${usersList.map(u => {
-                  const p = existingTimeLogsPerms?.[u.email] || {};
-                  return `
-                    <tr>
-                      <td class="small">${u.email}</td>
-                      <td class="text-center"><input type="checkbox" class="form-check-input time-log-perm" data-user="${u.email}" data-perm="can_view" ${p.can_view ? 'checked' : ''}></td>
-                      <td class="text-center"><input type="checkbox" class="form-check-input time-log-perm" data-user="${u.email}" data-perm="can_add" ${p.can_add ? 'checked' : ''}></td>
-                      <td class="text-center"><input type="checkbox" class="form-check-input time-log-perm" data-user="${u.email}" data-perm="can_edit" ${p.can_edit ? 'checked' : ''}></td>
-                      <td class="text-center"><input type="checkbox" class="form-check-input time-log-perm" data-user="${u.email}" data-perm="can_delete" ${p.can_delete ? 'checked' : ''}></td>
-                      <td class="text-center"><input type="checkbox" class="form-check-input time-log-perm" data-user="${u.email}" data-perm="can_edit_workstation" ${p.can_edit_workstation ? 'checked' : ''}></td>
-                      <td class="text-center"><input type="checkbox" class="form-check-input time-log-perm" data-user="${u.email}" data-perm="can_edit_time_required" ${p.can_edit_time_required ? 'checked' : ''}></td>
-                    </tr>
-                  `;
-                }).join('')}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        <hr>
-
-        <h6 class="mt-3">Operation Planning Settings</h6>
-        <div class="form-check mb-3">
-          <input class="form-check-input" type="checkbox" id="configShowOperationPlanning" ${existingOpPlanningEnabled ? 'checked' : ''}>
-          <label class="form-check-label" for="configShowOperationPlanning">Show Operation Planning Button</label>
-        </div>
-
-        <div id="operationPlanningPermissionsSection" style="display: ${existingOpPlanningEnabled ? 'block' : 'none'};">
-          <label class="small fw-bold">User Permissions for Operation Planning</label>
-          <div class="table-responsive" style="max-height: 300px; overflow-y: auto;">
-            <table class="table table-sm table-bordered">
-              <thead class="table-light sticky-top">
-                <tr>
-                  <th style="min-width: 180px;">User</th>
-                  <th class="text-center" style="width: 60px;">View</th>
-                  <th class="text-center" style="width: 60px;">Add</th>
-                  <th class="text-center" style="width: 60px;">Edit</th>
-                  <th class="text-center" style="width: 60px;">Delete</th>
-                  <th class="text-center" style="width: 80px;">Reorder</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${usersList.map(u => {
-                  const p = existingOpPlanningPerms?.[u.email] || {};
-                  return `
-                    <tr>
-                      <td class="small">${u.email}</td>
-                      <td class="text-center"><input type="checkbox" class="form-check-input op-planning-perm" data-user="${u.email}" data-perm="can_view" ${p.can_view ? 'checked' : ''}></td>
-                      <td class="text-center"><input type="checkbox" class="form-check-input op-planning-perm" data-user="${u.email}" data-perm="can_add" ${p.can_add ? 'checked' : ''}></td>
-                      <td class="text-center"><input type="checkbox" class="form-check-input op-planning-perm" data-user="${u.email}" data-perm="can_edit" ${p.can_edit ? 'checked' : ''}></td>
-                      <td class="text-center"><input type="checkbox" class="form-check-input op-planning-perm" data-user="${u.email}" data-perm="can_delete" ${p.can_delete ? 'checked' : ''}></td>
-                      <td class="text-center"><input type="checkbox" class="form-check-input op-planning-perm" data-user="${u.email}" data-perm="can_reorder" ${p.can_reorder ? 'checked' : ''}></td>
-                    </tr>
-                  `;
-                }).join('')}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-      </div>
-
-      <div class="col-md-6">
-        <h6>Group Sort Order</h6>
-        <p class="small text-muted">Drag to reorder groups</p>
-
-        ${group1Field ? `
-          <label class="small fw-bold">Primary Groups (${group1Field})</label>
-          <ul class="list-group mb-3" id="group1SortList" style="max-height: 200px; overflow-y: auto;">
-            ${group1Values.map(v => `
-              <li class="list-group-item draggable-group" draggable="true" data-value="${String(v)}">
-                <span class="drag-handle">⋮⋮</span> ${String(v)}
-              </li>
-            `).join('')}
-          </ul>
-        ` : `<p class="small text-muted mb-3">Select primary grouping field first</p>`}
-
-        ${group2Field ? `
-          <label class="small fw-bold">Secondary Groups (${group2Field})</label>
-          <ul class="list-group mb-3" id="group2SortList" style="max-height: 200px; overflow-y: auto;">
-            ${group2Values.map(v => `
-              <li class="list-group-item draggable-group" draggable="true" data-value="${String(v)}">
-                <span class="drag-handle">⋮⋮</span> ${String(v)}
-              </li>
-            `).join('')}
-          </ul>
-        ` : `<p class="small text-muted mb-3">Select secondary grouping field first</p>`}
-
-        <hr>
-
-        <h6>Field Display Order</h6>
-        <p class="small text-muted">Drag to reorder fields in detail modal</p>
-
-        <ul class="list-group" id="fieldOrderList" style="max-height: 300px; overflow-y: auto;">
-          ${(() => {
-            // Show existingFieldOrder first, then remaining
-            const byName = new Map(columns.map(c => [c.fieldname, c]));
-            const ordered = [];
-            const used = new Set();
-
-            (existingFieldOrder || []).forEach(fn => {
-              if (byName.has(fn)) {
-                ordered.push(byName.get(fn));
-                used.add(fn);
-              }
+    `;
+    
+    const existingModal = document.getElementById('globalReportConfigModal');
+    if (existingModal) existingModal.remove();
+    
+    document.body.insertAdjacentHTML('beforeend', configModalHtml);
+    
+    const configModal = new bootstrap.Modal(document.getElementById('globalReportConfigModal'));
+    
+    const config = reportConfig[reportName] || {};
+    
+    const reportData = await getReport(reportName);
+    const columns = reportData.message.columns;
+    const rows = reportData.message.result;
+    
+    const group1Field = config.group_by?.[0];
+    const group2Field = config.group_by?.[1];
+    
+    let group1Values = [];
+    let group2Values = [];
+    
+    if (group1Field) {
+        group1Values = [...new Set(rows.map(r => r[group1Field]).filter(v => v))];
+        if (config.group_sort?.[group1Field]) {
+            const sortOrder = config.group_sort[group1Field];
+            group1Values.sort((a, b) => {
+                const indexA = sortOrder.indexOf(a);
+                const indexB = sortOrder.indexOf(b);
+                if (indexA === -1 && indexB === -1) return a.localeCompare(b);
+                if (indexA === -1) return 1;
+                if (indexB === -1) return -1;
+                return indexA - indexB;
             });
-            columns.forEach(c => {
-              if (!used.has(c.fieldname)) ordered.push(c);
+        } else {
+            group1Values.sort();
+        }
+    }
+    
+    if (group2Field) {
+        group2Values = [...new Set(rows.map(r => r[group2Field]).filter(v => v))];
+        if (config.group_sort?.[group2Field]) {
+            const sortOrder = config.group_sort[group2Field];
+            group2Values.sort((a, b) => {
+                const indexA = sortOrder.indexOf(a);
+                const indexB = sortOrder.indexOf(b);
+                if (indexA === -1 && indexB === -1) return a.localeCompare(b);
+                if (indexA === -1) return 1;
+                if (indexB === -1) return -1;
+                return indexA - indexB;
             });
-
-            return ordered.map(c => `
-              <li class="list-group-item draggable-field" draggable="true" data-fieldname="${c.fieldname}">
-                <span class="drag-handle">⋮⋮</span> ${c.label || c.fieldname} (${c.fieldname})
-              </li>
-            `).join('');
-          })()}
-        </ul>
-      </div>
-    </div>
-  `;
-
-  document.getElementById('globalConfigContent').innerHTML = contentHtml;
-
-  // Enable drag-drop using your existing helper (must exist in file)
-  if (typeof setupDragDrop === 'function') {
+        } else {
+            group2Values.sort();
+        }
+    }
+    
+    // Get list of users for permissions table
+    const users = await getUsers();
+    
+    const contentHtml = `
+        <div class="row">
+            <div class="col-md-6">
+                <h6>Basic Settings</h6>
+                
+                <label class="small fw-bold">DocType</label>
+                <input type="text" class="form-control form-control-sm mb-2" id="config_doctype" 
+                       value="${config.doctype || ''}" placeholder="e.g., Work Order">
+                
+                <label class="small fw-bold">Title Field (for cards)</label>
+                <select class="form-select form-select-sm mb-2" id="config_title_field">
+                    ${columns.map(c => `
+                        <option value="${c.fieldname}" ${config.title_field === c.fieldname ? 'selected' : ''}>
+                            ${c.label || c.fieldname}
+                        </option>
+                    `).join('')}
+                </select>
+                
+                <label class="small fw-bold">Card Fields (select up to 5)</label>
+                <div class="border rounded p-2 mb-3" style="max-height: 200px; overflow-y: auto;">
+                    ${columns.map(c => `
+                        <div class="form-check">
+                            <input class="form-check-input card-field-check" type="checkbox" 
+                                   value="${c.fieldname}" id="card_${c.fieldname}"
+                                   ${config.card_fields?.includes(c.fieldname) ? 'checked' : ''}>
+                            <label class="form-check-label small" for="card_${c.fieldname}">
+                                ${c.label || c.fieldname}
+                            </label>
+                        </div>
+                    `).join('')}
+                </div>
+                
+                <label class="small fw-bold">Image Fields (description fields)</label>
+                <div class="border rounded p-2 mb-3" style="max-height: 150px; overflow-y: auto;">
+                    ${columns.filter(c => c.fieldname.toLowerCase().includes('description')).map(c => `
+                        <div class="form-check">
+                            <input class="form-check-input image-field-check" type="checkbox" 
+                                   value="${c.fieldname}" id="img_${c.fieldname}"
+                                   ${config.image_fields?.includes(c.fieldname) ? 'checked' : ''}>
+                            <label class="form-check-label small" for="img_${c.fieldname}">
+                                ${c.label || c.fieldname}
+                            </label>
+                        </div>
+                    `).join('')}
+                </div>
+                
+                <h6 class="mt-3">Grouping & Sorting</h6>
+                
+                <label class="small fw-bold">Primary Grouping Field</label>
+                <select class="form-select form-select-sm mb-2" id="config_group1">
+                    <option value="">-- None --</option>
+                    ${columns.map(c => `
+                        <option value="${c.fieldname}" ${config.group_by?.[0] === c.fieldname ? 'selected' : ''}>
+                            ${c.label || c.fieldname}
+                        </option>
+                    `).join('')}
+                </select>
+                
+                <label class="small fw-bold">Secondary Grouping Field</label>
+                <select class="form-select form-select-sm mb-2" id="config_group2">
+                    <option value="">-- None --</option>
+                    ${columns.map(c => `
+                        <option value="${c.fieldname}" ${config.group_by?.[1] === c.fieldname ? 'selected' : ''}>
+                            ${c.label || c.fieldname}
+                        </option>
+                    `).join('')}
+                </select>
+                
+                <label class="small fw-bold">Sort Records By</label>
+                <select class="form-select form-select-sm mb-2" id="config_sortby">
+                    <option value="">-- None --</option>
+                    ${columns.map(c => `
+                        <option value="${c.fieldname}" ${config.sort_by === c.fieldname ? 'selected' : ''}>
+                            ${c.label || c.fieldname}
+                        </option>
+                    `).join('')}
+                </select>
+                
+                <select class="form-select form-select-sm mb-2" id="config_sortorder">
+                    <option value="asc" ${config.sort_order === 'asc' ? 'selected' : ''}>Ascending</option>
+                    <option value="desc" ${config.sort_order === 'desc' ? 'selected' : ''}>Descending</option>
+                </select>
+                
+                <div class="form-check mb-3">
+                    <input class="form-check-input" type="checkbox" id="config_collapsed" 
+                           ${config.collapsed !== false ? 'checked' : ''}>
+                    <label class="form-check-label" for="config_collapsed">
+                        Start with groups collapsed
+                    </label>
+                </div>
+                
+                <hr>
+                
+                <h6 class="mt-3">Time Logs Settings</h6>
+                <div class="form-check mb-3">
+                    <input class="form-check-input" type="checkbox" id="configShowTimeLogs" 
+                        ${config.show_time_logs_button ? 'checked' : ''}>
+                    <label class="form-check-label" for="configShowTimeLogs">
+                        Show Time Logs Button
+                    </label>
+                </div>
+                
+                <div id="timeLogsPermissionsSection" style="display: ${config.show_time_logs_button ? 'block' : 'none'}">
+                    <label class="small fw-bold">User Permissions for Time Logs</label>
+                    <div class="table-responsive" style="max-height: 250px; overflow-y: auto;">
+                        <table class="table table-sm table-bordered">
+                            <thead class="table-light sticky-top">
+                                <tr>
+                                    <th style="min-width: 150px;">User</th>
+                                    <th class="text-center" style="width: 60px;">View</th>
+                                    <th class="text-center" style="width: 60px;">Add</th>
+                                    <th class="text-center" style="width: 60px;">Edit</th>
+                                    <th class="text-center" style="width: 60px;">Delete</th>
+                                    <th class="text-center" style="width: 80px;">Edit WS</th>
+                                    <th class="text-center" style="width: 80px;">Edit Time</th>
+                                </tr>
+                            </thead>
+                            <tbody id="timeLogsPermissionsTable">
+                                ${users.users.map(user => {
+                                    const perms = config.time_logs_permissions?.[user.email] || {
+                                        can_view: false,
+                                        can_add: false,
+                                        can_edit: false,
+                                        can_delete: false
+                                    };
+                                    
+                                    return `
+                                        <tr>
+                                            <td class="small">${user.email}</td>
+                                            <td class="text-center">
+                                                <input type="checkbox" class="form-check-input time-log-perm" 
+                                                    data-user="${user.email}" data-perm="can_view" 
+                                                    ${perms.can_view ? 'checked' : ''}>
+                                            </td>
+                                            <td class="text-center">
+                                                <input type="checkbox" class="form-check-input time-log-perm" 
+                                                    data-user="${user.email}" data-perm="can_add" 
+                                                    ${perms.can_add ? 'checked' : ''}>
+                                            </td>
+                                            <td class="text-center">
+                                                <input type="checkbox" class="form-check-input time-log-perm" 
+                                                    data-user="${user.email}" data-perm="can_edit" 
+                                                    ${perms.can_edit ? 'checked' : ''}>
+                                            </td>
+                                            <td class="text-center">
+                                                <input type="checkbox" class="form-check-input time-log-perm" 
+                                                    data-user="${user.email}" data-perm="can_delete" 
+                                                    ${perms.can_delete ? 'checked' : ''}>
+                                            </td>
+                                            <td class="text-center">
+                                                <input type="checkbox" class="form-check-input time-log-perm" 
+                                                    data-user="${user.email}" data-perm="can_edit_workstation" 
+                                                    ${perms.can_edit_workstation ? 'checked' : ''}>
+                                            </td>
+                                            <td class="text-center">
+                                                <input type="checkbox" class="form-check-input time-log-perm" 
+                                                    data-user="${user.email}" data-perm="can_edit_time_required" 
+                                                    ${perms.can_edit_time_required ? 'checked' : ''}>
+                                            </td>
+                                        </tr>
+                                    `;
+                                }).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <hr>
+                
+                <h6 class="mt-3">Operation Planning Settings</h6>
+                <div class="form-check mb-3">
+                    <input class="form-check-input" type="checkbox" id="configShowOperationPlanning" 
+                        ${config.show_operation_planning_button !== false ? 'checked' : ''}>
+                    <label class="form-check-label" for="configShowOperationPlanning">
+                        Show Operation Planning Button
+                    </label>
+                </div>
+                
+                <div id="operationPlanningPermissionsSection" style="display: ${config.show_operation_planning_button !== false ? 'block' : 'none'};">
+                    <label class="small fw-bold">User Permissions for Operation Planning</label>
+                    <div class="table-responsive" style="max-height: 300px; overflow-y: auto;">
+                        <table class="table table-sm table-bordered">
+                            <thead class="table-light sticky-top">
+                                <tr>
+                                    <th style="min-width: 180px;">User</th>
+                                    <th class="text-center" style="width: 60px;" title="View operations table">View</th>
+                                    <th class="text-center" style="width: 60px;" title="Add new operations">Add</th>
+                                    <th class="text-center" style="width: 60px;" title="Edit existing operations">Edit</th>
+                                    <th class="text-center" style="width: 60px;" title="Delete operations">Delete</th>
+                                    <th class="text-center" style="width: 80px;" title="Reorder operations">Reorder</th>
+                                </tr>
+                            </thead>
+                            <tbody id="operationPlanningPermissionsTable">
+                                ${users.users.map(user => {
+                                    const perms = config.operation_planning_permissions?.[user.email] || {
+                                        can_view: false,
+                                        can_add: false,
+                                        can_edit: false,
+                                        can_delete: false,
+                                        can_reorder: false
+                                    };
+                                    return `<tr>
+                                        <td class="small">${user.email}</td>
+                                        <td class="text-center">
+                                            <input type="checkbox" class="form-check-input op-planning-perm" 
+                                                data-user="${user.email}" data-perm="can_view" ${perms.can_view ? 'checked' : ''}>
+                                        </td>
+                                        <td class="text-center">
+                                            <input type="checkbox" class="form-check-input op-planning-perm" 
+                                                data-user="${user.email}" data-perm="can_add" ${perms.can_add ? 'checked' : ''}>
+                                        </td>
+                                        <td class="text-center">
+                                            <input type="checkbox" class="form-check-input op-planning-perm" 
+                                                data-user="${user.email}" data-perm="can_edit" ${perms.can_edit ? 'checked' : ''}>
+                                        </td>
+                                        <td class="text-center">
+                                            <input type="checkbox" class="form-check-input op-planning-perm" 
+                                                data-user="${user.email}" data-perm="can_delete" ${perms.can_delete ? 'checked' : ''}>
+                                        </td>
+                                        <td class="text-center">
+                                            <input type="checkbox" class="form-check-input op-planning-perm" 
+                                                data-user="${user.email}" data-perm="can_reorder" ${perms.can_reorder ? 'checked' : ''}>
+                                        </td>
+                                    </tr>`;
+                                }).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-6">
+                <h6>Group Sort Order</h6>
+                <p class="small text-muted">Drag to reorder groups</p>
+                
+                ${group1Values.length > 0 ? `
+                    <label class="small fw-bold">Primary Groups (${group1Field})</label>
+                    <ul class="list-group mb-3" id="group1SortList" style="max-height: 200px; overflow-y: auto;">
+                        ${group1Values.map(val => `
+                            <li class="list-group-item draggable-group" draggable="true" data-value="${val}">
+                                <span class="drag-handle">☰</span> ${val}
+                            </li>
+                        `).join('')}
+                    </ul>
+                ` : '<p class="small text-muted mb-3">Select primary grouping field first</p>'}
+                
+                ${group2Values.length > 0 ? `
+                    <label class="small fw-bold">Secondary Groups (${group2Field})</label>
+                    <ul class="list-group mb-3" id="group2SortList" style="max-height: 200px; overflow-y: auto;">
+                        ${group2Values.map(val => `
+                            <li class="list-group-item draggable-group" draggable="true" data-value="${val}">
+                                <span class="drag-handle">☰</span> ${val}
+                            </li>
+                        `).join('')}
+                    </ul>
+                ` : ''}
+                
+                <hr>
+                
+                <h6>Field Display Order</h6>
+                <p class="small text-muted">Drag to reorder fields in detail modal</p>
+                <ul class="list-group" id="fieldOrderList" style="max-height: 300px; overflow-y: auto;">
+                    ${columns.map(col => {
+                        return `
+                            <li class="list-group-item draggable-field" draggable="true" data-fieldname="${col.fieldname}">
+                                <span class="drag-handle">☰</span> ${col.label || col.fieldname}
+                            </li>
+                        `;
+                    }).join('')}
+                </ul>
+            </div>
+        </div>
+    `;
+    
+    document.getElementById('globalConfigContent').innerHTML = contentHtml;
+    
     setupDragDrop('fieldOrderList');
     setupDragDrop('group1SortList');
     setupDragDrop('group2SortList');
-  }
-
-  // Wire toggle sections
-  document.getElementById('configShowTimeLogs').addEventListener('change', (e) => {
-    document.getElementById('timeLogsPermissionsSection').style.display = e.target.checked ? 'block' : 'none';
-  });
-
-  document.getElementById('configShowOperationPlanning').addEventListener('change', (e) => {
-    document.getElementById('operationPlanningPermissionsSection').style.display = e.target.checked ? 'block' : 'none';
-  });
-
-  // Populate mapping rows + add button
-  document.getElementById('addFieldTargetMapRowBtn').addEventListener('click', () => {
-    addFieldTargetMapRow(columns, '', '');
-  });
-
-  Object.keys(existingFieldTargetMap || {}).forEach(reportField => {
-    addFieldTargetMapRow(columns, reportField, existingFieldTargetMap[reportField]);
-  });
-
-  // Save handler
-  document.getElementById('saveGlobalConfigBtn').onclick = () => {
-    if (!reportConfig[reportName]) reportConfig[reportName] = {};
-
-    const cfg = reportConfig[reportName];
-
-    // Basic
-    cfg.doctype = document.getElementById('configDoctype').value.trim();
-    cfg.titlefield = document.getElementById('configTitleField').value;
-
-    // Card fields (limit to 5)
-    const cardFields = Array.from(document.querySelectorAll('.card-field-check:checked')).map(cb => cb.value);
-    cfg.cardfields = cardFields.slice(0, 5);
-    cfg.card_fields = cfg.cardfields; // keep both to survive mixed code paths
-
-    // Image fields
-    const imageFields = Array.from(document.querySelectorAll('.image-field-check:checked')).map(cb => cb.value);
-    cfg.imagefields = imageFields;
-    cfg.image_fields = cfg.imagefields;
-
-    // Grouping
-    const g1 = document.getElementById('configGroup1').value;
-    const g2 = document.getElementById('configGroup2').value;
-    cfg.groupby = [g1, g2].filter(Boolean);
-    cfg.group_by = cfg.groupby;
-
-    // Sorting
-    cfg.sortby = document.getElementById('configSortBy').value;
-    cfg.sort_by = cfg.sortby;
-
-    cfg.sortorder = document.getElementById('configSortOrder').value || 'asc';
-    cfg.sort_order = cfg.sortorder;
-
-    cfg.collapsed = document.getElementById('configCollapsed').checked;
-
-    // Field order
-    const fieldOrder = Array.from(document.querySelectorAll('#fieldOrderList .draggable-field')).map(li => li.dataset.fieldname);
-    cfg.fieldorder = fieldOrder;
-    cfg.field_order = cfg.fieldorder;
-
-    // Group sort order
-    cfg.groupsort = cfg.groupsort || {};
-    cfg.group_sort = cfg.group_sort || {};
-
-    if (g1) {
-      const order1 = Array.from(document.querySelectorAll('#group1SortList .draggable-group')).map(li => li.dataset.value);
-      cfg.groupsort[g1] = order1;
-      cfg.group_sort[g1] = order1;
-    }
-    if (g2) {
-      const order2 = Array.from(document.querySelectorAll('#group2SortList .draggable-group')).map(li => li.dataset.value);
-      cfg.groupsort[g2] = order2;
-      cfg.group_sort[g2] = order2;
-    }
-
-    // NEW: field target map (computed -> real field)
-    const fieldTargetMap = readFieldTargetMapFromUI();
-    if (Object.keys(fieldTargetMap).length > 0) {
-      cfg.field_target_map = fieldTargetMap;
-    } else {
-      delete cfg.field_target_map;
-    }
-
-    // Time logs
-    cfg.showtimelogsbutton = document.getElementById('configShowTimeLogs').checked;
-    cfg.show_time_logs_button = cfg.showtimelogsbutton;
-
-    if (cfg.showtimelogsbutton) {
-      const perms = {};
-      document.querySelectorAll('.time-log-perm').forEach(cb => {
-        const user = cb.dataset.user;
-        const perm = cb.dataset.perm;
-        if (!perms[user]) perms[user] = {
-          can_view: false, can_add: false, can_edit: false, can_delete: false,
-          can_edit_workstation: false, can_edit_time_required: false
-        };
-        perms[user][perm] = cb.checked;
-      });
-      cfg.timelogspermissions = perms;
-      cfg.time_logs_permissions = perms;
-    } else {
-      delete cfg.timelogspermissions;
-      delete cfg.time_logs_permissions;
-    }
-
-    // Operation planning
-    cfg.showoperationplanningbutton = document.getElementById('configShowOperationPlanning').checked;
-    cfg.show_operation_planning_button = cfg.showoperationplanningbutton;
-
-    if (cfg.showoperationplanningbutton) {
-      const perms = {};
-      document.querySelectorAll('.op-planning-perm').forEach(cb => {
-        const user = cb.dataset.user;
-        const perm = cb.dataset.perm;
-        if (!perms[user]) perms[user] = {
-          can_view: false, can_add: false, can_edit: false, can_delete: false, can_reorder: false
-        };
-        perms[user][perm] = cb.checked;
-      });
-      cfg.operationplanningpermissions = perms;
-      cfg.operation_planning_permissions = perms;
-    } else {
-      delete cfg.operationplanningpermissions;
-      delete cfg.operation_planning_permissions;
+    
+    // Add event listener for show time logs checkbox
+    document.getElementById('configShowTimeLogs').addEventListener('change', (e) => {
+        document.getElementById('timeLogsPermissionsSection').style.display = 
+            e.target.checked ? 'block' : 'none';
+    });
+    
+    // Add event listener for show operation planning checkbox
+    document.getElementById('configShowOperationPlanning').addEventListener('change', (e) => {
+        document.getElementById('operationPlanningPermissionsSection').style.display = 
+            e.target.checked ? 'block' : 'none';
+    });
+    
+    document.getElementById('saveGlobalConfigBtn').onclick = () => {
+        if (!reportConfig[reportName]) {
+            reportConfig[reportName] = {};
+        }
+        
+        const group1 = document.getElementById('config_group1').value;
+        const group2 = document.getElementById('config_group2').value;
+        
+        reportConfig[reportName].doctype = document.getElementById('config_doctype').value;
+        reportConfig[reportName].title_field = document.getElementById('config_title_field').value;
+        
+        const cardFieldChecks = document.querySelectorAll('.card-field-check:checked');
+        reportConfig[reportName].card_fields = Array.from(cardFieldChecks).map(cb => cb.value);
+        
+        const imageFieldChecks = document.querySelectorAll('.image-field-check:checked');
+        reportConfig[reportName].image_fields = Array.from(imageFieldChecks).map(cb => cb.value);
+        
+        reportConfig[reportName].group_by = [group1, group2].filter(g => g);
+        reportConfig[reportName].sort_by = document.getElementById('config_sortby').value;
+        reportConfig[reportName].sort_order = document.getElementById('config_sortorder').value;
+        reportConfig[reportName].collapsed = document.getElementById('config_collapsed').checked;
+        
+        const fieldOrder = [...document.querySelectorAll('#fieldOrderList .draggable-field')]
+            .map(li => li.dataset.fieldname);
+        reportConfig[reportName].field_order = fieldOrder;
+        
+        reportConfig[reportName].group_sort = {};
+        
+        const group1List = document.getElementById('group1SortList');
+        if (group1List && group1) {
+            const group1Order = [...group1List.querySelectorAll('.draggable-group')]
+                .map(li => li.dataset.value);
+            reportConfig[reportName].group_sort[group1] = group1Order;
+        }
+        
+        const group2List = document.getElementById('group2SortList');
+        if (group2List && group2) {
+            const group2Order = [...group2List.querySelectorAll('.draggable-group')]
+                .map(li => li.dataset.value);
+            reportConfig[reportName].group_sort[group2] = group2Order;
+        }
+        
+        // Save Time Logs configuration
+        reportConfig[reportName].show_time_logs_button = 
+            document.getElementById('configShowTimeLogs').checked;
+        
+        if (reportConfig[reportName].show_time_logs_button) {
+            const permissions = {};
+            document.querySelectorAll('.time-log-perm').forEach(checkbox => {
+                const user = checkbox.dataset.user;
+                const perm = checkbox.dataset.perm;
+                
+                if (!permissions[user]) {
+                    permissions[user] = {
+                        can_view: false,
+                        can_add: false,
+                        can_edit: false,
+                        can_delete: false,
+                        can_edit_workstation: false,
+                        can_edit_time_required: false
+                    };
+                }
+                
+                permissions[user][perm] = checkbox.checked;
+            });
+            
+            reportConfig[reportName].time_logs_permissions = permissions;
+        } else {
+            // Remove time logs permissions if feature is disabled
+            delete reportConfig[reportName].time_logs_permissions;
+        }
+        
+        // Save Operation Planning configuration
+        reportConfig[reportName].show_operation_planning_button = 
+            document.getElementById('configShowOperationPlanning').checked;
+        
+        if (reportConfig[reportName].show_operation_planning_button) {
+            const opPlanningPermissions = {};
+            document.querySelectorAll('.op-planning-perm').forEach(checkbox => {
+                const user = checkbox.dataset.user;
+                const perm = checkbox.dataset.perm;
+                if (!opPlanningPermissions[user]) {
+                    opPlanningPermissions[user] = {
+                        can_view: false,
+                        can_add: false,
+                        can_edit: false,
+                        can_delete: false,
+                        can_reorder: false
+                    };
+                }
+                opPlanningPermissions[user][perm] = checkbox.checked;
+            });
+            reportConfig[reportName].operation_planning_permissions = opPlanningPermissions;
+        } else {
+            // Remove operation planning permissions if feature is disabled
+            delete reportConfig[reportName].operation_planning_permissions;
+        }
+        
+        alert("Configuration saved! Click 'Save Changes' in main settings to persist.");
+        configModal.hide();
+    };
+    
+    // Blur any focused element to prevent aria-hidden focus conflict
+    if (document.activeElement && document.activeElement.blur) {
+        document.activeElement.blur();
     }
 
-    alert('Configuration saved! Click "Save Changes" in the main settings to persist.');
-    configModal.hide();
-  };
-
-  configModal.show();
+    // Show modal after a small delay to ensure focus is cleared
+    setTimeout(() => {
+        configModal.show();
+    }, 50);
 }
-
 
 
 
@@ -5348,3 +5120,4 @@ function openMobileReorderModal(reportName, primaryGroup, secondaryGroup) {
 }
 
 // ========== END MOBILE REORDER MODAL FUNCTIONS ==========
+
