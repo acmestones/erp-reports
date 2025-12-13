@@ -1956,8 +1956,6 @@ if (isset($_GET['action']) && $_GET['action'] === 'save_card_priority') {
 
 
 
-
-
 // Get DocType metadata (fields)
 if (isset($_GET['action']) && $_GET['action'] === 'get_doctype_meta') {
     $doctype = $_GET['doctype'] ?? '';
@@ -1966,12 +1964,24 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_doctype_meta') {
         exit;
     }
     
+    // Use Frappe's getdoctype method instead of direct resource access
     $ch = curl_init();
-    $url = ERP_BASE . "/api/resource/DocType/" . urlencode($doctype);
+    $url = ERP_BASE . "/api/method/frappe.desk.form.load.getdoctype";
+    
+    // Send as POST with doctype parameter
+    $postData = json_encode([
+        'doctype' => $doctype
+    ]);
+    
     curl_setopt_array($ch, [
         CURLOPT_URL => $url,
         CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_HTTPHEADER => ["Authorization: token " . API_KEY . ":" . API_SECRET],
+        CURLOPT_POST => true,
+        CURLOPT_POSTFIELDS => $postData,
+        CURLOPT_HTTPHEADER => [
+            "Authorization: token " . API_KEY . ":" . API_SECRET,
+            "Content-Type: application/json"
+        ],
         CURLOPT_SSL_VERIFYPEER => false
     ]);
     
@@ -1981,7 +1991,14 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_doctype_meta') {
     
     if ($http_code === 200) {
         $data = json_decode($response, true);
-        $fields = $data['data']['fields'] ?? [];
+        
+        // Extract fields from the response
+        $docs = $data['docs'] ?? [];
+        $fields = [];
+        
+        if (!empty($docs)) {
+            $fields = $docs[0]['fields'] ?? [];
+        }
         
         // Return only necessary field info
         $fieldInfo = array_map(function($f) {
@@ -1997,7 +2014,14 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_doctype_meta') {
         
         echo json_encode(['success' => true, 'fields' => $fieldInfo]);
     } else {
-        echo json_encode(['success' => false, 'error' => 'Failed to fetch DocType', 'http_code' => $http_code]);
+        // Log the error for debugging
+        error_log("DocType fetch failed - HTTP $http_code: $response");
+        echo json_encode([
+            'success' => false, 
+            'error' => 'Failed to fetch DocType', 
+            'http_code' => $http_code,
+            'details' => $response
+        ]);
     }
     exit;
 }
