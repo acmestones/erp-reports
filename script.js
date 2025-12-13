@@ -123,7 +123,7 @@ document.getElementById("logoutBtn").addEventListener("click", () => {
 
 
 async function getUsers() {
-    const res = await fetch(`${API_BASE}?action=get_users`);
+    const res = await fetch(`${API_BASE}?action=getusers`);
     if (!res.ok) throw new Error("Failed to fetch users");
     return res.json();
 }
@@ -135,13 +135,13 @@ async function getReport(name) {
 }
 
 async function getAllReports() {
-    const res = await fetch(`${API_BASE}?action=get_all_reports`);
+    const res = await fetch(`${API_BASE}?action=getallreports`);
     if (!res.ok) throw new Error("Failed to fetch reports list");
     return res.json();
 }
 
 async function getReportConfig() {
-    const res = await fetch(`${API_BASE}?action=get_report_config`);
+    const res = await fetch(`${API_BASE}?action=getreportconfig`);
     if (!res.ok) return {};
     return res.json();
 }
@@ -187,7 +187,7 @@ function getGroups(report, level) {
 
 
 async function saveReportConfig(config) {
-    const res = await fetch(`${API_BASE}?action=save_report_config`, {
+    const res = await fetch(`${API_BASE}?action=savereportconfig`, {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({config}) // Must be the FULL config
@@ -199,18 +199,19 @@ async function saveReportConfig(config) {
 
 
 async function saveCardPriority(reportName, primaryGroup, secondaryGroup, cardOrder) {
-    const res = await fetch(`${API_BASE}?action=save_card_priority`, {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({
-            report_name: reportName,
-            primary_group: primaryGroup,
-            secondary_group: secondaryGroup,
-            card_order: cardOrder
-        })
-    });
-    return res.json();
+  const res = await fetch(`${API_BASE}?action=savecardpriority`, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({
+      reportname: reportName,
+      primarygroup: primaryGroup,
+      secondarygroup: secondaryGroup,
+      cardorder: cardOrder
+    })
+  });
+  return res.json();
 }
+
 
 
 
@@ -363,7 +364,7 @@ async function getLinkOptions(doctype) {
         return linkFieldOptions[doctype];
     }
     
-    const res = await fetch(`${API_BASE}?action=get_link_options&doctype=${encodeURIComponent(doctype)}`);
+    const res = await fetch(`${API_BASE}?action=getlinkoptions&doctype=${encodeURIComponent(doctype)}`);
     if (!res.ok) return [];
     const data = await res.json();
     
@@ -375,7 +376,7 @@ async function getLinkOptions(doctype) {
 }
 
 async function updateField(doctype, docname, fieldname, value) {
-    const res = await fetch(`${API_BASE}?action=update_field`, {
+    const res = await fetch(`${API_BASE}?action=updatefield`, {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({doctype, docname, fieldname, value})
@@ -417,7 +418,7 @@ async function getDocCached(doctype, docname) {
   if (__docCache.has(key)) return __docCache.get(key);
 
   const res = await fetch(
-    `${API_BASE}?action=get_doc&doctype=${encodeURIComponent(doctype)}&docname=${encodeURIComponent(docname)}`
+    `${API_BASE}?action=getdoc&doctype=${encodeURIComponent(doctype)}&docname=${encodeURIComponent(docname)}`
   );
 
   if (!res.ok) {
@@ -442,9 +443,10 @@ async function getDocCached(doctype, docname) {
  * if not, returns null (treat as computed / not editable).
  */
 function resolveTargetField(reportFieldname, config, doc = null) {
-  // Support both possible config key styles
+  // Support config key styles (your codebase has mixed naming)
   const mapA = config?.field_target_map || {};
   const mapB = config?.fieldTargetMap || {};
+  const mapC = config?.fieldtargetmap || {}; // <-- important for your UI
   const override = mapA?.[reportFieldname] || mapB?.[reportFieldname];
 
   const autoMap = window.reportFieldMapping?.[reportFieldname];
@@ -525,7 +527,7 @@ function fixImageUrl(url) {
         }
         
         // Always proxy private files through PHP for authentication
-        return API_BASE + '?action=proxy_image&file_url=' + encodeURIComponent(filePath);
+        return API_BASE + '?action=proxyimage&file_url=' + encodeURIComponent(filePath);
     }
     
     // Already absolute URL (public files)
