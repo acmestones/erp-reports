@@ -458,7 +458,7 @@ function fixImageUrl(url) {
         }
         
         // Always proxy private files through PHP for authentication
-        return API_BASE + '?action=proxyimage&fileurl=' + encodeURIComponent(filePath);
+        return API_BASE + '?action=proxy_image&file_url=' + encodeURIComponent(filePath);
     }
     
     // Already absolute URL (public files)
