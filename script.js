@@ -449,28 +449,16 @@ function fixImageUrl(url) {
     url = url.trim();
     
     // Handle private files - MUST be proxied with authentication
-    if (url.includes('/private/files/') || url.includes('private/files')) {
+    if (url.includes('/private/files/')) {
         // Extract just the path
         let filePath = url;
-        
-        // If it's already a full URL, extract the path
         if (url.startsWith('http')) {
-            try {
-                const urlObj = new URL(url);
-                filePath = urlObj.pathname + urlObj.search;
-            } catch (e) {
-                // If URL parsing fails, try to extract path manually
-                const match = url.match(/\/private\/files\/.+/);
-                if (match) filePath = match[0];
-            }
+            const urlObj = new URL(url);
+            filePath = urlObj.pathname + urlObj.search;
         }
         
-        // Clean up the path - remove leading/trailing slashes for consistency
-        if (!filePath.startsWith('/')) filePath = '/' + filePath;
-        
         // Always proxy private files through PHP for authentication
-        console.log('Proxying private file:', filePath);
-        return API_BASE + '?action=proxyimage&fileurl=' + encodeURIComponent(filePath);
+        return API_BASE + '?action=proxy_image&file_url=' + encodeURIComponent(filePath);
     }
     
     // Already absolute URL (public files)
@@ -744,33 +732,25 @@ async function loadReport(reportName) {
         const imageFields = config.image_fields || ['item_description', 'custom_description_cleaned', 'description'];
         
         // Optimize image URL fixing using regex instead of DOM manipulation
-            rows.forEach(row => {
-                imageFields.forEach(field => {
-                    if (row[field] && typeof row[field] === 'string') {
-                        let html = row[field];
-                        
-                        // Fix image src attributes using regex - IMPROVED VERSION
-                        html = html.replace(/src=["']([^"']+)["']/g, (match, url) => {
-                            const fixedUrl = fixImageUrl(url);
-                            console.log(`Fixed image in ${field}: ${url} -> ${fixedUrl}`);
-                            return `src="${fixedUrl}"`;
-                        });
-                        
-                        // Fix anchor href attributes using regex  
-                        html = html.replace(/href=["']([^"']+)["']/g, (match, url) => {
-                            // Only fix file URLs, not internal ERPNext links
-                            if (url.includes('/files/') || url.includes('/private/')) {
-                                const fixedUrl = fixImageUrl(url);
-                                console.log(`Fixed link in ${field}: ${url} -> ${fixedUrl}`);
-                                return `href="${fixedUrl}"`;
-                            }
-                            return match;
-                        });
-                        
-                        row[field] = html;
-                    }
-                });
+        rows.forEach(row => {
+            imageFields.forEach(field => {
+                if (row[field] && typeof row[field] === 'string') {
+                    let html = row[field];
+                    
+                    // Fix image src attributes using regex (much faster)
+                    html = html.replace(/src=["']([^"']+)["']/g, (match, url) => {
+                        return `src="${fixImageUrl(url)}"`;
+                    });
+                    
+                    // Fix anchor href attributes using regex
+                    html = html.replace(/href=["']([^"']+)["']/g, (match, url) => {
+                        return `href="${fixImageUrl(url)}"`;
+                    });
+                    
+                    row[field] = html;
+                }
             });
+        });
         
         // Get ordered columns if field order is configured
         let orderedColumns = columns;
@@ -5164,4 +5144,3 @@ function openMobileReorderModal(reportName, primaryGroup, secondaryGroup) {
 }
 
 // ========== END MOBILE REORDER MODAL FUNCTIONS ==========
-
