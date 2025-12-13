@@ -554,40 +554,232 @@ async function getPlantOptions() {
 
 
 
-// Build a mapping of report field names to actual database field names
-function buildFieldMapping(columns) {
+// Cache for DocType metadata
+let doctypeFieldsCache = {};
+
+async function fetchDoctypeFields(doctype) {
+    if (doctypeFieldsCache[doctype]) {
+        return doctypeFieldsCache[doctype];
+    }
+    
+    try {
+        const res = await fetch(`${API_BASE}?action=get_doctype_meta&doctype=${encodeURIComponent(doctype)}`);
+        const data = await res.json();
+        if (data.success) {
+            doctypeFieldsCache[doctype] = data.fields;
+            return data.fields;
+        }
+    } catch (err) {
+        console.error('Error fetching DocType fields:', err);
+    }
+    return [];
+}
+
+async function buildFieldMapping(reportColumns, doctype) {
     const mapping = {};
+    const erpFields = await fetchDoctypeFields(doctype);
     
-    // List of standard ERPNext Work Order fields (non-custom)
-    const standardFields = [
-        'name', 'owner', 'creation', 'modified', 'modified_by', 'docstatus', 'idx',
-        'status', 'company', 'qty', 'description', 'remarks', 'workstation', 
-        'operation', 'production_item', 'sales_order', 'bom_no', 'item_name',
-        'fg_warehouse', 'wip_warehouse', 'source_warehouse', 'planned_start_date',
-        'planned_end_date', 'expected_delivery_date', 'stock_uom', 'produced_qty',
-        'material_transferred_for_manufacturing', 'transaction_date'
-    ];
+    // Get user-configured mappings from report config
+    const config = reportConfig[currentReportName] || {};
+    const manualMappings = config.field_mappings || {};
     
-    columns.forEach(col => {
+    console.log('🔍 Building field mapping...');
+    console.log('Report columns:', reportColumns.map(c => c.fieldname));
+    console.log('ERP fields available:', erpFields.map(f => f.fieldname));
+    console.log('Manual mappings:', manualMappings);
+    
+    reportColumns.forEach(col => {
         const reportFieldname = col.fieldname;
         
-        // If it already has custom_ prefix, use as-is
-        if (reportFieldname.startsWith('custom_')) {
-            mapping[reportFieldname] = reportFieldname;
+        // Priority 1: User-configured manual mapping
+        if (manualMappings[reportFieldname]) {
+            mapping[reportFieldname] = {
+                erpField: manualMappings[reportFieldname],
+                isEditable: true,
+                isComputed: false
+            };
+            console.log(`✅ Manual mapping: ${reportFieldname} → ${manualMappings[reportFieldname]}`);
+            return;
         }
-        // If it's a standard field, use as-is
-        else if (standardFields.includes(reportFieldname)) {
-            mapping[reportFieldname] = reportFieldname;
+        
+        // Priority 2: Exact match in ERP fields
+        const exactMatch = erpFields.find(f => f.fieldname === reportFieldname);
+        if (exactMatch) {
+            mapping[reportFieldname] = {
+                erpField: exactMatch.fieldname,
+                isEditable: !exactMatch.read_only,
+                isComputed: false,
+                fieldtype: exactMatch.fieldtype,
+                options: exactMatch.options
+            };
+            console.log(`✅ Exact match: ${reportFieldname}`);
+            return;
         }
-        // Otherwise, assume it needs custom_ prefix
-        else {
-            mapping[reportFieldname] = 'custom_' + reportFieldname;
-            console.log(`📋 Auto-mapping: ${reportFieldname} → custom_${reportFieldname}`);
+        
+        // Priority 3: Try with custom_ prefix
+        const customFieldname = 'custom_' + reportFieldname;
+        const customMatch = erpFields.find(f => f.fieldname === customFieldname);
+        if (customMatch) {
+            mapping[reportFieldname] = {
+                erpField: customMatch.fieldname,
+                isEditable: !customMatch.read_only,
+                isComputed: false,
+                fieldtype: customMatch.fieldtype,
+                options: customMatch.options
+            };
+            console.log(`✅ Custom field match: ${reportFieldname} → ${customFieldname}`);
+            return;
         }
+        
+        // Priority 4: Try label matching (fuzzy)
+        const labelMatch = erpFields.find(f => 
+            f.label && col.label && 
+            f.label.toLowerCase().replace(/\s+/g, '_') === col.label.toLowerCase().replace(/\s+/g, '_')
+        );
+        if (labelMatch) {
+            mapping[reportFieldname] = {
+                erpField: labelMatch.fieldname,
+                isEditable: !labelMatch.read_only,
+                isComputed: false,
+                fieldtype: labelMatch.fieldtype,
+                options: labelMatch.options
+            };
+            console.log(`✅ Label match: ${reportFieldname} → ${labelMatch.fieldname}`);
+            return;
+        }
+        
+        // No match found - mark as computed/read-only
+        mapping[reportFieldname] = {
+            erpField: null,
+            isEditable: false,
+            isComputed: true
+        };
+        console.log(`⚠️ No mapping found for: ${reportFieldname} (marking as computed)`);
     });
     
     return mapping;
 }
+
+
+
+
+
+
+
+
+
+async function openFieldMappingConfig(reportName) {
+    const modal = new bootstrap.Modal(document.getElementById('adminModal'));
+    const modalBody = document.querySelector('#adminModal .modal-body');
+    const modalTitle = document.querySelector('#adminModal .modal-title');
+    
+    modalTitle.textContent = `Field Mappings: ${reportName}`;
+    modalBody.innerHTML = '<div class="text-center"><div class="spinner-border"></div><p>Loading field mappings...</p></div>';
+    modal.show();
+    
+    // Get report data to know the columns
+    const reportData = await getReport(reportName);
+    const columns = reportData.message.columns || [];
+    
+    // Get config
+    const config = reportConfig[reportName] || {};
+    const doctype = config.doctype || 'Work Order';
+    const manualMappings = config.field_mappings || {};
+    
+    // Fetch ERP fields
+    const erpFields = await fetchDoctypeFields(doctype);
+    
+    modalBody.innerHTML = `
+        <div class="alert alert-info">
+            <strong>DocType:</strong> ${doctype}
+            <button class="btn btn-sm btn-outline-primary float-end" onclick="changeMappingDoctype('${reportName}')">Change</button>
+        </div>
+        
+        <table class="table table-sm">
+            <thead>
+                <tr>
+                    <th>Report Field</th>
+                    <th>Maps to ERP Field</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody id="fieldMappingTable">
+            </tbody>
+        </table>
+        
+        <button class="btn btn-success" onclick="saveFieldMappings('${reportName}')">Save Mappings</button>
+    `;
+    
+    const tbody = document.getElementById('fieldMappingTable');
+    
+    columns.forEach(col => {
+        const row = document.createElement('tr');
+        const currentMapping = manualMappings[col.fieldname] || '';
+        
+        // Auto-detect status
+        let status = '🔴 Not Mapped';
+        let autoDetected = null;
+        
+        // Try to find the field
+        const exactMatch = erpFields.find(f => f.fieldname === col.fieldname);
+        const customMatch = erpFields.find(f => f.fieldname === 'custom_' + col.fieldname);
+        
+        if (currentMapping) {
+            status = '✅ Manual';
+            autoDetected = currentMapping;
+        } else if (exactMatch) {
+            status = '🟢 Auto (Exact)';
+            autoDetected = exactMatch.fieldname;
+        } else if (customMatch) {
+            status = '🟡 Auto (Custom)';
+            autoDetected = customMatch.fieldname;
+        }
+        
+        row.innerHTML = `
+            <td><strong>${col.fieldname}</strong><br><small class="text-muted">${col.label}</small></td>
+            <td>
+                <select class="form-select form-select-sm field-mapping-select" data-report-field="${col.fieldname}">
+                    <option value="">-- Computed/Read-Only --</option>
+                    ${erpFields.map(f => `
+                        <option value="${f.fieldname}" ${(currentMapping || autoDetected) === f.fieldname ? 'selected' : ''}>
+                            ${f.fieldname} (${f.label})
+                        </option>
+                    `).join('')}
+                </select>
+            </td>
+            <td><span class="badge bg-secondary">${status}</span></td>
+        `;
+        
+        tbody.appendChild(row);
+    });
+}
+
+function saveFieldMappings(reportName) {
+    const selects = document.querySelectorAll('.field-mapping-select');
+    const mappings = {};
+    
+    selects.forEach(select => {
+        const reportField = select.dataset.reportField;
+        const erpField = select.value;
+        if (erpField) {
+            mappings[reportField] = erpField;
+        }
+    });
+    
+    // Save to config
+    if (!reportConfig[reportName]) {
+        reportConfig[reportName] = {};
+    }
+    reportConfig[reportName].field_mappings = mappings;
+    
+    // Save to backend
+    saveReportConfig(reportConfig).then(() => {
+        alert('Field mappings saved! Reload the report to apply changes.');
+        bootstrap.Modal.getInstance(document.getElementById('adminModal')).hide();
+    });
+}
+
+
 
 
 
