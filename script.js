@@ -754,6 +754,22 @@ async function openFieldMappingConfig(reportName) {
     });
 }
 
+
+
+
+function changeMappingDoctype(reportName) {
+    const newDoctype = prompt('Enter DocType name:', reportConfig[reportName]?.doctype || 'Work Order');
+    if (newDoctype) {
+        if (!reportConfig[reportName]) {
+            reportConfig[reportName] = {};
+        }
+        reportConfig[reportName].doctype = newDoctype;
+        saveReportConfig(reportConfig).then(() => {
+            openFieldMappingConfig(reportName);
+        });
+    }
+}
+
 function saveFieldMappings(reportName) {
     const selects = document.querySelectorAll('.field-mapping-select');
     const mappings = {};
@@ -772,12 +788,19 @@ function saveFieldMappings(reportName) {
     }
     reportConfig[reportName].field_mappings = mappings;
     
+    console.log('Saving field mappings:', mappings);
+    
     // Save to backend
     saveReportConfig(reportConfig).then(() => {
-        alert('Field mappings saved! Reload the report to apply changes.');
+        alert('Field mappings saved! Reloading report...');
         bootstrap.Modal.getInstance(document.getElementById('adminModal')).hide();
+        // Reload the report to apply new mappings
+        loadReport(reportName);
+    }).catch(err => {
+        alert('Error saving: ' + err.message);
     });
 }
+
 
 
 
