@@ -448,30 +448,43 @@ function fixImageUrl(url) {
     if (!url) return null;
     url = url.trim();
     
-    // Already absolute URL
-    if (url.startsWith("http") || url.startsWith("https")) {
+    // Handle private files - MUST be proxied with authentication
+    if (url.includes('/private/files/')) {
+        // Extract just the path
+        let filePath = url;
+        if (url.startsWith('http')) {
+            const urlObj = new URL(url);
+            filePath = urlObj.pathname + urlObj.search;
+        }
+        
+        // Always proxy private files through PHP for authentication
+        return API_BASE + '?action=proxyimage&fileurl=' + encodeURIComponent(filePath);
+    }
+    
+    // Already absolute URL (public files)
+    if (url.startsWith('http://') || url.startsWith('https://')) {
         return url;
     }
     
     // Protocol-relative URL
-    if (url.startsWith("//")) {
-        return "https:" + url;
+    if (url.startsWith('//')) {
+        return 'https:' + url;
     }
     
-    // Handle private files by proxying through PHP
-    if (url.includes('/private/files/')) {
-        // Proxy through PHP to add authentication
-        return `${API_BASE}?action=proxy_image&file_url=${encodeURIComponent(url)}`;
+    // Root-relative URL (public files)
+    if (url.startsWith('/files/')) {
+        return 'https://acmestones.erpnext.com' + url;
     }
     
-    // Root-relative URL (including public /files/)
-    if (url.startsWith("/")) {
-        return `https://acmestones.erpnext.com${url}`;
+    // Other root-relative URLs
+    if (url.startsWith('/')) {
+        return 'https://acmestones.erpnext.com' + url;
     }
     
     // Relative URL
-    return `https://acmestones.erpnext.com/${url}`;
+    return 'https://acmestones.erpnext.com/' + url;
 }
+
 
 
 
@@ -1561,9 +1574,59 @@ async function showDetailModal(row, columns, reportName, config) {
                     valueDiv.appendChild(input);
                     valueDiv.appendChild(saveBtn);
                 }
-            } else if (hasValue) {
-                // Non-editable field with value - display only
-                if (typeof value === 'string' && (value.includes('<img') || value.includes('<a href'))) {
+} else if (hasValue) {
+    // Non-editable field with value - display only
+    if (typeof value === 'string' && (value.includes('<') || value.includes('img') || value.includes('href'))) {
+        // Create temp div to parse HTML
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = value;
+        
+        // Fix ALL image URLs (including those from attachments)
+        tempDiv.querySelectorAll('img').forEach(img => {
+            const originalSrc = img.getAttribute('src');
+            if (originalSrc) {
+                const fixedUrl = fixImageUrl(originalSrc);
+                img.setAttribute('src', fixedUrl);
+                img.style.cursor = 'pointer';
+                img.style.maxWidth = '100%';
+                
+                // Make images clickable to open full size
+                img.onclick = function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    window.open(fixedUrl, '_blank', 'noopener,noreferrer');
+                };
+                
+                img.onerror = function() {
+                    console.error('Failed to load image:', fixedUrl);
+                    this.style.border = '1px solid #ddd';
+                    this.style.padding = '5px';
+                    this.style.backgroundColor = '#f8f9fa';
+                    this.alt = 'Image not available';
+                };
+            }
+        });
+        
+        // Fix ALL links (for file downloads)
+        tempDiv.querySelectorAll('a').forEach(link => {
+            const href = link.getAttribute('href');
+            if (href) {
+                // If it's a file link, fix it
+                if (href.includes('/files/') || href.includes('/private/')) {
+                    link.href = fixImageUrl(href);
+                } else if (!href.startsWith('http') && !href.startsWith('/app/')) {
+                    link.href = fixImageUrl(href);
+                }
+                link.target = '_blank';
+                link.rel = 'noopener noreferrer';
+                link.onclick = function(e) {
+                    e.stopPropagation();
+                };
+            }
+        });
+        
+        valueDiv.appendChild(tempDiv);
+
                     const tempDiv = document.createElement('div');
                     tempDiv.innerHTML = value;
                     
