@@ -858,39 +858,42 @@ async function loadReport(reportName) {
         console.log(`Fetching report: ${reportName}`);
         const data = await getReport(reportName);
         console.log("Report data received:", data);
-        
+
         if (!data.message || !data.message.result) {
             alert("No data returned from report");
             return;
         }
-        
+
         const columns = data.message.columns || [];
         const rows = data.message.result || [];
-        
         console.log("Rows:", rows.length, "Columns:", columns.length);
-        
+
         currentReportColumns = columns;
+
+        // Get config
+        const config = reportConfig[reportName] || {};
+        const doctype = config.doctype || 'Work Order';
+
+        // Build field mapping dynamically from ERPNext
+        console.log('🔄 Building dynamic field mapping for DocType:', doctype);
+        const fieldMapping = await buildFieldMapping(columns, doctype);
+        window.reportFieldMapping = fieldMapping;  // Store globally for use in modal
         
-        // Build field name mapping from report names to actual database field names
-        const fieldMapping = buildFieldMapping(columns);
-        window.reportFieldMapping = fieldMapping;
-        console.log("Field mapping created:", fieldMapping);
-        
+        console.log("✅ Field mapping created:", fieldMapping);
+
         // Build field labels from columns
         fieldLabels = {};
         columns.forEach(col => {
             fieldLabels[col.fieldname] = col.label || col.fieldname;
         });
-        
+
         // Build label-to-fieldname mapping for config resolution
         const labelToFieldname = {};
         columns.forEach(col => {
             const cleanLabel = (col.label || col.fieldname).toLowerCase().replace(/[^a-z0-9]+/g, '_');
             labelToFieldname[cleanLabel] = col.fieldname;
         });
-        
-        const config = reportConfig[reportName] || {};
-        
+
         // Auto-map group_by fields if they don't match report field names
         if (config.group_by) {
             config.group_by = config.group_by.map(field => {
@@ -907,52 +910,47 @@ async function loadReport(reportName) {
                 return field;
             });
         }
-        
+
         const imageFields = config.image_fields || ['item_description', 'custom_description_cleaned', 'description'];
-        
+
         // Optimize image URL fixing using regex instead of DOM manipulation
         rows.forEach(row => {
             imageFields.forEach(field => {
                 if (row[field] && typeof row[field] === 'string') {
                     let html = row[field];
-                    
                     // Fix image src attributes using regex (much faster)
                     html = html.replace(/src=["']([^"']+)["']/g, (match, url) => {
                         return `src="${fixImageUrl(url)}"`;
                     });
-                    
                     // Fix anchor href attributes using regex
                     html = html.replace(/href=["']([^"']+)["']/g, (match, url) => {
                         return `href="${fixImageUrl(url)}"`;
                     });
-                    
                     row[field] = html;
                 }
             });
         });
-        
+
         // Get ordered columns if field order is configured
         let orderedColumns = columns;
         if (config.field_order) {
             orderedColumns = sortColumnsByOrder(columns, config.field_order);
         }
-        
+
         // Sort rows if configured
         const sortedRows = sortRows(rows, columns, config);
-        
+
         // Group data using the groupby configuration
         const grouped = groupData(sortedRows, columns, config.group_by || ['status'], config.group_sort);
-        
+
         currentReportData = {
             grouped,
             columns: orderedColumns,
             reportName
         };
-        
+
         renderGroupedCards(grouped, orderedColumns, reportName);
 
-
-        
     } catch (err) {
         console.error("Error loading report:", err);
         alert("Error loading report: " + err.message);
