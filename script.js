@@ -444,34 +444,42 @@ function extractImageUrl(htmlContent) {
 }
 
 // Replace the existing fixImageUrl function with this enhanced version
+// Enhanced fixImageUrl function
 function fixImageUrl(url) {
     if (!url) return null;
+    
     url = url.trim();
     
-    // Already absolute URL
-    if (url.startsWith("http") || url.startsWith("https")) {
+    // Already absolute URL with http/https - return as is
+    if (url.startsWith('http://') || url.startsWith('https://')) {
         return url;
     }
     
-    // Protocol-relative URL
-    if (url.startsWith("//")) {
-        return "https:" + url;
+    // Protocol-relative URL (//example.com/image.jpg)
+    if (url.startsWith('//')) {
+        return 'https:' + url;
     }
     
     // Handle private files by proxying through PHP
     if (url.includes('/private/files/')) {
-        // Proxy through PHP to add authentication
-        return `${API_BASE}?action=proxy_image&file_url=${encodeURIComponent(url)}`;
+        // If it's already a full URL to private files, proxy it
+        if (url.startsWith('http')) {
+            return `${APIBASE}?action=proxyimage&fileurl=${encodeURIComponent(url)}`;
+        }
+        // If relative private URL, make absolute then proxy
+        const absoluteUrl = `https://acmestones.erpnext.com${url}`;
+        return `${APIBASE}?action=proxyimage&fileurl=${encodeURIComponent(absoluteUrl)}`;
     }
     
-    // Root-relative URL (including public /files/)
-    if (url.startsWith("/")) {
+    // Root-relative URL (starts with /) - convert to ERPNext absolute URL
+    if (url.startsWith('/')) {
         return `https://acmestones.erpnext.com${url}`;
     }
     
-    // Relative URL
-    return `https://acmestones.erpnext.com/${url}`;
+    // Relative URL without leading slash - assume it's in /files/
+    return `https://acmestones.erpnext.com/files/${url}`;
 }
+
 
 
 
