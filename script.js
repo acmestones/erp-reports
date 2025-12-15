@@ -1668,7 +1668,7 @@ async function showDetailModal(row, columns, reportName, config) {
                 }
             } else if (hasValue) {
                 // Non-editable field with value - display only
-                if (typeof value === 'string' && (value.includes('<img') || value.includes('<a href'))) {
+                if (col.fieldtype === 'HTML' || (typeof value === 'string' && (value.includes('<img') || value.includes('<a href')))) {
                     const tempDiv = document.createElement('div');
                     tempDiv.innerHTML = value;
                     
