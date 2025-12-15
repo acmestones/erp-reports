@@ -445,13 +445,29 @@ function extractImageUrl(htmlContent) {
 
 // Replace the existing fixImageUrl function with this enhanced version
 // Enhanced fixImageUrl function
+
 function fixImageUrl(url) {
     if (!url) return null;
     
     url = url.trim();
     
-    // Already absolute URL with http/https - return as is
+    console.log('🔍 Fixing URL:', url); // ✅ Debug log
+    
+    // Already absolute URL with correct domain - return as is
+    if (url.startsWith('https://acmestones.erpnext.com/')) {
+        console.log('✅ Already correct:', url);
+        return url;
+    }
+    
+    // Already absolute URL with http/https - check if it needs proxying
     if (url.startsWith('http://') || url.startsWith('https://')) {
+        // If it's private files, proxy it
+        if (url.includes('/private/files/')) {
+            console.log('🔒 Proxying private URL:', url);
+            return `${API_BASE}?action=proxyimage&fileurl=${encodeURIComponent(url)}`;
+        }
+        // Otherwise return as is
+        console.log('✅ External URL:', url);
         return url;
     }
     
@@ -460,24 +476,24 @@ function fixImageUrl(url) {
         return 'https:' + url;
     }
     
-    // Handle private files by proxying through PHP
+    // Private files - needs proxying
     if (url.includes('/private/files/')) {
-        // If it's already a full URL to private files, proxy it
-        if (url.startsWith('http')) {
-            return `${API_BASE}?action=proxyimage&fileurl=${encodeURIComponent(url)}`;
-        }
-        // If relative private URL, make absolute then proxy
         const absoluteUrl = `https://acmestones.erpnext.com${url}`;
+        console.log('🔒 Proxying private relative URL:', absoluteUrl);
         return `${API_BASE}?action=proxyimage&fileurl=${encodeURIComponent(absoluteUrl)}`;
     }
     
     // Root-relative URL (starts with /) - convert to ERPNext absolute URL
     if (url.startsWith('/')) {
-        return `https://acmestones.erpnext.com${url}`;
+        const fixed = `https://acmestones.erpnext.com${url}`;
+        console.log('🔧 Fixed relative URL:', fixed);
+        return fixed;
     }
     
     // Relative URL without leading slash - assume it's in /files/
-    return `https://acmestones.erpnext.com/files/${url}`;
+    const fixed = `https://acmestones.erpnext.com/files/${url}`;
+    console.log('🔧 Fixed bare filename:', fixed);
+    return fixed;
 }
 
 
