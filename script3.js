@@ -469,36 +469,60 @@ function fixImageUrl(url) {
         return 'https:' + url;
     }
     
-    // Smart encoding: Only encode filename parts, NOT query parameters
-const encodeUrlPath = (path) => {
-    // Split by ? to separate path from query string
-    const [pathPart, queryPart] = path.split('?');
+    // Smart encoding function - handles URLs with special characters
+    const encodeUrlPath = (path) => {
+        const [pathPart, queryPart] = path.split('?');
+        const hasLeadingSlash = pathPart.startsWith('/');
+        
+        // Remove leading slash, encode segments, then add it back
+        const workingPath = hasLeadingSlash ? pathPart.slice(1) : pathPart;
+        const encoded = workingPath.split('/').map(segment => {
+            if (!segment) return '';  // Empty segment
+            if (segment.includes('%')) return segment;  // Already encoded
+            return encodeURIComponent(segment);
+        }).join('/');
+        
+        const finalPath = hasLeadingSlash ? '/' + encoded : encoded;
+        return queryPart ? finalPath + '?' + queryPart : finalPath;
+    };
     
-    // Check if path starts with /
-    const hasLeadingSlash = pathPart.startsWith('/');
+    // TEST the function immediately after definition
+    const testResult = encodeUrlPath('/files/test.jpg');
+    console.log('🧪 TEST encodeUrlPath("/files/test.jpg"):', testResult);
+    console.log('🧪 TEST result:', testResult);
+    console.log('🧪 TEST first char:', testResult[0]);
     
-    // Remove leading slash temporarily if present
-    const pathToEncode = hasLeadingSlash ? pathPart.substring(1) : pathPart;
-    
-    // Encode each path segment
-    const segments = pathToEncode.split('/');
-    const encodedSegments = segments.map(segment => {
-        if (!segment) return '';  // Empty segment
-        if (segment.includes('%')) return segment;  // Already encoded
-        return encodeURIComponent(segment);
-    });
-    
-    // Rejoin
-    let encodedPath = encodedSegments.join('/');
-    
-    // Add leading slash back if it was there
-    if (hasLeadingSlash) {
-        encodedPath = '/' + encodedPath;
+    // Private files - needs proxying
+    if (url.includes('/private/files')) {
+        const encodedUrl = encodeUrlPath(url);
+        const absoluteUrl = `https://acmestones.erpnext.com${encodedUrl}`;
+        console.log('🔒 Proxying private file');
+        return `${API_BASE}?action=proxyimage&fileurl=${encodeURIComponent(absoluteUrl)}`;
     }
     
-    // Add back query string
-    return queryPart ? `${encodedPath}?${queryPart}` : encodedPath;
-};
+    // Root-relative URL (starts with /)
+    if (url.startsWith('/')) {
+        const encodedUrl = encodeUrlPath(url);
+        
+        // ENHANCED DEBUG
+        console.log('📊 Input URL:', url);
+        console.log('📊 encodedUrl:', encodedUrl);
+        console.log('📊 First char:', encodedUrl[0]);
+        console.log('📊 First char code:', encodedUrl.charCodeAt(0));
+        console.log('📊 Starts with slash?', encodedUrl[0] === '/');
+        
+        const fixed = `https://acmestones.erpnext.com${encodedUrl}`;
+        console.log('🔧 Fixed to absolute:', fixed);
+        return fixed;
+    }
+    
+    // Bare filename - assume it's in /files/
+    const encodedFilename = encodeURIComponent(url);
+    const fixed = `https://acmestones.erpnext.com/files/${encodedFilename}`;
+    console.log('📝 Fixed bare filename:', fixed);
+    return fixed;
+}
+
 
 
 
