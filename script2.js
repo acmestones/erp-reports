@@ -1731,14 +1731,7 @@ async function showDetailModal(row, columns, reportName, config) {
                         
                         // CRITICAL: If fixedUrl contains encoded URL characters, it might already be a full URL
                         // that got double-encoded. Clean it up.
-                        if (fixedUrl && fixedUrl.includes('%20')) {
-                            // Decode once to get the actual URL
-                            try {
-                                fixedUrl = decodeURIComponent(fixedUrl);
-                            } catch (e) {
-                                // If decode fails, use as-is
-                            }
-                        }
+    
                         
                         // Set the src - browser will resolve it
                         img.src = fixedUrl; // Use .src property instead of setAttribute
