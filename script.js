@@ -450,13 +450,12 @@ function fixImageUrl(url) {
     if (!url) return null;
     
     url = url.trim();
-    
     console.log('🔍 Fixing URL:', url);
     
     // Already a full URL with http/https
     if (url.startsWith('http://') || url.startsWith('https://')) {
         // If it's private files, proxy it
-        if (url.includes('/private/files/')) {
+        if (url.includes('/private/files')) {
             console.log('🔒 Proxying private URL');
             return `${API_BASE}?action=proxyimage&fileurl=${encodeURIComponent(url)}`;
         }
@@ -470,26 +469,28 @@ function fixImageUrl(url) {
         return 'https:' + url;
     }
     
-    // ✅ Smart encoding: Only encode filename parts, NOT query parameters
+    // Smart encoding: Only encode filename parts, NOT query parameters
     const encodeUrlPath = (path) => {
         // Split by ? to separate path from query string
-        const parts = path.split('?');
-        const pathPart = parts[0];
-        const queryPart = parts[1];
+        const [pathPart, queryPart] = path.split('?');
         
-        // Encode each path segment (between slashes), but NOT if already encoded
-        const encodedPath = pathPart.split('/').map(segment => {
-            if (!segment) return segment; // Empty segment (leading slash)
-            if (segment.includes('%')) return segment; // Already encoded
+        // Encode each path segment between slashes, but NOT if already encoded
+        const segments = pathPart.split('/');
+        const encodedSegments = segments.map(segment => {
+            if (!segment) return '';  // Empty segment (leading/trailing slash)
+            if (segment.includes('%')) return segment;  // Already encoded
             return encodeURIComponent(segment);
-        }).join('/');
+        });
+        
+        // Rejoin with slashes
+        const encodedPath = encodedSegments.join('/');
         
         // Add back query string WITHOUT encoding ? and =
         return queryPart ? `${encodedPath}?${queryPart}` : encodedPath;
     };
     
     // Private files - needs proxying
-    if (url.includes('/private/files/')) {
+    if (url.includes('/private/files')) {
         const encodedUrl = encodeUrlPath(url);
         const absoluteUrl = `https://acmestones.erpnext.com${encodedUrl}`;
         console.log('🔒 Proxying private file');
@@ -507,7 +508,7 @@ function fixImageUrl(url) {
     // Bare filename - assume it's in /files/
     const encodedFilename = encodeURIComponent(url);
     const fixed = `https://acmestones.erpnext.com/files/${encodedFilename}`;
-    console.log('🔧 Fixed bare filename');
+    console.log('📝 Fixed bare filename');
     return fixed;
 }
 
