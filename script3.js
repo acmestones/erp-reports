@@ -470,35 +470,36 @@ function fixImageUrl(url) {
     }
     
     // Smart encoding: Only encode filename parts, NOT query parameters
-        const encodeUrlPath = (path) => {
-            // Split by ? to separate path from query string
-            const [pathPart, queryPart] = path.split('?');
-            
-            // Check if path starts with /
-            const hasLeadingSlash = pathPart.startsWith('/');
-            
-            // Remove leading slash temporarily if present
-            const pathToEncode = hasLeadingSlash ? pathPart.substring(1) : pathPart;
-            
-            // Encode each path segment
-            const segments = pathToEncode.split('/');
-            const encodedSegments = segments.map(segment => {
-                if (!segment) return '';  // Empty segment
-                if (segment.includes('%')) return segment;  // Already encoded
-                return encodeURIComponent(segment);
-            });
-            
-            // Rejoin
-            let encodedPath = encodedSegments.join('/');
-            
-            // Add leading slash back if it was there
-            if (hasLeadingSlash) {
-                encodedPath = '/' + encodedPath;
-            }
-            
-            // Add back query string
-            return queryPart ? `${encodedPath}?${queryPart}` : encodedPath;
-        };
+const encodeUrlPath = (path) => {
+    // Split by ? to separate path from query string
+    const [pathPart, queryPart] = path.split('?');
+    
+    // Check if path starts with /
+    const hasLeadingSlash = pathPart.startsWith('/');
+    
+    // Remove leading slash temporarily if present
+    const pathToEncode = hasLeadingSlash ? pathPart.substring(1) : pathPart;
+    
+    // Encode each path segment
+    const segments = pathToEncode.split('/');
+    const encodedSegments = segments.map(segment => {
+        if (!segment) return '';  // Empty segment
+        if (segment.includes('%')) return segment;  // Already encoded
+        return encodeURIComponent(segment);
+    });
+    
+    // Rejoin
+    let encodedPath = encodedSegments.join('/');
+    
+    // Add leading slash back if it was there
+    if (hasLeadingSlash) {
+        encodedPath = '/' + encodedPath;
+    }
+    
+    // Add back query string
+    return queryPart ? `${encodedPath}?${queryPart}` : encodedPath;
+};
+
 
 
     
