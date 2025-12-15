@@ -1101,12 +1101,14 @@ function renderGroupedCards(grouped, columns, reportName) {
             }
             // ========== END FIX ==========
 
-            cardsToRender.forEach(row => {
-                const card = createCard(row, columns, reportName, config);
-                card.className = card.className + " card-grid-item";
-                cardsContainer.appendChild(card);
-            });
-            
+                const fragment = document.createDocumentFragment(); // ✅ Batch DOM operations
+                cardsToRender.forEach(row => {
+                    const card = createCard(row, columns, reportName, config);
+                    card.className = card.className + ' card-grid-item';
+                    fragment.appendChild(card); // ✅ No reflow
+                });
+                cardsContainer.appendChild(fragment); // ✅ One reflow only
+                            
             // Initialize drag-and-drop for this subgroup (admin only)
             if (currentUser && currentUser.role === 'admin') {
                 initializeSortable(cardsContainer, reportName, level1, level2);
