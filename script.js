@@ -1719,24 +1719,31 @@ async function showDetailModal(row, columns, reportName, config) {
         // ✅ STEP 2: Parse cleaned HTML
         const tempDiv = document.createElement('div');
         tempDiv.innerHTML = cleanedValue;
+
         
-        // ✅ STEP 3: Fix all image URLs and add consistent click handlers
-        tempDiv.querySelectorAll('img').forEach(img => {
-            // Fix the src URL
-            const originalSrc = img.getAttribute('src');
-            
-            // Special handling: If image has stagingreports URL, fix it
-            let fixedUrl;
-            if (originalSrc && originalSrc.includes('stagingreports.acmestones.com')) {
-                // Extract just the path after domain
-                const urlParts = originalSrc.split('stagingreports.acmestones.com')[1];
-                fixedUrl = `https://acmestones.erpnext.com${urlParts}`;
-                console.log('🔧 Fixed staging URL:', originalSrc, '→', fixedUrl);
-            } else {
-                fixedUrl = fixImageUrl(originalSrc);
-            }
-            
-            img.setAttribute('src', fixedUrl);
+                    // STEP 3 Fix all image URLs and add consistent click handlers
+                    tempDiv.querySelectorAll('img').forEach(img => {
+                        const originalSrc = img.getAttribute('src');
+                        
+                        // Get the fixed URL
+                        let fixedUrl = fixImageUrl(originalSrc);
+                        
+                        // CRITICAL: If fixedUrl contains encoded URL characters, it might already be a full URL
+                        // that got double-encoded. Clean it up.
+                        if (fixedUrl && fixedUrl.includes('%20')) {
+                            // Decode once to get the actual URL
+                            try {
+                                fixedUrl = decodeURIComponent(fixedUrl);
+                            } catch (e) {
+                                // If decode fails, use as-is
+                            }
+                        }
+                        
+                        // Set the src - browser will resolve it
+                        img.src = fixedUrl; // Use .src property instead of setAttribute
+                        
+                        console.log('🖼️ Set image src:', fixedUrl);
+
             
             // Style
             img.style.cursor = 'pointer';
