@@ -464,11 +464,11 @@ function fixImageUrl(url) {
     if (url.includes('/private/files/')) {
         // If it's already a full URL to private files, proxy it
         if (url.startsWith('http')) {
-            return `${APIBASE}?action=proxyimage&fileurl=${encodeURIComponent(url)}`;
+            return `${API_BASE}?action=proxyimage&fileurl=${encodeURIComponent(url)}`;
         }
         // If relative private URL, make absolute then proxy
         const absoluteUrl = `https://acmestones.erpnext.com${url}`;
-        return `${APIBASE}?action=proxyimage&fileurl=${encodeURIComponent(absoluteUrl)}`;
+        return `${API_BASE}?action=proxyimage&fileurl=${encodeURIComponent(absoluteUrl)}`;
     }
     
     // Root-relative URL (starts with /) - convert to ERPNext absolute URL
