@@ -474,28 +474,32 @@ function fixImageUrl(url) {
             // Split by ? to separate path from query string
             const [pathPart, queryPart] = path.split('?');
             
-            // Encode each path segment between slashes, but NOT if already encoded
-            const segments = pathPart.split('/');
-            const encodedSegments = segments.map((segment, index) => {
-                // Skip empty segments (but we'll handle leading slash separately)
-                if (!segment) return '';
-                // Already encoded
-                if (segment.includes('%')) return segment;
-                // Encode it
+            // Check if path starts with /
+            const hasLeadingSlash = pathPart.startsWith('/');
+            
+            // Remove leading slash temporarily if present
+            const pathToEncode = hasLeadingSlash ? pathPart.substring(1) : pathPart;
+            
+            // Encode each path segment
+            const segments = pathToEncode.split('/');
+            const encodedSegments = segments.map(segment => {
+                if (!segment) return '';  // Empty segment
+                if (segment.includes('%')) return segment;  // Already encoded
                 return encodeURIComponent(segment);
             });
             
-            // Rejoin with slashes
+            // Rejoin
             let encodedPath = encodedSegments.join('/');
             
-            // CRITICAL FIX: If original path started with /, ensure the encoded path does too
-            if (pathPart.startsWith('/') && !encodedPath.startsWith('/')) {
+            // Add leading slash back if it was there
+            if (hasLeadingSlash) {
                 encodedPath = '/' + encodedPath;
             }
             
-            // Add back query string WITHOUT encoding ? and =
+            // Add back query string
             return queryPart ? `${encodedPath}?${queryPart}` : encodedPath;
         };
+
 
     
     // Private files - needs proxying
