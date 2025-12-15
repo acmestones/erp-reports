@@ -1196,7 +1196,7 @@ function createCard(row, columns, reportName, config) {
         console.warn('⚠️ No valid docname found. Title field:', titleField, 'Row:', row);
     }
     
-    console.log('Card docname set to:', card.dataset.docname, 'from field:', titleField);
+    // console.log('Card docname set to:', card.dataset.docname, 'from field:', titleField);
     // ========== END SMART DETECTION ==========
     
     const userPerms = config.user_permissions?.[userEmail];
