@@ -453,28 +453,15 @@ function fixImageUrl(url) {
     
     console.log('🔍 Fixing URL:', url);
     
-    // ✅ Fix staging URLs that shouldn't be there
-    if (url.includes('stagingreports.acmestones.com')) {
-        const urlParts = url.split('stagingreports.acmestones.com')[1];
-        url = `https://acmestones.erpnext.com${urlParts}`;
-        console.log('🔧 Fixed staging URL');
-    }
-    
-    // Already absolute URL with correct domain - return as is
-    if (url.startsWith('https://acmestones.erpnext.com/')) {
-        console.log('✅ Already correct:', url);
-        return url;
-    }
-    
-    // Already absolute URL with http/https - check if it needs proxying
+    // Already a full URL with http/https
     if (url.startsWith('http://') || url.startsWith('https://')) {
         // If it's private files, proxy it
         if (url.includes('/private/files/')) {
-            console.log('🔒 Proxying private URL:', url);
+            console.log('🔒 Proxying private URL');
             return `${API_BASE}?action=proxyimage&fileurl=${encodeURIComponent(url)}`;
         }
         // Otherwise return as is
-        console.log('✅ External URL:', url);
+        console.log('✅ Already absolute');
         return url;
     }
     
@@ -483,39 +470,47 @@ function fixImageUrl(url) {
         return 'https:' + url;
     }
     
-    // ✅ NEW: Encode spaces and special characters in the path
+    // ✅ Smart encoding: Only encode filename parts, NOT query parameters
     const encodeUrlPath = (path) => {
-        // Split by / to preserve directory structure
-        return path.split('/').map(part => {
-            // Only encode the filename parts, not slashes
-            // If already encoded (contains %), don't double-encode
-            if (part.includes('%')) return part;
-            return encodeURIComponent(part);
+        // Split by ? to separate path from query string
+        const parts = path.split('?');
+        const pathPart = parts[0];
+        const queryPart = parts[1];
+        
+        // Encode each path segment (between slashes), but NOT if already encoded
+        const encodedPath = pathPart.split('/').map(segment => {
+            if (!segment) return segment; // Empty segment (leading slash)
+            if (segment.includes('%')) return segment; // Already encoded
+            return encodeURIComponent(segment);
         }).join('/');
+        
+        // Add back query string WITHOUT encoding ? and =
+        return queryPart ? `${encodedPath}?${queryPart}` : encodedPath;
     };
     
     // Private files - needs proxying
     if (url.includes('/private/files/')) {
         const encodedUrl = encodeUrlPath(url);
         const absoluteUrl = `https://acmestones.erpnext.com${encodedUrl}`;
-        console.log('🔒 Proxying private relative URL:', absoluteUrl);
+        console.log('🔒 Proxying private file');
         return `${API_BASE}?action=proxyimage&fileurl=${encodeURIComponent(absoluteUrl)}`;
     }
     
-    // Root-relative URL (starts with /) - convert to ERPNext absolute URL
+    // Root-relative URL (starts with /)
     if (url.startsWith('/')) {
         const encodedUrl = encodeUrlPath(url);
         const fixed = `https://acmestones.erpnext.com${encodedUrl}`;
-        console.log('🔧 Fixed relative URL:', fixed);
+        console.log('🔧 Fixed to absolute:', fixed);
         return fixed;
     }
     
-    // Relative URL without leading slash - assume it's in /files/
+    // Bare filename - assume it's in /files/
     const encodedFilename = encodeURIComponent(url);
     const fixed = `https://acmestones.erpnext.com/files/${encodedFilename}`;
-    console.log('🔧 Fixed bare filename:', fixed);
+    console.log('🔧 Fixed bare filename');
     return fixed;
 }
+
 
 
 
