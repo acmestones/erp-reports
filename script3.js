@@ -470,29 +470,33 @@ function fixImageUrl(url) {
     }
     
     // Smart encoding: Only encode filename parts, NOT query parameters
-    const encodeUrlPath = (path) => {
-        // Split by ? to separate path from query string
-        const [pathPart, queryPart] = path.split('?');
-        
-        // Encode each path segment between slashes, but NOT if already encoded
-        const segments = pathPart.split('/');
-        const encodedSegments = segments.map((segment, index) => {
-            // Keep first empty segment (leading slash)
-            if (index === 0 && !segment) return '';
-            // Skip other empty segments
-            if (!segment) return segment;
-            // Already encoded
-            if (segment.includes('%')) return segment;
-            // Encode it
-            return encodeURIComponent(segment);
-        });
-        
-        // Rejoin with slashes - this PRESERVES the leading slash
-        const encodedPath = encodedSegments.join('/');
-        
-        // Add back query string WITHOUT encoding ? and =
-        return queryPart ? `${encodedPath}?${queryPart}` : encodedPath;
-    };
+        const encodeUrlPath = (path) => {
+            // Split by ? to separate path from query string
+            const [pathPart, queryPart] = path.split('?');
+            
+            // Encode each path segment between slashes, but NOT if already encoded
+            const segments = pathPart.split('/');
+            const encodedSegments = segments.map((segment, index) => {
+                // Skip empty segments (but we'll handle leading slash separately)
+                if (!segment) return '';
+                // Already encoded
+                if (segment.includes('%')) return segment;
+                // Encode it
+                return encodeURIComponent(segment);
+            });
+            
+            // Rejoin with slashes
+            let encodedPath = encodedSegments.join('/');
+            
+            // CRITICAL FIX: If original path started with /, ensure the encoded path does too
+            if (pathPart.startsWith('/') && !encodedPath.startsWith('/')) {
+                encodedPath = '/' + encodedPath;
+            }
+            
+            // Add back query string WITHOUT encoding ? and =
+            return queryPart ? `${encodedPath}?${queryPart}` : encodedPath;
+        };
+
     
     // Private files - needs proxying
     if (url.includes('/private/files')) {
