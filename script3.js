@@ -455,7 +455,6 @@ function fixImageUrl(url) {
     url = url.trim();
     console.log('🔍 Fixing URL:', url);
     
-    // Already a full URL with http/https
     if (url.startsWith('http://') || url.startsWith('https://')) {
         if (url.includes('/private/files')) {
             console.log('🔒 Proxying private URL');
@@ -465,30 +464,40 @@ function fixImageUrl(url) {
         return url;
     }
     
-    // Protocol-relative URL
     if (url.startsWith('//')) {
         return 'https:' + url;
     }
     
-    // Smart encoding function
+    // Encode URL path - preserves leading slash
     const encodeUrlPath = (path) => {
         const [pathPart, queryPart] = path.split('?');
-        const hasLeadingSlash = pathPart.startsWith('/');
-        const workingPath = hasLeadingSlash ? pathPart.slice(1) : pathPart;
-        const encoded = workingPath.split('/').map(segment => {
-            if (!segment) return '';
-            if (segment.includes('%')) return segment;
-            return encodeURIComponent(segment);
-        }).join('/');
-        const finalPath = hasLeadingSlash ? '/' + encoded : encoded;
-        return queryPart ? finalPath + '?' + queryPart : finalPath;
+        const hasLeadingSlash = pathPart[0] === '/';
+        
+        const toEncode = hasLeadingSlash ? pathPart.substring(1) : pathPart;
+        const segments = toEncode.split('/');
+        const encoded = [];
+        
+        for (let i = 0; i < segments.length; i++) {
+            const seg = segments[i];
+            if (!seg) {
+                encoded.push('');
+            } else if (seg.indexOf('%') !== -1) {
+                encoded.push(seg);
+            } else {
+                encoded.push(encodeURIComponent(seg));
+            }
+        }
+        
+        let result = encoded.join('/');
+        if (hasLeadingSlash) result = '/' + result;
+        if (queryPart) result = result + '?' + queryPart;
+        
+        return result;
     };
     
-    // Test the function
-    const testResult = encodeUrlPath('/files/test.jpg');
-    console.log('🧪 TEST:', testResult, 'First char:', testResult[0]);
+    const test = encodeUrlPath('/files/test.jpg');
+    console.log('🧪 TEST result:', test, 'starts with slash:', test[0] === '/');
     
-    // Private files
     if (url.includes('/private/files')) {
         const encodedUrl = encodeUrlPath(url);
         const absoluteUrl = `https://acmestones.erpnext.com${encodedUrl}`;
@@ -496,23 +505,20 @@ function fixImageUrl(url) {
         return `${API_BASE}?action=proxyimage&fileurl=${encodeURIComponent(absoluteUrl)}`;
     }
     
-    // Root-relative URL
     if (url.startsWith('/')) {
         const encodedUrl = encodeUrlPath(url);
-        console.log('📊 encodedUrl:', encodedUrl, 'First char:', encodedUrl[0]);
+        console.log('📊 encoded:', encodedUrl, 'first char:', encodedUrl[0]);
         const fixed = `https://acmestones.erpnext.com${encodedUrl}`;
         console.log('🔧 Fixed:', fixed);
         return fixed;
     }
     
-    // Bare filename
     const encodedFilename = encodeURIComponent(url);
     const fixed = `https://acmestones.erpnext.com/files/${encodedFilename}`;
-    console.log('📝 Fixed bare:', fixed);
+    console.log('📝 Bare filename:', fixed);
     return fixed;
 }
-// ============================================================================
-// IMAGE URL FIXER FUNCTION -
+
 
 
 
