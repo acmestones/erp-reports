@@ -446,10 +446,76 @@ function extractImageUrl(htmlContent) {
 // Replace the existing fixImageUrl function with this enhanced version
 // Enhanced fixImageUrl function
 
-https://acmestones.erpnext.com/files/WhatsApp Image 2025-05-02 at 17.47.48.jpeg
-↓ Browser interprets space as relative URL
-https://stagingreports.acmestones.com/files/WhatsApp%20Image... ❌ 404
-
+function fixImageUrl(url) {
+    if (!url) return null;
+    
+    url = url.trim();
+    
+    console.log('🔍 Fixing URL:', url);
+    
+    // ✅ Fix staging URLs that shouldn't be there
+    if (url.includes('stagingreports.acmestones.com')) {
+        const urlParts = url.split('stagingreports.acmestones.com')[1];
+        url = `https://acmestones.erpnext.com${urlParts}`;
+        console.log('🔧 Fixed staging URL');
+    }
+    
+    // Already absolute URL with correct domain - return as is
+    if (url.startsWith('https://acmestones.erpnext.com/')) {
+        console.log('✅ Already correct:', url);
+        return url;
+    }
+    
+    // Already absolute URL with http/https - check if it needs proxying
+    if (url.startsWith('http://') || url.startsWith('https://')) {
+        // If it's private files, proxy it
+        if (url.includes('/private/files/')) {
+            console.log('🔒 Proxying private URL:', url);
+            return `${API_BASE}?action=proxyimage&fileurl=${encodeURIComponent(url)}`;
+        }
+        // Otherwise return as is
+        console.log('✅ External URL:', url);
+        return url;
+    }
+    
+    // Protocol-relative URL (//example.com/image.jpg)
+    if (url.startsWith('//')) {
+        return 'https:' + url;
+    }
+    
+    // ✅ NEW: Encode spaces and special characters in the path
+    const encodeUrlPath = (path) => {
+        // Split by / to preserve directory structure
+        return path.split('/').map(part => {
+            // Only encode the filename parts, not slashes
+            // If already encoded (contains %), don't double-encode
+            if (part.includes('%')) return part;
+            return encodeURIComponent(part);
+        }).join('/');
+    };
+    
+    // Private files - needs proxying
+    if (url.includes('/private/files/')) {
+        const encodedUrl = encodeUrlPath(url);
+        const absoluteUrl = `https://acmestones.erpnext.com${encodedUrl}`;
+        console.log('🔒 Proxying private relative URL:', absoluteUrl);
+        return `${API_BASE}?action=proxyimage&fileurl=${encodeURIComponent(absoluteUrl)}`;
+    }
+    
+    // Root-relative URL (starts with /) - convert to ERPNext absolute URL
+    if (url.startsWith('/')) {
+        const encodedUrl = encodeUrlPath(url);
+        const fixed = `https://acmestones.erpnext.com${encodedUrl}`;
+        console.log('🔧 Fixed relative URL:', fixed);
+        return fixed;
+    }
+    
+    // Relative URL without leading slash - assume it's in /files/
+    const encodedFilename = encodeURIComponent(url);
+    const fixed = `https://acmestones.erpnext.com/files/${encodedFilename}`;
+    console.log('🔧 Fixed bare filename:', fixed);
+    return fixed;
+}
 
 
 
@@ -5469,4 +5535,3 @@ function openMobileReorderModal(reportName, primaryGroup, secondaryGroup) {
 }
 
 // ========== END MOBILE REORDER MODAL FUNCTIONS ==========
-
