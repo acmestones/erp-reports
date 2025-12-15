@@ -527,37 +527,6 @@ function fixImageUrl(url) {
 
 
     
-    // Private files - needs proxying
-    if (url.includes('/private/files')) {
-        const encodedUrl = encodeUrlPath(url);
-        const absoluteUrl = `https://acmestones.erpnext.com${encodedUrl}`;
-        console.log('🔒 Proxying private file');
-        return `${API_BASE}?action=proxyimage&fileurl=${encodeURIComponent(absoluteUrl)}`;
-    }
-    
-    // Root-relative URL (starts with /)
-        // Root-relative URL (starts with /)
-        if (url.startsWith('/')) {
-            const encodedUrl = encodeUrlPath(url);
-            
-            // DEBUG: Log the encodedUrl BEFORE concatenation
-            console.log('📊 encodedUrl value:', JSON.stringify(encodedUrl));
-            console.log('📊 encodedUrl length:', encodedUrl.length);
-            console.log('📊 First 20 chars:', encodedUrl.substring(0, 20));
-            
-            const fixed = `https://acmestones.erpnext.com${encodedUrl}`;
-            console.log('🔧 Fixed to absolute:', fixed);
-            return fixed;
-        }
-
-    
-    // Bare filename - assume it's in /files/
-    const encodedFilename = encodeURIComponent(url);
-    const fixed = `https://acmestones.erpnext.com/files/${encodedFilename}`;
-    console.log('📝 Fixed bare filename:', fixed);
-    return fixed;
-}
-
 
 
 
