@@ -476,13 +476,18 @@ function fixImageUrl(url) {
         
         // Encode each path segment between slashes, but NOT if already encoded
         const segments = pathPart.split('/');
-        const encodedSegments = segments.map(segment => {
-            if (!segment) return '';  // Empty segment (leading/trailing slash)
-            if (segment.includes('%')) return segment;  // Already encoded
+        const encodedSegments = segments.map((segment, index) => {
+            // Keep first empty segment (leading slash)
+            if (index === 0 && !segment) return '';
+            // Skip other empty segments
+            if (!segment) return segment;
+            // Already encoded
+            if (segment.includes('%')) return segment;
+            // Encode it
             return encodeURIComponent(segment);
         });
         
-        // Rejoin with slashes
+        // Rejoin with slashes - this PRESERVES the leading slash
         const encodedPath = encodedSegments.join('/');
         
         // Add back query string WITHOUT encoding ? and =
@@ -500,6 +505,7 @@ function fixImageUrl(url) {
     // Root-relative URL (starts with /)
     if (url.startsWith('/')) {
         const encodedUrl = encodeUrlPath(url);
+        // CRITICAL: encodedUrl already has the leading slash!
         const fixed = `https://acmestones.erpnext.com${encodedUrl}`;
         console.log('🔧 Fixed to absolute:', fixed);
         return fixed;
@@ -508,7 +514,7 @@ function fixImageUrl(url) {
     // Bare filename - assume it's in /files/
     const encodedFilename = encodeURIComponent(url);
     const fixed = `https://acmestones.erpnext.com/files/${encodedFilename}`;
-    console.log('📝 Fixed bare filename');
+    console.log('📝 Fixed bare filename:', fixed);
     return fixed;
 }
 
