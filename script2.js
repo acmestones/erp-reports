@@ -1740,9 +1740,13 @@ async function showDetailModal(row, columns, reportName, config) {
     
                         
                         // Set the src - browser will resolve it
-                        img.src = fixedUrl; // Use .src property instead of setAttribute
-                        
-                        console.log('🖼️ Set image src:', fixedUrl);
+                            // FORCE absolute URL
+                            if (!fixedUrl.startsWith('http://') && !fixedUrl.startsWith('https://')) {
+                                fixedUrl = `https://acmestones.erpnext.com${fixedUrl}`;
+                            }
+                            img.src = fixedUrl;
+                            console.log('🖼️ FINAL img.src:', img.src); // Log what browser actually got
+
 
             
             // Style
