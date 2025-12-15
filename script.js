@@ -451,7 +451,15 @@ function fixImageUrl(url) {
     
     url = url.trim();
     
-    console.log('🔍 Fixing URL:', url); // ✅ Debug log
+    console.log('🔍 Fixing URL:', url);
+    
+    // ✅ Fix staging URLs that shouldn't be there
+    if (url.includes('stagingreports.acmestones.com')) {
+        const urlParts = url.split('stagingreports.acmestones.com')[1];
+        const fixed = `https://acmestones.erpnext.com${urlParts}`;
+        console.log('🔧 Fixed staging URL:', fixed);
+        return fixed;
+    }
     
     // Already absolute URL with correct domain - return as is
     if (url.startsWith('https://acmestones.erpnext.com/')) {
@@ -495,6 +503,7 @@ function fixImageUrl(url) {
     console.log('🔧 Fixed bare filename:', fixed);
     return fixed;
 }
+
 
 
 
@@ -1690,90 +1699,111 @@ async function showDetailModal(row, columns, reportName, config) {
                     valueDiv.appendChild(input);
                     valueDiv.appendChild(saveBtn);
                 }
-                    } else if (hasValue) {
-                        // Non-editable field with value - display only
-                        if (col.fieldtype === 'HTML' || (typeof value === 'string' && (value.includes('<img') || value.includes('<a href')))) {
-                            
-                            // ✅ STEP 1: Remove conflicting onclick attributes from SQL-generated HTML
-                            let cleanedValue = value;
-                            cleanedValue = cleanedValue.replace(/onclick="[^"]*"/gi, '');
-                            cleanedValue = cleanedValue.replace(/onclick='[^']*'/gi, '');
-                            
-                            // ✅ STEP 2: Parse cleaned HTML
-                            const tempDiv = document.createElement('div');
-                            tempDiv.innerHTML = cleanedValue;
-                            
-                            // ✅ STEP 3: Fix all image URLs and add consistent click handlers
-                            tempDiv.querySelectorAll('img').forEach(img => {
-                                // Fix the src URL
-                                const originalSrc = img.getAttribute('src');
-                                const fixedUrl = fixImageUrl(originalSrc);
-                                img.setAttribute('src', fixedUrl);
-                                
-                                // Style
-                                img.style.cursor = 'pointer';
-                                img.style.maxWidth = '100%';
-                                
-                                // Remove any remaining onclick attribute (double safety)
-                                img.removeAttribute('onclick');
-                                
-                                // Add our single, consistent click handler
-                                img.onclick = function(e) {
-                                    e.preventDefault();
-                                    e.stopPropagation();
-                                    console.log('🖱️ Opening image:', fixedUrl);
-                                    window.open(fixedUrl, '_blank', 'noopener,noreferrer');
-                                    return false; // Extra safety
-                                };
-                                
-                                // Error handler
-                                img.onerror = function() {
-                                    console.error('❌ Failed to load image:', fixedUrl);
-                                    this.style.border = '1px solid #ddd';
-                                    this.style.padding = '5px';
-                                    this.style.backgroundColor = '#f8f9fa';
-                                    this.alt = 'Image not available';
-                                };
-                            });
-                            
-                            // ✅ STEP 4: Fix all link URLs
-                            tempDiv.querySelectorAll('a').forEach(link => {
-                                const href = link.getAttribute('href');
-                                if (href) {
-                                    link.href = fixImageUrl(href);
-                                    link.target = '_blank';
-                                    link.rel = 'noopener noreferrer';
-                                    
-                                    // Remove conflicting onclick
-                                    link.removeAttribute('onclick');
-                                    
-                                    // Let links work normally but prevent event bubbling
-                                    link.onclick = function(e) {
-                                        e.stopPropagation();
-                                        // Don't prevent default - let the link work
-                                    };
-                                }
-                            });
-                            
-                            valueDiv.appendChild(tempDiv);
-                            
-                        } else if (col.fieldtype === "Link" && col.options) {
-                            const link = document.createElement('a');
-                            const doctypeSlug = col.options.toLowerCase().replace(/\s+/g, '-');
-                            link.href = `https://acmestones.erpnext.com/app/${doctypeSlug}/${encodeURIComponent(value)}`;
-                            link.target = '_blank';
-                            link.rel = 'noopener noreferrer';
-                            link.className = 'link-field';
-                            link.textContent = value;
-                            valueDiv.appendChild(link);
-                        } else {
-                            valueDiv.textContent = value;
-                        }
-                    }
-                    
-                    fieldDiv.appendChild(labelDiv);
-                    fieldDiv.appendChild(valueDiv);
-                    modalBody.appendChild(fieldDiv);
+ } else if (hasValue) {
+    // Non-editable field with value - display only
+    if (col.fieldtype === 'HTML' || (typeof value === 'string' && (value.includes('<img') || value.includes('<a href')))) {
+        
+        // ✅ STEP 1: Remove conflicting onclick attributes from SQL-generated HTML
+        let cleanedValue = value;
+        cleanedValue = cleanedValue.replace(/onclick="[^"]*"/gi, '');  // ✅ Fixed regex
+        cleanedValue = cleanedValue.replace(/onclick='[^']*'/gi, '');  // ✅ Fixed regex
+        
+        // ✅ STEP 2: Parse cleaned HTML
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = cleanedValue;
+        
+        // ✅ STEP 3: Fix all image URLs and add consistent click handlers
+        tempDiv.querySelectorAll('img').forEach(img => {
+            // Fix the src URL
+            const originalSrc = img.getAttribute('src');
+            
+            // Special handling: If image has stagingreports URL, fix it
+            let fixedUrl;
+            if (originalSrc && originalSrc.includes('stagingreports.acmestones.com')) {
+                // Extract just the path after domain
+                const urlParts = originalSrc.split('stagingreports.acmestones.com')[1];
+                fixedUrl = `https://acmestones.erpnext.com${urlParts}`;
+                console.log('🔧 Fixed staging URL:', originalSrc, '→', fixedUrl);
+            } else {
+                fixedUrl = fixImageUrl(originalSrc);
+            }
+            
+            img.setAttribute('src', fixedUrl);
+            
+            // Style
+            img.style.cursor = 'pointer';
+            img.style.maxWidth = '100%';
+            
+            // Remove any remaining onclick attribute (double safety)
+            img.removeAttribute('onclick');
+            
+            // Add our single, consistent click handler
+            img.onclick = function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log('🖱️ Opening image:', fixedUrl);
+                const finalUrl = fixedUrl.startsWith('http') ? fixedUrl : `https://acmestones.erpnext.com${fixedUrl}`;
+                window.open(finalUrl, '_blank', 'noopener,noreferrer');
+                return false;
+            };
+            
+            // Error handler
+            img.onerror = function() {
+                console.error('❌ Failed to load image:', fixedUrl);
+                this.style.border = '1px solid #ddd';
+                this.style.padding = '5px';
+                this.style.backgroundColor = '#f8f9fa';
+                this.alt = 'Image not available';
+            };
+        });
+        
+        // ✅ STEP 4: Fix all link URLs
+        tempDiv.querySelectorAll('a').forEach(link => {
+            const href = link.getAttribute('href');
+            if (href) {
+                // Fix staging URLs in links too
+                let fixedHref;
+                if (href.includes('stagingreports.acmestones.com')) {
+                    const urlParts = href.split('stagingreports.acmestones.com')[1];
+                    fixedHref = `https://acmestones.erpnext.com${urlParts}`;
+                } else {
+                    fixedHref = fixImageUrl(href);
+                }
+                
+                link.href = fixedHref;
+                link.target = '_blank';
+                link.rel = 'noopener noreferrer';
+                
+                // Remove conflicting onclick
+                link.removeAttribute('onclick');
+                
+                // Let links work normally but prevent event bubbling
+                link.onclick = function(e) {
+                    e.stopPropagation();
+                };
+            }
+        });
+        
+        valueDiv.appendChild(tempDiv);
+        
+    } else if (col.fieldtype === "Link" && col.options) {
+        const link = document.createElement('a');
+        const doctypeSlug = col.options.toLowerCase().replace(/\s+/g, '-');
+        link.href = `https://acmestones.erpnext.com/app/${doctypeSlug}/${encodeURIComponent(value)}`;
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        link.className = 'link-field';
+        link.textContent = value;
+        valueDiv.appendChild(link);
+    } else {
+        valueDiv.textContent = value;
+    }
+}
+
+fieldDiv.appendChild(labelDiv);
+fieldDiv.appendChild(valueDiv);
+modalBody.appendChild(fieldDiv);
+
 
         }
     }
