@@ -1,4 +1,4 @@
-const API_BASE = "/erp_proxy.php";
+const API_BASE = "erp_proxy.php";
 let userEmail = localStorage.getItem("userEmail");
 let currentUser = null;
 let currentColumns = 5;
@@ -448,21 +448,8 @@ function fixImageUrl(url) {
     if (!url) return null;
     url = url.trim();
     
-    console.log('Fixing URL:', url); // Debug log
-    
     // Already absolute URL
-    if (url.startsWith("http://") || url.startsWith("https://")) {
-        // Check if it's a private file (anywhere in the URL)
-        if (url.includes('/private/files/')) {
-            console.log('Private file detected, proxying');
-            // Extract just the path part
-            let fileUrl = url;
-            // If it's on staging domain, replace with ERP domain
-            if (url.includes('stagingreports.acmestones.com')) {
-                fileUrl = url.replace('stagingreports.acmestones.com', 'acmestones.erpnext.com');
-            }
-            return `${API_BASE}?action=proxyimage&fileurl=${encodeURIComponent(fileUrl)}`;
-        }
+    if (url.startsWith("http") || url.startsWith("https")) {
         return url;
     }
     
@@ -473,9 +460,8 @@ function fixImageUrl(url) {
     
     // Handle private files by proxying through PHP
     if (url.includes('/private/files/')) {
-        const fullUrl = `https://acmestones.erpnext.com${url}`;
-        console.log('Proxying private file:', fullUrl);
-        return `${API_BASE}?action=proxyimage&fileurl=${encodeURIComponent(fullUrl)}`;
+        // Proxy through PHP to add authentication
+        return `${API_BASE}?action=proxy_image&file_url=${encodeURIComponent(url)}`;
     }
     
     // Root-relative URL (including public /files/)
@@ -486,7 +472,6 @@ function fixImageUrl(url) {
     // Relative URL
     return `https://acmestones.erpnext.com/${url}`;
 }
-
 
 
 
