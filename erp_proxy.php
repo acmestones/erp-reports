@@ -1,4 +1,6 @@
 <?php
+ob_start();
+
 
 define("API_KEY", "2f721d295151824");
 define("API_SECRET", "0e9e87c5238a8a3");
@@ -42,6 +44,8 @@ if (isset($_GET['action']) && $_GET['action'] === 'proxyimage') {
         http_response_code(404);
         exit('image not found');
     }
+
+    ob_clean();
 
     header("Content-Type: " . ($contentType ?: 'image/jpeg'));
     header("Cache-Control: private, max-age=86400");
@@ -94,9 +98,11 @@ if (isset($_GET['action']) && $_GET['action'] === 'proxyfile') {
         exit('file not found');
     }
 
+    ob_clean();
+
     header("Content-Description: File Transfer");
     header("Content-Type: " . ($contentType ?: "application/octet-stream"));
-    header('Content-Disposition: attachment; filename="' . $filename . '"');
+    header('Content-Disposition: attachment; filename*=UTF-8\'\'' . rawurlencode($filename));
     header("Content-Length: " . strlen($data));
     header("Cache-Control: no-store, no-cache, must-revalidate");
     header("Pragma: public");
@@ -2104,5 +2110,5 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_doctype_meta') {
 
 // ==================== END TIME LOGS ENDPOINTS ====================
 
-echo json_encode(["error" => "Invalid request"]);
-?>
+http_response_code(404);
+exit;
