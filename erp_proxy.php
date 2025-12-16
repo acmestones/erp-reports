@@ -13,8 +13,8 @@ function logError($message) {
 }
 
 // Proxy private images with authentication
-if (isset($_GET['action']) && $_GET['action'] == 'proxy_image') {
-    $file_url = $_GET['file_url'] ?? '';
+if (isset($_GET['action']) && $_GET['action'] == 'proxyimage') {
+    $file_url = $_GET['fileurl'] ?? '';
     
     if (empty($file_url)) {
         header('HTTP/1.1 400 Bad Request');
