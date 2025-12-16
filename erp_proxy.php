@@ -63,61 +63,62 @@ $fileUrl = str_replace(' ', '%20', $fileUrl);
 
 if (isset($_GET['action']) && $_GET['action'] === 'proxyfile') {
 
-    // Ensure absolutely clean output
-    while (ob_get_level()) {
-        ob_end_clean();
+    if (ob_get_length()) {
+        ob_clean();
     }
 
     $fileUrl = $_GET['fileurl'] ?? '';
     if (!$fileUrl) {
         http_response_code(400);
-        exit('Missing file URL');
+        exit('missing fileurl');
     }
 
-    $fileUrl = urldecode($fileUrl);
+    $fileUrl = rawurldecode($fileUrl);
 
-    // 🔒 Allow only ERPNext file URLs
-    if (
-        !str_starts_with($fileUrl, ERP_BASE . '/files/') &&
-        !str_starts_with($fileUrl, ERP_BASE . '/private/files/')
-    ) {
+    // Accept only ERPNext file paths
+    $parsed = parse_url($fileUrl);
+    if (empty($parsed['path']) || !preg_match('#^/(private/)?files/#', $parsed['path'])) {
         http_response_code(403);
-        exit('Forbidden');
+        exit('invalid file path');
     }
 
-    // Extract filename safely
-    $path = parse_url($fileUrl, PHP_URL_PATH);
-    $filename = basename($path);
+    // ERPNext download API (CRITICAL)
+    $apiUrl = ERP_BASE . '/api/method/frappe.utils.file_manager.download_file?file_url=' . urlencode($parsed['path']);
 
-    // Fetch file from ERPNext
-    $ch = curl_init($fileUrl);
+    $ch = curl_init($apiUrl);
     curl_setopt_array($ch, [
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_FOLLOWLOCATION => true,
         CURLOPT_HTTPHEADER => [
             "Authorization: token " . API_KEY . ":" . API_SECRET
         ],
-        CURLOPT_SSL_VERIFYPEER => false
+        CURLOPT_SSL_VERIFYPEER => false,
+        CURLOPT_HEADER => true
     ]);
 
-    $data = curl_exec($ch);
+    $response = curl_exec($ch);
+    $headerSize = curl_getinfo($ch, CURLINFO_HEADER_SIZE);
     $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $contentType = curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
     curl_close($ch);
 
-    // 🚨 Abort if ERPNext returned HTML / error
-    if (
-        $httpCode !== 200 ||
-        !$data ||
-        stripos($contentType, 'text/html') !== false
-    ) {
+    if ($httpCode !== 200 || !$response) {
         http_response_code(404);
-        exit('File not found');
+        exit('file not found');
     }
 
-    // 🔥 Send proper binary headers
-    header('Content-Description: File Transfer');
-    header('Content-Type: ' . ($contentType ?: 'application/octet-stream'));
+    $headers = substr($response, 0, $headerSize);
+    $data = substr($response, $headerSize);
+
+    if (!$data) {
+        http_response_code(404);
+        exit('empty file');
+    }
+
+    // Extract filename safely
+    $filename = basename($parsed['path']);
+
+    // Send binary download
+    header('Content-Type: application/octet-stream');
     header("Content-Disposition: attachment; filename*=UTF-8''" . rawurlencode($filename));
     header('Content-Length: ' . strlen($data));
     header('Cache-Control: no-store, no-cache, must-revalidate');
@@ -126,6 +127,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'proxyfile') {
     echo $data;
     exit;
 }
+
 
 
 
