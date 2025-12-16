@@ -476,20 +476,21 @@ function sanitizeRichHtml(html) {
 
 function normalizeImageClicks(container) {
     container.querySelectorAll('img').forEach(img => {
-        img.style.cursor = 'zoom-in';
+        img.style.cursor = 'pointer'; // 👈 pointing hand (your preference)
+
+        // Remove parent anchor if exists
+        if (img.parentElement && img.parentElement.tagName === 'A') {
+            img.parentElement.replaceWith(img);
+        }
 
         img.onclick = e => {
             e.preventDefault();
             e.stopPropagation();
             window.open(img.src, '_blank', 'noopener,noreferrer');
         };
-
-        // Remove wrapping <a> if any
-        if (img.parentElement?.tagName === 'A') {
-            img.parentElement.replaceWith(img);
-        }
     });
 }
+
 
 
 
