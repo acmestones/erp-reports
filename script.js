@@ -474,31 +474,6 @@ function sanitizeRichHtml(html) {
 
 
 
-//Fix file url
-function fixFileUrl(url) {
-    if (!url) return url;
-
-    if (url.startsWith('/private/files/') || url.startsWith('/files/')) {
-        return `/erp_proxy.php?action=proxyfile&fileurl=${encodeURIComponent(
-            'https://acmestones.erpnext.com' + url
-        )}`;
-    }
-
-    if (url.includes('/private/files/') || url.includes('/files/')) {
-        return `/erp_proxy.php?action=proxyfile&fileurl=${encodeURIComponent(url)}`;
-    }
-
-    return url;
-}
-
-
-
-
-
-
-
-
-
 
 
 // Enhanced fixImageUrl function
@@ -545,6 +520,32 @@ function fixImageUrl(url) {
     
     // Relative URL
     return `https://acmestones.erpnext.com/${url}`;
+}
+
+
+
+
+
+
+
+
+
+
+//Fix file url
+function fixFileUrl(url) {
+    if (!url) return url;
+
+    if (url.startsWith('/private/files/') || url.startsWith('/files/')) {
+        return `/erp_proxy.php?action=proxyfile&fileurl=${encodeURIComponent(
+            'https://acmestones.erpnext.com' + url
+        )}`;
+    }
+
+    if (url.includes('/private/files/') || url.includes('/files/')) {
+        return `/erp_proxy.php?action=proxyfile&fileurl=${encodeURIComponent(url)}`;
+    }
+
+    return url;
 }
 
 
