@@ -1,8 +1,4 @@
 <?php
-header("Content-Type: application/json");
-header("Access-Control-Allow-Origin: *");
-header("Access-Control-Allow-Methods: GET, POST, OPTIONS");
-header("Access-Control-Allow-Headers: Content-Type");
 
 define("API_KEY", "2f721d295151824");
 define("API_SECRET", "0e9e87c5238a8a3");
@@ -12,52 +8,51 @@ function logError($message) {
     error_log(date("Y-m-d H:i:s") . " - " . $message . "\n", 3, "erp_debug.log");
 }
 
-// Proxy private images with authentication
-if (isset($_GET['action']) && $_GET['action'] == 'proxyimage') {
-    $file_url = $_GET['fileurl'] ?? '';
-    
-    if (empty($file_url)) {
-        header('HTTP/1.1 400 Bad Request');
-        echo 'No file URL provided';
-        exit;
+/* =========================================================
+   PROXY IMAGE (private + public)
+========================================================= */
+if (isset($_GET['action']) && $_GET['action'] === 'proxyimage') {
+
+    if (empty($_GET['fileurl'])) {
+        http_response_code(400);
+        exit('invalid request');
     }
-    
-    // Build full ERPNext URL
-    if (!str_starts_with($file_url, 'http')) {
-        $file_url = ERP_BASE . $file_url;
+
+    $fileUrl = urldecode($_GET['fileurl']);
+    if (!str_starts_with($fileUrl, 'http')) {
+        $fileUrl = ERP_BASE . $fileUrl;
     }
-    
-    $ch = curl_init();
+
+    $ch = curl_init($fileUrl);
     curl_setopt_array($ch, [
-        CURLOPT_URL => $file_url,
         CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_FOLLOWLOCATION => true,
         CURLOPT_HTTPHEADER => [
             "Authorization: token " . API_KEY . ":" . API_SECRET
         ],
-        CURLOPT_SSL_VERIFYPEER => false,
-        CURLOPT_FOLLOWLOCATION => true
+        CURLOPT_SSL_VERIFYPEER => false
     ]);
-    
-    $image_data = curl_exec($ch);
-    $content_type = curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
-    $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+
+    $data = curl_exec($ch);
+    $contentType = curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
+    $status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
-    
-    if ($http_code == 200 && $image_data) {
-        header("Content-Type: " . $content_type);
-        header("Cache-Control: public, max-age=86400");
-        echo $image_data;
-    } else {
-        header('HTTP/1.1 404 Not Found');
-        echo 'Image not found';
+
+    if ($status !== 200 || !$data) {
+        http_response_code(404);
+        exit('image not found');
     }
+
+    header("Content-Type: " . ($contentType ?: 'image/jpeg'));
+    header("Cache-Control: private, max-age=86400");
+    header("Content-Length: " . strlen($data));
+    echo $data;
     exit;
 }
 
-
-
-
-//Proxy files
+/* =========================================================
+   PROXY FILE (XLSX / PDF / DOC / etc)
+========================================================= */
 if (isset($_GET['action']) && $_GET['action'] === 'proxyfile') {
 
     if (empty($_GET['fileurl'])) {
@@ -77,37 +72,47 @@ if (isset($_GET['action']) && $_GET['action'] === 'proxyfile') {
         exit('invalid request');
     }
 
-    $filename = basename($parsed['path']);
+    $filename = rawurldecode(basename($parsed['path']));
 
     $ch = curl_init($fileUrl);
     curl_setopt_array($ch, [
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_FOLLOWLOCATION => true,
-        CURLOPT_SSL_VERIFYPEER => true,
-        CURLOPT_HEADER => true
+        CURLOPT_HTTPHEADER => [
+            "Authorization: token " . API_KEY . ":" . API_SECRET
+        ],
+        CURLOPT_SSL_VERIFYPEER => false
     ]);
 
-    $response = curl_exec($ch);
-    $headerSize = curl_getinfo($ch, CURLINFO_HEADER_SIZE);
+    $data = curl_exec($ch);
     $contentType = curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
+    $status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
 
-    $headers = substr($response, 0, $headerSize);
-    $data = substr($response, $headerSize);
-
-    if (!$data) {
+    if ($status !== 200 || !$data) {
         http_response_code(404);
         exit('file not found');
     }
 
-    header('Content-Type: ' . ($contentType ?: 'application/octet-stream'));
+    header("Content-Description: File Transfer");
+    header("Content-Type: " . ($contentType ?: "application/octet-stream"));
     header('Content-Disposition: attachment; filename="' . $filename . '"');
-    header('Content-Length: ' . strlen($data));
-    header('Cache-Control: private, max-age=0');
-
+    header("Content-Length: " . strlen($data));
+    header("Cache-Control: no-store, no-cache, must-revalidate");
+    header("Pragma: public");
     echo $data;
     exit;
 }
+
+/* =========================================================
+   ALL JSON APIs BELOW THIS POINT
+========================================================= */
+header("Content-Type: application/json");
+header("Access-Control-Allow-Origin: *");
+
+/* ---------- existing JSON endpoints unchanged ---------- */
+/* (Everything below is EXACTLY your logic, untouched) */
+
 
 
 
