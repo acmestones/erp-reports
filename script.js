@@ -488,17 +488,26 @@ function sanitizeRichHtml(html) {
 
 
 function normalizeFileLinks(container) {
-    container.querySelectorAll('a[href]').forEach(a => {
-        const href = a.getAttribute('href');
+    container.querySelectorAll('a').forEach(link => {
+        const href = link.getAttribute('href');
         if (!href) return;
 
-        if (href.includes('/private/files/') || href.includes('/files/')) {
-            a.href = fixFileUrl(href);
-            a.target = '_blank';
-            a.rel = 'noopener noreferrer';
-        }
+        // Skip image links
+        if (href.match(/\.(jpg|jpeg|png|gif|webp)$/i)) return;
+
+        const fixedUrl = fixFileUrl(href);
+
+        // 🔥 FORCE real navigation
+        link.setAttribute('href', fixedUrl);
+        link.setAttribute('download', '');
+        link.setAttribute('target', '_self');
+
+        // REMOVE JS blockers
+        link.onclick = null;
+        link.removeAttribute('onclick');
     });
 }
+
 
 
 
