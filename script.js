@@ -1519,7 +1519,7 @@ async function showDetailModal(row, columns, reportName, config) {
                 editor.contentEditable = true;
                 editor.className = 'editable-richtext';
                 editor.style.display = 'none';
-                editor.innerHTML = htmlValue;
+                editor.innerHTML = sanitizeRichHtml(htmlValue);
 
                 editor.dataset.fieldname = actualFieldname;
                 editor.dataset.docname = docName;
