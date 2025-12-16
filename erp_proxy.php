@@ -54,6 +54,69 @@ if (isset($_GET['action']) && $_GET['action'] == 'proxyimage') {
     exit;
 }
 
+
+
+
+//Proxy files
+if (isset($_GET['action']) && $_GET['action'] === 'proxyfile') {
+
+    if (empty($_GET['fileurl'])) {
+        http_response_code(400);
+        exit('invalid request');
+    }
+
+    $fileUrl = urldecode($_GET['fileurl']);
+    $parsed = parse_url($fileUrl);
+
+    if (
+        empty($parsed['host']) ||
+        $parsed['host'] !== 'acmestones.erpnext.com' ||
+        !preg_match('#^/(private/)?files/#', $parsed['path'])
+    ) {
+        http_response_code(403);
+        exit('invalid request');
+    }
+
+    $filename = basename($parsed['path']);
+
+    $ch = curl_init($fileUrl);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_FOLLOWLOCATION => true,
+        CURLOPT_SSL_VERIFYPEER => true,
+        CURLOPT_HEADER => true
+    ]);
+
+    $response = curl_exec($ch);
+    $headerSize = curl_getinfo($ch, CURLINFO_HEADER_SIZE);
+    $contentType = curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
+    curl_close($ch);
+
+    $headers = substr($response, 0, $headerSize);
+    $data = substr($response, $headerSize);
+
+    if (!$data) {
+        http_response_code(404);
+        exit('file not found');
+    }
+
+    header('Content-Type: ' . ($contentType ?: 'application/octet-stream'));
+    header('Content-Disposition: attachment; filename="' . $filename . '"');
+    header('Content-Length: ' . strlen($data));
+    header('Cache-Control: private, max-age=0');
+
+    echo $data;
+    exit;
+}
+
+
+
+
+
+
+
+
+
 // Get users.json
 if (isset($_GET['action']) && $_GET['action'] == 'get_users') {
     if (file_exists("users.json")) {
