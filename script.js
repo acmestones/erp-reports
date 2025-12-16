@@ -492,21 +492,23 @@ function normalizeFileLinks(container) {
         const href = link.getAttribute('href');
         if (!href) return;
 
-        // Skip image links
+        // Skip images
         if (href.match(/\.(jpg|jpeg|png|gif|webp)$/i)) return;
 
         const fixedUrl = fixFileUrl(href);
-
-        // 🔥 FORCE real navigation
         link.setAttribute('href', fixedUrl);
-        link.setAttribute('download', '');
-        link.setAttribute('target', '_self');
 
-        // REMOVE JS blockers
-        link.onclick = null;
-        link.removeAttribute('onclick');
+        // 🔥 Force browser to navigate
+        link.addEventListener('click', e => {
+            e.preventDefault();
+            e.stopPropagation();
+
+            // This ALWAYS triggers a real request
+            window.location.href = fixedUrl;
+        });
     });
 }
+
 
 
 
