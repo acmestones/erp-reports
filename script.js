@@ -541,6 +541,36 @@ function normalizeAttachmentLayout(container) {
 
 
 
+function autoFixImages(container) {
+    const fix = () => {
+        container.querySelectorAll('a > img').forEach(img => {
+            img.parentElement.replaceWith(img);
+        });
+
+        container.querySelectorAll('img').forEach(img => {
+            img.style.cursor = 'pointer';
+
+            img.onclick = e => {
+                e.preventDefault();
+                e.stopPropagation();
+                window.open(img.src, '_blank', 'noopener,noreferrer');
+            };
+        });
+    };
+
+    // Run once immediately
+    fix();
+
+    // Observe future changes
+    const observer = new MutationObserver(() => fix());
+    observer.observe(container, {
+        childList: true,
+        subtree: true
+    });
+}
+
+
+
 
 
 // Enhanced fixImageUrl function
@@ -1706,6 +1736,8 @@ async function showDetailModal(row, columns, reportName, config) {
     }
 
     modal.show();
+    const modalEl = document.getElementById('detailModal');
+    autoFixImages(modalEl);
 }
 
 
