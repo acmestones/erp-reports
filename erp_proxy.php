@@ -20,7 +20,9 @@ if (isset($_GET['action']) && $_GET['action'] === 'proxyimage') {
         exit('invalid request');
     }
 
-    $fileUrl = urldecode($_GET['fileurl']);
+$fileUrl = rawurldecode($fileUrl);
+$fileUrl = str_replace(' ', '%20', $fileUrl);
+
     if (!str_starts_with($fileUrl, 'http')) {
         $fileUrl = ERP_BASE . $fileUrl;
     }
