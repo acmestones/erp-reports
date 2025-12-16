@@ -1,4 +1,4 @@
-const API_BASE = "erp_proxy.php";
+const API_BASE = "/erp_proxy.php";
 let userEmail = localStorage.getItem("userEmail");
 let currentUser = null;
 let currentColumns = 5;
