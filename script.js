@@ -445,12 +445,6 @@ function extractImageUrl(htmlContent) {
 
 
 
-function unwrapImages(container) {
-    container.querySelectorAll('a > img').forEach(img => {
-        const a = img.parentElement;
-        a.replaceWith(img);
-    });
-}
 
 
 
@@ -485,26 +479,6 @@ function sanitizeRichHtml(html) {
 
 
 
-
-
-function normalizeImageClicks(container) {
-    // 🔥 FIRST: unwrap anchors
-    unwrapImages(container);
-
-    container.querySelectorAll('img').forEach(img => {
-        img.style.cursor = 'pointer';
-
-        img.onclick = e => {
-            e.preventDefault();
-            e.stopPropagation();
-
-            const src = img.getAttribute('src');
-            if (!src) return;
-
-            window.open(src, '_blank', 'noopener,noreferrer');
-        };
-    });
-}
 
 
 
@@ -1632,7 +1606,6 @@ async function showDetailModal(row, columns, reportName, config) {
 
                 const htmlValue = value || '<p class="text-muted">No content</p>';
                 displayDiv.innerHTML = sanitizeRichHtml(htmlValue);
-                normalizeImageClicks(displayDiv);
                 normalizeFileLinks(displayDiv);
 
 
@@ -1702,8 +1675,6 @@ async function showDetailModal(row, columns, reportName, config) {
             if (typeof value === 'string' && value.includes('<')) {
                 // ⭐ THE ONLY LINE THAT MATTERS FOR PRIVATE FILES ⭐
                 valueDiv.innerHTML = sanitizeRichHtml(value);
-                    // ✅ FIX IMAGES
-                    normalizeImageClicks(valueDiv);
                     
                     // ✅ FIX FILE DOWNLOADS
                     normalizeFileLinks(valueDiv);
@@ -1722,7 +1693,6 @@ async function showDetailModal(row, columns, reportName, config) {
                 link.textContent = value;
                 valueDiv.appendChild(link);
                     // ✅ REQUIRED
-                    normalizeImageClicks(valueDiv);
                     normalizeFileLinks(valueDiv);
             }
 
