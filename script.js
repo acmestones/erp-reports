@@ -461,11 +461,14 @@ function sanitizeRichHtml(html) {
         return `<img${attrs}src="${fixedUrl}"`;
     });
 
-    // 2️⃣ Fix A href at STRING level
+    // Fix ONLY non-image file links
     html = html.replace(/<a([^>]+)href=["']([^"']+)["']/gi, (match, attrs, url) => {
-        const fixedUrl = fixFileUrl(url);
-        return `<a${attrs}href="${fixedUrl}"`;
+        if (url.match(/\.(jpg|jpeg|png|gif|webp)$/i)) {
+            return match; // leave image links alone
+        }
+        return `<a${attrs}href="${fixFileUrl(url)}"`;
     });
+
 
     return html;
 }
@@ -476,20 +479,21 @@ function sanitizeRichHtml(html) {
 
 function normalizeImageClicks(container) {
     container.querySelectorAll('img').forEach(img => {
-        img.style.cursor = 'pointer'; // 👈 pointing hand (your preference)
+        img.style.cursor = 'pointer';
 
-        // Remove parent anchor if exists
-        if (img.parentElement && img.parentElement.tagName === 'A') {
+        // Unwrap image from anchor if wrapped
+        if (img.parentElement?.tagName === 'A') {
             img.parentElement.replaceWith(img);
         }
 
-        img.onclick = e => {
+        img.addEventListener('click', e => {
             e.preventDefault();
             e.stopPropagation();
             window.open(img.src, '_blank', 'noopener,noreferrer');
-        };
+        });
     });
 }
+
 
 
 
