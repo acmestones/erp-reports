@@ -474,6 +474,31 @@ function sanitizeRichHtml(html) {
 
 
 
+function normalizeImageClicks(container) {
+    container.querySelectorAll('img').forEach(img => {
+        img.style.cursor = 'zoom-in';
+
+        img.onclick = e => {
+            e.preventDefault();
+            e.stopPropagation();
+            window.open(img.src, '_blank', 'noopener,noreferrer');
+        };
+
+        // Remove wrapping <a> if any
+        if (img.parentElement?.tagName === 'A') {
+            img.parentElement.replaceWith(img);
+        }
+    });
+}
+
+
+
+
+
+
+
+
+
 
 
 // Enhanced fixImageUrl function
@@ -1602,6 +1627,7 @@ async function showDetailModal(row, columns, reportName, config) {
             if (typeof value === 'string' && value.includes('<')) {
                 // ⭐ THE ONLY LINE THAT MATTERS FOR PRIVATE FILES ⭐
                 valueDiv.innerHTML = sanitizeRichHtml(value);
+                normalizeImageClicks(valueDiv);
             }
 
             else if (col.fieldtype === 'Link' && col.options) {
