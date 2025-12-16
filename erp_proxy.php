@@ -57,26 +57,28 @@ if (isset($_GET['action']) && $_GET['action'] === 'proxyimage') {
 /* =========================================================
    PROXY FILE (XLSX / PDF / DOC / etc)
 ========================================================= */
+// ================= PROXY FILE (DOWNLOAD) =================
 if (isset($_GET['action']) && $_GET['action'] === 'proxyfile') {
+    ob_clean();
 
-    if (empty($_GET['fileurl'])) {
+    $fileUrl = $_GET['fileurl'] ?? '';
+    if (!$fileUrl) {
         http_response_code(400);
-        exit('invalid request');
+        exit;
     }
 
-    $fileUrl = urldecode($_GET['fileurl']);
-    $parsed = parse_url($fileUrl);
+    $fileUrl = urldecode($fileUrl);
 
+    // Security check
     if (
-        empty($parsed['host']) ||
-        $parsed['host'] !== 'acmestones.erpnext.com' ||
-        !preg_match('#^/(private/)?files/#', $parsed['path'])
+        !str_starts_with($fileUrl, ERP_BASE . '/files/') &&
+        !str_starts_with($fileUrl, ERP_BASE . '/private/files/')
     ) {
         http_response_code(403);
-        exit('invalid request');
+        exit;
     }
 
-    $filename = rawurldecode(basename($parsed['path']));
+    $filename = basename(parse_url($fileUrl, PHP_URL_PATH));
 
     $ch = curl_init($fileUrl);
     curl_setopt_array($ch, [
@@ -90,30 +92,31 @@ if (isset($_GET['action']) && $_GET['action'] === 'proxyfile') {
 
     $data = curl_exec($ch);
     $contentType = curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
-    $status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
 
-    if ($status !== 200 || !$data) {
+    if ($httpCode !== 200 || !$data) {
         http_response_code(404);
-        exit('file not found');
+        exit;
     }
 
-    ob_clean();
+    // 🔴 CRITICAL HEADERS
+    header('Content-Description: File Transfer');
+    header('Content-Type: ' . ($contentType ?: 'application/octet-stream'));
+    header("Content-Disposition: attachment; filename*=UTF-8''" . rawurlencode($filename));
+    header('Content-Length: ' . strlen($data));
+    header('Cache-Control: no-store, no-cache, must-revalidate');
+    header('Pragma: public');
 
-    header("Content-Description: File Transfer");
-    header("Content-Type: " . ($contentType ?: "application/octet-stream"));
-    header('Content-Disposition: attachment; filename*=UTF-8\'\'' . rawurlencode($filename));
-    header("Content-Length: " . strlen($data));
-    header("Cache-Control: no-store, no-cache, must-revalidate");
-    header("Pragma: public");
     echo $data;
     exit;
 }
 
+
 /* =========================================================
    ALL JSON APIs BELOW THIS POINT
 ========================================================= */
-header("Content-Type: application/json");
+
 header("Access-Control-Allow-Origin: *");
 
 /* ---------- existing JSON endpoints unchanged ---------- */
