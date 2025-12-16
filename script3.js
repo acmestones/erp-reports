@@ -1701,13 +1701,16 @@ async function showDetailModal(row, columns, reportName, config) {
         cleanedValue = cleanedValue.replace(/onclick='[^']*'/gi, '');  // ✅ Fixed regex
         
         // ✅ STEP 2: Parse cleaned HTML
-        const tempDiv = document.createElement('div');
-        tempDiv.innerHTML = cleanedValue;
+const tempDiv = document.createElement('div');
+// Replace ALL src= with data-src= to prevent browser from loading yet
+const deferredHTML = cleanedValue.replace(/\ssrc=/gi, ' data-src=');
+tempDiv.innerHTML = deferredHTML;
+
 
         
                     // STEP 3 Fix all image URLs and add consistent click handlers
                     tempDiv.querySelectorAll('img').forEach(img => {
-                        const originalSrc = img.getAttribute('src');
+                        const originalSrc = img.getAttribute('data-src') || img.getAttribute('src');  // ✅ Get from data-src
                         
                         // Get the fixed URL
                         let fixedUrl = fixImageUrl(originalSrc);
@@ -1721,7 +1724,8 @@ async function showDetailModal(row, columns, reportName, config) {
                             if (!fixedUrl.startsWith('http://') && !fixedUrl.startsWith('https://')) {
                                 fixedUrl = `https://acmestones.erpnext.com${fixedUrl}`;
                             }
-                            img.src = fixedUrl;
+                            img.removeAttribute('data-src');  // ✅ Clean up
+                            img.src = fixedUrl;  // ✅ NOW set the correct src
                             console.log('🖼️ FINAL img.src:', img.src); // Log what browser actually got
 
 
