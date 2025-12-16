@@ -445,6 +445,13 @@ function extractImageUrl(htmlContent) {
 
 
 
+function unwrapImages(container) {
+    container.querySelectorAll('a > img').forEach(img => {
+        const a = img.parentElement;
+        a.replaceWith(img);
+    });
+}
+
 
 
 
@@ -481,19 +488,13 @@ function sanitizeRichHtml(html) {
 
 
 function normalizeImageClicks(container) {
+    // 🔥 FIRST: unwrap anchors
+    unwrapImages(container);
+
     container.querySelectorAll('img').forEach(img => {
-
-        // ✅ FIX 1: unwrap image if wrapped in <a>
-        const parent = img.parentElement;
-        if (parent && parent.tagName === 'A') {
-            parent.replaceWith(img);
-        }
-
-        // ✅ FIX 2: cursor style
         img.style.cursor = 'pointer';
 
-        // ✅ FIX 3: always open image in new tab
-        img.addEventListener('click', e => {
+        img.onclick = e => {
             e.preventDefault();
             e.stopPropagation();
 
@@ -501,7 +502,7 @@ function normalizeImageClicks(container) {
             if (!src) return;
 
             window.open(src, '_blank', 'noopener,noreferrer');
-        });
+        };
     });
 }
 
@@ -1601,6 +1602,9 @@ async function showDetailModal(row, columns, reportName, config) {
 
                 const htmlValue = value || '<p class="text-muted">No content</p>';
                 displayDiv.innerHTML = sanitizeRichHtml(htmlValue);
+                normalizeImageClicks(displayDiv);
+                normalizeFileLinks(displayDiv);
+
 
                 // EDIT MODE
                 const editor = document.createElement('div');
@@ -1687,6 +1691,9 @@ async function showDetailModal(row, columns, reportName, config) {
                 link.rel = 'noopener noreferrer';
                 link.textContent = value;
                 valueDiv.appendChild(link);
+                    // ✅ REQUIRED
+                    normalizeImageClicks(valueDiv);
+                    normalizeFileLinks(valueDiv);
             }
 
             else {
