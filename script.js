@@ -1437,414 +1437,173 @@ function createCard(row, columns, reportName, config) {
 
 
 
-
 async function showDetailModal(row, columns, reportName, config) {
     const modal = new bootstrap.Modal(document.getElementById('detailModal'));
+
     const titleField = config.titlefield || config.title_field || 'workorderid';
     let docName = row[titleField] || row.name || row.workorderid || row.id;
-    
+
     const nameCol = columns.find(c => c.fieldname === 'name' || c.fieldname === titleField);
     if (nameCol && nameCol.fieldname !== titleField) {
         docName = row[nameCol.fieldname] || docName;
     }
-    
-    document.getElementById('modalTitle').textContent = `${row[titleField] || docName} Details`;
+
+    document.getElementById('modalTitle').textContent =
+        `${row[titleField] || docName} Details`;
+
     const modalBody = document.getElementById('modalBody');
     modalBody.innerHTML = '';
-    
-    // FIX: Use correct property names with underscores
-    const userPerms = config.user_permissions?.[userEmail] || config.userpermissions?.[userEmail] || {};
-    const editableFields = userPerms.editable_fields || userPerms.editablefields || [];
-    const hiddenFields = userPerms.hidden_fields || userPerms.hiddenfields || [];
-    const canEdit = currentUser.can_edit;
-    
+
+    const userPerms =
+        config.user_permissions?.[userEmail] ||
+        config.userpermissions?.[userEmail] ||
+        {};
+
+    const editableFields = userPerms.editable_fields || [];
+    const hiddenFields   = userPerms.hidden_fields || [];
+    const canEdit = currentUser?.can_edit;
+
     for (const col of columns) {
         const reportFieldname = col.fieldname;
-        const actualFieldname = window.reportFieldMapping?.[reportFieldname]?.erpField ?? reportFieldname;
-        const value = row[reportFieldname];
-        
+        const actualFieldname =
+            window.reportFieldMapping?.[reportFieldname]?.erpField ??
+            reportFieldname;
+
         if (hiddenFields.includes(reportFieldname)) continue;
-        
-        const isEditable = canEdit && editableFields.includes(reportFieldname) && reportFieldname !== 'workorderid';
+
+        const value = row[reportFieldname];
         const hasValue = value !== null && value !== undefined && value !== '';
-        
-        if (hasValue || isEditable) {
-            const fieldDiv = document.createElement('div');
-            fieldDiv.className = 'mb-3 pb-2 border-bottom';
-            
-            const label = fieldLabels[reportFieldname] || col.label || reportFieldname;
-            const labelDiv = document.createElement('div');
-            labelDiv.className = 'fw-bold text-muted small mb-1';
-            labelDiv.textContent = label;
-            
-            const valueDiv = document.createElement('div');
-            valueDiv.className = 'mt-1';
-            
-            if (isEditable) {
-                // Editable field - use actual database field name
-                if (col.fieldtype === "Link" && col.options) {
-                    const select = document.createElement('select');
-                    select.className = 'form-select form-select-sm';
-                    select.dataset.fieldname = actualFieldname;
-                    select.dataset.docname = docName;
-                    select.dataset.doctype = config.doctype || 'Work Order';
-                    
-                    const options = await getLinkOptions(col.options);
-                    const emptyOption = document.createElement('option');
-                    emptyOption.value = '';
-                    emptyOption.textContent = '-- Select --';
-                    select.appendChild(emptyOption);
-                    
-                    options.forEach(opt => {
-                        const option = document.createElement('option');
-                        option.value = opt;
-                        option.textContent = opt;
-                        if (opt === value) option.selected = true;
-                        select.appendChild(option);
-                    });
-                    
-                    const saveBtn = createSaveButton(select, reportName, modal);
-                    valueDiv.appendChild(select);
-                    valueDiv.appendChild(saveBtn);
-                    
-                } else if (col.fieldtype === "Select" && col.options) {
-                    const select = document.createElement('select');
-                    select.className = 'form-select form-select-sm';
-                    select.dataset.fieldname = actualFieldname;
-                    select.dataset.docname = docName;
-                    select.dataset.doctype = config.doctype || 'Work Order';
-                    
-                    const options = col.options.split('\n');
-                    const emptyOption = document.createElement('option');
-                    emptyOption.value = '';
-                    emptyOption.textContent = '-- Select --';
-                    select.appendChild(emptyOption);
-                    
-                    options.forEach(opt => {
-                        const option = document.createElement('option');
-                        option.value = opt;
-                        option.textContent = opt;
-                        if (opt === value) option.selected = true;
-                        select.appendChild(option);
-                    });
-                    
-                    const saveBtn = createSaveButton(select, reportName, modal);
-                    valueDiv.appendChild(select);
-                    valueDiv.appendChild(saveBtn);
-                    
-                } else if (col.fieldtype === "Text" || col.fieldtype === "Small Text" || 
-                           col.fieldtype === "Long Text" || col.fieldtype === "Text Editor" ||
-                           col.fieldtype === "HTML" || col.fieldtype === "HTML Editor") {
-                    
-                    // Create container for display and edit modes
-                    const richTextContainer = document.createElement('div');
-                    richTextContainer.className = 'richtext-container';
-                    
-                    // Create display mode (read-only view)
-                    const displayDiv = document.createElement('div');
-                    displayDiv.className = 'richtext-display';
-                    displayDiv.style.padding = '0.5rem';
-                    displayDiv.style.border = '1px solid #dee2e6';
-                    displayDiv.style.borderRadius = '0.25rem';
-                    displayDiv.style.backgroundColor = '#f8f9fa';
-                    displayDiv.style.minHeight = '50px';
-                    displayDiv.style.overflowY = 'auto';
-                    
-                    // Extract and set display HTML
-                    let htmlValue = value || `<p class="text-muted">No content</p>`;
-                    let originalHtmlValue = htmlValue; // Store original for saving
-                    
-                    // Extract HTML from Quill editor format if present
-                    if (typeof htmlValue === "string" && htmlValue.includes("ql-editor")) {
-                        const tempDiv = document.createElement('div');
-                        tempDiv.innerHTML = htmlValue;
-                        const qlEditor = tempDiv.querySelector('.ql-editor');
-                        htmlValue = qlEditor ? qlEditor.innerHTML : htmlValue;
-                        originalHtmlValue = htmlValue;
-                    }
-                    
-                    displayDiv.innerHTML = htmlValue;
-                    
-                    // Fix image URLs in display for viewing
-                    displayDiv.querySelectorAll('img').forEach(img => {
-                        const originalSrc = img.getAttribute('src');
-                        const fixedUrl = fixImageUrl(originalSrc);
-                        img.setAttribute('src', fixedUrl);
-                        img.style.maxWidth = '100%';
-                        img.style.height = 'auto';
-                    });
-                    
-                    // Create edit mode (contenteditable)
-                    const editorContainer = document.createElement('div');
-                    editorContainer.className = 'richtext-editor-container';
-                    editorContainer.style.display = 'none'; // Hidden by default
-                    
-                    // Toolbar
-                    const toolbar = document.createElement('div');
-                    toolbar.className = 'richtext-toolbar mb-2';
-                    toolbar.innerHTML = `
-                        <button type="button" class="btn btn-sm btn-outline-secondary" id="insertImageBtn">Insert Image</button>
-                        <input type="file" accept="image/*" style="display: none;" id="imageUploadInput">
-                    `;
-                    
-                    // Editable div
-                    const editableDiv = document.createElement('div');
-                    editableDiv.className = 'form-control form-control-sm editable-richtext';
-                    editableDiv.contentEditable = true;
-                    editableDiv.style.minHeight = '150px';
-                    editableDiv.style.maxHeight = '400px';
-                    editableDiv.style.overflowY = 'auto';
-                    editableDiv.style.whiteSpace = 'pre-wrap';
-                    editableDiv.innerHTML = originalHtmlValue;
-                    editableDiv.dataset.fieldname = actualFieldname;
-                    editableDiv.dataset.docname = docName;
-                    editableDiv.dataset.doctype = config.doctype || 'Work Order';
-                    
-                    // Assemble editor
-                    editorContainer.appendChild(toolbar);
-                    editorContainer.appendChild(editableDiv);
-                    
-                    // Add image upload functionality
-                    const insertImageBtn = toolbar.querySelector('#insertImageBtn');
-                    const imageUploadInput = toolbar.querySelector('#imageUploadInput');
-                    
-                    insertImageBtn.onclick = (e) => {
-                        e.preventDefault();
-                        imageUploadInput.click();
-                    };
-                    
-                    imageUploadInput.addEventListener('change', async function(event) {
-                        const file = event.target.files[0];
-                        if (!file) return;
-                        
-                        if (!file.type.startsWith('image/')) {
-                            alert('Please select an image file');
-                            return;
-                        }
-                        
-                        if (file.size > 2 * 1024 * 1024) {
-                            alert('Image size should be less than 2MB');
-                            return;
-                        }
-                        
-                        const reader = new FileReader();
-                        reader.onload = function(e) {
-                            const base64Image = e.target.result;
-                            editableDiv.focus();
-                            
-                            const img = document.createElement('img');
-                            img.src = base64Image;
-                            img.style.maxWidth = '100%';
-                            img.style.height = 'auto';
-                            img.style.display = 'block';
-                            img.style.margin = '10px 0';
-                            
-                            const selection = window.getSelection();
-                            if (selection.rangeCount > 0) {
-                                const range = selection.getRangeAt(0);
-                                range.deleteContents();
-                                range.insertNode(img);
-                                range.setStartAfter(img);
-                                range.setEndAfter(img);
-                                selection.removeAllRanges();
-                                selection.addRange(range);
-                            } else {
-                                editableDiv.appendChild(img);
-                            }
-                        };
-                        reader.readAsDataURL(file);
-                        event.target.value = '';
-                    });
-                    
-                    // Create Edit/Cancel/Save buttons
-                    const buttonContainer = document.createElement('div');
-                    buttonContainer.className = 'mt-2';
-                    
-                    const editBtn = document.createElement('button');
-                    editBtn.className = 'btn btn-sm btn-primary';
-                    editBtn.textContent = 'Edit';
-                    editBtn.onclick = () => {
-                        // Set editor with original HTML
-                        editableDiv.innerHTML = originalHtmlValue;
-                        
-                        // Fix image URLs in edit mode so they're visible
-                        editableDiv.querySelectorAll('img').forEach(img => {
-                            const originalSrc = img.getAttribute('src');
-                            // Store the original URL in a data attribute
-                            img.dataset.originalSrc = originalSrc;
-                            // Fix the URL for display
-                            const fixedUrl = fixImageUrl(originalSrc);
-                            img.setAttribute('src', fixedUrl);
-                            img.style.maxWidth = '100%';
-                            img.style.height = 'auto';
-                        });
-                        
-                        displayDiv.style.display = 'none';
-                        editorContainer.style.display = 'block';
-                        editBtn.style.display = 'none';
-                        cancelBtn.style.display = 'inline-block';
-                        saveBtn.style.display = 'inline-block';
-                    };
-                    
-                    const cancelBtn = document.createElement('button');
-                    cancelBtn.className = 'btn btn-sm btn-secondary me-2';
-                    cancelBtn.textContent = 'Cancel';
+        const isEditable =
+            canEdit &&
+            editableFields.includes(reportFieldname) &&
+            reportFieldname !== 'workorderid';
+
+        if (!hasValue && !isEditable) continue;
+
+        const fieldDiv = document.createElement('div');
+        fieldDiv.className = 'mb-3 pb-2 border-bottom';
+
+        const labelDiv = document.createElement('div');
+        labelDiv.className = 'fw-bold text-muted small mb-1';
+        labelDiv.textContent =
+            fieldLabels[reportFieldname] || col.label || reportFieldname;
+
+        const valueDiv = document.createElement('div');
+        valueDiv.className = 'mt-1';
+
+        /* ======================================================
+           EDITABLE FIELDS
+        ====================================================== */
+
+        if (isEditable) {
+
+            if (
+                col.fieldtype === 'Text' ||
+                col.fieldtype === 'Small Text' ||
+                col.fieldtype === 'Long Text' ||
+                col.fieldtype === 'Text Editor' ||
+                col.fieldtype === 'HTML' ||
+                col.fieldtype === 'HTML Editor'
+            ) {
+                // READ MODE
+                const displayDiv = document.createElement('div');
+                displayDiv.className = 'editable-richtext';
+                displayDiv.style.background = '#f8f9fa';
+
+                const htmlValue = value || '<p class="text-muted">No content</p>';
+                displayDiv.innerHTML = sanitizeRichHtml(htmlValue);
+
+                // EDIT MODE
+                const editor = document.createElement('div');
+                editor.contentEditable = true;
+                editor.className = 'editable-richtext';
+                editor.style.display = 'none';
+                editor.innerHTML = htmlValue;
+
+                editor.dataset.fieldname = actualFieldname;
+                editor.dataset.docname = docName;
+                editor.dataset.doctype = config.doctype || 'Work Order';
+
+                const editBtn = document.createElement('button');
+                editBtn.className = 'btn btn-sm btn-primary me-2';
+                editBtn.textContent = 'Edit';
+
+                const cancelBtn = document.createElement('button');
+                cancelBtn.className = 'btn btn-sm btn-secondary me-2';
+                cancelBtn.textContent = 'Cancel';
+                cancelBtn.style.display = 'none';
+
+                const saveBtn = createSaveButton(editor, reportName, modal);
+                saveBtn.style.display = 'none';
+
+                editBtn.onclick = () => {
+                    editor.innerHTML = sanitizeRichHtml(editor.innerHTML);
+                    displayDiv.style.display = 'none';
+                    editor.style.display = 'block';
+                    editBtn.style.display = 'none';
+                    cancelBtn.style.display = 'inline-block';
+                    saveBtn.style.display = 'inline-block';
+                };
+
+                cancelBtn.onclick = () => {
+                    editor.style.display = 'none';
+                    displayDiv.style.display = 'block';
+                    editBtn.style.display = 'inline-block';
                     cancelBtn.style.display = 'none';
-                    cancelBtn.onclick = () => {
-                        displayDiv.style.display = 'block';
-                        editorContainer.style.display = 'none';
-                        editBtn.style.display = 'inline-block';
-                        cancelBtn.style.display = 'none';
-                        saveBtn.style.display = 'none';
-                    };
-                    
-                    const saveBtn = createSaveButton(editableDiv, reportName, modal);
                     saveBtn.style.display = 'none';
-                    
-                    buttonContainer.appendChild(editBtn);
-                    buttonContainer.appendChild(cancelBtn);
-                    buttonContainer.appendChild(saveBtn);
-                    
-                    // Assemble everything
-                    richTextContainer.appendChild(displayDiv);
-                    richTextContainer.appendChild(editorContainer);
-                    valueDiv.appendChild(richTextContainer);
-                    valueDiv.appendChild(buttonContainer);
-                    
-                } else {
-                    // Regular text input for other types
-                    const input = document.createElement('input');
-                    input.type = 'text';
-                    input.className = 'form-control form-control-sm';
-                    input.value = value || '';
-                    input.placeholder = `Enter ${label}...`;
-                    input.dataset.fieldname = actualFieldname;
-                    input.dataset.docname = docName;
-                    input.dataset.doctype = config.doctype || 'Work Order';
-                    
-                    const saveBtn = createSaveButton(input, reportName, modal);
-                    valueDiv.appendChild(input);
-                    valueDiv.appendChild(saveBtn);
-                }
- } else if (hasValue) {
-    // Non-editable field with value - display only
-    if (col.fieldtype === 'HTML' || (typeof value === 'string' && (value.includes('<img') || value.includes('<a href')))) {
-        
-        // ✅ STEP 1: Remove conflicting onclick attributes from SQL-generated HTML
-        let cleanedValue = value;
-        cleanedValue = cleanedValue.replace(/onclick="[^"]*"/gi, '');  // ✅ Fixed regex
-        cleanedValue = cleanedValue.replace(/onclick='[^']*'/gi, '');  // ✅ Fixed regex
-        
-        // ✅ STEP 2: Parse cleaned HTML
-const tempDiv = document.createElement('div');
-// Replace ALL src= with data-src= to prevent browser from loading yet
-const deferredHTML = cleanedValue.replace(/\ssrc=/gi, ' data-src=');
-tempDiv.innerHTML = deferredHTML;
+                };
 
+                valueDiv.append(displayDiv, editor, editBtn, cancelBtn, saveBtn);
+            }
 
-        
-                    // STEP 3 Fix all image URLs and add consistent click handlers
-                    tempDiv.querySelectorAll('img').forEach(img => {
-                        const originalSrc = img.getAttribute('data-src') || img.getAttribute('src');  // ✅ Get from data-src
-                        
-                        // Get the fixed URL
-                        let fixedUrl = fixImageUrl(originalSrc);
-                        
-                        // CRITICAL: If fixedUrl contains encoded URL characters, it might already be a full URL
-                        // that got double-encoded. Clean it up.
-    
-                        
-                        // Set the src - browser will resolve it
-                            // FORCE absolute URL
-                            if (!fixedUrl.startsWith('http://') && !fixedUrl.startsWith('https://')) {
-                                fixedUrl = `https://acmestones.erpnext.com${fixedUrl}`;
-                            }
-                            img.removeAttribute('data-src');  // ✅ Clean up
-                            img.src = fixedUrl;  // ✅ NOW set the correct src
-                            console.log('🖼️ FINAL img.src:', img.src); // Log what browser actually got
+            else {
+                // Simple input
+                const input = document.createElement('input');
+                input.className = 'form-control form-control-sm';
+                input.value = value || '';
+                input.dataset.fieldname = actualFieldname;
+                input.dataset.docname = docName;
+                input.dataset.doctype = config.doctype || 'Work Order';
 
+                const saveBtn = createSaveButton(input, reportName, modal);
+                valueDiv.append(input, saveBtn);
+            }
+        }
 
-            
-            // Style
-            img.style.cursor = 'pointer';
-            img.style.maxWidth = '100%';
-            
-            // Remove any remaining onclick attribute (double safety)
-            img.removeAttribute('onclick');
-            
-            // Add our single, consistent click handler
-            img.onclick = function(e) {
-                e.preventDefault();
-                e.stopPropagation();
-                console.log('🖱️ Opening image:', fixedUrl);
-                const finalUrl = fixedUrl.startsWith('http') ? fixedUrl : `https://acmestones.erpnext.com${fixedUrl}`;
-                window.open(finalUrl, '_blank', 'noopener,noreferrer');
-                return false;
-            };
-            
-            // Error handler
-            img.onerror = function() {
-                console.error('❌ Failed to load image:', fixedUrl);
-                this.style.border = '1px solid #ddd';
-                this.style.padding = '5px';
-                this.style.backgroundColor = '#f8f9fa';
-                this.alt = 'Image not available';
-            };
-        });
-        
-        // ✅ STEP 4: Fix all link URLs
-        tempDiv.querySelectorAll('a').forEach(link => {
-            const href = link.getAttribute('href');
-            if (href) {
-                // Fix staging URLs in links too
-                let fixedHref;
-                if (href.includes('stagingreports.acmestones.com')) {
-                    const urlParts = href.split('stagingreports.acmestones.com')[1];
-                    fixedHref = `https://acmestones.erpnext.com${urlParts}`;
-                } else {
-                    fixedHref = fixImageUrl(href);
-                }
-                
-                link.href = fixedHref;
+        /* ======================================================
+           READ-ONLY FIELDS
+        ====================================================== */
+
+        else if (hasValue) {
+
+            if (typeof value === 'string' && value.includes('<')) {
+                // ⭐ THE ONLY LINE THAT MATTERS FOR PRIVATE FILES ⭐
+                valueDiv.innerHTML = sanitizeRichHtml(value);
+            }
+
+            else if (col.fieldtype === 'Link' && col.options) {
+                const link = document.createElement('a');
+                link.href = `https://acmestones.erpnext.com/app/${col.options
+                    .toLowerCase()
+                    .replace(/\s+/g, '-')}/${encodeURIComponent(value)}`;
                 link.target = '_blank';
                 link.rel = 'noopener noreferrer';
-                
-                // Remove conflicting onclick
-                link.removeAttribute('onclick');
-                
-                // Let links work normally but prevent event bubbling
-                link.onclick = function(e) {
-                    e.stopPropagation();
-                };
+                link.textContent = value;
+                valueDiv.appendChild(link);
             }
-        });
-        
-        valueDiv.appendChild(tempDiv);
-        
-    } else if (col.fieldtype === "Link" && col.options) {
-        const link = document.createElement('a');
-        const doctypeSlug = col.options.toLowerCase().replace(/\s+/g, '-');
-        link.href = `https://acmestones.erpnext.com/app/${doctypeSlug}/${encodeURIComponent(value)}`;
-        link.target = '_blank';
-        link.rel = 'noopener noreferrer';
-        link.className = 'link-field';
-        link.textContent = value;
-        valueDiv.appendChild(link);
-    } else {
-        valueDiv.textContent = value;
-    }
-}
 
-fieldDiv.appendChild(labelDiv);
-fieldDiv.appendChild(valueDiv);
-modalBody.appendChild(fieldDiv);
-
-
+            else {
+                valueDiv.textContent = value;
+            }
         }
+
+        fieldDiv.append(labelDiv, valueDiv);
+        modalBody.appendChild(fieldDiv);
     }
-    
+
     modal.show();
 }
+
 
 
 
