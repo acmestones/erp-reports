@@ -462,12 +462,15 @@ function sanitizeRichHtml(html) {
     });
 
     // Fix ONLY non-image file links
-    html = html.replace(/<a([^>]+)href=["']([^"']+)["']/gi, (match, attrs, url) => {
-        if (url.match(/\.(jpg|jpeg|png|gif|webp)$/i)) {
-            return match; // leave image links alone
+    html = html.replace(/<a([^>]*)href=["']([^"']+)["']([^>]*)>/gi, (match, pre, href, post) => {
+        // If anchor wraps an image → keep href untouched
+        if (match.match(/<img/i)) {
+            return match;
         }
-        return `<a${attrs}href="${fixFileUrl(url)}"`;
+        // Otherwise treat as file link
+        return `<a${pre}href="${fixFileUrl(href)}"${post}>`;
     });
+
 
 
     return html;
@@ -479,20 +482,29 @@ function sanitizeRichHtml(html) {
 
 function normalizeImageClicks(container) {
     container.querySelectorAll('img').forEach(img => {
-        img.style.cursor = 'pointer';
 
-        // Unwrap image from anchor if wrapped
-        if (img.parentElement?.tagName === 'A') {
-            img.parentElement.replaceWith(img);
+        // ✅ FIX 1: unwrap image if wrapped in <a>
+        const parent = img.parentElement;
+        if (parent && parent.tagName === 'A') {
+            parent.replaceWith(img);
         }
 
+        // ✅ FIX 2: cursor style
+        img.style.cursor = 'pointer';
+
+        // ✅ FIX 3: always open image in new tab
         img.addEventListener('click', e => {
             e.preventDefault();
             e.stopPropagation();
-            window.open(img.src, '_blank', 'noopener,noreferrer');
+
+            const src = img.getAttribute('src');
+            if (!src) return;
+
+            window.open(src, '_blank', 'noopener,noreferrer');
         });
     });
 }
+
 
 
 
