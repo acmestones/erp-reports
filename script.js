@@ -463,11 +463,32 @@ function sanitizeRichHtml(html) {
 
     // 2️⃣ Fix A href at STRING level
     html = html.replace(/<a([^>]+)href=["']([^"']+)["']/gi, (match, attrs, url) => {
-        const fixedUrl = fixImageUrl(url);
+        const fixedUrl = fixFileUrl(url);
         return `<a${attrs}href="${fixedUrl}"`;
     });
 
     return html;
+}
+
+
+
+
+
+//Fix file url
+function fixFileUrl(url) {
+    if (!url) return url;
+
+    if (url.startsWith('/private/files/') || url.startsWith('/files/')) {
+        return `/erp_proxy.php?action=proxyfile&fileurl=${encodeURIComponent(
+            'https://acmestones.erpnext.com' + url
+        )}`;
+    }
+
+    if (url.includes('/private/files/') || url.includes('/files/')) {
+        return `/erp_proxy.php?action=proxyfile&fileurl=${encodeURIComponent(url)}`;
+    }
+
+    return url;
 }
 
 
