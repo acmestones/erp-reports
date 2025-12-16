@@ -513,6 +513,15 @@ function normalizeFileLinks(container) {
 
 
 
+function normalizeAttachmentLayout(container) {
+    container.querySelectorAll('img').forEach(img => {
+        img.style.display = 'inline-block';
+        img.style.margin = '6px';
+        img.style.maxWidth = '120px';
+    });
+}
+
+
 
 
 
@@ -1648,6 +1657,8 @@ async function showDetailModal(row, columns, reportName, config) {
                     
                     // ✅ FIX FILE DOWNLOADS
                     normalizeFileLinks(valueDiv);
+
+                    normalizeAttachmentLayout(valueDiv);
                 
             }
 
