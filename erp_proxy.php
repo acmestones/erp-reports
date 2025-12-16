@@ -59,7 +59,11 @@ if (isset($_GET['action']) && $_GET['action'] === 'proxyimage') {
 ========================================================= */
 // ================= PROXY FILE (DOWNLOAD) =================
 if (isset($_GET['action']) && $_GET['action'] === 'proxyfile') {
-    ob_clean();
+
+    // Absolute guarantee: no previous output
+    if (ob_get_length()) {
+        ob_clean();
+    }
 
     $fileUrl = $_GET['fileurl'] ?? '';
     if (!$fileUrl) {
@@ -69,7 +73,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'proxyfile') {
 
     $fileUrl = urldecode($fileUrl);
 
-    // Security check
+    // Security: allow only ERPNext files
     if (
         !str_starts_with($fileUrl, ERP_BASE . '/files/') &&
         !str_starts_with($fileUrl, ERP_BASE . '/private/files/')
@@ -87,22 +91,29 @@ if (isset($_GET['action']) && $_GET['action'] === 'proxyfile') {
         CURLOPT_HTTPHEADER => [
             "Authorization: token " . API_KEY . ":" . API_SECRET
         ],
-        CURLOPT_SSL_VERIFYPEER => false
+        CURLOPT_SSL_VERIFYPEER => false,
+        CURLOPT_HEADER => false
     ]);
 
     $data = curl_exec($ch);
-    $contentType = curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
     $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $contentType = curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
     curl_close($ch);
 
-    if ($httpCode !== 200 || !$data) {
+    // 🔴 CRITICAL: if ERPNext returned HTML, STOP
+    if (
+        $httpCode !== 200 ||
+        !$data ||
+        str_starts_with(trim($data), '<!DOCTYPE') ||
+        str_contains($contentType, 'text/html')
+    ) {
         http_response_code(404);
         exit;
     }
 
-    // 🔴 CRITICAL HEADERS
+    // 🔒 Final binary-only response
     header('Content-Description: File Transfer');
-    header('Content-Type: ' . ($contentType ?: 'application/octet-stream'));
+    header('Content-Type: application/octet-stream');
     header("Content-Disposition: attachment; filename*=UTF-8''" . rawurlencode($filename));
     header('Content-Length: ' . strlen($data));
     header('Cache-Control: no-store, no-cache, must-revalidate');
