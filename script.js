@@ -455,20 +455,21 @@ function extractImageUrl(htmlContent) {
 function sanitizeRichHtml(html) {
     if (!html || typeof html !== 'string') return html;
 
-    // Fix <img src="">
-    html = html.replace(/<img[^>]+src=["']([^"']+)["']/gi, (match, url) => {
-        const fixed = fixImageUrl(url);
-        return match.replace(url, fixed);
+    // 1️⃣ Fix IMG src at STRING level (before DOM parsing)
+    html = html.replace(/<img([^>]+)src=["']([^"']+)["']/gi, (match, attrs, url) => {
+        const fixedUrl = fixImageUrl(url);
+        return `<img${attrs}src="${fixedUrl}"`;
     });
 
-    // Fix <a href="">
-    html = html.replace(/<a[^>]+href=["']([^"']+)["']/gi, (match, url) => {
-        const fixed = fixImageUrl(url);
-        return match.replace(url, fixed);
+    // 2️⃣ Fix A href at STRING level
+    html = html.replace(/<a([^>]+)href=["']([^"']+)["']/gi, (match, attrs, url) => {
+        const fixedUrl = fixImageUrl(url);
+        return `<a${attrs}href="${fixedUrl}"`;
     });
 
     return html;
 }
+
 
 
 
