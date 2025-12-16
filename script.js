@@ -495,6 +495,21 @@ function normalizeImageClicks(container) {
 
 
 
+function normalizeFileLinks(container) {
+    container.querySelectorAll('a[href]').forEach(a => {
+        const href = a.getAttribute('href');
+        if (!href) return;
+
+        if (href.includes('/private/files/') || href.includes('/files/')) {
+            a.href = fixFileUrl(href);
+            a.target = '_blank';
+            a.rel = 'noopener noreferrer';
+        }
+    });
+}
+
+
+
 
 
 
@@ -1627,7 +1642,12 @@ async function showDetailModal(row, columns, reportName, config) {
             if (typeof value === 'string' && value.includes('<')) {
                 // ⭐ THE ONLY LINE THAT MATTERS FOR PRIVATE FILES ⭐
                 valueDiv.innerHTML = sanitizeRichHtml(value);
-                normalizeImageClicks(valueDiv);
+                    // ✅ FIX IMAGES
+                    normalizeImageClicks(valueDiv);
+                    
+                    // ✅ FIX FILE DOWNLOADS
+                    normalizeFileLinks(valueDiv);
+                
             }
 
             else if (col.fieldtype === 'Link' && col.options) {
