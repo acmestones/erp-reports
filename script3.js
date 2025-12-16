@@ -1,4 +1,4 @@
-const API_BASE = "erp_proxy.php";
+const API_BASE = "/erp_proxy.php";
 let userEmail = localStorage.getItem("userEmail");
 let currentUser = null;
 let currentColumns = 5;
@@ -443,80 +443,51 @@ function extractImageUrl(htmlContent) {
     return null;
 }
 
-// Replace the existing fixImageUrl function with this enhanced version
+
 // Enhanced fixImageUrl function
 
-// ============================================================================
-// IMAGE URL FIXER FUNCTION - START
-// ============================================================================
+
 function fixImageUrl(url) {
     if (!url) return null;
-    
     url = url.trim();
-    console.log('🔍 Fixing URL:', url);
     
-    if (url.startsWith('http://') || url.startsWith('https://')) {
-        if (url.includes('/private/files')) {
-            console.log('🔒 Proxying private URL');
-            return `${API_BASE}?action=proxyimage&fileurl=${encodeURIComponent(url)}`;
+    console.log('Fixing URL:', url); // Debug log
+    
+    // Already absolute URL
+    if (url.startsWith("http://") || url.startsWith("https://")) {
+        // Check if it's a private file (anywhere in the URL)
+        if (url.includes('/private/files/')) {
+            console.log('Private file detected, proxying');
+            // Extract just the path part
+            let fileUrl = url;
+            // If it's on staging domain, replace with ERP domain
+            if (url.includes('stagingreports.acmestones.com')) {
+                fileUrl = url.replace('stagingreports.acmestones.com', 'acmestones.erpnext.com');
+            }
+            return `${API_BASE}?action=proxyimage&fileurl=${encodeURIComponent(fileUrl)}`;
         }
-        console.log('✅ Already absolute');
         return url;
     }
     
-    if (url.startsWith('//')) {
-        return 'https:' + url;
+    // Protocol-relative URL
+    if (url.startsWith("//")) {
+        return "https:" + url;
     }
     
-    // Encode URL path - preserves leading slash
-    const encodeUrlPath = (path) => {
-        const [pathPart, queryPart] = path.split('?');
-        const hasLeadingSlash = pathPart[0] === '/';
-        
-        const toEncode = hasLeadingSlash ? pathPart.substring(1) : pathPart;
-        const segments = toEncode.split('/');
-        const encoded = [];
-        
-        for (let i = 0; i < segments.length; i++) {
-            const seg = segments[i];
-            if (!seg) {
-                encoded.push('');
-            } else if (seg.indexOf('%') !== -1) {
-                encoded.push(seg);
-            } else {
-                encoded.push(encodeURIComponent(seg));
-            }
-        }
-        
-        let result = encoded.join('/');
-        if (hasLeadingSlash) result = '/' + result;
-        if (queryPart) result = result + '?' + queryPart;
-        
-        return result;
-    };
-    
-    const test = encodeUrlPath('/files/test.jpg');
-    console.log('🧪 TEST result:', test, 'starts with slash:', test[0] === '/');
-    
-    if (url.includes('/private/files')) {
-        const encodedUrl = encodeUrlPath(url);
-        const absoluteUrl = `https://acmestones.erpnext.com${encodedUrl}`;
-        console.log('🔒 Proxying private file');
-        return `${API_BASE}?action=proxyimage&fileurl=${encodeURIComponent(absoluteUrl)}`;
+    // Handle private files by proxying through PHP
+    if (url.includes('/private/files/')) {
+        const fullUrl = `https://acmestones.erpnext.com${url}`;
+        console.log('Proxying private file:', fullUrl);
+        return `${API_BASE}?action=proxyimage&fileurl=${encodeURIComponent(fullUrl)}`;
     }
     
-    if (url.startsWith('/')) {
-        const encodedUrl = encodeUrlPath(url);
-        console.log('📊 encoded:', encodedUrl, 'first char:', encodedUrl[0]);
-        const fixed = `https://acmestones.erpnext.com${encodedUrl}`;
-        console.log('🔧 Fixed:', fixed);
-        return fixed;
+    // Root-relative URL (including public /files/)
+    if (url.startsWith("/")) {
+        return `https://acmestones.erpnext.com${url}`;
     }
     
-    const encodedFilename = encodeURIComponent(url);
-    const fixed = `https://acmestones.erpnext.com/files/${encodedFilename}`;
-    console.log('📝 Bare filename:', fixed);
-    return fixed;
+    // Relative URL
+    return `https://acmestones.erpnext.com/${url}`;
 }
 
 
