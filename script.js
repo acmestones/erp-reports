@@ -444,6 +444,41 @@ function extractImageUrl(htmlContent) {
 }
 
 
+
+
+
+
+/**
+ * Rewrite all image src and anchor href URLs inside rich HTML
+ * so private ERPNext files are routed via erp_proxy.php
+ */
+function sanitizeRichHtml(html) {
+    if (!html || typeof html !== 'string') return html;
+
+    // Fix <img src="">
+    html = html.replace(/<img[^>]+src=["']([^"']+)["']/gi, (match, url) => {
+        const fixed = fixImageUrl(url);
+        return match.replace(url, fixed);
+    });
+
+    // Fix <a href="">
+    html = html.replace(/<a[^>]+href=["']([^"']+)["']/gi, (match, url) => {
+        const fixed = fixImageUrl(url);
+        return match.replace(url, fixed);
+    });
+
+    return html;
+}
+
+
+
+
+
+
+
+
+
+
 // Enhanced fixImageUrl function
 
 
