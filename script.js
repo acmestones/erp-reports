@@ -1779,7 +1779,7 @@ async function showDetailModal(row, columns, reportName, config) {
 
         const valueDiv = document.createElement('div');
         valueDiv.className = 'mt-1';
-    }
+    
 /* ======================================================
    EDITABLE FIELDS (RICH TEXT SAFE VERSION)
 ====================================================== */
