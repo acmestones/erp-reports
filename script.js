@@ -663,8 +663,8 @@ function injectAttachmentControls(
             )
         );
 
-
-    if (!links.length) return;
+    // ✅ FIX: use attachmentLinks (not links)
+    if (!attachmentLinks.length) return;
 
     /* ================= UPLOAD BUTTON ================= */
 
@@ -690,8 +690,8 @@ function injectAttachmentControls(
                 body: fd
             });
 
+            // 🔄 reload modal safely
             showDetailModal(row, columns, reportName, config);
-
         };
 
         input.click();
@@ -701,11 +701,13 @@ function injectAttachmentControls(
 
     /* ================= REMOVE BUTTONS ================= */
 
-    links.forEach(link => {
+    attachmentLinks.forEach(link => {
         const href = link.getAttribute('href');
         if (!href) return;
 
-        const fileName = decodeURIComponent(href.split('/').pop().split('?')[0]);
+        const fileName = decodeURIComponent(
+            href.split('/').pop().split('?')[0]
+        );
 
         const removeBtn = document.createElement('button');
         removeBtn.className = 'btn btn-sm btn-outline-danger ms-2';
@@ -721,13 +723,15 @@ function injectAttachmentControls(
                 `/erp_proxy.php?action=delete_attachment&file_url=${encodeURIComponent(href)}`
             );
 
+            // 🔄 reload modal safely
             showDetailModal(row, columns, reportName, config);
-
         };
 
         link.after(removeBtn);
     });
 }
+
+
 
 
 
