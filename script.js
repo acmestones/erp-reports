@@ -527,30 +527,59 @@ function normalizeAttachmentLayout(container) {
 
 
 function autoFixImages(container) {
-    const fix = () => {
-        container.querySelectorAll('a > img').forEach(img => {
-            img.parentElement.replaceWith(img);
-        });
+    if (!container) return;
 
-        container.querySelectorAll('img').forEach(img => {
+    container.querySelectorAll('img').forEach(img => {
+        let src = img.getAttribute('src');
+        if (!src) return;
+
+        console.log('Fixing URL:', src);
+
+        // Ignore base64 images (editor insert preview)
+        if (src.startsWith('data:image')) {
+            return;
+        }
+
+        // Convert relative URLs to ERP absolute
+        if (src.startsWith('/')) {
+            src = 'https://acmestones.erpnext.com' + src;
+        }
+
+        // Strip ?fid and any query params (CRITICAL)
+        try {
+            const u = new URL(src);
+            src = u.origin + u.pathname;
+        } catch {
+            // If URL() fails, do manual strip
+            src = src.split('?')[0];
+        }
+
+        // PRIVATE FILE → MUST go through proxyimage
+        if (src.includes('/private/files/')) {
+            console.log('Proxying private image:', src);
+
+            img.src =
+                '/erp_proxy.php?action=proxyimage&fileurl=' +
+                encodeURIComponent(src);
+
             img.style.cursor = 'pointer';
-
             img.onclick = e => {
                 e.preventDefault();
-                e.stopPropagation();
                 window.open(img.src, '_blank', 'noopener,noreferrer');
             };
-        });
-    };
 
-    // Run once immediately
-    fix();
+            return;
+        }
 
-    // Observe future changes
-    const observer = new MutationObserver(() => fix());
-    observer.observe(container, {
-        childList: true,
-        subtree: true
+        // PUBLIC FILE → load directly from ERP
+        if (src.includes('/files/')) {
+            img.src = src;
+            img.style.cursor = 'pointer';
+            img.onclick = e => {
+                e.preventDefault();
+                window.open(src, '_blank', 'noopener,noreferrer');
+            };
+        }
     });
 }
 
