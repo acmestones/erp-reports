@@ -737,6 +737,90 @@ function injectAttachmentControls(
 
 
 
+async function loadAttachments(container, docName, config, row, columns, reportName) {
+
+    const res = await fetch(
+        `/erp_proxy.php?action=list_attachments&doctype=${encodeURIComponent(config.doctype)}&docname=${encodeURIComponent(docName)}`
+    );
+
+    const files = await res.json();
+
+    container.innerHTML = '';
+
+    /* Upload button */
+    const uploadBtn = document.createElement('button');
+    uploadBtn.className = 'btn btn-sm btn-outline-primary mb-2';
+    uploadBtn.textContent = '➕ Upload Attachment';
+    container.appendChild(uploadBtn);
+
+    uploadBtn.onclick = () => {
+        const input = document.createElement('input');
+        input.type = 'file';
+
+        input.onchange = async () => {
+            const fd = new FormData();
+            fd.append('file', input.files[0]);
+            fd.append('doctype', config.doctype);
+            fd.append('docname', docName);
+            fd.append('is_private', 1);
+
+            await fetch('/erp_proxy.php?action=upload_attachment', {
+                method: 'POST',
+                body: fd
+            });
+
+            // 🔁 Reload ONLY attachments
+            loadAttachments(container, docName, config, row, columns, reportName);
+        };
+
+        input.click();
+    };
+
+    /* Files */
+    files.forEach(file => {
+        const rowDiv = document.createElement('div');
+        rowDiv.style.display = 'flex';
+        rowDiv.style.alignItems = 'center';
+        rowDiv.style.gap = '8px';
+        rowDiv.style.marginBottom = '6px';
+
+        if (file.is_image) {
+            const img = document.createElement('img');
+            img.src = `/erp_proxy.php?action=proxyimage&fileurl=${encodeURIComponent(file.url)}`;
+            img.style.maxWidth = '120px';
+            img.style.border = '1px solid #ddd';
+            rowDiv.appendChild(img);
+        } else {
+            const link = document.createElement('a');
+            link.href = `/erp_proxy.php?action=proxyfile&fileurl=${encodeURIComponent(file.url)}`;
+            link.textContent = file.file_name;
+            link.target = '_blank';
+            rowDiv.appendChild(link);
+        }
+
+        const removeBtn = document.createElement('button');
+        removeBtn.textContent = '❌';
+        removeBtn.className = 'btn btn-sm btn-outline-danger';
+
+        removeBtn.onclick = async () => {
+            if (!confirm(`Delete ${file.file_name}?`)) return;
+
+            await fetch(
+                `/erp_proxy.php?action=delete_attachment&file_name=${encodeURIComponent(file.name)}`
+            );
+
+            // 🔁 Reload ONLY attachments
+            loadAttachments(container, docName, config, row, columns, reportName);
+        };
+
+        rowDiv.appendChild(removeBtn);
+        container.appendChild(rowDiv);
+    });
+}
+
+
+
+
 
 
 
@@ -1832,24 +1916,32 @@ if (isEditable) {
    READ-ONLY FIELDS
 ====================================================== */
 
-else if (hasValue) {
+if (typeof value === 'string' && value.includes('<')) {
 
-    if (typeof value === 'string' && value.includes('<')) {
+    // 🧠 Detect attachment HTML (files or private files)
+    if (value.includes('/files/') || value.includes('/private/files/')) {
+
+        // 🔁 Do NOT use report HTML for attachments
+        valueDiv.innerHTML = '<div class="text-muted small">Loading attachments…</div>';
+
+        loadAttachments(
+            valueDiv,
+            docName,
+            config,
+            row,
+            columns,
+            reportName
+        );
+
+    } else {
+        // ✅ Normal rich text (no attachments)
         valueDiv.innerHTML = sanitizeRichHtml(value);
         normalizeFileLinks(valueDiv);
         normalizeAttachmentLayout(valueDiv);
         autoFixImages(valueDiv);
-
-        injectAttachmentControls(
-            valueDiv,
-            row,
-            columns,
-            reportName,
-            config,
-            docName
-        );
-
     }
+}
+
 
     else if (col.fieldtype === 'Link' && col.options) {
         const link = document.createElement('a');
