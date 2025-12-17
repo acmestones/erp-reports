@@ -1940,7 +1940,6 @@ if (typeof value === 'string' && value.includes('<')) {
         normalizeAttachmentLayout(valueDiv);
         autoFixImages(valueDiv);
     }
-}
 
 
     else if (col.fieldtype === 'Link' && col.options) {
