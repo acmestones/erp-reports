@@ -2139,6 +2139,93 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_doctype_meta') {
 
 
 
+//Upload attachment endpoint
+if ($_GET['action'] === 'upload_attachment') {
+
+    if (!isset($_FILES['file'])) {
+        echo json_encode(['error' => 'No file']);
+        exit;
+    }
+
+    $doctype = $_POST['doctype'] ?? '';
+    $docname = $_POST['docname'] ?? '';
+    $is_private = $_POST['is_private'] ?? 1;
+
+    if (!$doctype || !$docname) {
+        echo json_encode(['error' => 'Missing doctype/docname']);
+        exit;
+    }
+
+    $boundary = '----WebKitFormBoundary' . uniqid();
+    $file = $_FILES['file'];
+    $content = file_get_contents($file['tmp_name']);
+
+    $body =
+        "--$boundary\r\n" .
+        "Content-Disposition: form-data; name=\"file\"; filename=\"{$file['name']}\"\r\n" .
+        "Content-Type: {$file['type']}\r\n\r\n" .
+        $content . "\r\n" .
+        "--$boundary\r\n" .
+        "Content-Disposition: form-data; name=\"doctype\"\r\n\r\n$doctype\r\n" .
+        "--$boundary\r\n" .
+        "Content-Disposition: form-data; name=\"docname\"\r\n\r\n$docname\r\n" .
+        "--$boundary\r\n" .
+        "Content-Disposition: form-data; name=\"is_private\"\r\n\r\n$is_private\r\n" .
+        "--$boundary--\r\n";
+
+    $ch = curl_init(ERP_BASE . '/api/method/upload_file');
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_POST => true,
+        CURLOPT_POSTFIELDS => $body,
+        CURLOPT_HTTPHEADER => [
+            "Authorization: token " . API_KEY . ":" . API_SECRET,
+            "Content-Type: multipart/form-data; boundary=$boundary"
+        ],
+        CURLOPT_SSL_VERIFYPEER => false
+    ]);
+
+    $res = curl_exec($ch);
+    curl_close($ch);
+
+    echo $res;
+    exit;
+}
+
+
+
+
+//Remove Attachment endpoint
+if ($_GET['action'] === 'delete_attachment') {
+
+    $fileName = $_GET['file_name'] ?? '';
+    if (!$fileName) {
+        echo json_encode(['error' => 'Missing file name']);
+        exit;
+    }
+
+    $ch = curl_init(ERP_BASE . '/api/resource/File/' . urlencode($fileName));
+    curl_setopt_array($ch, [
+        CURLOPT_CUSTOMREQUEST => 'DELETE',
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HTTPHEADER => [
+            "Authorization: token " . API_KEY . ":" . API_SECRET
+        ],
+        CURLOPT_SSL_VERIFYPEER => false
+    ]);
+
+    $res = curl_exec($ch);
+    curl_close($ch);
+
+    echo $res;
+    exit;
+}
+
+
+
+
+
+
 
 // ==================== END TIME LOGS ENDPOINTS ====================
 
