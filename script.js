@@ -645,7 +645,14 @@ function fixFileUrl(url) {
 
 
 
-function injectAttachmentControls(container, docName, config) {
+function injectAttachmentControls(
+    container,
+    row,
+    columns,
+    reportName,
+    config,
+    docName
+) {
 
     const links = Array.from(
         container.querySelectorAll('a[href*="/files/"], a[href*="/private/files/"]')
@@ -677,7 +684,8 @@ function injectAttachmentControls(container, docName, config) {
                 body: fd
             });
 
-            showDetailModal(currentRow, currentColumns, currentReport, currentConfig);
+            showDetailModal(row, columns, reportName, config);
+
         };
 
         input.click();
@@ -707,7 +715,8 @@ function injectAttachmentControls(container, docName, config) {
                 `/erp_proxy.php?action=delete_attachment&file_url=${encodeURIComponent(href)}`
             );
 
-            showDetailModal(currentRow, currentColumns, currentReport, currentConfig);
+            showDetailModal(row, columns, reportName, config);
+
         };
 
         link.after(removeBtn);
@@ -1821,7 +1830,15 @@ else if (hasValue) {
         normalizeAttachmentLayout(valueDiv);
         autoFixImages(valueDiv);
 
-        injectAttachmentControls(valueDiv, docName, config);
+        injectAttachmentControls(
+            valueDiv,
+            row,
+            columns,
+            reportName,
+            config,
+            docName
+        );
+
     }
 
     else if (col.fieldtype === 'Link' && col.options) {
