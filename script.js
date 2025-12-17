@@ -1596,167 +1596,130 @@ async function showDetailModal(row, columns, reportName, config) {
         const valueDiv = document.createElement('div');
         valueDiv.className = 'mt-1';
 
-/* ======================================================
-   EDITABLE FIELDS (RICH TEXT SAFE VERSION)
-====================================================== */
+        /* ======================================================
+           EDITABLE FIELDS
+        ====================================================== */
 
-if (isEditable) {
+        if (isEditable) {
 
-    if (
-        col.fieldtype === 'Text' ||
-        col.fieldtype === 'Small Text' ||
-        col.fieldtype === 'Long Text' ||
-        col.fieldtype === 'Text Editor' ||
-        col.fieldtype === 'HTML' ||
-        col.fieldtype === 'HTML Editor'
-    ) {
+            if (
+                col.fieldtype === 'Text' ||
+                col.fieldtype === 'Small Text' ||
+                col.fieldtype === 'Long Text' ||
+                col.fieldtype === 'Text Editor' ||
+                col.fieldtype === 'HTML' ||
+                col.fieldtype === 'HTML Editor'
+            ) {
+                // READ MODE
+                const displayDiv = document.createElement('div');
+                displayDiv.className = 'editable-richtext';
+                displayDiv.style.background = '#f8f9fa';
 
-        /* ---------- READ MODE ---------- */
+                const htmlValue = value || '<p class="text-muted">No content</p>';
+                displayDiv.innerHTML = sanitizeRichHtml(htmlValue);
+                normalizeFileLinks(displayDiv);
 
-        const displayDiv = document.createElement('div');
-        displayDiv.className = 'editable-richtext';
-        displayDiv.style.background = '#f8f9fa';
 
-        const htmlValue = value || '<p class="text-muted">No content</p>';
+                // EDIT MODE
+                const editor = document.createElement('div');
+                editor.contentEditable = true;
+                editor.className = 'editable-richtext';
+                editor.style.display = 'none';
+                editor.innerHTML = sanitizeRichHtml(htmlValue);
 
-        // ✅ sanitize ONLY for display
-        displayDiv.innerHTML = sanitizeRichHtml(htmlValue);
-        normalizeFileLinks(displayDiv);
-        autoFixImages(displayDiv);
+                editor.dataset.fieldname = actualFieldname;
+                editor.dataset.docname = docName;
+                editor.dataset.doctype = config.doctype || 'Work Order';
 
-        /* ---------- EDIT MODE ---------- */
+                const editBtn = document.createElement('button');
+                editBtn.className = 'btn btn-sm btn-primary me-2';
+                editBtn.textContent = 'Edit';
 
-        const editorWrapper = document.createElement('div');
-        editorWrapper.style.display = 'none';
+                const cancelBtn = document.createElement('button');
+                cancelBtn.className = 'btn btn-sm btn-secondary me-2';
+                cancelBtn.textContent = 'Cancel';
+                cancelBtn.style.display = 'none';
 
-        // Toolbar
-        const toolbar = document.createElement('div');
-        toolbar.className = 'mb-2';
+                const saveBtn = createSaveButton(editor, reportName, modal);
+                saveBtn.style.display = 'none';
 
-        const insertImgBtn = document.createElement('button');
-        insertImgBtn.type = 'button';
-        insertImgBtn.className = 'btn btn-sm btn-outline-secondary';
-        insertImgBtn.textContent = 'Insert Image';
+                editBtn.onclick = () => {
+                    editor.innerHTML = sanitizeRichHtml(editor.innerHTML);
+                    displayDiv.style.display = 'none';
+                    editor.style.display = 'block';
+                    editBtn.style.display = 'none';
+                    cancelBtn.style.display = 'inline-block';
+                    saveBtn.style.display = 'inline-block';
+                };
 
-        const imgInput = document.createElement('input');
-        imgInput.type = 'file';
-        imgInput.accept = 'image/*';
-        imgInput.style.display = 'none';
+                cancelBtn.onclick = () => {
+                    editor.style.display = 'none';
+                    displayDiv.style.display = 'block';
+                    editBtn.style.display = 'inline-block';
+                    cancelBtn.style.display = 'none';
+                    saveBtn.style.display = 'none';
+                };
 
-        toolbar.append(insertImgBtn, imgInput);
+                valueDiv.append(displayDiv, editor, editBtn, cancelBtn, saveBtn);
+            }
 
-        // Editable content (❌ NO sanitization)
-        const editor = document.createElement('div');
-        editor.contentEditable = true;
-        editor.className = 'editable-richtext';
-        editor.style.minHeight = '150px';
-        editor.innerHTML = htmlValue;
+            else {
+                // Simple input
+                const input = document.createElement('input');
+                input.className = 'form-control form-control-sm';
+                input.value = value || '';
+                input.dataset.fieldname = actualFieldname;
+                input.dataset.docname = docName;
+                input.dataset.doctype = config.doctype || 'Work Order';
 
-        editor.dataset.fieldname = actualFieldname;
-        editor.dataset.docname = docName;
-        editor.dataset.doctype = config.doctype || 'Work Order';
+                const saveBtn = createSaveButton(input, reportName, modal);
+                valueDiv.append(input, saveBtn);
+            }
+        }
 
-        insertImgBtn.onclick = () => imgInput.click();
+        /* ======================================================
+           READ-ONLY FIELDS
+        ====================================================== */
 
-        imgInput.onchange = e => {
-            const file = e.target.files[0];
-            if (!file) return;
+        else if (hasValue) {
 
-            const reader = new FileReader();
-            reader.onload = ev => {
-                const img = document.createElement('img');
-                img.src = ev.target.result;
-                img.style.maxWidth = '100%';
-                editor.appendChild(img);
-            };
-            reader.readAsDataURL(file);
-            imgInput.value = '';
-        };
+            if (typeof value === 'string' && value.includes('<')) {
+                // ⭐ THE ONLY LINE THAT MATTERS FOR PRIVATE FILES ⭐
+                valueDiv.innerHTML = sanitizeRichHtml(value);
+                    
+                    // ✅ FIX FILE DOWNLOADS
+                    normalizeFileLinks(valueDiv);
 
-        editorWrapper.append(toolbar, editor);
+                    normalizeAttachmentLayout(valueDiv);
+                
+            }
 
-        /* ---------- ACTION BUTTONS ---------- */
+            else if (col.fieldtype === 'Link' && col.options) {
+                const link = document.createElement('a');
+                link.href = `https://acmestones.erpnext.com/app/${col.options
+                    .toLowerCase()
+                    .replace(/\s+/g, '-')}/${encodeURIComponent(value)}`;
+                link.target = '_blank';
+                link.rel = 'noopener noreferrer';
+                link.textContent = value;
+                valueDiv.appendChild(link);
+                    // ✅ REQUIRED
+                    normalizeFileLinks(valueDiv);
+            }
 
-        const editBtn = document.createElement('button');
-        editBtn.className = 'btn btn-sm btn-primary me-2';
-        editBtn.textContent = 'Edit';
+            else {
+                valueDiv.textContent = value;
+            }
+        }
 
-        const cancelBtn = document.createElement('button');
-        cancelBtn.className = 'btn btn-sm btn-secondary me-2';
-        cancelBtn.textContent = 'Cancel';
-        cancelBtn.style.display = 'none';
-
-        const saveBtn = createSaveButton(editor, reportName, modal);
-        saveBtn.style.display = 'none';
-
-        editBtn.onclick = () => {
-            editorWrapper.style.display = 'block';
-            displayDiv.style.display = 'none';
-            editBtn.style.display = 'none';
-            cancelBtn.style.display = 'inline-block';
-            saveBtn.style.display = 'inline-block';
-        };
-
-        cancelBtn.onclick = () => {
-            editorWrapper.style.display = 'none';
-            displayDiv.style.display = 'block';
-            editBtn.style.display = 'inline-block';
-            cancelBtn.style.display = 'none';
-            saveBtn.style.display = 'none';
-        };
-
-        valueDiv.append(
-            displayDiv,
-            editorWrapper,
-            editBtn,
-            cancelBtn,
-            saveBtn
-        );
+        fieldDiv.append(labelDiv, valueDiv);
+        modalBody.appendChild(fieldDiv);
     }
 
-    else {
-        /* ---------- SIMPLE INPUT ---------- */
-        const input = document.createElement('input');
-        input.className = 'form-control form-control-sm';
-        input.value = value || '';
-        input.dataset.fieldname = actualFieldname;
-        input.dataset.docname = docName;
-        input.dataset.doctype = config.doctype || 'Work Order';
-
-        const saveBtn = createSaveButton(input, reportName, modal);
-        valueDiv.append(input, saveBtn);
-    }
+    modal.show();
+    const modalEl = document.getElementById('detailModal');
+    autoFixImages(modalEl);
 }
-
-/* ======================================================
-   READ-ONLY FIELDS
-====================================================== */
-
-else if (hasValue) {
-
-    if (typeof value === 'string' && value.includes('<')) {
-        valueDiv.innerHTML = sanitizeRichHtml(value);
-        normalizeFileLinks(valueDiv);
-        normalizeAttachmentLayout(valueDiv);
-        autoFixImages(valueDiv);
-    }
-
-    else if (col.fieldtype === 'Link' && col.options) {
-        const link = document.createElement('a');
-        link.href = `https://acmestones.erpnext.com/app/${col.options
-            .toLowerCase()
-            .replace(/\s+/g, '-')}/${encodeURIComponent(value)}`;
-        link.target = '_blank';
-        link.rel = 'noopener noreferrer';
-        link.textContent = value;
-        valueDiv.appendChild(link);
-    }
-
-    else {
-        valueDiv.textContent = value;
-    }
-}
-
 
 
 
