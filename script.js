@@ -563,6 +563,7 @@ function autoFixImages(container) {
 
 
 
+
 // Enhanced fixImageUrl function
 
 
@@ -639,7 +640,86 @@ function fixFileUrl(url) {
 
 
 
-    
+
+
+
+
+
+function injectAttachmentControls(container, docName, config) {
+
+    const links = Array.from(
+        container.querySelectorAll('a[href*="/files/"], a[href*="/private/files/"]')
+    );
+
+    if (!links.length) return;
+
+    /* ================= UPLOAD BUTTON ================= */
+
+    const uploadBtn = document.createElement('button');
+    uploadBtn.className = 'btn btn-sm btn-outline-primary mb-2';
+    uploadBtn.textContent = '➕ Upload Attachment';
+
+    uploadBtn.onclick = () => {
+        const input = document.createElement('input');
+        input.type = 'file';
+
+        input.onchange = async () => {
+            if (!input.files.length) return;
+
+            const fd = new FormData();
+            fd.append('file', input.files[0]);
+            fd.append('doctype', config.doctype || 'Work Order');
+            fd.append('docname', docName);
+            fd.append('is_private', 1);
+
+            await fetch('/erp_proxy.php?action=upload_attachment', {
+                method: 'POST',
+                body: fd
+            });
+
+            showDetailModal(currentRow, currentColumns, currentReport, currentConfig);
+        };
+
+        input.click();
+    };
+
+    container.prepend(uploadBtn);
+
+    /* ================= REMOVE BUTTONS ================= */
+
+    links.forEach(link => {
+        const href = link.getAttribute('href');
+        if (!href) return;
+
+        const fileName = decodeURIComponent(href.split('/').pop().split('?')[0]);
+
+        const removeBtn = document.createElement('button');
+        removeBtn.className = 'btn btn-sm btn-outline-danger ms-2';
+        removeBtn.textContent = '❌';
+
+        removeBtn.onclick = async e => {
+            e.preventDefault();
+            e.stopPropagation();
+
+            if (!confirm(`Remove "${fileName}"?`)) return;
+
+            await fetch(
+                `/erp_proxy.php?action=delete_attachment&file_url=${encodeURIComponent(href)}`
+            );
+
+            showDetailModal(currentRow, currentColumns, currentReport, currentConfig);
+        };
+
+        link.after(removeBtn);
+    });
+}
+
+
+
+
+
+
+
 
 
 
@@ -1740,6 +1820,8 @@ else if (hasValue) {
         normalizeFileLinks(valueDiv);
         normalizeAttachmentLayout(valueDiv);
         autoFixImages(valueDiv);
+
+        injectAttachmentControls(valueDiv, docName, config);
     }
 
     else if (col.fieldtype === 'Link' && col.options) {
