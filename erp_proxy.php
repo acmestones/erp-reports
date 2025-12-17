@@ -15,16 +15,25 @@ function logError($message) {
 ========================================================= */
 if (isset($_GET['action']) && $_GET['action'] === 'proxyimage') {
 
-    if (empty($_GET['fileurl'])) {
-        http_response_code(400);
-        exit('invalid request');
+    if (ob_get_length()) {
+        ob_clean();
     }
 
-$fileUrl = rawurldecode($fileUrl);
-$fileUrl = str_replace(' ', '%20', $fileUrl);
+    $fileUrl = $_GET['fileurl'] ?? '';
+    if (!$fileUrl) {
+        http_response_code(400);
+        exit;
+    }
 
-    if (!str_starts_with($fileUrl, 'http')) {
-        $fileUrl = ERP_BASE . $fileUrl;
+    $fileUrl = urldecode($fileUrl);
+
+    // Allow only ERPNext images
+    if (
+        !str_starts_with($fileUrl, ERP_BASE . '/files/') &&
+        !str_starts_with($fileUrl, ERP_BASE . '/private/files/')
+    ) {
+        http_response_code(403);
+        exit;
     }
 
     $ch = curl_init($fileUrl);
@@ -34,27 +43,29 @@ $fileUrl = str_replace(' ', '%20', $fileUrl);
         CURLOPT_HTTPHEADER => [
             "Authorization: token " . API_KEY . ":" . API_SECRET
         ],
-        CURLOPT_SSL_VERIFYPEER => false
+        CURLOPT_SSL_VERIFYPEER => false,
+        CURLOPT_HEADER => false
     ]);
 
     $data = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     $contentType = curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
-    $status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
 
-    if ($status !== 200 || !$data) {
+    if ($httpCode !== 200 || !$data || str_contains($contentType, 'text/html')) {
         http_response_code(404);
-        exit('image not found');
+        exit;
     }
 
-    ob_clean();
-
-    header("Content-Type: " . ($contentType ?: 'image/jpeg'));
-    header("Cache-Control: private, max-age=86400");
+    // ✅ IMAGE RESPONSE (NOT DOWNLOAD)
+    header("Content-Type: {$contentType}");
     header("Content-Length: " . strlen($data));
+    header("Cache-Control: public, max-age=86400");
+
     echo $data;
     exit;
 }
+
 
 /* =========================================================
    PROXY FILE (XLSX / PDF / DOC / etc)
