@@ -654,9 +654,15 @@ function injectAttachmentControls(
     docName
 ) {
 
-    const links = Array.from(
-        container.querySelectorAll('a[href*="/files/"], a[href*="/private/files/"]')
-    );
+    const attachmentLinks = Array.from(container.querySelectorAll('a'))
+        .filter(a =>
+            a.href &&
+            (
+                a.href.includes('/files/') ||
+                a.href.includes('/private/files/')
+            )
+        );
+
 
     if (!links.length) return;
 
