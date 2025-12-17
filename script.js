@@ -456,26 +456,24 @@ function extractImageUrl(htmlContent) {
 function sanitizeRichHtml(html) {
     if (!html || typeof html !== 'string') return html;
 
-    // 1️⃣ Fix IMG src at STRING level (before DOM parsing)
-    html = html.replace(/<img([^>]+)src=["']([^"']+)["']/gi, (match, attrs, url) => {
-        const fixedUrl = fixImageUrl(url);
-        return `<img${attrs}src="${fixedUrl}"`;
+    // Fix IMG src only
+    html = html.replace(/<img([^>]+)src=["']([^"']+)["']/gi, (m, a, u) => {
+        return `<img${a}src="${fixImageUrl(u)}"`;
     });
 
-    // Fix ONLY non-image file links
-    html = html.replace(/<a([^>]*)href=["']([^"']+)["']([^>]*)>/gi, (match, pre, href, post) => {
-        // If anchor wraps an image → keep href untouched
-        if (match.match(/<img/i)) {
-            return match;
+    // Fix FILE links only (skip images)
+    html = html.replace(/<a([^>]*)href=["']([^"']+)["']([^>]*)>/gi,
+        (m, pre, href, post) => {
+            if (href.match(/\.(jpg|jpeg|png|gif|webp)(\?|$)/i)) {
+                return m; // image link → untouched
+            }
+            return `<a${pre}href="${fixFileUrl(href)}"${post}>`;
         }
-        // Otherwise treat as file link
-        return `<a${pre}href="${fixFileUrl(href)}"${post}>`;
-    });
-
-
+    );
 
     return html;
 }
+
 
 
 
@@ -531,57 +529,35 @@ function autoFixImages(container) {
 
     container.querySelectorAll('img').forEach(img => {
         let src = img.getAttribute('src');
-        if (!src) return;
+        if (!src || src.startsWith('data:image')) return;
 
-        console.log('Fixing URL:', src);
-
-        // Ignore base64 images (editor insert preview)
-        if (src.startsWith('data:image')) {
-            return;
-        }
-
-        // Convert relative URLs to ERP absolute
+        // Absolute ERP URL
         if (src.startsWith('/')) {
             src = 'https://acmestones.erpnext.com' + src;
         }
 
-        // Strip ?fid and any query params (CRITICAL)
+        // Strip ?fid
         try {
             const u = new URL(src);
             src = u.origin + u.pathname;
         } catch {
-            // If URL() fails, do manual strip
             src = src.split('?')[0];
         }
 
-        // PRIVATE FILE → MUST go through proxyimage
         if (src.includes('/private/files/')) {
-            console.log('Proxying private image:', src);
-
-            img.src =
-                '/erp_proxy.php?action=proxyimage&fileurl=' +
-                encodeURIComponent(src);
-
-            img.style.cursor = 'pointer';
-            img.onclick = e => {
-                e.preventDefault();
-                window.open(img.src, '_blank', 'noopener,noreferrer');
-            };
-
-            return;
-        }
-
-        // PUBLIC FILE → load directly from ERP
-        if (src.includes('/files/')) {
+            img.src = `/erp_proxy.php?action=proxyimage&fileurl=${encodeURIComponent(src)}`;
+        } else if (src.includes('/files/')) {
             img.src = src;
-            img.style.cursor = 'pointer';
-            img.onclick = e => {
-                e.preventDefault();
-                window.open(src, '_blank', 'noopener,noreferrer');
-            };
         }
+
+        img.style.cursor = 'pointer';
+        img.onclick = e => {
+            e.preventDefault();
+            window.open(img.src, '_blank', 'noopener');
+        };
     });
 }
+
 
 
 
@@ -1026,10 +1002,6 @@ async function loadReport(reportName) {
                         return `src="${fixImageUrl(url)}"`;
                     });
                     
-                    // Fix anchor href attributes using regex
-                    html = html.replace(/href=["']([^"']+)["']/g, (match, url) => {
-                        return `href="${fixImageUrl(url)}"`;
-                    });
                     
                     row[field] = html;
                 }
