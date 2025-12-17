@@ -1941,6 +1941,8 @@ if (typeof value === 'string' && value.includes('<')) {
         autoFixImages(valueDiv);
     }
 
+}
+
 
     else if (col.fieldtype === 'Link' && col.options) {
         const link = document.createElement('a');
