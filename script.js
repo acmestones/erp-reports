@@ -1916,35 +1916,38 @@ if (isEditable) {
    READ-ONLY FIELDS
 ====================================================== */
 
-if (typeof value === 'string' && value.includes('<')) {
+else if (hasValue) {
 
-    // 🧠 Detect attachment HTML (files or private files)
-    if (value.includes('/files/') || value.includes('/private/files/')) {
+    // ---------- HTML content ----------
+    if (typeof value === 'string' && value.includes('<')) {
 
-        // 🔁 Do NOT use report HTML for attachments
-        valueDiv.innerHTML = '<div class="text-muted small">Loading attachments…</div>';
+        // 🧠 Attachment HTML detected
+        if (value.includes('/files/') || value.includes('/private/files/')) {
 
-        loadAttachments(
-            valueDiv,
-            docName,
-            config,
-            row,
-            columns,
-            reportName
-        );
+            valueDiv.innerHTML =
+                '<div class="text-muted small">Loading attachments…</div>';
 
-    } else {
-        // ✅ Normal rich text (no attachments)
-        valueDiv.innerHTML = sanitizeRichHtml(value);
-        normalizeFileLinks(valueDiv);
-        normalizeAttachmentLayout(valueDiv);
-        autoFixImages(valueDiv);
+            loadAttachments(
+                valueDiv,
+                docName,
+                config,
+                row,
+                columns,
+                reportName
+            );
+
+        } else {
+            // Normal rich text (NO attachments)
+            valueDiv.innerHTML = sanitizeRichHtml(value);
+            normalizeFileLinks(valueDiv);
+            normalizeAttachmentLayout(valueDiv);
+            autoFixImages(valueDiv);
+        }
     }
 
-}
-
-
+    // ---------- Link field ----------
     else if (col.fieldtype === 'Link' && col.options) {
+
         const link = document.createElement('a');
         link.href = `https://acmestones.erpnext.com/app/${col.options
             .toLowerCase()
@@ -1952,13 +1955,16 @@ if (typeof value === 'string' && value.includes('<')) {
         link.target = '_blank';
         link.rel = 'noopener noreferrer';
         link.textContent = value;
+
         valueDiv.appendChild(link);
     }
 
+    // ---------- Plain text ----------
     else {
         valueDiv.textContent = value;
     }
 }
+
 
 
         fieldDiv.append(labelDiv, valueDiv);
