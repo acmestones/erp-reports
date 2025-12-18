@@ -696,7 +696,11 @@ function injectAttachmentControls(
             });
 
             // 🔄 reload modal safely
-            showDetailModal(row, columns, reportName, config);
+            if (CURRENT_MODAL_CONTEXT) {
+    const { row, columns, reportName, config } = CURRENT_MODAL_CONTEXT;
+    showDetailModal(row, columns, reportName, config);
+}
+
         };
 
         input.click();
@@ -729,7 +733,11 @@ function injectAttachmentControls(
             );
 
             // 🔄 reload modal safely
-            showDetailModal(row, columns, reportName, config);
+            if (CURRENT_MODAL_CONTEXT) {
+    const { row, columns, reportName, config } = CURRENT_MODAL_CONTEXT;
+    showDetailModal(row, columns, reportName, config);
+}
+
         };
 
         link.after(removeBtn);
@@ -1672,7 +1680,11 @@ function createCard(row, columns, reportName, config) {
     detailsBtn.className = "btn btn-sm btn-outline-primary";
     detailsBtn.textContent = "View Details";
     detailsBtn.addEventListener("click", () => {
-        showDetailModal(row, columns, reportName, config);
+        if (CURRENT_MODAL_CONTEXT) {
+    const { row, columns, reportName, config } = CURRENT_MODAL_CONTEXT;
+    showDetailModal(row, columns, reportName, config);
+}
+
     });
     buttonsContainer.appendChild(detailsBtn);
     
