@@ -1683,9 +1683,7 @@ function createCard(row, columns, reportName, config) {
         showDetailModal(row, columns, reportName, config);
     });
 
-}
 
-    });
     buttonsContainer.appendChild(detailsBtn);
     
     // Add Time Logs button if configured
