@@ -11,6 +11,8 @@ let currentReportData = null;
 let reportConfig = {};
 let linkFieldOptions = {};
 let currentReportColumns = [];
+let CURRENT_MODAL_CONTEXT = null;
+
 
 if (!userEmail) {
     window.location.replace("login.html");
@@ -1743,6 +1745,16 @@ async function showDetailModal(row, columns, reportName, config) {
         return;
     }
 
+
+CURRENT_MODAL_CONTEXT = {
+    row,
+    columns,
+    reportName,
+    config
+};
+
+    
+    
     const titleField = config.titlefield || config.title_field || 'name';
     let docName = row[titleField] || row.name || row.id;
 
