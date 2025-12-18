@@ -708,50 +708,47 @@ function injectAttachmentControls(
 
     container.prepend(uploadBtn);
 
-    /* ================= REMOVE BUTTONS ================= */
+/* ================= REMOVE BUTTONS ================= */
 
-    attachmentLinks.forEach(link => {
-        const href = link.getAttribute('href');
-        if (!href) return;
+attachmentLinks.forEach(link => {
+    const href = link.getAttribute('href');
+    if (!href) return;
 
-        const fileName = decodeURIComponent(
-            href.split('/').pop().split('?')[0]
+    const fileName = decodeURIComponent(
+        href.split('/').pop().split('?')[0]
+    );
+
+    const removeBtn = document.createElement('button');
+    removeBtn.className = 'btn btn-sm btn-outline-danger ms-2';
+    removeBtn.textContent = '❌';
+
+    removeBtn.onclick = async e => {
+        e.preventDefault();
+        e.stopPropagation();
+
+        if (!confirm(`Remove "${fileName}"?`)) return;
+
+        if (!CURRENT_MODAL_CONTEXT) return;
+
+        const { row, columns, reportName, config } = CURRENT_MODAL_CONTEXT;
+        const doctype = config.doctype;
+        const titleField = config.titlefield || config.title_field || 'name';
+        const docname = row[titleField];
+
+        await fetch(
+            `/erp_proxy.php?action=delete_attachment` +
+            `&file_name=${encodeURIComponent(fileName)}` +
+            `&doctype=${encodeURIComponent(doctype)}` +
+            `&docname=${encodeURIComponent(docname)}`
         );
 
-        const removeBtn = document.createElement('button');
-        removeBtn.className = 'btn btn-sm btn-outline-danger ms-2';
-        removeBtn.textContent = '❌';
+        // 🔄 Reload modal
+        showDetailModal(row, columns, reportName, config);
+    };
 
-        removeBtn.onclick = async e => {
-            e.preventDefault();
-            e.stopPropagation();
+    link.after(removeBtn);
+});
 
-            if (!confirm(`Remove "${fileName}"?`)) return;
-
-const { config } = CURRENT_MODAL_CONTEXT;
-const doctype = config.doctype;
-const docname = CURRENT_MODAL_CONTEXT.row[
-    config.titlefield || config.title_field || 'name'
-];
-
-await fetch(
-    `/erp_proxy.php?action=delete_attachment` +
-    `&file_name=${encodeURIComponent(fileName)}` +
-    `&doctype=${encodeURIComponent(doctype)}` +
-    `&docname=${encodeURIComponent(docname)}`
-);
-
-
-            // 🔄 reload modal safely
-            if (CURRENT_MODAL_CONTEXT) {
-    const { row, columns, reportName, config } = CURRENT_MODAL_CONTEXT;
-    showDetailModal(row, columns, reportName, config);
-}
-
-        };
-
-        link.after(removeBtn);
-    });
 }
 
 
