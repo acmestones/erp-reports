@@ -1,5 +1,6 @@
 const API_BASE = "/erp_proxy.php";
-const ERP_BASE = 'https://acmestones.erpnext.com';
+const ERP_BASE = window.ERP_BASE || 'https://acmestones.erpnext.com';
+
 
 let userEmail = localStorage.getItem("userEmail");
 let currentUser = null;
@@ -1758,6 +1759,18 @@ async function showDetailModal(row, columns, reportName, config) {
     const modalBody = document.getElementById('modalBody');
     modalBody.innerHTML = '';
 
+
+    /* =============================
+       ERP BASE (SINGLE SOURCE)
+    ============================== */
+
+    const ERP_BASE =
+        config?.erp_base ||
+        window.ERP_BASE ||
+        'https://acmestones.erpnext.com';
+
+
+    
     /* =============================
        USER PERMISSIONS
     ============================== */
