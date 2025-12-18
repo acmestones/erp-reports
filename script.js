@@ -1680,9 +1680,9 @@ function createCard(row, columns, reportName, config) {
     detailsBtn.className = "btn btn-sm btn-outline-primary";
     detailsBtn.textContent = "View Details";
     detailsBtn.addEventListener("click", () => {
-        if (CURRENT_MODAL_CONTEXT) {
-    const { row, columns, reportName, config } = CURRENT_MODAL_CONTEXT;
-    showDetailModal(row, columns, reportName, config);
+        showDetailModal(row, columns, reportName, config);
+    });
+
 }
 
     });
