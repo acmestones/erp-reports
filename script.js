@@ -1,4 +1,6 @@
 const API_BASE = "/erp_proxy.php";
+const ERP_BASE = 'https://acmestones.erpnext.com';
+
 let userEmail = localStorage.getItem("userEmail");
 let currentUser = null;
 let currentColumns = 5;
