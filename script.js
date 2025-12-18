@@ -1727,21 +1727,38 @@ function createCard(row, columns, reportName, config) {
 
 
 async function showDetailModal(row, columns, reportName, config) {
-    const modal = new bootstrap.Modal(document.getElementById('detailModal'));
+    const modalEl = document.getElementById('detailModal');
+    const modal = new bootstrap.Modal(modalEl);
 
-    const titleField = config.titlefield || config.title_field || 'workorderid';
-    let docName = row[titleField] || row.name || row.workorderid || row.id;
+    /* =============================
+       RESOLVE DOCTYPE & DOCNAME
+    ============================== */
 
-    const nameCol = columns.find(c => c.fieldname === 'name' || c.fieldname === titleField);
-    if (nameCol && nameCol.fieldname !== titleField) {
-        docName = row[nameCol.fieldname] || docName;
+    const doctype = config?.doctype;
+    if (!doctype) {
+        console.error('❌ Missing doctype in report config');
+        return;
+    }
+
+    const titleField = config.titlefield || config.title_field || 'name';
+    let docName = row[titleField] || row.name || row.id;
+
+    const nameCol = columns.find(
+        c => c.fieldname === 'name' || c.fieldname === titleField
+    );
+    if (nameCol && row[nameCol.fieldname]) {
+        docName = row[nameCol.fieldname];
     }
 
     document.getElementById('modalTitle').textContent =
-        `${row[titleField] || docName} Details`;
+        `${docName} Details`;
 
     const modalBody = document.getElementById('modalBody');
     modalBody.innerHTML = '';
+
+    /* =============================
+       USER PERMISSIONS
+    ============================== */
 
     const userPerms =
         config.user_permissions?.[userEmail] ||
@@ -1750,22 +1767,28 @@ async function showDetailModal(row, columns, reportName, config) {
 
     const editableFields = userPerms.editable_fields || [];
     const hiddenFields   = userPerms.hidden_fields || [];
-    const canEdit = currentUser?.can_edit;
+    const canEdit        = !!currentUser?.can_edit;
+
+    /* =============================
+       FIELD RENDER LOOP
+    ============================== */
 
     for (const col of columns) {
-        const reportFieldname = col.fieldname;
-        const actualFieldname =
-            window.reportFieldMapping?.[reportFieldname]?.erpField ??
-            reportFieldname;
 
+        const reportFieldname = col.fieldname;
         if (hiddenFields.includes(reportFieldname)) continue;
+
+        const actualFieldname =
+            window.reportFieldMapping?.[reportFieldname]?.erpField ||
+            reportFieldname;
 
         const value = row[reportFieldname];
         const hasValue = value !== null && value !== undefined && value !== '';
+
         const isEditable =
             canEdit &&
             editableFields.includes(reportFieldname) &&
-            reportFieldname !== 'workorderid';
+            reportFieldname !== titleField;
 
         if (!hasValue && !isEditable) continue;
 
@@ -1775,206 +1798,191 @@ async function showDetailModal(row, columns, reportName, config) {
         const labelDiv = document.createElement('div');
         labelDiv.className = 'fw-bold text-muted small mb-1';
         labelDiv.textContent =
-            fieldLabels[reportFieldname] || col.label || reportFieldname;
+            fieldLabels?.[reportFieldname] || col.label || reportFieldname;
 
         const valueDiv = document.createElement('div');
         valueDiv.className = 'mt-1';
-    
-/* ======================================================
-   EDITABLE FIELDS (RICH TEXT SAFE VERSION)
-====================================================== */
 
-if (isEditable) {
+        /* =============================
+           EDITABLE FIELDS
+        ============================== */
 
-    if (
-        col.fieldtype === 'Text' ||
-        col.fieldtype === 'Small Text' ||
-        col.fieldtype === 'Long Text' ||
-        col.fieldtype === 'Text Editor' ||
-        col.fieldtype === 'HTML' ||
-        col.fieldtype === 'HTML Editor'
-    ) {
+        if (isEditable) {
 
-        /* ---------- READ MODE ---------- */
+            const isRichText =
+                ['Text', 'Small Text', 'Long Text', 'Text Editor', 'HTML', 'HTML Editor']
+                    .includes(col.fieldtype);
 
-        const displayDiv = document.createElement('div');
-        displayDiv.className = 'editable-richtext';
-        displayDiv.style.background = '#f8f9fa';
+            if (isRichText) {
 
-        const htmlValue = value || '<p class="text-muted">No content</p>';
+                /* ----- DISPLAY MODE ----- */
 
-        // ✅ sanitize ONLY for display
-        displayDiv.innerHTML = sanitizeRichHtml(htmlValue);
-        normalizeFileLinks(displayDiv);
-        autoFixImages(displayDiv);
+                const displayDiv = document.createElement('div');
+                displayDiv.className = 'editable-richtext';
+                displayDiv.style.background = '#f8f9fa';
 
-        /* ---------- EDIT MODE ---------- */
+                const htmlValue = value || '<p class="text-muted">No content</p>';
+                displayDiv.innerHTML = sanitizeRichHtml(htmlValue);
+                normalizeFileLinks(displayDiv);
+                autoFixImages(displayDiv);
 
-        const editorWrapper = document.createElement('div');
-        editorWrapper.style.display = 'none';
+                /* ----- EDIT MODE ----- */
 
-        // Toolbar
-        const toolbar = document.createElement('div');
-        toolbar.className = 'mb-2';
+                const editorWrapper = document.createElement('div');
+                editorWrapper.style.display = 'none';
 
-        const insertImgBtn = document.createElement('button');
-        insertImgBtn.type = 'button';
-        insertImgBtn.className = 'btn btn-sm btn-outline-secondary';
-        insertImgBtn.textContent = 'Insert Image';
+                const toolbar = document.createElement('div');
+                toolbar.className = 'mb-2';
 
-        const imgInput = document.createElement('input');
-        imgInput.type = 'file';
-        imgInput.accept = 'image/*';
-        imgInput.style.display = 'none';
+                const insertImgBtn = document.createElement('button');
+                insertImgBtn.type = 'button';
+                insertImgBtn.className = 'btn btn-sm btn-outline-secondary';
+                insertImgBtn.textContent = 'Insert Image';
 
-        toolbar.append(insertImgBtn, imgInput);
+                const imgInput = document.createElement('input');
+                imgInput.type = 'file';
+                imgInput.accept = 'image/*';
+                imgInput.style.display = 'none';
 
-        // Editable content (❌ NO sanitization)
-        const editor = document.createElement('div');
-        editor.contentEditable = true;
-        editor.className = 'editable-richtext';
-        editor.style.minHeight = '150px';
-        editor.innerHTML = htmlValue;
+                toolbar.append(insertImgBtn, imgInput);
 
-        editor.dataset.fieldname = actualFieldname;
-        editor.dataset.docname = docName;
-        editor.dataset.doctype = config.doctype || 'Work Order';
+                const editor = document.createElement('div');
+                editor.contentEditable = true;
+                editor.className = 'editable-richtext';
+                editor.style.minHeight = '150px';
+                editor.innerHTML = htmlValue;
 
-        insertImgBtn.onclick = () => imgInput.click();
+                editor.dataset.fieldname = actualFieldname;
+                editor.dataset.docname  = docName;
+                editor.dataset.doctype  = doctype;
 
-        imgInput.onchange = e => {
-            const file = e.target.files[0];
-            if (!file) return;
+                insertImgBtn.onclick = () => imgInput.click();
 
-            const reader = new FileReader();
-            reader.onload = ev => {
-                const img = document.createElement('img');
-                img.src = ev.target.result;
-                img.style.maxWidth = '100%';
-                editor.appendChild(img);
-            };
-            reader.readAsDataURL(file);
-            imgInput.value = '';
-        };
+                imgInput.onchange = e => {
+                    const file = e.target.files[0];
+                    if (!file) return;
 
-        editorWrapper.append(toolbar, editor);
+                    const reader = new FileReader();
+                    reader.onload = ev => {
+                        const img = document.createElement('img');
+                        img.src = ev.target.result;
+                        img.style.maxWidth = '100%';
+                        editor.appendChild(img);
+                    };
+                    reader.readAsDataURL(file);
+                    imgInput.value = '';
+                };
 
-        /* ---------- ACTION BUTTONS ---------- */
+                editorWrapper.append(toolbar, editor);
 
-        const editBtn = document.createElement('button');
-        editBtn.className = 'btn btn-sm btn-primary me-2';
-        editBtn.textContent = 'Edit';
+                /* ----- ACTION BUTTONS ----- */
 
-        const cancelBtn = document.createElement('button');
-        cancelBtn.className = 'btn btn-sm btn-secondary me-2';
-        cancelBtn.textContent = 'Cancel';
-        cancelBtn.style.display = 'none';
+                const editBtn = document.createElement('button');
+                editBtn.className = 'btn btn-sm btn-primary me-2';
+                editBtn.textContent = 'Edit';
 
-        const saveBtn = createSaveButton(editor, reportName, modal);
-        saveBtn.style.display = 'none';
+                const cancelBtn = document.createElement('button');
+                cancelBtn.className = 'btn btn-sm btn-secondary me-2';
+                cancelBtn.textContent = 'Cancel';
+                cancelBtn.style.display = 'none';
 
-        editBtn.onclick = () => {
-            editorWrapper.style.display = 'block';
-            displayDiv.style.display = 'none';
-            editBtn.style.display = 'none';
-            cancelBtn.style.display = 'inline-block';
-            saveBtn.style.display = 'inline-block';
-        };
+                const saveBtn = createSaveButton(editor, reportName, modal);
+                saveBtn.style.display = 'none';
 
-        cancelBtn.onclick = () => {
-            editorWrapper.style.display = 'none';
-            displayDiv.style.display = 'block';
-            editBtn.style.display = 'inline-block';
-            cancelBtn.style.display = 'none';
-            saveBtn.style.display = 'none';
-        };
+                editBtn.onclick = () => {
+                    editorWrapper.style.display = 'block';
+                    displayDiv.style.display = 'none';
+                    editBtn.style.display = 'none';
+                    cancelBtn.style.display = 'inline-block';
+                    saveBtn.style.display = 'inline-block';
+                };
 
-        valueDiv.append(
-            displayDiv,
-            editorWrapper,
-            editBtn,
-            cancelBtn,
-            saveBtn
-        );
-    }
+                cancelBtn.onclick = () => {
+                    editorWrapper.style.display = 'none';
+                    displayDiv.style.display = 'block';
+                    editBtn.style.display = 'inline-block';
+                    cancelBtn.style.display = 'none';
+                    saveBtn.style.display = 'none';
+                };
 
-    else {
-        /* ---------- SIMPLE INPUT ---------- */
-        const input = document.createElement('input');
-        input.className = 'form-control form-control-sm';
-        input.value = value || '';
-        input.dataset.fieldname = actualFieldname;
-        input.dataset.docname = docName;
-        input.dataset.doctype = config.doctype || 'Work Order';
+                valueDiv.append(
+                    displayDiv,
+                    editorWrapper,
+                    editBtn,
+                    cancelBtn,
+                    saveBtn
+                );
 
-        const saveBtn = createSaveButton(input, reportName, modal);
-        valueDiv.append(input, saveBtn);
-    }
-}
+            } else {
+                /* ----- SIMPLE INPUT ----- */
 
-/* ======================================================
-   READ-ONLY FIELDS
-====================================================== */
+                const input = document.createElement('input');
+                input.className = 'form-control form-control-sm';
+                input.value = value || '';
 
-else if (hasValue) {
+                input.dataset.fieldname = actualFieldname;
+                input.dataset.docname  = docName;
+                input.dataset.doctype  = doctype;
 
-    // ---------- HTML content ----------
-    if (typeof value === 'string' && value.includes('<')) {
+                const saveBtn = createSaveButton(input, reportName, modal);
+                valueDiv.append(input, saveBtn);
+            }
 
-        // 🧠 Attachment HTML detected
-        if (value.includes('/files/') || value.includes('/private/files/')) {
-
-            valueDiv.innerHTML =
-                '<div class="text-muted small">Loading attachments…</div>';
-
-            loadAttachments(
-                valueDiv,
-                docName,
-                config,
-                row,
-                columns,
-                reportName
-            );
-
-        } else {
-            // Normal rich text (NO attachments)
-            valueDiv.innerHTML = sanitizeRichHtml(value);
-            normalizeFileLinks(valueDiv);
-            normalizeAttachmentLayout(valueDiv);
-            autoFixImages(valueDiv);
         }
-    }
 
-    // ---------- Link field ----------
-    else if (col.fieldtype === 'Link' && col.options) {
+        /* =============================
+           READ-ONLY FIELDS
+        ============================== */
 
-        const link = document.createElement('a');
-        link.href = `https://acmestones.erpnext.com/app/${col.options
-            .toLowerCase()
-            .replace(/\s+/g, '-')}/${encodeURIComponent(value)}`;
-        link.target = '_blank';
-        link.rel = 'noopener noreferrer';
-        link.textContent = value;
+        else if (hasValue) {
 
-        valueDiv.appendChild(link);
-    }
+            if (typeof value === 'string' && value.includes('<')) {
 
-    // ---------- Plain text ----------
-    else {
-        valueDiv.textContent = value;
-    }
-}
+                valueDiv.innerHTML = sanitizeRichHtml(value);
+                normalizeFileLinks(valueDiv);
+                normalizeAttachmentLayout(valueDiv);
+                autoFixImages(valueDiv);
 
+                injectAttachmentControls(
+                    valueDiv,
+                    {
+                        doctype,
+                        docname: docName,
+                        row,
+                        columns,
+                        reportName,
+                        config
+                    }
+                );
 
+            }
+
+            else if (col.fieldtype === 'Link' && col.options) {
+
+                const link = document.createElement('a');
+                link.href = `${ERP_BASE}/app/${col.options
+                    .toLowerCase()
+                    .replace(/\s+/g, '-')}/${encodeURIComponent(value)}`;
+                link.target = '_blank';
+                link.rel = 'noopener noreferrer';
+                link.textContent = value;
+
+                valueDiv.appendChild(link);
+            }
+
+            else {
+                valueDiv.textContent = value;
+            }
+        }
 
         fieldDiv.append(labelDiv, valueDiv);
         modalBody.appendChild(fieldDiv);
     }
 
     modal.show();
-    const modalEl = document.getElementById('detailModal');
     autoFixImages(modalEl);
 }
+
 
 
 
