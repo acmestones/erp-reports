@@ -2195,18 +2195,34 @@ if ($_GET['action'] === 'upload_attachment') {
 
 
 
-//Remove Attachment endpoint
+// ================================
+// REMOVE ATTACHMENT (CORRECT WAY)
+// ================================
 if ($_GET['action'] === 'delete_attachment') {
 
     $fileName = $_GET['file_name'] ?? '';
-    if (!$fileName) {
-        echo json_encode(['error' => 'Missing file name']);
+    $doctype  = $_GET['doctype'] ?? '';
+    $docname  = $_GET['docname'] ?? '';
+
+    if (!$fileName || !$doctype || !$docname) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Missing parameters']);
         exit;
     }
 
-    $ch = curl_init(ERP_BASE . '/api/resource/File/' . urlencode($fileName));
+    // 1️⃣ Find File document
+    $queryUrl =
+        ERP_BASE .
+        "/api/resource/File" .
+        "?fields=[\"name\"]" .
+        "&filters=" . urlencode(json_encode([
+            ["file_name", "=", $fileName],
+            ["attached_to_doctype", "=", $doctype],
+            ["attached_to_name", "=", $docname]
+        ]));
+
+    $ch = curl_init($queryUrl);
     curl_setopt_array($ch, [
-        CURLOPT_CUSTOMREQUEST => 'DELETE',
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_HTTPHEADER => [
             "Authorization: token " . API_KEY . ":" . API_SECRET
@@ -2217,9 +2233,33 @@ if ($_GET['action'] === 'delete_attachment') {
     $res = curl_exec($ch);
     curl_close($ch);
 
-    echo $res;
+    $data = json_decode($res, true);
+    if (empty($data['data'][0]['name'])) {
+        http_response_code(404);
+        echo json_encode(['error' => 'File not found']);
+        exit;
+    }
+
+    $fileDocName = $data['data'][0]['name'];
+
+    // 2️⃣ Delete File document
+    $del = curl_init(ERP_BASE . "/api/resource/File/" . urlencode($fileDocName));
+    curl_setopt_array($del, [
+        CURLOPT_CUSTOMREQUEST => 'DELETE',
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HTTPHEADER => [
+            "Authorization: token " . API_KEY . ":" . API_SECRET
+        ],
+        CURLOPT_SSL_VERIFYPEER => false
+    ]);
+
+    $delRes = curl_exec($del);
+    curl_close($del);
+
+    echo json_encode(['success' => true]);
     exit;
 }
+
 
 
 
