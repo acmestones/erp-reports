@@ -728,9 +728,19 @@ function injectAttachmentControls(
 
             if (!confirm(`Remove "${fileName}"?`)) return;
 
-            await fetch(
-                `/erp_proxy.php?action=delete_attachment&file_url=${encodeURIComponent(href)}`
-            );
+const { config } = CURRENT_MODAL_CONTEXT;
+const doctype = config.doctype;
+const docname = CURRENT_MODAL_CONTEXT.row[
+    config.titlefield || config.title_field || 'name'
+];
+
+await fetch(
+    `/erp_proxy.php?action=delete_attachment` +
+    `&file_name=${encodeURIComponent(fileName)}` +
+    `&doctype=${encodeURIComponent(doctype)}` +
+    `&docname=${encodeURIComponent(docname)}`
+);
+
 
             // 🔄 reload modal safely
             if (CURRENT_MODAL_CONTEXT) {
