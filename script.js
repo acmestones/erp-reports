@@ -1984,15 +1984,13 @@ CURRENT_MODAL_CONTEXT = {
 
                 injectAttachmentControls(
                     valueDiv,
-                    {
-                        doctype,
-                        docname: docName,
-                        row,
-                        columns,
-                        reportName,
-                        config
-                    }
+                    row,
+                    columns,
+                    reportName,
+                    config,
+                    docName
                 );
+
 
             }
 
