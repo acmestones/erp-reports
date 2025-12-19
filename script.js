@@ -2064,7 +2064,7 @@ CURRENT_MODAL_CONTEXT = {
                 const saveBtn = createSaveButton(input, reportName, modal);
                 valueDiv.append(input, saveBtn);
             }
-
+        }
         
     
         /* =============================
