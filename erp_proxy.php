@@ -2136,6 +2136,54 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_doctype_meta') {
 
 
 
+// ================================
+// LIST ATTACHMENTS (REQUIRED)
+// ================================
+if ($_GET['action'] === 'list_attachments') {
+
+    $doctype = $_GET['doctype'] ?? '';
+    $docname = $_GET['docname'] ?? '';
+
+    if (!$doctype || !$docname) {
+        http_response_code(400);
+        echo json_encode([]);
+        exit;
+    }
+
+    $url = ERP_BASE . "/api/resource/File"
+        . "?fields=[\"name\",\"file_name\",\"file_url\",\"is_private\"]"
+        . "&filters=" . urlencode(json_encode([
+            ["attached_to_doctype", "=", $doctype],
+            ["attached_to_name", "=", $docname]
+        ]));
+
+    $ch = curl_init($url);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HTTPHEADER => [
+            "Authorization: token " . API_KEY . ":" . API_SECRET
+        ],
+        CURLOPT_SSL_VERIFYPEER => false
+    ]);
+
+    $res = curl_exec($ch);
+    curl_close($ch);
+
+    $data = json_decode($res, true);
+
+    if (!isset($data['data'])) {
+        echo json_encode([]);
+        exit;
+    }
+
+    echo json_encode($data['data']);
+    exit;
+}
+
+
+
+
+
 
 
 
