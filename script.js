@@ -1826,6 +1826,7 @@ CURRENT_MODAL_CONTEXT = {
     for (const col of columns) {
 
         const reportFieldname = col.fieldname;
+        valueDiv.dataset.reportField = reportFieldname;
         if (hiddenFields.includes(reportFieldname)) continue;
 
         const actualFieldname =
@@ -1983,49 +1984,53 @@ CURRENT_MODAL_CONTEXT = {
         /* =============================
            READ-ONLY FIELDS
         ============================== */
+else if (hasValue) {
 
-        else if (hasValue) {
+    // 📎 ATTACHMENTS (HARDCODED BY DESIGN)
+    if (reportFieldname === ATTACHMENTS_REPORT_FIELD) {
 
-            if (typeof value === 'string' && value.includes('<')) {
+        valueDiv.innerHTML =
+            '<div class="text-muted small">Loading attachments…</div>';
 
-                valueDiv.innerHTML = sanitizeRichHtml(value);
-                normalizeFileLinks(valueDiv);
-                normalizeAttachmentLayout(valueDiv);
-                autoFixImages(valueDiv);
-
-                injectAttachmentControls(
-                    valueDiv,
-                    row,
-                    columns,
-                    reportName,
-                    config,
-                    docName
-                );
-
-
-            }
-
-            else if (col.fieldtype === 'Link' && col.options) {
-
-                const link = document.createElement('a');
-                link.href = `${ERP_BASE}/app/${col.options
-                    .toLowerCase()
-                    .replace(/\s+/g, '-')}/${encodeURIComponent(value)}`;
-                link.target = '_blank';
-                link.rel = 'noopener noreferrer';
-                link.textContent = value;
-
-                valueDiv.appendChild(link);
-            }
-
-            else {
-                valueDiv.textContent = value;
-            }
-        }
-
-        fieldDiv.append(labelDiv, valueDiv);
-        modalBody.appendChild(fieldDiv);
+        loadAttachments(
+            valueDiv,
+            docName,
+            config,
+            row,
+            columns,
+            reportName
+        );
     }
+
+    // 📝 Rich text (notes, descriptions, job card etc.)
+    else if (typeof value === 'string' && value.includes('<')) {
+
+        valueDiv.innerHTML = sanitizeRichHtml(value);
+        normalizeFileLinks(valueDiv);
+        normalizeAttachmentLayout(valueDiv);
+        autoFixImages(valueDiv);
+    }
+
+    // 🔗 Link field
+    else if (col.fieldtype === 'Link' && col.options) {
+
+        const link = document.createElement('a');
+        link.href = `${ERP_BASE}/app/${col.options
+            .toLowerCase()
+            .replace(/\s+/g, '-')}/${encodeURIComponent(value)}`;
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        link.textContent = value;
+
+        valueDiv.appendChild(link);
+    }
+
+    // 📄 Plain text
+    else {
+        valueDiv.textContent = value;
+    }
+}
+
 
     modal.show();
     autoFixImages(modalEl);
