@@ -2196,7 +2196,7 @@ if ($_GET['action'] === 'upload_attachment') {
 
 
 // ================================
-// REMOVE ATTACHMENT (CORRECT WAY)
+// REMOVE ATTACHMENT + CLEAN RICH TEXT
 // ================================
 if ($_GET['action'] === 'delete_attachment') {
 
@@ -2210,12 +2210,13 @@ if ($_GET['action'] === 'delete_attachment') {
         exit;
     }
 
-    // 1️⃣ Find File document
-    $queryUrl =
-        ERP_BASE .
-        "/api/resource/File" .
-        "?fields=[\"name\"]" .
-        "&filters=" . urlencode(json_encode([
+    /* ======================================================
+       1️⃣ FIND FILE DOCUMENT
+    ====================================================== */
+
+    $queryUrl = ERP_BASE . "/api/resource/File"
+        . "?fields=[\"name\",\"file_url\"]"
+        . "&filters=" . urlencode(json_encode([
             ["file_name", "=", $fileName],
             ["attached_to_doctype", "=", $doctype],
             ["attached_to_name", "=", $docname]
@@ -2234,16 +2235,22 @@ if ($_GET['action'] === 'delete_attachment') {
     curl_close($ch);
 
     $data = json_decode($res, true);
-    if (empty($data['data'][0]['name'])) {
+    if (empty($data['data'][0])) {
         http_response_code(404);
         echo json_encode(['error' => 'File not found']);
         exit;
     }
 
     $fileDocName = $data['data'][0]['name'];
+    $fileUrl     = $data['data'][0]['file_url']; // IMPORTANT
 
-    // 2️⃣ Delete File document
-    $del = curl_init(ERP_BASE . "/api/resource/File/" . urlencode($fileDocName));
+    /* ======================================================
+       2️⃣ DELETE FILE DOCUMENT
+    ====================================================== */
+
+    $del = curl_init(
+        ERP_BASE . "/api/resource/File/" . urlencode($fileDocName)
+    );
     curl_setopt_array($del, [
         CURLOPT_CUSTOMREQUEST => 'DELETE',
         CURLOPT_RETURNTRANSFER => true,
@@ -2253,12 +2260,97 @@ if ($_GET['action'] === 'delete_attachment') {
         CURLOPT_SSL_VERIFYPEER => false
     ]);
 
-    $delRes = curl_exec($del);
+    curl_exec($del);
     curl_close($del);
 
-    echo json_encode(['success' => true]);
+    /* ======================================================
+       3️⃣ FETCH PARENT DOCUMENT
+    ====================================================== */
+
+    $docUrl = ERP_BASE . "/api/resource/"
+        . rawurlencode($doctype) . "/"
+        . rawurlencode($docname);
+
+    $ch = curl_init($docUrl);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HTTPHEADER => [
+            "Authorization: token " . API_KEY . ":" . API_SECRET
+        ],
+        CURLOPT_SSL_VERIFYPEER => false
+    ]);
+
+    $docRes = curl_exec($ch);
+    curl_close($ch);
+
+    $docData = json_decode($docRes, true);
+    if (empty($docData['data'])) {
+        echo json_encode(['success' => true]); // File deleted, doc missing
+        exit;
+    }
+
+    $doc = $docData['data'];
+
+    /* ======================================================
+       4️⃣ CLEAN RICH TEXT FIELDS
+    ====================================================== */
+
+    $updatedFields = [];
+
+    foreach ($doc as $field => $value) {
+        if (!is_string($value)) continue;
+
+        // Remove image tags or links referencing this file
+        if (strpos($value, $fileUrl) !== false ||
+            strpos($value, $fileName) !== false) {
+
+            // Remove <img> tags
+            $cleaned = preg_replace(
+                '#<img[^>]+src=["\'][^"\']*' . preg_quote($fileName, '#') . '[^"\']*["\'][^>]*>#i',
+                '',
+                $value
+            );
+
+            // Remove links to file
+            $cleaned = preg_replace(
+                '#<a[^>]+href=["\'][^"\']*' . preg_quote($fileName, '#') . '[^"\']*["\'][^>]*>.*?</a>#is',
+                '',
+                $cleaned
+            );
+
+            if ($cleaned !== $value) {
+                $updatedFields[$field] = $cleaned;
+            }
+        }
+    }
+
+    /* ======================================================
+       5️⃣ UPDATE DOCUMENT (ONLY IF NEEDED)
+    ====================================================== */
+
+    if (!empty($updatedFields)) {
+        $update = curl_init($docUrl);
+        curl_setopt_array($update, [
+            CURLOPT_CUSTOMREQUEST => 'PUT',
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_POSTFIELDS => json_encode($updatedFields),
+            CURLOPT_HTTPHEADER => [
+                "Authorization: token " . API_KEY . ":" . API_SECRET,
+                "Content-Type: application/json"
+            ],
+            CURLOPT_SSL_VERIFYPEER => false
+        ]);
+        curl_exec($update);
+        curl_close($update);
+    }
+
+    echo json_encode([
+        'success' => true,
+        'cleaned_fields' => array_keys($updatedFields)
+    ]);
     exit;
 }
+
 
 
 
