@@ -778,54 +778,92 @@ function injectAttachmentControls(
 
 async function loadAttachments(container, docName, config, row, columns, reportName) {
 
-const res = await fetch(url);
+    if (!config?.doctype || !docName) {
+        container.innerHTML = '<div class="text-muted">No attachments</div>';
+        return;
+    }
 
-if (!res.ok) {
-    console.error('❌ Failed to load attachments', res.status);
-    container.innerHTML = '<div class="text-muted">No attachments</div>';
-    return;
-}
+    const url =
+        `/erp_proxy.php?action=list_attachments` +
+        `&doctype=${encodeURIComponent(config.doctype)}` +
+        `&docname=${encodeURIComponent(docName)}`;
 
-const text = await res.text();
-if (!text) {
-    container.innerHTML = '<div class="text-muted">No attachments</div>';
-    return;
-}
+    let res;
+    try {
+        res = await fetch(url);
+    } catch (e) {
+        console.error('❌ Attachment fetch failed', e);
+        container.innerHTML = '<div class="text-muted">No attachments</div>';
+        return;
+    }
 
-const files = JSON.parse(text);
-    
+    if (!res.ok) {
+        console.error('❌ Failed to load attachments', res.status);
+        container.innerHTML = '<div class="text-muted">No attachments</div>';
+        return;
+    }
+
+    const text = await res.text();
+    if (!text) {
+        container.innerHTML = '<div class="text-muted">No attachments</div>';
+        return;
+    }
+
+    let files;
+    try {
+        files = JSON.parse(text);
+    } catch (e) {
+        console.error('❌ Invalid JSON from list_attachments', text);
+        container.innerHTML = '<div class="text-muted">No attachments</div>';
+        return;
+    }
+
     container.innerHTML = '';
 
-    /* Upload button */
-    const uploadBtn = document.createElement('button');
-    uploadBtn.className = 'btn btn-sm btn-outline-primary mb-2';
-    uploadBtn.textContent = '➕ Upload Attachment';
-    container.appendChild(uploadBtn);
+    /* ================= UPLOAD BUTTON (ALWAYS VISIBLE) ================= */
 
-    uploadBtn.onclick = () => {
-        const input = document.createElement('input');
-        input.type = 'file';
+    if (currentUser?.can_edit) {
+        const uploadBtn = document.createElement('button');
+        uploadBtn.className = 'btn btn-sm btn-outline-primary mb-2';
+        uploadBtn.textContent = '➕ Upload Attachment';
+        container.appendChild(uploadBtn);
 
-        input.onchange = async () => {
-            const fd = new FormData();
-            fd.append('file', input.files[0]);
-            fd.append('doctype', config.doctype);
-            fd.append('docname', docName);
-            fd.append('is_private', 1);
+        uploadBtn.onclick = () => {
+            const input = document.createElement('input');
+            input.type = 'file';
 
-            await fetch('/erp_proxy.php?action=upload_attachment', {
-                method: 'POST',
-                body: fd
-            });
+            input.onchange = async () => {
+                if (!input.files.length) return;
 
-            // 🔁 Reload ONLY attachments
-            loadAttachments(container, docName, config, row, columns, reportName);
+                const fd = new FormData();
+                fd.append('file', input.files[0]);
+                fd.append('doctype', config.doctype);
+                fd.append('docname', docName);
+                fd.append('is_private', 1);
+
+                await fetch('/erp_proxy.php?action=upload_attachment', {
+                    method: 'POST',
+                    body: fd
+                });
+
+                // 🔁 Reload ONLY attachments
+                loadAttachments(container, docName, config, row, columns, reportName);
+            };
+
+            input.click();
         };
+    }
 
-        input.click();
-    };
+    if (!files.length) {
+        const empty = document.createElement('div');
+        empty.className = 'text-muted small';
+        empty.textContent = 'No attachments';
+        container.appendChild(empty);
+        return;
+    }
 
-    /* Files */
+    /* ================= FILE LIST ================= */
+
     files.forEach(file => {
         const rowDiv = document.createElement('div');
         rowDiv.style.display = 'flex';
@@ -833,39 +871,56 @@ const files = JSON.parse(text);
         rowDiv.style.gap = '8px';
         rowDiv.style.marginBottom = '6px';
 
-        if (file.is_image) {
+        const isImage = /\.(png|jpe?g|gif|webp|bmp)$/i.test(file.file_name);
+
+        if (isImage) {
             const img = document.createElement('img');
-            img.src = `/erp_proxy.php?action=proxyimage&fileurl=${encodeURIComponent(file.url)}`;
+            img.src =
+                `/erp_proxy.php?action=proxyimage&fileurl=` +
+                encodeURIComponent(file.file_url);
             img.style.maxWidth = '120px';
             img.style.border = '1px solid #ddd';
+            img.style.cursor = 'pointer';
+            img.onclick = () => window.open(img.src, '_blank');
             rowDiv.appendChild(img);
         } else {
             const link = document.createElement('a');
-            link.href = `/erp_proxy.php?action=proxyfile&fileurl=${encodeURIComponent(file.url)}`;
+            link.href =
+                `/erp_proxy.php?action=proxyfile&fileurl=` +
+                encodeURIComponent(file.file_url);
             link.textContent = file.file_name;
             link.target = '_blank';
             rowDiv.appendChild(link);
         }
 
-        const removeBtn = document.createElement('button');
-        removeBtn.textContent = '❌';
-        removeBtn.className = 'btn btn-sm btn-outline-danger';
+        /* ================= DELETE ================= */
 
-        removeBtn.onclick = async () => {
-            if (!confirm(`Delete ${file.file_name}?`)) return;
+        if (currentUser?.can_edit) {
+            const removeBtn = document.createElement('button');
+            removeBtn.textContent = '❌';
+            removeBtn.className = 'btn btn-sm btn-outline-danger';
 
-            await fetch(
-                `/erp_proxy.php?action=delete_attachment&file_name=${encodeURIComponent(file.name)}`
-            );
+            removeBtn.onclick = async () => {
+                if (!confirm(`Delete "${file.file_name}"?`)) return;
 
-            // 🔁 Reload ONLY attachments
-            loadAttachments(container, docName, config, row, columns, reportName);
-        };
+                await fetch(
+                    `/erp_proxy.php?action=delete_attachment` +
+                    `&file_name=${encodeURIComponent(file.file_name)}` +
+                    `&doctype=${encodeURIComponent(config.doctype)}` +
+                    `&docname=${encodeURIComponent(docName)}`
+                );
 
-        rowDiv.appendChild(removeBtn);
+                // 🔁 Reload ONLY attachments
+                loadAttachments(container, docName, config, row, columns, reportName);
+            };
+
+            rowDiv.appendChild(removeBtn);
+        }
+
         container.appendChild(rowDiv);
     });
 }
+
 
 
 
