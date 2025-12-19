@@ -669,7 +669,13 @@ function injectAttachmentControls(
         );
 
     // ✅ FIX: use attachmentLinks (not links)
-    if (!attachmentLinks.length) return;
+   // Always allow upload if user can edit
+        const canEditAttachments =
+            CURRENT_MODAL_CONTEXT?.config &&
+            currentUser?.can_edit;
+        
+        if (!canEditAttachments) return;
+
 
     /* ================= UPLOAD BUTTON ================= */
 
