@@ -1842,6 +1842,8 @@ async function showDetailModal(row, columns, reportName, config) {
         console.error('❌ Missing doctype in report config');
         return;
     }
+    console.log('📄 Doctype:', doctype);
+
 
 
 CURRENT_MODAL_CONTEXT = {
