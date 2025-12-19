@@ -1,6 +1,17 @@
 <?php
 ob_start();
 
+/* ===============================
+   GLOBAL RESPONSE SAFETY (FIX #4)
+=============================== */
+
+header('Content-Type: application/json');
+error_reporting(0);
+ini_set('display_errors', 0);
+
+/* ===============================
+   CONSTANTS
+=============================== */
 
 define("API_KEY", "2f721d295151824");
 define("API_SECRET", "0e9e87c5238a8a3");
