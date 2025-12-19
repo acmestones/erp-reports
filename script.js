@@ -2066,7 +2066,7 @@ CURRENT_MODAL_CONTEXT = {
             }
 
         }
-
+    }
         /* =============================
            READ-ONLY FIELDS
         ============================== */
@@ -2116,7 +2116,7 @@ else if (hasValue) {
         valueDiv.textContent = value;
     }
 }
-    }
+    
     
        modal.show();
     
