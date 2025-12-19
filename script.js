@@ -1,5 +1,7 @@
 const API_BASE = "/erp_proxy.php";
 const ERP_BASE = window.ERP_BASE || 'https://acmestones.erpnext.com';
+const ATTACHMENTS_REPORT_FIELD = 'attachments';
+
 
 
 let userEmail = localStorage.getItem("userEmail");
@@ -658,104 +660,115 @@ function injectAttachmentControls(
     config,
     docName
 ) {
+    /* ===============================
+       HARD GUARD — ATTACHMENTS ONLY
+    =============================== */
 
-    const attachmentLinks = Array.from(container.querySelectorAll('a'))
-        .filter(a =>
-            a.href &&
-            (
-                a.href.includes('/files/') ||
-                a.href.includes('/private/files/')
-            )
-        );
+    if (container.dataset.reportField !== ATTACHMENTS_REPORT_FIELD) {
+        return;
+    }
 
-    // ✅ FIX: use attachmentLinks (not links)
-   // Always allow upload if user can edit
-        const canEditAttachments =
-            CURRENT_MODAL_CONTEXT?.config &&
-            currentUser?.can_edit;
-        
-        if (!canEditAttachments) return;
+    const canEdit = currentUser?.can_edit === true;
 
+    /* ===============================
+       UPLOAD BUTTON (ALWAYS VISIBLE)
+    =============================== */
 
-    /* ================= UPLOAD BUTTON ================= */
+    if (canEdit && !container.querySelector('.upload-attachment-btn')) {
+        const uploadBtn = document.createElement('button');
+        uploadBtn.className =
+            'btn btn-sm btn-outline-primary mb-2 upload-attachment-btn';
+        uploadBtn.textContent = '➕ Upload Attachment';
 
-    const uploadBtn = document.createElement('button');
-    uploadBtn.className = 'btn btn-sm btn-outline-primary mb-2';
-    uploadBtn.textContent = '➕ Upload Attachment';
+        uploadBtn.onclick = () => {
+            const input = document.createElement('input');
+            input.type = 'file';
 
-    uploadBtn.onclick = () => {
-        const input = document.createElement('input');
-        input.type = 'file';
+            input.onchange = async () => {
+                if (!input.files.length) return;
 
-        input.onchange = async () => {
-            if (!input.files.length) return;
+                const fd = new FormData();
+                fd.append('file', input.files[0]);
+                fd.append('doctype', config.doctype);
+                fd.append('docname', docName);
+                fd.append('is_private', 1);
 
-            const fd = new FormData();
-            fd.append('file', input.files[0]);
-            fd.append('doctype', config.doctype || 'Work Order');
-            fd.append('docname', docName);
-            fd.append('is_private', 1);
+                await fetch('/erp_proxy.php?action=upload_attachment', {
+                    method: 'POST',
+                    body: fd
+                });
 
-            await fetch('/erp_proxy.php?action=upload_attachment', {
-                method: 'POST',
-                body: fd
-            });
+                // 🔁 Refresh attachments only
+                loadAttachments(
+                    container,
+                    docName,
+                    config,
+                    row,
+                    columns,
+                    reportName
+                );
+            };
 
-            // 🔄 reload modal safely
-            if (CURRENT_MODAL_CONTEXT) {
-    const { row, columns, reportName, config } = CURRENT_MODAL_CONTEXT;
-    showDetailModal(row, columns, reportName, config);
-}
-
+            input.click();
         };
 
-        input.click();
-    };
+        container.prepend(uploadBtn);
+    }
 
-    container.prepend(uploadBtn);
+    /* ===============================
+       REMOVE BUTTONS (FILES + IMAGES)
+    =============================== */
 
-/* ================= REMOVE BUTTONS ================= */
+    if (!canEdit) return;
 
-attachmentLinks.forEach(link => {
-    const href = link.getAttribute('href');
-    if (!href) return;
-
-    const fileName = decodeURIComponent(
-        href.split('/').pop().split('?')[0]
+    const attachmentLinks = Array.from(container.querySelectorAll('a')).filter(
+        a =>
+            a.href &&
+            (a.href.includes('/files/') ||
+             a.href.includes('/private/files/'))
     );
 
-    const removeBtn = document.createElement('button');
-    removeBtn.className = 'btn btn-sm btn-outline-danger ms-2';
-    removeBtn.textContent = '❌';
+    attachmentLinks.forEach(link => {
+        if (link.dataset.hasRemoveBtn) return;
+        link.dataset.hasRemoveBtn = '1';
 
-    removeBtn.onclick = async e => {
-        e.preventDefault();
-        e.stopPropagation();
-
-        if (!confirm(`Remove "${fileName}"?`)) return;
-
-        if (!CURRENT_MODAL_CONTEXT) return;
-
-        const { row, columns, reportName, config } = CURRENT_MODAL_CONTEXT;
-        const doctype = config.doctype;
-        const titleField = config.titlefield || config.title_field || 'name';
-        const docname = row[titleField];
-
-        await fetch(
-            `/erp_proxy.php?action=delete_attachment` +
-            `&file_name=${encodeURIComponent(fileName)}` +
-            `&doctype=${encodeURIComponent(doctype)}` +
-            `&docname=${encodeURIComponent(docname)}`
+        const href = link.getAttribute('href');
+        const fileName = decodeURIComponent(
+            href.split('/').pop().split('?')[0]
         );
 
-        // 🔄 Reload modal
-        showDetailModal(row, columns, reportName, config);
-    };
+        const removeBtn = document.createElement('button');
+        removeBtn.className = 'btn btn-sm btn-outline-danger ms-2';
+        removeBtn.textContent = '❌';
 
-    link.after(removeBtn);
-});
+        removeBtn.onclick = async e => {
+            e.preventDefault();
+            e.stopPropagation();
 
+            if (!confirm(`Remove "${fileName}"?`)) return;
+
+            await fetch(
+                `/erp_proxy.php?action=delete_attachment` +
+                `&file_name=${encodeURIComponent(fileName)}` +
+                `&doctype=${encodeURIComponent(config.doctype)}` +
+                `&docname=${encodeURIComponent(docName)}`
+            );
+
+            // 🔁 Refresh attachments only
+            loadAttachments(
+                container,
+                docName,
+                config,
+                row,
+                columns,
+                reportName
+            );
+        };
+
+        link.after(removeBtn);
+    });
 }
+
 
 
 
