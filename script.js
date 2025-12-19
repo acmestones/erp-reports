@@ -2116,6 +2116,11 @@ CURRENT_MODAL_CONTEXT = {
         valueDiv.textContent = value;
     }
 }
+
+        // ✅ THIS WAS MISSING
+        fieldDiv.append(labelDiv, valueDiv);
+        modalBody.appendChild(fieldDiv);
+        
 }
     
        modal.show();
