@@ -778,21 +778,22 @@ function injectAttachmentControls(
 
 async function loadAttachments(container, docName, config, row, columns, reportName) {
 
-    if (!config?.doctype || !docName) {
-        container.innerHTML = '<div class="text-muted">No attachments</div>';
+    const doctype = config?.doctype;
+    if (!doctype) {
+        container.innerHTML = '<div class="text-danger">Missing doctype</div>';
         return;
     }
 
     const url =
         `/erp_proxy.php?action=list_attachments` +
-        `&doctype=${encodeURIComponent(config.doctype)}` +
+        `&doctype=${encodeURIComponent(doctype)}` +
         `&docname=${encodeURIComponent(docName)}`;
 
     let res;
     try {
         res = await fetch(url);
     } catch (e) {
-        console.error('❌ Attachment fetch failed', e);
+        console.error('❌ Network error loading attachments', e);
         container.innerHTML = '<div class="text-muted">No attachments</div>';
         return;
     }
@@ -820,7 +821,7 @@ async function loadAttachments(container, docName, config, row, columns, reportN
 
     container.innerHTML = '';
 
-    /* ================= UPLOAD BUTTON (ALWAYS VISIBLE) ================= */
+    /* ================= UPLOAD BUTTON ================= */
 
     if (currentUser?.can_edit) {
         const uploadBtn = document.createElement('button');
@@ -837,7 +838,7 @@ async function loadAttachments(container, docName, config, row, columns, reportN
 
                 const fd = new FormData();
                 fd.append('file', input.files[0]);
-                fd.append('doctype', config.doctype);
+                fd.append('doctype', doctype);
                 fd.append('docname', docName);
                 fd.append('is_private', 1);
 
@@ -846,7 +847,6 @@ async function loadAttachments(container, docName, config, row, columns, reportN
                     body: fd
                 });
 
-                // 🔁 Reload ONLY attachments
                 loadAttachments(container, docName, config, row, columns, reportName);
             };
 
@@ -854,15 +854,15 @@ async function loadAttachments(container, docName, config, row, columns, reportN
         };
     }
 
+    /* ================= FILE LIST ================= */
+
     if (!files.length) {
-        const empty = document.createElement('div');
-        empty.className = 'text-muted small';
-        empty.textContent = 'No attachments';
-        container.appendChild(empty);
+        container.insertAdjacentHTML(
+            'beforeend',
+            '<div class="text-muted">No attachments</div>'
+        );
         return;
     }
-
-    /* ================= FILE LIST ================= */
 
     files.forEach(file => {
         const rowDiv = document.createElement('div');
@@ -871,29 +871,23 @@ async function loadAttachments(container, docName, config, row, columns, reportN
         rowDiv.style.gap = '8px';
         rowDiv.style.marginBottom = '6px';
 
-        const isImage = /\.(png|jpe?g|gif|webp|bmp)$/i.test(file.file_name);
-
-        if (isImage) {
+        if (file.is_image) {
             const img = document.createElement('img');
             img.src =
                 `/erp_proxy.php?action=proxyimage&fileurl=` +
-                encodeURIComponent(file.file_url);
+                encodeURIComponent(file.url);
             img.style.maxWidth = '120px';
             img.style.border = '1px solid #ddd';
-            img.style.cursor = 'pointer';
-            img.onclick = () => window.open(img.src, '_blank');
             rowDiv.appendChild(img);
         } else {
             const link = document.createElement('a');
             link.href =
                 `/erp_proxy.php?action=proxyfile&fileurl=` +
-                encodeURIComponent(file.file_url);
+                encodeURIComponent(file.url);
             link.textContent = file.file_name;
             link.target = '_blank';
             rowDiv.appendChild(link);
         }
-
-        /* ================= DELETE ================= */
 
         if (currentUser?.can_edit) {
             const removeBtn = document.createElement('button');
@@ -901,16 +895,15 @@ async function loadAttachments(container, docName, config, row, columns, reportN
             removeBtn.className = 'btn btn-sm btn-outline-danger';
 
             removeBtn.onclick = async () => {
-                if (!confirm(`Delete "${file.file_name}"?`)) return;
+                if (!confirm(`Delete ${file.file_name}?`)) return;
 
                 await fetch(
                     `/erp_proxy.php?action=delete_attachment` +
-                    `&file_name=${encodeURIComponent(file.file_name)}` +
-                    `&doctype=${encodeURIComponent(config.doctype)}` +
+                    `&file_name=${encodeURIComponent(file.name)}` +
+                    `&doctype=${encodeURIComponent(doctype)}` +
                     `&docname=${encodeURIComponent(docName)}`
                 );
 
-                // 🔁 Reload ONLY attachments
                 loadAttachments(container, docName, config, row, columns, reportName);
             };
 
