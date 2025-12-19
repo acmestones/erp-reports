@@ -1901,6 +1901,8 @@ CURRENT_MODAL_CONTEXT = {
     ============================== */
 
     for (const col of columns) {
+        console.log('➡️ Rendering field:', col.fieldname, col.fieldtype);
+
 
         const reportFieldname = col.fieldname;
        
