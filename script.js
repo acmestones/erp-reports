@@ -2116,7 +2116,7 @@ CURRENT_MODAL_CONTEXT = {
         valueDiv.textContent = value;
     }
 }
-    
+}
     
        modal.show();
     
