@@ -778,12 +778,22 @@ function injectAttachmentControls(
 
 async function loadAttachments(container, docName, config, row, columns, reportName) {
 
-    const res = await fetch(
-        `/erp_proxy.php?action=list_attachments&doctype=${encodeURIComponent(config.doctype)}&docname=${encodeURIComponent(docName)}`
-    );
+const res = await fetch(url);
 
-    const files = await res.json();
+if (!res.ok) {
+    console.error('❌ Failed to load attachments', res.status);
+    container.innerHTML = '<div class="text-muted">No attachments</div>';
+    return;
+}
 
+const text = await res.text();
+if (!text) {
+    container.innerHTML = '<div class="text-muted">No attachments</div>';
+    return;
+}
+
+const files = JSON.parse(text);
+    
     container.innerHTML = '';
 
     /* Upload button */
