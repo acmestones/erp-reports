@@ -1827,6 +1827,8 @@ function createCard(row, columns, reportName, config) {
 
 async function showDetailModal(row, columns, reportName, config) {
     console.log('🔥 showDetailModal START', row, columns, config);
+    console.log('📊 Columns length:', columns?.length, columns);
+
 
     const modalEl = document.getElementById('detailModal');
     const modal = new bootstrap.Modal(modalEl);
