@@ -1919,7 +1919,15 @@ CURRENT_MODAL_CONTEXT = {
             editableFields.includes(reportFieldname) &&
             reportFieldname !== titleField;
 
-        if (!hasValue && !isEditable) continue;
+                    // ⛔ Do NOT skip attachments even if empty
+            if (
+                !hasValue &&
+                !isEditable &&
+                reportFieldname !== ATTACHMENTS_REPORT_FIELD
+            ) {
+                continue;
+            }
+
 
         const fieldDiv = document.createElement('div');
         fieldDiv.className = 'mb-3 pb-2 border-bottom';
