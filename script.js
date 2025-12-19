@@ -2046,7 +2046,7 @@ else if (hasValue) {
     }
 }
 
-
+    }
     modal.show();
     autoFixImages(modalEl);
 }
