@@ -2045,8 +2045,8 @@ else if (hasValue) {
         valueDiv.textContent = value;
     }
 }
-
     }
+    
     modal.show();
     autoFixImages(modalEl);
 }
