@@ -2066,11 +2066,11 @@ CURRENT_MODAL_CONTEXT = {
             }
 
         }
-    }
+    
         /* =============================
            READ-ONLY FIELDS
         ============================== */
-else if (hasValue) {
+    } else if (hasValue) {
 
     // 📎 ATTACHMENTS (HARDCODED BY DESIGN)
     if (reportFieldname === ATTACHMENTS_REPORT_FIELD) {
