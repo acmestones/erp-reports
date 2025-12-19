@@ -1919,14 +1919,11 @@ CURRENT_MODAL_CONTEXT = {
             editableFields.includes(reportFieldname) &&
             reportFieldname !== titleField;
 
-                    // ⛔ Do NOT skip attachments even if empty
-            if (
-                !hasValue &&
-                !isEditable &&
-                reportFieldname !== ATTACHMENTS_REPORT_FIELD
-            ) {
-                continue;
-            }
+        // Skip only if truly empty AND not attachments
+        if (!hasValue && !isEditable && reportFieldname !== ATTACHMENTS_REPORT_FIELD) {
+            continue;
+        }
+
 
 
         const fieldDiv = document.createElement('div');
@@ -2120,8 +2117,12 @@ else if (hasValue) {
 }
     }
     
-    modal.show();
-    autoFixImages(modalEl);
+       modal.show();
+    
+        modalEl.addEventListener('shown.bs.modal', () => {
+            autoFixImages(modalEl);
+        }, { once: true });
+
 }
 
 
