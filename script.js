@@ -1839,7 +1839,7 @@ CURRENT_MODAL_CONTEXT = {
     for (const col of columns) {
 
         const reportFieldname = col.fieldname;
-        valueDiv.dataset.reportField = reportFieldname;
+       
         if (hiddenFields.includes(reportFieldname)) continue;
 
         const actualFieldname =
@@ -1866,6 +1866,8 @@ CURRENT_MODAL_CONTEXT = {
 
         const valueDiv = document.createElement('div');
         valueDiv.className = 'mt-1';
+
+         valueDiv.dataset.reportField = reportFieldname;
 
         /* =============================
            EDITABLE FIELDS
