@@ -838,7 +838,6 @@ async function loadAttachments(container, docName, config, row, columns, reportN
         return;
     }
 
-    // ✅ CORRECT: action=list_attachments (with underscore)
     const url = `erp_proxy.php?action=list_attachments&doctype=${encodeURIComponent(doctype)}&docname=${encodeURIComponent(docName)}`;
     
     console.log('📎 Fetching attachments:', url);
@@ -899,11 +898,17 @@ async function loadAttachments(container, docName, config, row, columns, reportN
                 fd.append('file', input.files[0]);
                 fd.append('doctype', doctype);
                 fd.append('docname', docName);
-                fd.append('is_private', 1);
+                fd.append('is_private', 1);  // ✅ CORRECT: is_private (with underscore)
                 
                 try {
-                    // ✅ CORRECT: action=upload_attachment (with underscore)
-                    await fetch(`erp_proxy.php?action=upload_attachment`, { method: 'POST', body: fd });
+                    const res = await fetch(`erp_proxy.php?action=upload_attachment`, { method: 'POST', body: fd });
+                    const text = await res.text();
+                    console.log('Upload response:', text);
+                    
+                    if (!res.ok) {
+                        throw new Error('Upload failed: ' + text);
+                    }
+                    
                     loadAttachments(container, docName, config, row, columns, reportName);
                 } catch (err) {
                     alert('Upload failed: ' + err.message);
@@ -988,8 +993,18 @@ async function loadAttachments(container, docName, config, row, columns, reportN
                 
                 removeBtn.disabled = true;
                 try {
-                    // ✅ CORRECT: action=delete_attachment, file_name parameter
-                    await fetch(`erp_proxy.php?action=delete_attachment&file_name=${encodeURIComponent(fileName)}&doctype=${encodeURIComponent(doctype)}&docname=${encodeURIComponent(docName)}`);
+                    // ✅ CORRECT: file_name parameter (with underscore)
+                    const deleteUrl = `erp_proxy.php?action=delete_attachment&file_name=${encodeURIComponent(fileName)}&doctype=${encodeURIComponent(doctype)}&docname=${encodeURIComponent(docName)}`;
+                    console.log('Delete URL:', deleteUrl);
+                    
+                    const res = await fetch(deleteUrl);
+                    const text = await res.text();
+                    console.log('Delete response:', text);
+                    
+                    if (!res.ok) {
+                        throw new Error('Delete failed: ' + text);
+                    }
+                    
                     loadAttachments(container, docName, config, row, columns, reportName);
                 } catch (err) {
                     alert('Delete failed: ' + err.message);
