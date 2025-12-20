@@ -2277,94 +2277,99 @@ async function showDetailModal(row, columns, reportName, config) {
 
 
 
-function createSaveButton(input, reportFieldname, modal) {
+function createSaveButton(input, reportName, modal) {
     const saveBtn = document.createElement('button');
-    saveBtn.className = 'btn btn-sm btn-primary ms-2';
-    saveBtn.innerHTML = '💾 Save';
+    saveBtn.className = 'btn btn-sm btn-success';
+    saveBtn.textContent = '💾 Save';
     
     saveBtn.onclick = async () => {
         saveBtn.disabled = true;
         saveBtn.textContent = 'Saving...';
         
         try {
-            const doctype = CURRENT_MODAL_CONTEXT.config.doctype;
-            const docName = modal.querySelector('#modalTitle').textContent.replace(' Details', '');
+            const doctype = input.dataset.doctype;
+            const docName = input.dataset.docname;
+            const fieldname = input.dataset.fieldname;
             
             let valueToSave;
             
-            // Handle rich text editor (Quill)
-            if (input.classList.contains('ql-container')) {
-                const editor = input.querySelector('.ql-editor');
-                
-                // Get all images and restore original ERPNext URLs
-                const images = editor.querySelectorAll('img');
+            // Handle rich text editor (contentEditable div)
+            if (input.contentEditable === 'true') {
+                // Get all images and restore original ERPNext URLs before saving
+                const images = input.querySelectorAll('img');
                 images.forEach(img => {
                     if (img.dataset.originalSrc) {
                         img.src = img.dataset.originalSrc;
                     }
                 });
                 
-                valueToSave = editor.innerHTML;
+                valueToSave = input.innerHTML;
             } 
-            // Handle regular input/textarea
+            // Handle regular input
             else {
                 valueToSave = input.value;
             }
             
-            console.log('💾 Saving field:', reportFieldname, 'Value length:', valueToSave?.length);
-            
-            // Get the actual database field name
-            const actualFieldname = window.reportFieldMapping?.[reportFieldname]?.erpField || reportFieldname;
+            console.log('💾 Saving field:', fieldname, 'Value length:', valueToSave?.length);
             
             // Save to database
-            const response = await updateField(doctype, docName, actualFieldname, valueToSave);
+            const response = await updateField(doctype, docName, fieldname, valueToSave);
             console.log('✅ Save response:', response);
             
-            // ✅ FIXED: Update the UI without full modal refresh
+            // ✅ UPDATE UI WITHOUT MODAL REFRESH
+            
             // 1. Update the modal context data
             if (CURRENT_MODAL_CONTEXT && CURRENT_MODAL_CONTEXT.row) {
+                // Find the report fieldname from the actual fieldname
+                const reportFieldname = Object.keys(window.reportFieldMapping || {}).find(
+                    key => window.reportFieldMapping[key].erpField === fieldname
+                ) || fieldname;
+                
                 CURRENT_MODAL_CONTEXT.row[reportFieldname] = valueToSave;
             }
             
-            // 2. Switch back to read mode for this field only
-            const fieldDiv = saveBtn.closest('.mb-3');
-            const valueDiv = fieldDiv.querySelector('.mt-1');
-            
-            // Clear the edit UI
-            valueDiv.innerHTML = '';
-            
-            // Render the saved content in read mode
-            if (valueToSave && typeof valueToSave === 'string' && valueToSave.includes('<')) {
-                // Rich text content
-                valueDiv.innerHTML = sanitizeRichHtml(valueToSave);
-                normalizeFileLinks(valueDiv);
-                normalizeAttachmentLayout(valueDiv);
-                autoFixImages(valueDiv);
-                constrainRichTextImages(valueDiv);
+            // 2. If it's a rich text field, update the display div
+            if (input.contentEditable === 'true') {
+                // Find the parent structure
+                const editorWrapper = input.parentElement; // The div containing toolbar + editor
+                const fieldContainer = editorWrapper.parentElement; // The valueDiv
+                const displayDiv = fieldContainer.querySelector('.editable-richtext[style*="background"]'); // The display div
+                
+                // Find buttons
+                const editBtn = fieldContainer.querySelector('button.btn-primary');
+                const cancelBtn = fieldContainer.querySelector('button.btn-secondary');
+                
+                // Update display div with new content
+                if (displayDiv) {
+                    displayDiv.innerHTML = sanitizeRichHtml(valueToSave);
+                    normalizeFileLinks(displayDiv);
+                    autoFixImages(displayDiv);
+                    constrainRichTextImages(displayDiv);
+                }
+                
+                // Switch back to display mode
+                editorWrapper.style.display = 'none';
+                if (displayDiv) displayDiv.style.display = 'block';
+                if (editBtn) {
+                    editBtn.style.display = 'inline-block';
+                    editBtn.textContent = 'Edit';
+                }
+                if (cancelBtn) cancelBtn.style.display = 'none';
+                saveBtn.style.display = 'none';
             } else {
-                // Plain text
-                valueDiv.textContent = valueToSave || '(empty)';
+                // For simple input fields, just disable them
+                input.disabled = true;
             }
             
-            // 3. Re-add the edit button if user has permission
-            const canEdit = currentUser?.canedit;
-            const userPerms = CURRENT_MODAL_CONTEXT.config.userpermissions?.[localStorage.getItem("userEmail")];
-            const editableFields = userPerms?.editablefields || [];
-            
-            if (canEdit && editableFields.includes(reportFieldname)) {
-                const editBtn = document.createElement('button');
-                editBtn.className = 'btn btn-sm btn-outline-secondary ms-2';
-                editBtn.innerHTML = '✏️ Edit';
-                editBtn.onclick = () => makeFieldEditable(fieldDiv, reportFieldname, valueToSave, modal);
-                valueDiv.appendChild(editBtn);
-            }
-            
-            // Show success message briefly
-            saveBtn.className = 'btn btn-sm btn-success ms-2';
+            // 3. Show success feedback
+            saveBtn.className = 'btn btn-sm btn-success';
             saveBtn.innerHTML = '✅ Saved';
+            saveBtn.disabled = false;
             
+            // Reset button after 2 seconds
             setTimeout(() => {
-                saveBtn.remove();
+                saveBtn.textContent = '💾 Save';
+                saveBtn.className = 'btn btn-sm btn-success';
             }, 2000);
             
         } catch (error) {
@@ -2372,11 +2377,23 @@ function createSaveButton(input, reportFieldname, modal) {
             alert('Failed to save: ' + error.message);
             saveBtn.disabled = false;
             saveBtn.textContent = '💾 Save';
+            saveBtn.className = 'btn btn-sm btn-danger';
+            
+            setTimeout(() => {
+                saveBtn.className = 'btn btn-sm btn-success';
+            }, 2000);
         }
     };
     
     return saveBtn;
 }
+
+
+
+
+
+
+
 
 // Helper function to make a field editable
 function makeFieldEditable(fieldDiv, reportFieldname, currentValue, modal) {
