@@ -3636,8 +3636,11 @@ const contentHtml = `
         document.getElementById('operationPlanningPermissionsSection').style.display = 
             e.target.checked ? 'block' : 'none';
     });
+
+
+
     
-document.getElementByIdsaveGlobalConfigBtn').onclick = () => {
+document.getElementById('saveGlobalConfigBtn').onclick = () => {
     // Validate mandatory fields
     const doctype = document.getElementById('configdoctype')?.value.trim();
     const titlefield = document.getElementById('configtitlefield')?.value;
@@ -3743,7 +3746,12 @@ document.getElementByIdsaveGlobalConfigBtn').onclick = () => {
     if (document.activeElement) document.activeElement.blur();
 };
 
-    
+
+
+
+
+
+
     // Blur any focused element to prevent aria-hidden focus conflict
     if (document.activeElement && document.activeElement.blur) {
         document.activeElement.blur();
