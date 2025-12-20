@@ -1949,6 +1949,18 @@ function createCard(row, columns, reportName, config) {
     
     cardBody.appendChild(buttonsContainer);
     card.appendChild(cardBody);
+
+
+        // ✅ FIX: Fix all ERPNext links in the card to use correct domain
+    card.querySelectorAll('a').forEach(link => {
+        const href = link.getAttribute('href');
+        if (href && href.startsWith('/app/')) {
+            link.href = ERP_BASE + href;
+            link.target = '_blank';
+            link.rel = 'noopener noreferrer';
+        }
+    });
+
     
     return card;
 }
