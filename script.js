@@ -2252,6 +2252,20 @@ async function showDetailModal(row, columns, reportName, config) {
                     normalizeAttachmentLayout(valueDiv);
                     autoFixImages(valueDiv);
                     constrainRichTextImages(valueDiv);
+
+                    // ✅ FIX: Update all ERPNext app links to use correct domain
+                    valueDiv.querySelectorAll('a').forEach(link => {
+                        const href = link.getAttribute('href');
+                        if (href && href.startsWith('/app/')) {
+                            link.href = ERP_BASE + href;
+                            link.target = '_blank';
+                            link.rel = 'noopener noreferrer';
+                            console.log('🔗 Fixed link:', href, '→', link.href);
+                        }
+                    });
+
+
+                    
                 }
                 // Plain text
                 else {
