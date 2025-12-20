@@ -875,7 +875,7 @@ async function loadAttachments(container, docName, config, row, columns, reportN
             const img = document.createElement('img');
             img.src =
                 `/erp_proxy.php?action=proxyimage&fileurl=` +
-                encodeURIComponent(file.url);
+                encodeURIComponent(file.file_url);
             img.style.maxWidth = '120px';
             img.style.border = '1px solid #ddd';
             rowDiv.appendChild(img);
@@ -883,7 +883,7 @@ async function loadAttachments(container, docName, config, row, columns, reportN
             const link = document.createElement('a');
             link.href =
                 `/erp_proxy.php?action=proxyfile&fileurl=` +
-                encodeURIComponent(file.url);
+                encodeURIComponent(file.file_url);
             link.textContent = file.file_name;
             link.target = '_blank';
             rowDiv.appendChild(link);
