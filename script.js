@@ -928,7 +928,7 @@ files.forEach(file => {
     rowDiv.style.gap = '10px';
     rowDiv.style.marginBottom = '8px';
 
-    const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(file.file_name);
+    const isImage = /\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i.test(file.file_name);
     const encodedUrl = encodeURIComponent(file.file_url);
 
     /* 🖼 IMAGE ATTACHMENT */
@@ -2065,35 +2065,55 @@ CURRENT_MODAL_CONTEXT = {
 
                 insertImgBtn.onclick = () => imgInput.click();
 
-                    imgInput.onchange = async e => {
-                        const file = e.target.files[0];
-                        if (!file) return;
-                    
-                        const fd = new FormData();
-                        fd.append('file', file);
-                        fd.append('doctype', doctype);
-                        fd.append('docname', docName);
-                        fd.append('is_private', 1);
-                    
-                        const res = await fetch('/erp_proxy.php?action=upload_attachment', {
-                            method: 'POST',
-                            body: fd
-                        });
-                    
-                        const data = await res.json();
-                        if (!data.file_url) {
-                            alert('Image upload failed');
-                            return;
-                        }
-                    
-                        const img = document.createElement('img');
-                        img.src = fixImageUrl(data.file_url);      // proxied for display
-                        img.dataset.originalSrc = data.file_url;   // ORIGINAL ERP URL
-                        img.style.maxWidth = '100%';
-                    
-                        editor.appendChild(img);
-                        imgInput.value = '';
-                    };
+                        imgInput.onchange = async (e) => {
+                            const file = e.target.files[0];
+                            if (!file) return;
+                            
+                            // Show uploading indicator
+                            insertImgBtn.disabled = true;
+                            insertImgBtn.textContent = 'Uploading...';
+                            
+                            const fd = new FormData();
+                            fd.append('file', file);
+                            fd.append('doctype', doctype);
+                            fd.append('docname', docName);
+                            fd.append('isprivate', 1);
+                            
+                            try {
+                                const res = await fetch(`erp_proxy.php?action=uploadattachment`, { method: 'POST', body: fd });
+                                const data = await res.json();
+                                
+                                if (!data.fileurl) {
+                                    alert('Image upload failed');
+                                    return;
+                                }
+                                
+                                const img = document.createElement('img');
+                                img.src = fixImageUrl(data.fileurl); // proxied for display
+                                img.dataset.originalSrc = data.fileurl; // ORIGINAL ERP URL
+                                img.style.maxWidth = '100%';
+                                img.style.height = 'auto';
+                                editor.appendChild(img);
+                                
+                                // IMPORTANT: Auto-save after inserting image
+                                setTimeout(() => {
+                                    const saveBtn = editor.parentElement.querySelector('.btn-success');
+                                    if (saveBtn) {
+                                        saveBtn.click();
+                                    }
+                                }, 500);
+                                
+                                insertImgBtn.textContent = 'Insert Image';
+                            } catch (err) {
+                                console.error('Upload error:', err);
+                                alert('Failed to upload image: ' + err.message);
+                            } finally {
+                                insertImgBtn.disabled = false;
+                                insertImgBtn.textContent = 'Insert Image';
+                                imgInput.value = ''; // Reset input
+                            }
+                        };
+
 
 
                 editorWrapper.append(toolbar, editor);
