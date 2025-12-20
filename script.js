@@ -6191,15 +6191,16 @@ function openMobileReorderModal(reportName, primaryGroup, secondaryGroup) {
 
 
 
-// ✅ Populate report config dropdown
+// ✅ Populate report config dropdown (matches Field Mappings tab pattern)
 function populateReportConfigDropdown() {
     const select = document.getElementById('reportConfigSelect');
     if (!select) return;
     
     select.innerHTML = '<option value="">-- Select a Report --</option>';
     
-    if (allReports && allReports.length > 0) {
-        allReports.forEach(reportName => {
+    // Use currentUser's allowed reports (same as Field Mappings tab)
+    if (currentUser && currentUser.allowed_reports && currentUser.allowed_reports.length > 0) {
+        currentUser.allowed_reports.forEach(reportName => {
             const option = document.createElement('option');
             option.value = reportName;
             option.textContent = reportName;
@@ -6207,6 +6208,8 @@ function populateReportConfigDropdown() {
         });
     }
 }
+
+
 
 // ✅ Load report configuration into form
 function loadReportConfigIntoForm() {
