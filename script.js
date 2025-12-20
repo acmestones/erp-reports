@@ -878,7 +878,7 @@ async function loadAttachments(container, docName, config, row, columns, reportN
     
     container.innerHTML = '';
 
-    // UPLOAD BUTTON
+    // ✅ UPLOAD BUTTON - Fixed: canedit not can_edit
     if (currentUser?.canedit) {
         const uploadBtn = document.createElement('button');
         uploadBtn.className = 'btn btn-sm btn-outline-primary mb-2';
@@ -903,7 +903,7 @@ async function loadAttachments(container, docName, config, row, columns, reportN
                 try {
                     const res = await fetch(`erp_proxy.php?action=upload_attachment`, { method: 'POST', body: fd });
                     const text = await res.text();
-                    console.log('Upload response:', text);
+                    console.log('📤 Upload response:', text);
                     
                     if (!res.ok) {
                         throw new Error('Upload failed: ' + text);
@@ -911,6 +911,7 @@ async function loadAttachments(container, docName, config, row, columns, reportN
                     
                     loadAttachments(container, docName, config, row, columns, reportName);
                 } catch (err) {
+                    console.error('Upload error:', err);
                     alert('Upload failed: ' + err.message);
                 } finally {
                     uploadBtn.disabled = false;
@@ -982,7 +983,7 @@ async function loadAttachments(container, docName, config, row, columns, reportN
             rowDiv.appendChild(link);
         }
 
-        // REMOVE BUTTON
+        // ✅ REMOVE BUTTON - Fixed: canedit not can_edit
         if (currentUser?.canedit) {
             const removeBtn = document.createElement('button');
             removeBtn.textContent = '🗑️';
@@ -995,11 +996,11 @@ async function loadAttachments(container, docName, config, row, columns, reportN
                 try {
                     // ✅ CORRECT: file_name parameter (with underscore)
                     const deleteUrl = `erp_proxy.php?action=delete_attachment&file_name=${encodeURIComponent(fileName)}&doctype=${encodeURIComponent(doctype)}&docname=${encodeURIComponent(docName)}`;
-                    console.log('Delete URL:', deleteUrl);
+                    console.log('🗑️ Delete URL:', deleteUrl);
                     
                     const res = await fetch(deleteUrl);
                     const text = await res.text();
-                    console.log('Delete response:', text);
+                    console.log('🗑️ Delete response:', text);
                     
                     if (!res.ok) {
                         throw new Error('Delete failed: ' + text);
@@ -1007,6 +1008,7 @@ async function loadAttachments(container, docName, config, row, columns, reportN
                     
                     loadAttachments(container, docName, config, row, columns, reportName);
                 } catch (err) {
+                    console.error('Delete error:', err);
                     alert('Delete failed: ' + err.message);
                     removeBtn.disabled = false;
                 }
@@ -1017,6 +1019,7 @@ async function loadAttachments(container, docName, config, row, columns, reportN
         container.appendChild(rowDiv);
     });
 }
+
 
 
 
