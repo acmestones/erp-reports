@@ -685,26 +685,21 @@ function fixImageUrl(url) {
 
 
 //Fix file url
-// Fix file url
 function fixFileUrl(url) {
     if (!url) return url;
-    
-    // ✅ FIX: Handle ERPNext app links
-    if (url.startsWith('/app/')) {
-        return ERP_BASE + url;
-    }
-    
+
     if (url.startsWith('/private/files/') || url.startsWith('/files/')) {
-        return `erp_proxy.php?action=proxyfile&fileurl=${encodeURIComponent(ERP_BASE + url)}`;
+        return `/erp_proxy.php?action=proxyfile&fileurl=${encodeURIComponent(
+            'https://acmestones.erpnext.com' + url
+        )}`;
     }
-    
+
     if (url.includes('/private/files/') || url.includes('/files/')) {
-        return `erp_proxy.php?action=proxyfile&fileurl=${encodeURIComponent(url)}`;
+        return `/erp_proxy.php?action=proxyfile&fileurl=${encodeURIComponent(url)}`;
     }
-    
+
     return url;
 }
-
 
 
 
