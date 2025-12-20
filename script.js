@@ -854,64 +854,78 @@ async function loadAttachments(container, docName, config, row, columns, reportN
         };
     }
 
-    /* ================= FILE LIST ================= */
+/* ================= FILE LIST ================= */
 
-    if (!files.length) {
-        container.insertAdjacentHTML(
-            'beforeend',
-            '<div class="text-muted">No attachments</div>'
-        );
-        return;
+if (!files.length) {
+    container.insertAdjacentHTML(
+        'beforeend',
+        '<div class="text-muted">No attachments</div>'
+    );
+    return;
+}
+
+files.forEach(file => {
+    if (!file.file_url) return;
+
+    const rowDiv = document.createElement('div');
+    rowDiv.style.display = 'flex';
+    rowDiv.style.alignItems = 'center';
+    rowDiv.style.gap = '10px';
+    rowDiv.style.marginBottom = '8px';
+
+    const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(file.file_name);
+    const encodedUrl = encodeURIComponent(file.file_url);
+
+    /* 🖼 IMAGE ATTACHMENT */
+    if (isImage) {
+        const link = document.createElement('a');
+        link.href = `/erp_proxy.php?action=proxyimage&fileurl=${encodedUrl}`;
+        link.target = '_blank';
+
+        const img = document.createElement('img');
+        img.src = link.href;
+        img.style.maxWidth = '120px';
+        img.style.maxHeight = '120px';
+        img.style.objectFit = 'contain';
+        img.style.border = '1px solid #ddd';
+        img.style.cursor = 'pointer';
+
+        link.appendChild(img);
+        rowDiv.appendChild(link);
+    }
+    /* 📄 NON-IMAGE FILE */
+    else {
+        const link = document.createElement('a');
+        link.href = `/erp_proxy.php?action=proxyfile&fileurl=${encodedUrl}`;
+        link.textContent = file.file_name;
+        link.target = '_blank';
+        rowDiv.appendChild(link);
     }
 
-    files.forEach(file => {
-        const rowDiv = document.createElement('div');
-        rowDiv.style.display = 'flex';
-        rowDiv.style.alignItems = 'center';
-        rowDiv.style.gap = '8px';
-        rowDiv.style.marginBottom = '6px';
+    /* ❌ REMOVE BUTTON */
+    if (currentUser?.can_edit) {
+        const removeBtn = document.createElement('button');
+        removeBtn.textContent = '❌';
+        removeBtn.className = 'btn btn-sm btn-outline-danger';
 
-        if (file.is_image) {
-            const img = document.createElement('img');
-            img.src =
-                `/erp_proxy.php?action=proxyimage&fileurl=` +
-                encodeURIComponent(file.file_url);
-            img.style.maxWidth = '120px';
-            img.style.border = '1px solid #ddd';
-            rowDiv.appendChild(img);
-        } else {
-            const link = document.createElement('a');
-            link.href =
-                `/erp_proxy.php?action=proxyfile&fileurl=` +
-                encodeURIComponent(file.file_url);
-            link.textContent = file.file_name;
-            link.target = '_blank';
-            rowDiv.appendChild(link);
-        }
+        removeBtn.onclick = async () => {
+            if (!confirm(`Delete ${file.file_name}?`)) return;
 
-        if (currentUser?.can_edit) {
-            const removeBtn = document.createElement('button');
-            removeBtn.textContent = '❌';
-            removeBtn.className = 'btn btn-sm btn-outline-danger';
+            await fetch(
+                `/erp_proxy.php?action=delete_attachment` +
+                `&file_name=${encodeURIComponent(file.file_name)}` +
+                `&doctype=${encodeURIComponent(doctype)}` +
+                `&docname=${encodeURIComponent(docName)}`
+            );
 
-            removeBtn.onclick = async () => {
-                if (!confirm(`Delete ${file.file_name}?`)) return;
+            loadAttachments(container, docName, config, row, columns, reportName);
+        };
 
-                await fetch(
-                    `/erp_proxy.php?action=delete_attachment` +
-                    `&file_name=${encodeURIComponent(file.name)}` +
-                    `&doctype=${encodeURIComponent(doctype)}` +
-                    `&docname=${encodeURIComponent(docName)}`
-                );
+        rowDiv.appendChild(removeBtn);
+    }
 
-                loadAttachments(container, docName, config, row, columns, reportName);
-            };
-
-            rowDiv.appendChild(removeBtn);
-        }
-
-        container.appendChild(rowDiv);
-    });
+    container.appendChild(rowDiv);
+});
 }
 
 
