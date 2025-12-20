@@ -1949,18 +1949,6 @@ function createCard(row, columns, reportName, config) {
     
     cardBody.appendChild(buttonsContainer);
     card.appendChild(cardBody);
-
-
-        // ✅ FIX: Fix all ERPNext links in the card to use correct domain
-    card.querySelectorAll('a').forEach(link => {
-        const href = link.getAttribute('href');
-        if (href && href.startsWith('/app/')) {
-            link.href = ERP_BASE + href;
-            link.target = '_blank';
-            link.rel = 'noopener noreferrer';
-        }
-    });
-
     
     return card;
 }
@@ -2227,64 +2215,38 @@ async function showDetailModal(row, columns, reportName, config) {
                 valueDiv.append(input, saveBtn);
             }
         }
-            /* =============================
-               READ-ONLY FIELDS
-            ============================== */
-            else if (hasValue && reportFieldname !== ATTACHMENTS_REPORT_FIELD) {
-                
-                // 📎 ATTACHMENTS
-                if (reportFieldname === ATTACHMENTS_REPORT_FIELD) {
-                    valueDiv.innerHTML = '<div class="text-muted small">Loading attachments...</div>';
-                    loadAttachments(valueDiv, docName, config, row, columns, reportName);
-                }
-                // ✅ Link field (including job_card)
-                else if (col.fieldtype === 'Link' && col.options) {
-                    // If value contains HTML, extract just the text
-                    let linkText = value;
-                    let linkValue = value;
-                    
-                    if (typeof value === 'string' && value.includes('<')) {
-                        const tempDiv = document.createElement('div');
-                        tempDiv.innerHTML = value;
-                        linkText = tempDiv.textContent || tempDiv.innerText || value;
-                        linkValue = linkText;
-                    }
-                    
-                    const link = document.createElement('a');
-                    link.href = `${ERP_BASE}/app/${col.options.toLowerCase().replace(/\s+/g, '-')}/${encodeURIComponent(linkValue)}`;
-                    link.target = '_blank';
-                    link.rel = 'noopener noreferrer';
-                    link.textContent = linkText;
-                    valueDiv.appendChild(link);
-                }
-                // Rich text (notes, descriptions, etc.)
-                else if (typeof value === 'string' && value.includes('<')) {
-                    valueDiv.innerHTML = sanitizeRichHtml(value);
-                    normalizeFileLinks(valueDiv);
-                    normalizeAttachmentLayout(valueDiv);
-                    autoFixImages(valueDiv);
-                    constrainRichTextImages(valueDiv);
+        /* =============================
+           READ-ONLY FIELDS
+        ============================== */
+        else if (hasValue || reportFieldname === ATTACHMENTS_REPORT_FIELD) {
 
-                    // ✅ FIX: Update all ERPNext app links to use correct domain
-                    valueDiv.querySelectorAll('a').forEach(link => {
-                        const href = link.getAttribute('href');
-                        if (href && href.startsWith('/app/')) {
-                            link.href = ERP_BASE + href;
-                            link.target = '_blank';
-                            link.rel = 'noopener noreferrer';
-                            console.log('🔗 Fixed link:', href, '→', link.href);
-                        }
-                    });
-
-
-                    
-                }
-                // Plain text
-                else {
-                    valueDiv.textContent = value;
-                }
+            // 📎 ATTACHMENTS (HARDCODED BY DESIGN)
+            if (reportFieldname === ATTACHMENTS_REPORT_FIELD) {
+                valueDiv.innerHTML = '<div class="text-muted small">Loading attachments…</div>';
+                loadAttachments(valueDiv, docName, config, row, columns, reportName);
             }
-
+            // 📝 Rich text (notes, descriptions, job card etc.)
+            else if (typeof value === 'string' && value.includes('<')) {
+                valueDiv.innerHTML = sanitizeRichHtml(value);
+                normalizeFileLinks(valueDiv);
+                normalizeAttachmentLayout(valueDiv);
+                autoFixImages(valueDiv);
+                constrainRichTextImages(valueDiv);
+            }
+            // 🔗 Link field
+            else if (col.fieldtype === 'Link' && col.options) {
+                const link = document.createElement('a');
+                link.href = `${ERP_BASE}/app/${col.options.toLowerCase().replace(/\s+/g, '-')}/${encodeURIComponent(value)}`;
+                link.target = '_blank';
+                link.rel = 'noopener noreferrer';
+                link.textContent = value;
+                valueDiv.appendChild(link);
+            }
+            // 📄 Plain text
+            else {
+                valueDiv.textContent = value;
+            }
+        }
 
         // ✅ Append field to modal
         fieldDiv.append(labelDiv, valueDiv);
