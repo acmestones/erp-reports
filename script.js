@@ -1829,17 +1829,14 @@ function createCard(row, columns, reportName, config) {
     // 3. Try common ID fields
     // 4. Use first available field
     
-    const titleField = config.title_field || "work_order_id";
-    const possibleIds = [
-        row.name,                    // ERPNext document name (e.g., "WO-00123")
-        row[titleField],             // Whatever is configured as title
-        row.work_order_id,           // Work Order ID
-        row.sales_order_id,          // Sales Order ID  
-        row.job_card,                // Job Card ID
-        row.item_code,               // Item Code
-        row.customer,                // Customer name
-        ''                           // Empty fallback
-    ];
+        const titleField = config.title_field || 'name';
+        const docName = row[titleField] || row.name || '';
+        card.dataset.docname = docName;
+        
+        if (!docName) {
+            console.warn('No docname found. Configure title_field in report settings.', row);
+        }
+
     
     // Find the first non-empty value
     card.dataset.docname = possibleIds.find(id => id && id !== '') || '';
