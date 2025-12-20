@@ -350,6 +350,24 @@ body {
 
 
 
+/* =========================================================
+   Rich Text Image Constraints
+========================================================= */
+
+.editable-richtext img,
+.rich-text img,
+.ql-editor img {
+    max-height: 300px;
+    width: auto;
+    max-width: 100%;
+    object-fit: contain;
+    cursor: pointer;
+    display: block;
+    margin: 8px 0;
+}
+
+
+
 
 
 /* ========== DRAG AND DROP STYLES (Complete) ========== */
