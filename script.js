@@ -2737,6 +2737,12 @@ async function openAdminSettings() {
                 preserveUserData();
                 console.log("Data re-preserved after fetch:", tempUserData);
             }, 100);
+
+
+            // ✅ Refresh report config dropdown with new reports
+            populateReportConfigDropdown();
+            
+            
         } catch (err) {
             console.error("Error fetching reports:", err);
             alert("Error fetching reports: " + err.message);
@@ -2762,6 +2768,10 @@ async function openAdminSettings() {
     };
     
     initFieldMappingsTab();
+
+    // ✅ Initialize report config tab
+    initializeReportConfigTab();
+    
     modal.show();
 }
 
