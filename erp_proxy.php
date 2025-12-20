@@ -22,7 +22,7 @@ function logError($message) {
 }
 
 /* =========================================================
-   PROXY IMAGE (private + public)
+   PROXY IMAGE (private + public) — FIXED
 ========================================================= */
 if (isset($_GET['action']) && $_GET['action'] === 'proxyimage') {
 
@@ -38,7 +38,12 @@ if (isset($_GET['action']) && $_GET['action'] === 'proxyimage') {
 
     $fileUrl = urldecode($fileUrl);
 
-    // Allow only ERPNext images
+    // ✅ FIX: convert relative ERPNext URLs to absolute
+    if (str_starts_with($fileUrl, '/files/') || str_starts_with($fileUrl, '/private/files/')) {
+        $fileUrl = ERP_BASE . $fileUrl;
+    }
+
+    // ✅ STRICT allow-list
     if (
         !str_starts_with($fileUrl, ERP_BASE . '/files/') &&
         !str_starts_with($fileUrl, ERP_BASE . '/private/files/')
@@ -54,8 +59,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'proxyimage') {
         CURLOPT_HTTPHEADER => [
             "Authorization: token " . API_KEY . ":" . API_SECRET
         ],
-        CURLOPT_SSL_VERIFYPEER => false,
-        CURLOPT_HEADER => false
+        CURLOPT_SSL_VERIFYPEER => false
     ]);
 
     $data = curl_exec($ch);
@@ -63,19 +67,20 @@ if (isset($_GET['action']) && $_GET['action'] === 'proxyimage') {
     $contentType = curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
     curl_close($ch);
 
+    // ❌ block login pages / HTML
     if ($httpCode !== 200 || !$data || str_contains($contentType, 'text/html')) {
         http_response_code(404);
         exit;
     }
 
-    // ✅ IMAGE RESPONSE (NOT DOWNLOAD)
-    header("Content-Type: {$contentType}");
-    header("Content-Length: " . strlen($data));
-    header("Cache-Control: public, max-age=86400");
+    // ✅ IMAGE RESPONSE (inline display)
+    header('Content-Type: ' . ($contentType ?: 'image/jpeg'));
+    header('Cache-Control: public, max-age=86400');
 
     echo $data;
     exit;
 }
+
 
 
 /* =========================================================
