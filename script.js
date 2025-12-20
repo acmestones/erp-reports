@@ -941,102 +941,158 @@ async function loadAttachments(container, docName, config, row, columns, reportN
         };
     }
 
-    // FILE LIST
-    if (!files || !files.length) {
-        container.insertAdjacentHTML('beforeend', `<div class="text-muted">No attachments</div>`);
-        return;
+    
+// FILE LIST
+if (!files || !files.length) {
+    container.insertAdjacentHTML('beforeend', `<div class="text-muted">No attachments</div>`);
+    return;
+}
+
+// ✅ NEW: Separate images and files
+const images = [];
+const nonImages = [];
+
+files.forEach(file => {
+    const fileUrl = file.file_url || file.fileurl || file.url;
+    const fileName = file.file_name || file.filename || file.name;
+    
+    if (!fileUrl) return;
+    
+    const isImage = /\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i.test(fileName);
+    
+    if (isImage) {
+        images.push({ fileUrl, fileName });
+    } else {
+        nonImages.push({ fileUrl, fileName });
     }
+});
 
-    files.forEach((file, index) => {
-        console.log(`\n🔍 Processing file ${index + 1}:`, file);
-        
-        // Try different possible property names
-        const fileUrl = file.file_url || file.fileurl || file.url;
-        const fileName = file.file_name || file.filename || file.name;
-        
-        console.log('  📄 fileName:', fileName);
-        console.log('  🔗 fileUrl:', fileUrl);
-        
-        if (!fileUrl) {
-            console.warn('  ⚠️ File missing URL:', file);
-            return;
-        }
-
-        const rowDiv = document.createElement('div');
-        rowDiv.style.display = 'flex';
-        rowDiv.style.alignItems = 'center';
-        rowDiv.style.gap = '10px';
-        rowDiv.style.marginBottom = '8px';
-
-        // Check if it's an image
-        const isImage = /\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i.test(fileName);
-        console.log('  🖼️ isImage:', isImage);
-        
+// ✅ RENDER IMAGES IN GRID
+if (images.length > 0) {
+    const imagesGrid = document.createElement('div');
+    imagesGrid.style.display = 'grid';
+    imagesGrid.style.gridTemplateColumns = 'repeat(auto-fill, minmax(120px, 1fr))';
+    imagesGrid.style.gap = '10px';
+    imagesGrid.style.marginBottom = '15px';
+    
+    images.forEach(({ fileUrl, fileName }) => {
         const encodedUrl = encodeURIComponent(fileUrl);
-        console.log('  📦 encodedUrl:', encodedUrl);
-
-        // IMAGE ATTACHMENT
-        if (isImage) {
-            const proxyUrl = `erp_proxy.php?action=proxyimage&fileurl=${encodedUrl}`;
-            console.log('  🌐 Proxy URL:', proxyUrl);
-            
-            const link = document.createElement('a');
-            link.href = proxyUrl;
-            link.target = '_blank';
-
-            const img = document.createElement('img');
-            img.src = link.href;
-            img.style.maxWidth = '120px';
-            img.style.maxHeight = '120px';
-            img.style.objectFit = 'contain';
-            img.style.border = '1px solid #ddd';
-            img.style.cursor = 'pointer';
-            img.style.borderRadius = '4px';
-            
-            img.onerror = function() {
-                console.error('  ❌ Image load failed!');
-                console.error('  ❌ Failed URL:', img.src);
-                this.style.display = 'none';
-                const errorText = document.createElement('span');
-                errorText.textContent = '🖼️ ' + fileName + ' (failed)';
-                errorText.className = 'text-danger small';
-                rowDiv.appendChild(errorText);
-            };
-            
-            img.onload = function() {
-                console.log('  ✅ Image loaded successfully!');
-            };
-
-            link.appendChild(img);
-            rowDiv.appendChild(link);
-        }
-        // NON-IMAGE FILE
-        else {
-            const link = document.createElement('a');
-            link.href = `erp_proxy.php?action=proxyfile&fileurl=${encodedUrl}`;
-            link.textContent = '📄 ' + fileName;
-            link.target = '_blank';
-            link.className = 'text-decoration-none';
-            rowDiv.appendChild(link);
-        }
-
-        // REMOVE BUTTON
+        const proxyUrl = `erp_proxy.php?action=proxyimage&fileurl=${encodedUrl}`;
+        
+        const imageWrapper = document.createElement('div');
+        imageWrapper.style.position = 'relative';
+        imageWrapper.style.display = 'flex';
+        imageWrapper.style.flexDirection = 'column';
+        imageWrapper.style.alignItems = 'center';
+        
+        const link = document.createElement('a');
+        link.href = proxyUrl;
+        link.target = '_blank';
+        
+        const img = document.createElement('img');
+        img.src = proxyUrl;
+        img.style.width = '100%';
+        img.style.height = '120px';
+        img.style.objectFit = 'cover';
+        img.style.border = '1px solid #ddd';
+        img.style.cursor = 'pointer';
+        img.style.borderRadius = '4px';
+        
+        img.onerror = function() {
+            this.style.display = 'none';
+            const errorText = document.createElement('span');
+            errorText.textContent = '❌ ' + fileName;
+            errorText.className = 'text-danger small';
+            imageWrapper.appendChild(errorText);
+        };
+        
+        link.appendChild(img);
+        imageWrapper.appendChild(link);
+        
+        // Image filename below
+        const fileNameLabel = document.createElement('div');
+        fileNameLabel.className = 'text-muted small text-center mt-1';
+        fileNameLabel.style.fontSize = '0.75rem';
+        fileNameLabel.style.wordBreak = 'break-word';
+        fileNameLabel.textContent = fileName;
+        imageWrapper.appendChild(fileNameLabel);
+        
+        // Remove button for images
         if (currentUser?.canedit) {
             const removeBtn = document.createElement('button');
             removeBtn.textContent = '🗑️';
-            removeBtn.className = 'btn btn-sm btn-outline-danger';
-            removeBtn.title = 'Delete attachment';
+            removeBtn.className = 'btn btn-sm btn-outline-danger mt-1';
+            removeBtn.style.width = '100%';
+            removeBtn.title = 'Delete';
             removeBtn.onclick = async () => {
                 if (!confirm(`Delete ${fileName}?`)) return;
                 
                 removeBtn.disabled = true;
                 try {
                     const deleteUrl = `erp_proxy.php?action=delete_attachment&file_name=${encodeURIComponent(fileName)}&doctype=${encodeURIComponent(doctype)}&docname=${encodeURIComponent(docName)}`;
-                    console.log('🗑️ Delete URL:', deleteUrl);
-                    
                     const res = await fetch(deleteUrl);
                     const text = await res.text();
-                    console.log('🗑️ Delete response:', text);
+                    
+                    if (!res.ok) {
+                        throw new Error('Delete failed: ' + text);
+                    }
+                    
+                    loadAttachments(container, docName, config, row, columns, reportName);
+                } catch (err) {
+                    console.error('Delete error:', err);
+                    alert('Delete failed: ' + err.message);
+                    removeBtn.disabled = false;
+                }
+            };
+            imageWrapper.appendChild(removeBtn);
+        }
+        
+        imagesGrid.appendChild(imageWrapper);
+    });
+    
+    container.appendChild(imagesGrid);
+}
+
+// ✅ RENDER NON-IMAGES AS LIST
+if (nonImages.length > 0) {
+    const filesList = document.createElement('div');
+    filesList.style.marginTop = '10px';
+    
+    nonImages.forEach(({ fileUrl, fileName }) => {
+        const encodedUrl = encodeURIComponent(fileUrl);
+        
+        const rowDiv = document.createElement('div');
+        rowDiv.style.display = 'flex';
+        rowDiv.style.alignItems = 'center';
+        rowDiv.style.gap = '10px';
+        rowDiv.style.marginBottom = '8px';
+        rowDiv.style.padding = '8px';
+        rowDiv.style.border = '1px solid #e0e0e0';
+        rowDiv.style.borderRadius = '4px';
+        rowDiv.style.backgroundColor = '#f9f9f9';
+        
+        const link = document.createElement('a');
+        link.href = `erp_proxy.php?action=proxyfile&fileurl=${encodedUrl}`;
+        link.textContent = '📄 ' + fileName;
+        link.target = '_blank';
+        link.className = 'text-decoration-none flex-grow-1';
+        link.style.color = '#0d6efd';
+        rowDiv.appendChild(link);
+        
+        // Remove button for files
+        if (currentUser?.canedit) {
+            const removeBtn = document.createElement('button');
+            removeBtn.textContent = '🗑️';
+            removeBtn.className = 'btn btn-sm btn-outline-danger';
+            removeBtn.title = 'Delete';
+            removeBtn.onclick = async () => {
+                if (!confirm(`Delete ${fileName}?`)) return;
+                
+                removeBtn.disabled = true;
+                try {
+                    const deleteUrl = `erp_proxy.php?action=delete_attachment&file_name=${encodeURIComponent(fileName)}&doctype=${encodeURIComponent(doctype)}&docname=${encodeURIComponent(docName)}`;
+                    const res = await fetch(deleteUrl);
+                    const text = await res.text();
                     
                     if (!res.ok) {
                         throw new Error('Delete failed: ' + text);
@@ -1051,9 +1107,13 @@ async function loadAttachments(container, docName, config, row, columns, reportN
             };
             rowDiv.appendChild(removeBtn);
         }
-
-        container.appendChild(rowDiv);
+        
+        filesList.appendChild(rowDiv);
     });
+    
+    container.appendChild(filesList);
+}
+
 }
 
 
