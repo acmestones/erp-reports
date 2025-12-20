@@ -101,11 +101,33 @@ document.getElementById("userEmail").textContent = userEmail;
         
         reportConfig = await getReportConfig();
         
-        if (currentUser.allowed_reports && currentUser.allowed_reports.length > 0) {
-            renderReportsList(currentUser.allowed_reports);
-        } else {
-            document.getElementById("reportArea").innerHTML = "<p class='text-center text-muted'>No reports assigned to you. Please contact admin.</p>";
-        }
+            if (currentUser.allowed_reports && currentUser.allowed_reports.length > 0) {
+                // Render report selector buttons for the user
+                const div = document.getElementById('reportSelector');
+                div.innerHTML = '';
+                
+                currentUser.allowed_reports.forEach((reportName) => {
+                    const btn = document.createElement('button');
+                    btn.className = 'btn btn-outline-primary btn-sm me-2 mb-2';
+                    btn.textContent = reportName;
+                    btn.dataset.report = reportName;
+                    btn.addEventListener('click', function() {
+                        document.querySelectorAll('#reportSelector button').forEach(b => b.classList.remove('active'));
+                        this.classList.add('active');
+                        loadReport(reportName);
+                    });
+                    div.appendChild(btn);
+                });
+                
+                // Auto-load first report
+                if (currentUser.allowed_reports.length > 0) {
+                    div.firstChild.classList.add('active');
+                    loadReport(currentUser.allowed_reports[0]);
+                }
+            } else {
+                document.getElementById('reportArea').innerHTML = '<p class="text-center text-muted">No reports assigned to you. Please contact admin.</p>';
+            }
+
         
         const colSelector = document.getElementById("columnSelector");
         if (window.innerWidth >= 768) {
