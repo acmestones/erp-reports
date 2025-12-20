@@ -2171,6 +2171,7 @@ if (isRichText) {
     };
 
     valueDiv.append(displayDiv, editorWrapper, editBtn, cancelBtn, saveBtn);
+}
 
             } else {
                 /* ----- SIMPLE INPUT ----- */
