@@ -877,11 +877,17 @@ async function loadAttachments(container, docName, config, row, columns, reportN
         return;
     }
 
-    console.log('📎 Parsed files:', files);
+    // 🔥 CRITICAL DEBUG - Check structure
+    console.log('📎 Parsed files array:', files);
+    console.log('📎 Number of files:', files?.length);
+    if (files && files.length > 0) {
+        console.log('📎 First file structure:', files[0]);
+        console.log('📎 All property names:', Object.keys(files[0]));
+    }
     
     container.innerHTML = '';
 
-    // UPLOAD BUTTON - Fixed: check canedit
+    // UPLOAD BUTTON
     if (currentUser?.canedit) {
         const uploadBtn = document.createElement('button');
         uploadBtn.className = 'btn btn-sm btn-outline-primary mb-2';
@@ -931,13 +937,18 @@ async function loadAttachments(container, docName, config, row, columns, reportN
         return;
     }
 
-    files.forEach(file => {
-        // ✅ CORRECT: file_name and file_url (with underscores from PHP)
-        const fileUrl = file.file_url;
-        const fileName = file.file_name;
+    files.forEach((file, index) => {
+        console.log(`\n🔍 Processing file ${index + 1}:`, file);
+        
+        // Try different possible property names
+        const fileUrl = file.file_url || file.fileurl || file.url;
+        const fileName = file.file_name || file.filename || file.name;
+        
+        console.log('  📄 fileName:', fileName);
+        console.log('  🔗 fileUrl:', fileUrl);
         
         if (!fileUrl) {
-            console.warn('File missing file_url:', file);
+            console.warn('  ⚠️ File missing URL:', file);
             return;
         }
 
@@ -947,14 +958,20 @@ async function loadAttachments(container, docName, config, row, columns, reportN
         rowDiv.style.gap = '10px';
         rowDiv.style.marginBottom = '8px';
 
-        // ✅ FIXED: Check fileName (not file.filename)
+        // Check if it's an image
         const isImage = /\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i.test(fileName);
+        console.log('  🖼️ isImage:', isImage);
+        
         const encodedUrl = encodeURIComponent(fileUrl);
+        console.log('  📦 encodedUrl:', encodedUrl);
 
         // IMAGE ATTACHMENT
         if (isImage) {
+            const proxyUrl = `erp_proxy.php?action=proxyimage&fileurl=${encodedUrl}`;
+            console.log('  🌐 Proxy URL:', proxyUrl);
+            
             const link = document.createElement('a');
-            link.href = `erp_proxy.php?action=proxyimage&fileurl=${encodedUrl}`;
+            link.href = proxyUrl;
             link.target = '_blank';
 
             const img = document.createElement('img');
@@ -967,11 +984,17 @@ async function loadAttachments(container, docName, config, row, columns, reportN
             img.style.borderRadius = '4px';
             
             img.onerror = function() {
+                console.error('  ❌ Image load failed!');
+                console.error('  ❌ Failed URL:', img.src);
                 this.style.display = 'none';
                 const errorText = document.createElement('span');
-                errorText.textContent = '🖼️ ' + fileName;
-                errorText.className = 'text-muted small';
+                errorText.textContent = '🖼️ ' + fileName + ' (failed)';
+                errorText.className = 'text-danger small';
                 rowDiv.appendChild(errorText);
+            };
+            
+            img.onload = function() {
+                console.log('  ✅ Image loaded successfully!');
             };
 
             link.appendChild(img);
@@ -987,7 +1010,7 @@ async function loadAttachments(container, docName, config, row, columns, reportN
             rowDiv.appendChild(link);
         }
 
-        // REMOVE BUTTON - Fixed: check canedit
+        // REMOVE BUTTON
         if (currentUser?.canedit) {
             const removeBtn = document.createElement('button');
             removeBtn.textContent = '🗑️';
@@ -998,7 +1021,6 @@ async function loadAttachments(container, docName, config, row, columns, reportN
                 
                 removeBtn.disabled = true;
                 try {
-                    // ✅ CORRECT: file_name parameter (with underscore)
                     const deleteUrl = `erp_proxy.php?action=delete_attachment&file_name=${encodeURIComponent(fileName)}&doctype=${encodeURIComponent(doctype)}&docname=${encodeURIComponent(docName)}`;
                     console.log('🗑️ Delete URL:', deleteUrl);
                     
@@ -1023,6 +1045,7 @@ async function loadAttachments(container, docName, config, row, columns, reportN
         container.appendChild(rowDiv);
     });
 }
+
 
 
 
