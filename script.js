@@ -485,6 +485,34 @@ function sanitizeRichHtml(html) {
 
 
 
+function prepareRichTextEditor(editor) {
+    editor.querySelectorAll('img').forEach(img => {
+        const src = img.getAttribute('src');
+        if (!src) return;
+
+        // If image is coming from proxy, extract original ERP URL
+        if (src.includes('action=proxyimage')) {
+            const params = new URLSearchParams(src.split('?')[1]);
+            const original = params.get('fileurl');
+            if (original) {
+                const decoded = decodeURIComponent(original);
+                img.dataset.originalSrc = decoded;
+                img.src = fixImageUrl(decoded); // keep proxy for display
+            }
+        }
+        // If already a normal ERP file
+        else if (
+            src.includes('/files/') ||
+            src.includes('/private/files/')
+        ) {
+            img.dataset.originalSrc = src;
+            img.src = fixImageUrl(src);
+        }
+    });
+}
+
+
+
 
 
 
@@ -2029,6 +2057,7 @@ CURRENT_MODAL_CONTEXT = {
                 editor.className = 'editable-richtext';
                 editor.style.minHeight = '150px';
                 editor.innerHTML = htmlValue;
+                prepareRichTextEditor(editor);
 
                 editor.dataset.fieldname = actualFieldname;
                 editor.dataset.docname  = docName;
