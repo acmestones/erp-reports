@@ -881,7 +881,7 @@ async function loadAttachments(container, docName, config, row, columns, reportN
     
     container.innerHTML = '';
 
-    // ✅ UPLOAD BUTTON - Fixed: canedit not can_edit
+    // UPLOAD BUTTON - Fixed: check canedit
     if (currentUser?.canedit) {
         const uploadBtn = document.createElement('button');
         uploadBtn.className = 'btn btn-sm btn-outline-primary mb-2';
@@ -901,7 +901,7 @@ async function loadAttachments(container, docName, config, row, columns, reportN
                 fd.append('file', input.files[0]);
                 fd.append('doctype', doctype);
                 fd.append('docname', docName);
-                fd.append('is_private', 1);  // ✅ CORRECT: is_private (with underscore)
+                fd.append('is_private', 1);
                 
                 try {
                     const res = await fetch(`erp_proxy.php?action=upload_attachment`, { method: 'POST', body: fd });
@@ -932,7 +932,7 @@ async function loadAttachments(container, docName, config, row, columns, reportN
     }
 
     files.forEach(file => {
-        // ✅ ERPNext returns: file_name and file_url (with underscores)
+        // ✅ CORRECT: file_name and file_url (with underscores from PHP)
         const fileUrl = file.file_url;
         const fileName = file.file_name;
         
@@ -947,6 +947,7 @@ async function loadAttachments(container, docName, config, row, columns, reportN
         rowDiv.style.gap = '10px';
         rowDiv.style.marginBottom = '8px';
 
+        // ✅ FIXED: Check fileName (not file.filename)
         const isImage = /\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i.test(fileName);
         const encodedUrl = encodeURIComponent(fileUrl);
 
@@ -986,7 +987,7 @@ async function loadAttachments(container, docName, config, row, columns, reportN
             rowDiv.appendChild(link);
         }
 
-        // ✅ REMOVE BUTTON - Fixed: canedit not can_edit
+        // REMOVE BUTTON - Fixed: check canedit
         if (currentUser?.canedit) {
             const removeBtn = document.createElement('button');
             removeBtn.textContent = '🗑️';
