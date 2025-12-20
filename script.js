@@ -2780,22 +2780,8 @@ async function openAdminSettings() {
         preserveUserData();
         console.log("Initial data preserved:", tempUserData);
     }, 100);
-    
-    document.getElementById("fetchReportsBtn").onclick = async () => {
-        const btn = document.getElementById("fetchReportsBtn");
-        btn.disabled = true;
-        btn.textContent = "Fetching Reports...";
-        
-        try {
-            const reportsData = await getAllReports();
-            
-            if (reportsData.data && Array.isArray(reportsData.data)) {
-                allReports = reportsData.data.map(r => r.name);
-            } else {
-                allReports = [];
-            }
-            
-            renderReportsListAdmin(allReports);
+
+
 
 
                // Auto-populate Report Management with assigned reports
@@ -2817,10 +2803,28 @@ async function openAdminSettings() {
                         await renderReportsListAdmin(initialReports);
                     }
                 })();
-            
+    
 
 
+    
+    document.getElementById("fetchReportsBtn").onclick = async () => {
+        const btn = document.getElementById("fetchReportsBtn");
+        btn.disabled = true;
+        btn.textContent = "Fetching Reports...";
+        
+        try {
+            const reportsData = await getAllReports();
             
+            if (reportsData.data && Array.isArray(reportsData.data)) {
+                allReports = reportsData.data.map(r => r.name);
+            } else {
+                allReports = [];
+            }
+            
+            renderReportsListAdmin(allReports);
+
+
+                    
             btn.textContent = "✓ Reports Fetched (" + allReports.length + ")";
             btn.classList.add("btn-success");
             btn.classList.remove("btn-primary");
