@@ -1846,14 +1846,7 @@ function createCard(row, columns, reportName, config) {
             console.warn('No docname found. Configure title_field in report settings.', row);
         }
 
-    
-    // Find the first non-empty value
-    card.dataset.docname = possibleIds.find(id => id && id !== '') || '';
-    
-    // Warn if no valid ID found
-    if (!card.dataset.docname) {
-        console.warn('⚠️ No valid docname found. Title field:', titleField, 'Row:', row);
-    }
+
     
     // console.log('Card docname set to:', card.dataset.docname, 'from field:', titleField);
     // ========== END SMART DETECTION ==========
