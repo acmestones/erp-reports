@@ -832,36 +832,32 @@ function injectAttachmentControls(
 
 
 async function loadAttachments(container, docName, config, row, columns, reportName) {
-
     const doctype = config?.doctype;
     if (!doctype) {
-        container.innerHTML = '<div class="text-danger">Missing doctype</div>';
+        container.innerHTML = `<div class="text-danger">Missing doctype</div>`;
         return;
     }
 
-    const url =
-        `/erp_proxy.php?action=list_attachments` +
-        `&doctype=${encodeURIComponent(doctype)}` +
-        `&docname=${encodeURIComponent(docName)}`;
-
+    const url = `erp_proxy.php?action=listattachments&doctype=${encodeURIComponent(doctype)}&docname=${encodeURIComponent(docName)}`;
+    
     let res;
     try {
         res = await fetch(url);
     } catch (e) {
-        console.error('❌ Network error loading attachments', e);
-        container.innerHTML = '<div class="text-muted">No attachments</div>';
+        console.error('Network error loading attachments:', e);
+        container.innerHTML = `<div class="text-muted">No attachments</div>`;
         return;
     }
 
     if (!res.ok) {
-        console.error('❌ Failed to load attachments', res.status);
-        container.innerHTML = '<div class="text-muted">No attachments</div>';
+        console.error('Failed to load attachments:', res.status);
+        container.innerHTML = `<div class="text-muted">No attachments</div>`;
         return;
     }
 
     const text = await res.text();
     if (!text) {
-        container.innerHTML = '<div class="text-muted">No attachments</div>';
+        container.innerHTML = `<div class="text-muted">No attachments</div>`;
         return;
     }
 
@@ -869,119 +865,128 @@ async function loadAttachments(container, docName, config, row, columns, reportN
     try {
         files = JSON.parse(text);
     } catch (e) {
-        console.error('❌ Invalid JSON from list_attachments', text);
-        container.innerHTML = '<div class="text-muted">No attachments</div>';
+        console.error('Invalid JSON from listattachments:', text);
+        container.innerHTML = `<div class="text-muted">No attachments</div>`;
         return;
     }
 
     container.innerHTML = '';
 
-    /* ================= UPLOAD BUTTON ================= */
-
-    if (currentUser?.can_edit) {
+    // UPLOAD BUTTON
+    if (currentUser?.canedit) {
         const uploadBtn = document.createElement('button');
         uploadBtn.className = 'btn btn-sm btn-outline-primary mb-2';
-        uploadBtn.textContent = '➕ Upload Attachment';
+        uploadBtn.textContent = '📎 Upload Attachment';
         container.appendChild(uploadBtn);
-
+        
         uploadBtn.onclick = () => {
             const input = document.createElement('input');
             input.type = 'file';
-
             input.onchange = async () => {
                 if (!input.files.length) return;
-
+                
+                uploadBtn.disabled = true;
+                uploadBtn.textContent = 'Uploading...';
+                
                 const fd = new FormData();
                 fd.append('file', input.files[0]);
                 fd.append('doctype', doctype);
                 fd.append('docname', docName);
-                fd.append('is_private', 1);
-
-                await fetch('/erp_proxy.php?action=upload_attachment', {
-                    method: 'POST',
-                    body: fd
-                });
-
-                loadAttachments(container, docName, config, row, columns, reportName);
+                fd.append('isprivate', 1);
+                
+                try {
+                    await fetch(`erp_proxy.php?action=uploadattachment`, { method: 'POST', body: fd });
+                    loadAttachments(container, docName, config, row, columns, reportName);
+                } catch (err) {
+                    alert('Upload failed: ' + err.message);
+                } finally {
+                    uploadBtn.disabled = false;
+                    uploadBtn.textContent = '📎 Upload Attachment';
+                }
             };
-
             input.click();
         };
     }
 
-/* ================= FILE LIST ================= */
+    // FILE LIST
+    if (!files.length) {
+        container.insertAdjacentHTML('beforeend', `<div class="text-muted">No attachments</div>`);
+        return;
+    }
 
-if (!files.length) {
-    container.insertAdjacentHTML(
-        'beforeend',
-        '<div class="text-muted">No attachments</div>'
-    );
-    return;
+    files.forEach(file => {
+        if (!file.file_url) return;
+
+        const rowDiv = document.createElement('div');
+        rowDiv.style.display = 'flex';
+        rowDiv.style.alignItems = 'center';
+        rowDiv.style.gap = '10px';
+        rowDiv.style.marginBottom = '8px';
+
+        // IMPROVED IMAGE DETECTION - supports more formats
+        const isImage = /\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i.test(file.file_name);
+        const encodedUrl = encodeURIComponent(file.file_url);
+
+        // IMAGE ATTACHMENT
+        if (isImage) {
+            const link = document.createElement('a');
+            link.href = `erp_proxy.php?action=proxyimage&fileurl=${encodedUrl}`;
+            link.target = '_blank';
+
+            const img = document.createElement('img');
+            img.src = link.href;
+            img.style.maxWidth = '120px';
+            img.style.maxHeight = '120px';
+            img.style.objectFit = 'contain';
+            img.style.border = '1px solid #ddd';
+            img.style.cursor = 'pointer';
+            img.style.borderRadius = '4px';
+            
+            // Add error handling for broken images
+            img.onerror = function() {
+                this.style.display = 'none';
+                const errorText = document.createElement('span');
+                errorText.textContent = '🖼️ ' + file.file_name;
+                errorText.className = 'text-muted small';
+                rowDiv.appendChild(errorText);
+            };
+
+            link.appendChild(img);
+            rowDiv.appendChild(link);
+        }
+        // NON-IMAGE FILE
+        else {
+            const link = document.createElement('a');
+            link.href = `erp_proxy.php?action=proxyfile&fileurl=${encodedUrl}`;
+            link.textContent = '📄 ' + file.file_name;
+            link.target = '_blank';
+            rowDiv.appendChild(link);
+        }
+
+        // REMOVE BUTTON
+        if (currentUser?.canedit) {
+            const removeBtn = document.createElement('button');
+            removeBtn.textContent = '🗑️';
+            removeBtn.className = 'btn btn-sm btn-outline-danger';
+            removeBtn.onclick = async () => {
+                if (!confirm(`Delete ${file.file_name}?`)) return;
+                
+                removeBtn.disabled = true;
+                try {
+                    await fetch(`erp_proxy.php?action=deleteattachment&filename=${encodeURIComponent(file.file_name)}&doctype=${encodeURIComponent(doctype)}&docname=${encodeURIComponent(docName)}`);
+                    loadAttachments(container, docName, config, row, columns, reportName);
+                } catch (err) {
+                    alert('Delete failed: ' + err.message);
+                    removeBtn.disabled = false;
+                }
+            };
+            rowDiv.appendChild(removeBtn);
+        }
+
+        container.appendChild(rowDiv);
+    });
 }
 
-files.forEach(file => {
-    if (!file.file_url) return;
-
-    const rowDiv = document.createElement('div');
-    rowDiv.style.display = 'flex';
-    rowDiv.style.alignItems = 'center';
-    rowDiv.style.gap = '10px';
-    rowDiv.style.marginBottom = '8px';
-
-    const isImage = /\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i.test(file.file_name);
-    const encodedUrl = encodeURIComponent(file.file_url);
-
-    /* 🖼 IMAGE ATTACHMENT */
-    if (isImage) {
-        const link = document.createElement('a');
-        link.href = `/erp_proxy.php?action=proxyimage&fileurl=${encodedUrl}`;
-        link.target = '_blank';
-
-        const img = document.createElement('img');
-        img.src = link.href;
-        img.style.maxWidth = '120px';
-        img.style.maxHeight = '120px';
-        img.style.objectFit = 'contain';
-        img.style.border = '1px solid #ddd';
-        img.style.cursor = 'pointer';
-
-        link.appendChild(img);
-        rowDiv.appendChild(link);
-    }
-    /* 📄 NON-IMAGE FILE */
-    else {
-        const link = document.createElement('a');
-        link.href = `/erp_proxy.php?action=proxyfile&fileurl=${encodedUrl}`;
-        link.textContent = file.file_name;
-        link.target = '_blank';
-        rowDiv.appendChild(link);
-    }
-
-    /* ❌ REMOVE BUTTON */
-    if (currentUser?.can_edit) {
-        const removeBtn = document.createElement('button');
-        removeBtn.textContent = '❌';
-        removeBtn.className = 'btn btn-sm btn-outline-danger';
-
-        removeBtn.onclick = async () => {
-            if (!confirm(`Delete ${file.file_name}?`)) return;
-
-            await fetch(
-                `/erp_proxy.php?action=delete_attachment` +
-                `&file_name=${encodeURIComponent(file.file_name)}` +
-                `&doctype=${encodeURIComponent(doctype)}` +
-                `&docname=${encodeURIComponent(docName)}`
-            );
-
-            loadAttachments(container, docName, config, row, columns, reportName);
-        };
-
-        rowDiv.appendChild(removeBtn);
-    }
-
-    container.appendChild(rowDiv);
-});
-}
 
 
 
@@ -2013,148 +2018,159 @@ CURRENT_MODAL_CONTEXT = {
            EDITABLE FIELDS
         ============================== */
 
-        if (isEditable) {
+if (isRichText) {
+    // ----- DISPLAY MODE -----
+    const displayDiv = document.createElement('div');
+    displayDiv.className = 'editable-richtext';
+    displayDiv.style.background = '#f8f9fa';
+    displayDiv.style.padding = '10px';
+    displayDiv.style.border = '1px solid #dee2e6';
+    displayDiv.style.borderRadius = '4px';
+    displayDiv.style.minHeight = '60px';
+    displayDiv.style.maxHeight = '300px';
+    displayDiv.style.overflowY = 'auto';
 
-            const isRichText =
-                ['Text', 'Small Text', 'Long Text', 'Text Editor', 'HTML', 'HTML Editor']
-                    .includes(col.fieldtype);
+    const htmlValue = value || `<p class="text-muted">No content</p>`;
+    displayDiv.innerHTML = sanitizeRichHtml(htmlValue);
+    normalizeFileLinks(displayDiv);
+    autoFixImages(displayDiv);
 
-            if (isRichText) {
+    // ----- EDIT MODE -----
+    const editorWrapper = document.createElement('div');
+    editorWrapper.style.display = 'none';
 
-                /* ----- DISPLAY MODE ----- */
+    const toolbar = document.createElement('div');
+    toolbar.className = 'mb-2 d-flex gap-2 align-items-center';
 
-                const displayDiv = document.createElement('div');
-                displayDiv.className = 'editable-richtext';
-                displayDiv.style.background = '#f8f9fa';
+    const insertImgBtn = document.createElement('button');
+    insertImgBtn.type = 'button';
+    insertImgBtn.className = 'btn btn-sm btn-outline-secondary';
+    insertImgBtn.innerHTML = '🖼️ Insert Image';
 
-                const htmlValue = value || '<p class="text-muted">No content</p>';
-                displayDiv.innerHTML = sanitizeRichHtml(htmlValue);
-                normalizeFileLinks(displayDiv);
-                autoFixImages(displayDiv);
+    const uploadStatus = document.createElement('span');
+    uploadStatus.className = 'text-muted small';
+    uploadStatus.id = 'uploadStatus_' + reportFieldname;
 
-                /* ----- EDIT MODE ----- */
+    const imgInput = document.createElement('input');
+    imgInput.type = 'file';
+    imgInput.accept = 'image/*';
+    imgInput.style.display = 'none';
 
-                const editorWrapper = document.createElement('div');
-                editorWrapper.style.display = 'none';
+    toolbar.append(insertImgBtn, imgInput, uploadStatus);
 
-                const toolbar = document.createElement('div');
-                toolbar.className = 'mb-2';
+    const editor = document.createElement('div');
+    editor.contentEditable = true;
+    editor.className = 'editable-richtext';
+    editor.style.minHeight = '150px';
+    editor.style.maxHeight = '400px';
+    editor.style.overflowY = 'auto';
+    editor.style.border = '1px solid #ced4da';
+    editor.style.padding = '10px';
+    editor.style.background = '#fff';
+    editor.innerHTML = htmlValue;
+    
+    prepareRichTextEditor(editor);
+    editor.dataset.fieldname = actualFieldname;
+    editor.dataset.docname = docName;
+    editor.dataset.doctype = doctype;
 
-                const insertImgBtn = document.createElement('button');
-                insertImgBtn.type = 'button';
-                insertImgBtn.className = 'btn btn-sm btn-outline-secondary';
-                insertImgBtn.textContent = 'Insert Image';
+    insertImgBtn.onclick = () => imgInput.click();
 
-                const imgInput = document.createElement('input');
-                imgInput.type = 'file';
-                imgInput.accept = 'image/*';
-                imgInput.style.display = 'none';
+    // IMPROVED IMAGE UPLOAD WITH AUTO-SAVE
+    imgInput.onchange = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
 
-                toolbar.append(insertImgBtn, imgInput);
+        const statusEl = document.getElementById('uploadStatus_' + reportFieldname);
+        statusEl.textContent = 'Uploading...';
+        insertImgBtn.disabled = true;
+        insertImgBtn.textContent = '⏳ Uploading...';
 
-                const editor = document.createElement('div');
-                editor.contentEditable = true;
-                editor.className = 'editable-richtext';
-                editor.style.minHeight = '150px';
-                editor.innerHTML = htmlValue;
-                prepareRichTextEditor(editor);
+        const fd = new FormData();
+        fd.append('file', file);
+        fd.append('doctype', doctype);
+        fd.append('docname', docName);
+        fd.append('isprivate', 1);
 
-                editor.dataset.fieldname = actualFieldname;
-                editor.dataset.docname  = docName;
-                editor.dataset.doctype  = doctype;
+        try {
+            const res = await fetch(`erp_proxy.php?action=uploadattachment`, { method: 'POST', body: fd });
+            const data = await res.json();
 
-                insertImgBtn.onclick = () => imgInput.click();
+            if (!data.file_url) {
+                throw new Error('No file URL returned');
+            }
 
-                        imgInput.onchange = async (e) => {
-                            const file = e.target.files[0];
-                            if (!file) return;
-                            
-                            // Show uploading indicator
-                            insertImgBtn.disabled = true;
-                            insertImgBtn.textContent = 'Uploading...';
-                            
-                            const fd = new FormData();
-                            fd.append('file', file);
-                            fd.append('doctype', doctype);
-                            fd.append('docname', docName);
-                            fd.append('isprivate', 1);
-                            
-                            try {
-                                const res = await fetch(`erp_proxy.php?action=uploadattachment`, { method: 'POST', body: fd });
-                                const data = await res.json();
-                                
-                                if (!data.fileurl) {
-                                    alert('Image upload failed');
-                                    return;
-                                }
-                                
-                                const img = document.createElement('img');
-                                img.src = fixImageUrl(data.fileurl); // proxied for display
-                                img.dataset.originalSrc = data.fileurl; // ORIGINAL ERP URL
-                                img.style.maxWidth = '100%';
-                                img.style.height = 'auto';
-                                editor.appendChild(img);
-                                
-                                // IMPORTANT: Auto-save after inserting image
-                                setTimeout(() => {
-                                    const saveBtn = editor.parentElement.querySelector('.btn-success');
-                                    if (saveBtn) {
-                                        saveBtn.click();
-                                    }
-                                }, 500);
-                                
-                                insertImgBtn.textContent = 'Insert Image';
-                            } catch (err) {
-                                console.error('Upload error:', err);
-                                alert('Failed to upload image: ' + err.message);
-                            } finally {
-                                insertImgBtn.disabled = false;
-                                insertImgBtn.textContent = 'Insert Image';
-                                imgInput.value = ''; // Reset input
-                            }
-                        };
+            // Insert image into editor
+            const img = document.createElement('img');
+            img.src = fixImageUrl(data.file_url); // proxied for display
+            img.dataset.originalSrc = data.file_url; // ORIGINAL ERP URL
+            img.style.maxWidth = '100%';
+            img.style.height = 'auto';
+            img.style.margin = '10px 0';
+            editor.appendChild(img);
 
+            statusEl.textContent = '✓ Uploaded! Saving...';
+            statusEl.style.color = 'green';
 
+            // AUTO-SAVE after 500ms
+            setTimeout(() => {
+                const saveBtn = editor.parentElement.parentElement.querySelector('.btn-success');
+                if (saveBtn) {
+                    console.log('Auto-saving rich text field with image...');
+                    saveBtn.click();
+                }
+            }, 500);
 
-                editorWrapper.append(toolbar, editor);
+            setTimeout(() => {
+                statusEl.textContent = '';
+            }, 3000);
 
-                /* ----- ACTION BUTTONS ----- */
+        } catch (err) {
+            console.error('Upload error:', err);
+            statusEl.textContent = '❌ Upload failed';
+            statusEl.style.color = 'red';
+            alert('Failed to upload image: ' + err.message);
+        } finally {
+            insertImgBtn.disabled = false;
+            insertImgBtn.textContent = '🖼️ Insert Image';
+            imgInput.value = ''; // Reset input
+        }
+    };
 
-                const editBtn = document.createElement('button');
-                editBtn.className = 'btn btn-sm btn-primary me-2';
-                editBtn.textContent = 'Edit';
+    editorWrapper.append(toolbar, editor);
 
-                const cancelBtn = document.createElement('button');
-                cancelBtn.className = 'btn btn-sm btn-secondary me-2';
-                cancelBtn.textContent = 'Cancel';
-                cancelBtn.style.display = 'none';
+    // ----- ACTION BUTTONS -----
+    const editBtn = document.createElement('button');
+    editBtn.className = 'btn btn-sm btn-primary me-2';
+    editBtn.textContent = 'Edit';
 
-                const saveBtn = createSaveButton(editor, reportName, modal);
-                saveBtn.style.display = 'none';
+    const cancelBtn = document.createElement('button');
+    cancelBtn.className = 'btn btn-sm btn-secondary me-2';
+    cancelBtn.textContent = 'Cancel';
+    cancelBtn.style.display = 'none';
 
-                editBtn.onclick = () => {
-                    editorWrapper.style.display = 'block';
-                    displayDiv.style.display = 'none';
-                    editBtn.style.display = 'none';
-                    cancelBtn.style.display = 'inline-block';
-                    saveBtn.style.display = 'inline-block';
-                };
+    const saveBtn = createSaveButton(editor, reportName, modal);
+    saveBtn.style.display = 'none';
 
-                cancelBtn.onclick = () => {
-                    editorWrapper.style.display = 'none';
-                    displayDiv.style.display = 'block';
-                    editBtn.style.display = 'inline-block';
-                    cancelBtn.style.display = 'none';
-                    saveBtn.style.display = 'none';
-                };
+    editBtn.onclick = () => {
+        editorWrapper.style.display = 'block';
+        displayDiv.style.display = 'none';
+        editBtn.style.display = 'none';
+        cancelBtn.style.display = 'inline-block';
+        saveBtn.style.display = 'inline-block';
+    };
 
-                valueDiv.append(
-                    displayDiv,
-                    editorWrapper,
-                    editBtn,
-                    cancelBtn,
-                    saveBtn
-                );
+    cancelBtn.onclick = () => {
+        editorWrapper.style.display = 'none';
+        displayDiv.style.display = 'block';
+        editBtn.style.display = 'inline-block';
+        cancelBtn.style.display = 'none';
+        saveBtn.style.display = 'none';
+        // Reset editor content
+        editor.innerHTML = htmlValue;
+    };
+
+    valueDiv.append(displayDiv, editorWrapper, editBtn, cancelBtn, saveBtn);
 
             } else {
                 /* ----- SIMPLE INPUT ----- */
@@ -2254,24 +2270,25 @@ CURRENT_MODAL_CONTEXT = {
 
 
 function createSaveButton(inputElement, reportName, modal) {
-    const saveBtn = document.createElement("button");
-    saveBtn.className = "btn btn-sm btn-success mt-1";
-    saveBtn.textContent = "Save";
-    
+    const saveBtn = document.createElement('button');
+    saveBtn.className = 'btn btn-sm btn-success mt-1';
+    saveBtn.textContent = 'Save';
+
     saveBtn.onclick = async () => {
         saveBtn.disabled = true;
-        saveBtn.textContent = "Saving...";
-        
+        saveBtn.textContent = 'Saving...';
+
         const doctype = inputElement.dataset.doctype;
         const docname = inputElement.dataset.docname;
         const fieldname = inputElement.dataset.fieldname;
-        
+
         let value;
+
         if (inputElement.classList.contains('editable-richtext')) {
-            // FIX: Clone the content and restore original image URLs before saving
+            // Clone the content and restore original image URLs before saving
             const tempDiv = document.createElement('div');
             tempDiv.innerHTML = inputElement.innerHTML;
-            
+
             // Restore original URLs from data-original-src
             tempDiv.querySelectorAll('img').forEach(img => {
                 const originalSrc = img.dataset.originalSrc;
@@ -2280,55 +2297,58 @@ function createSaveButton(inputElement, reportName, modal) {
                     img.removeAttribute('data-original-src');
                 }
             });
-            
+
             value = tempDiv.innerHTML;
         } else {
-            value = inputElement.value || '';
+            value = inputElement.value;
         }
-        
+
         if (typeof value === 'string' && !value.includes('<') && !value.includes('>')) {
             value = value.trim();
         }
-        
+
         if (!value || value.trim() === '') {
-            alert("Please enter a value before saving.");
+            alert('Please enter a value before saving.');
             saveBtn.disabled = false;
-            saveBtn.textContent = "Save";
+            saveBtn.textContent = 'Save';
             return;
         }
-        
+
+        // Wrap rich text content in ql-editor div if needed
         if (inputElement.classList.contains('editable-richtext')) {
             if (!value.includes('ql-editor')) {
                 value = `<div class="ql-editor read-mode">${value}</div>`;
             }
         }
-        
-        console.log("Saving field:", {doctype, docname, fieldname});
-        
+
+        console.log('Saving field:', doctype, docname, fieldname);
+
         try {
             const result = await updateField(doctype, docname, fieldname, value);
-            console.log("Update result:", result);
-            
+            console.log('Update result:', result);
+
             if (result.error || result.exc) {
-                throw new Error(result.error || result.exc || "Update failed");
+                throw new Error(result.error || result.exc || 'Update failed');
             }
-            
-            saveBtn.textContent = "✓ Saved";
-            saveBtn.classList.remove("btn-success");
-            saveBtn.classList.add("btn-secondary");
-            
+
+            saveBtn.textContent = '✓ Saved';
+            saveBtn.classList.remove('btn-success');
+            saveBtn.classList.add('btn-secondary');
+
+            // Reload report and close modal after 1.5 seconds
             setTimeout(() => {
                 loadReport(reportName);
                 modal.hide();
             }, 1500);
+
         } catch (err) {
-            console.error("Save error:", err);
-            alert("Error saving: " + err.message);
+            console.error('Save error:', err);
+            alert('Error saving: ' + err.message);
             saveBtn.disabled = false;
-            saveBtn.textContent = "Save";
+            saveBtn.textContent = 'Save';
         }
     };
-    
+
     return saveBtn;
 }
 
