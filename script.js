@@ -569,6 +569,33 @@ function autoFixImages(container) {
 
 
 
+function constrainRichTextImages(container) {
+    if (!container) return;
+
+    container.querySelectorAll(
+        '.editable-richtext img, .ql-editor img'
+    ).forEach(img => {
+
+        // Visual constraints
+        img.style.maxHeight = '300px';
+        img.style.width = 'auto';
+        img.style.maxWidth = '100%';
+        img.style.cursor = 'pointer';
+
+        // Open full image on click
+        if (!img.dataset.bound) {
+            img.addEventListener('click', e => {
+                e.stopPropagation();
+                window.open(img.src, '_blank', 'noopener');
+            });
+            img.dataset.bound = '1';
+        }
+    });
+}
+
+
+
+
 
 
 // Enhanced fixImageUrl function
@@ -2109,6 +2136,7 @@ CURRENT_MODAL_CONTEXT = {
         normalizeFileLinks(valueDiv);
         normalizeAttachmentLayout(valueDiv);
         autoFixImages(valueDiv);
+        constrainRichTextImages(valueDiv);
     }
 
     // 🔗 Link field
@@ -2141,6 +2169,7 @@ CURRENT_MODAL_CONTEXT = {
     
         modalEl.addEventListener('shown.bs.modal', () => {
             autoFixImages(modalEl);
+            constrainRichTextImages(modalEl);
         }, { once: true });
 
 }
