@@ -3353,279 +3353,271 @@ async function openGlobalReportConfigModal(reportName) {
     // Get list of users for permissions table
     const users = await getUsers();
     
-    const contentHtml = `
-        <div class="row">
-            <div class="col-md-6">
-                <h6>Basic Settings</h6>
-                
-                <label class="small fw-bold">DocType</label>
-                <input type="text" class="form-control form-control-sm mb-2" id="config_doctype" 
-                       value="${config.doctype || ''}" placeholder="e.g., Work Order">
-                
-                <label class="small fw-bold">Title Field (for cards)</label>
-                <select class="form-select form-select-sm mb-2" id="config_title_field">
-                    ${columns.map(c => `
-                        <option value="${c.fieldname}" ${config.title_field === c.fieldname ? 'selected' : ''}>
-                            ${c.label || c.fieldname}
-                        </option>
-                    `).join('')}
-                </select>
-                
-                <label class="small fw-bold">Card Fields (select up to 5)</label>
-                <div class="border rounded p-2 mb-3" style="max-height: 200px; overflow-y: auto;">
-                    ${columns.map(c => `
-                        <div class="form-check">
-                            <input class="form-check-input card-field-check" type="checkbox" 
-                                   value="${c.fieldname}" id="card_${c.fieldname}"
-                                   ${config.card_fields?.includes(c.fieldname) ? 'checked' : ''}>
-                            <label class="form-check-label small" for="card_${c.fieldname}">
-                                ${c.label || c.fieldname}
-                            </label>
-                        </div>
-                    `).join('')}
+const contentHtml = `
+    <!-- MANDATORY FIELDS SECTION -->
+    <div class="alert alert-warning mb-3">
+        <strong>⚠️ Required Fields:</strong> DocType, Title Field, and Primary Grouping Field are mandatory to run the report.
+    </div>
+
+    <!-- BASIC SETTINGS -->
+    <div class="card mb-3">
+        <div class="card-header bg-primary text-white">
+            <h6 class="mb-0">Basic Settings</h6>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-4 mb-3">
+                    <label class="form-label fw-bold">DocType <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control" id="configdoctype" value="${config.doctype || ''}" placeholder="e.g., Work Order" required>
+                    <small class="text-muted">ERPNext DocType name</small>
                 </div>
-                
-                <label class="small fw-bold">Image Fields (description fields)</label>
-                <div class="border rounded p-2 mb-3" style="max-height: 150px; overflow-y: auto;">
-                    ${columns.filter(c => c.fieldname.toLowerCase().includes('description')).map(c => `
-                        <div class="form-check">
-                            <input class="form-check-input image-field-check" type="checkbox" 
-                                   value="${c.fieldname}" id="img_${c.fieldname}"
-                                   ${config.image_fields?.includes(c.fieldname) ? 'checked' : ''}>
-                            <label class="form-check-label small" for="img_${c.fieldname}">
-                                ${c.label || c.fieldname}
-                            </label>
-                        </div>
-                    `).join('')}
+                <div class="col-md-4 mb-3">
+                    <label class="form-label fw-bold">Title Field (for cards) <span class="text-danger">*</span></label>
+                    <select class="form-select" id="configtitlefield" required>
+                        ${columns.map(c => `<option value="${c.fieldname}" ${config.titlefield === c.fieldname ? 'selected' : ''}>${c.label || c.fieldname}</option>`).join('')}
+                    </select>
                 </div>
-                
-                <h6 class="mt-3">Grouping & Sorting</h6>
-                
-                <label class="small fw-bold">Primary Grouping Field</label>
-                <select class="form-select form-select-sm mb-2" id="config_group1">
-                    <option value="">-- None --</option>
-                    ${columns.map(c => `
-                        <option value="${c.fieldname}" ${config.group_by?.[0] === c.fieldname ? 'selected' : ''}>
-                            ${c.label || c.fieldname}
-                        </option>
-                    `).join('')}
-                </select>
-                
-                <label class="small fw-bold">Secondary Grouping Field</label>
-                <select class="form-select form-select-sm mb-2" id="config_group2">
-                    <option value="">-- None --</option>
-                    ${columns.map(c => `
-                        <option value="${c.fieldname}" ${config.group_by?.[1] === c.fieldname ? 'selected' : ''}>
-                            ${c.label || c.fieldname}
-                        </option>
-                    `).join('')}
-                </select>
-                
-                <label class="small fw-bold">Sort Records By</label>
-                <select class="form-select form-select-sm mb-2" id="config_sortby">
-                    <option value="">-- None --</option>
-                    ${columns.map(c => `
-                        <option value="${c.fieldname}" ${config.sort_by === c.fieldname ? 'selected' : ''}>
-                            ${c.label || c.fieldname}
-                        </option>
-                    `).join('')}
-                </select>
-                
-                <select class="form-select form-select-sm mb-2" id="config_sortorder">
-                    <option value="asc" ${config.sort_order === 'asc' ? 'selected' : ''}>Ascending</option>
-                    <option value="desc" ${config.sort_order === 'desc' ? 'selected' : ''}>Descending</option>
-                </select>
-                
-                <div class="form-check mb-3">
-                    <input class="form-check-input" type="checkbox" id="config_collapsed" 
-                           ${config.collapsed !== false ? 'checked' : ''}>
-                    <label class="form-check-label" for="config_collapsed">
-                        Start with groups collapsed
-                    </label>
-                </div>
-                
-                <hr>
-                
-                <h6 class="mt-3">Time Logs Settings</h6>
-                <div class="form-check mb-3">
-                    <input class="form-check-input" type="checkbox" id="configShowTimeLogs" 
-                        ${config.show_time_logs_button ? 'checked' : ''}>
-                    <label class="form-check-label" for="configShowTimeLogs">
-                        Show Time Logs Button
-                    </label>
-                </div>
-                
-                <div id="timeLogsPermissionsSection" style="display: ${config.show_time_logs_button ? 'block' : 'none'}">
-                    <label class="small fw-bold">User Permissions for Time Logs</label>
-                    <div class="table-responsive" style="max-height: 250px; overflow-y: auto;">
-                        <table class="table table-sm table-bordered">
-                            <thead class="table-light sticky-top">
-                                <tr>
-                                    <th style="min-width: 150px;">User</th>
-                                    <th class="text-center" style="width: 60px;">View</th>
-                                    <th class="text-center" style="width: 60px;">Add</th>
-                                    <th class="text-center" style="width: 60px;">Edit</th>
-                                    <th class="text-center" style="width: 60px;">Delete</th>
-                                    <th class="text-center" style="width: 80px;">Edit WS</th>
-                                    <th class="text-center" style="width: 80px;">Edit Time</th>
-                                </tr>
-                            </thead>
-                            <tbody id="timeLogsPermissionsTable">
-                                ${users.users.map(user => {
-                                    const perms = config.time_logs_permissions?.[user.email] || {
-                                        can_view: false,
-                                        can_add: false,
-                                        can_edit: false,
-                                        can_delete: false
-                                    };
-                                    
-                                    return `
-                                        <tr>
-                                            <td class="small">${user.email}</td>
-                                            <td class="text-center">
-                                                <input type="checkbox" class="form-check-input time-log-perm" 
-                                                    data-user="${user.email}" data-perm="can_view" 
-                                                    ${perms.can_view ? 'checked' : ''}>
-                                            </td>
-                                            <td class="text-center">
-                                                <input type="checkbox" class="form-check-input time-log-perm" 
-                                                    data-user="${user.email}" data-perm="can_add" 
-                                                    ${perms.can_add ? 'checked' : ''}>
-                                            </td>
-                                            <td class="text-center">
-                                                <input type="checkbox" class="form-check-input time-log-perm" 
-                                                    data-user="${user.email}" data-perm="can_edit" 
-                                                    ${perms.can_edit ? 'checked' : ''}>
-                                            </td>
-                                            <td class="text-center">
-                                                <input type="checkbox" class="form-check-input time-log-perm" 
-                                                    data-user="${user.email}" data-perm="can_delete" 
-                                                    ${perms.can_delete ? 'checked' : ''}>
-                                            </td>
-                                            <td class="text-center">
-                                                <input type="checkbox" class="form-check-input time-log-perm" 
-                                                    data-user="${user.email}" data-perm="can_edit_workstation" 
-                                                    ${perms.can_edit_workstation ? 'checked' : ''}>
-                                            </td>
-                                            <td class="text-center">
-                                                <input type="checkbox" class="form-check-input time-log-perm" 
-                                                    data-user="${user.email}" data-perm="can_edit_time_required" 
-                                                    ${perms.can_edit_time_required ? 'checked' : ''}>
-                                            </td>
-                                        </tr>
-                                    `;
-                                }).join('')}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-                
-                <hr>
-                
-                <h6 class="mt-3">Operation Planning Settings</h6>
-                <div class="form-check mb-3">
-                    <input class="form-check-input" type="checkbox" id="configShowOperationPlanning" 
-                        ${config.show_operation_planning_button !== false ? 'checked' : ''}>
-                    <label class="form-check-label" for="configShowOperationPlanning">
-                        Show Operation Planning Button
-                    </label>
-                </div>
-                
-                <div id="operationPlanningPermissionsSection" style="display: ${config.show_operation_planning_button !== false ? 'block' : 'none'};">
-                    <label class="small fw-bold">User Permissions for Operation Planning</label>
-                    <div class="table-responsive" style="max-height: 300px; overflow-y: auto;">
-                        <table class="table table-sm table-bordered">
-                            <thead class="table-light sticky-top">
-                                <tr>
-                                    <th style="min-width: 180px;">User</th>
-                                    <th class="text-center" style="width: 60px;" title="View operations table">View</th>
-                                    <th class="text-center" style="width: 60px;" title="Add new operations">Add</th>
-                                    <th class="text-center" style="width: 60px;" title="Edit existing operations">Edit</th>
-                                    <th class="text-center" style="width: 60px;" title="Delete operations">Delete</th>
-                                    <th class="text-center" style="width: 80px;" title="Reorder operations">Reorder</th>
-                                </tr>
-                            </thead>
-                            <tbody id="operationPlanningPermissionsTable">
-                                ${users.users.map(user => {
-                                    const perms = config.operation_planning_permissions?.[user.email] || {
-                                        can_view: false,
-                                        can_add: false,
-                                        can_edit: false,
-                                        can_delete: false,
-                                        can_reorder: false
-                                    };
-                                    return `<tr>
-                                        <td class="small">${user.email}</td>
-                                        <td class="text-center">
-                                            <input type="checkbox" class="form-check-input op-planning-perm" 
-                                                data-user="${user.email}" data-perm="can_view" ${perms.can_view ? 'checked' : ''}>
-                                        </td>
-                                        <td class="text-center">
-                                            <input type="checkbox" class="form-check-input op-planning-perm" 
-                                                data-user="${user.email}" data-perm="can_add" ${perms.can_add ? 'checked' : ''}>
-                                        </td>
-                                        <td class="text-center">
-                                            <input type="checkbox" class="form-check-input op-planning-perm" 
-                                                data-user="${user.email}" data-perm="can_edit" ${perms.can_edit ? 'checked' : ''}>
-                                        </td>
-                                        <td class="text-center">
-                                            <input type="checkbox" class="form-check-input op-planning-perm" 
-                                                data-user="${user.email}" data-perm="can_delete" ${perms.can_delete ? 'checked' : ''}>
-                                        </td>
-                                        <td class="text-center">
-                                            <input type="checkbox" class="form-check-input op-planning-perm" 
-                                                data-user="${user.email}" data-perm="can_reorder" ${perms.can_reorder ? 'checked' : ''}>
-                                        </td>
-                                    </tr>`;
-                                }).join('')}
-                            </tbody>
-                        </table>
-                    </div>
+                <div class="col-md-4 mb-3">
+                    <label class="form-label fw-bold">Primary Grouping Field <span class="text-danger">*</span></label>
+                    <select class="form-select" id="configgroup1" required>
+                        <option value="">-- None --</option>
+                        ${columns.map(c => `<option value="${c.fieldname}" ${config.groupby?.[0] === c.fieldname ? 'selected' : ''}>${c.label || c.fieldname}</option>`).join('')}
+                    </select>
                 </div>
             </div>
             
-            <div class="col-md-6">
-                <h6>Group Sort Order</h6>
-                <p class="small text-muted">Drag to reorder groups</p>
-                
-                ${group1Values.length > 0 ? `
-                    <label class="small fw-bold">Primary Groups (${group1Field})</label>
-                    <ul class="list-group mb-3" id="group1SortList" style="max-height: 200px; overflow-y: auto;">
-                        ${group1Values.map(val => `
-                            <li class="list-group-item draggable-group" draggable="true" data-value="${val}">
-                                <span class="drag-handle">☰</span> ${val}
-                            </li>
-                        `).join('')}
-                    </ul>
-                ` : '<p class="small text-muted mb-3">Select primary grouping field first</p>'}
-                
-                ${group2Values.length > 0 ? `
-                    <label class="small fw-bold">Secondary Groups (${group2Field})</label>
-                    <ul class="list-group mb-3" id="group2SortList" style="max-height: 200px; overflow-y: auto;">
-                        ${group2Values.map(val => `
-                            <li class="list-group-item draggable-group" draggable="true" data-value="${val}">
-                                <span class="drag-handle">☰</span> ${val}
-                            </li>
-                        `).join('')}
-                    </ul>
-                ` : ''}
-                
-                <hr>
-                
-                <h6>Field Display Order</h6>
-                <p class="small text-muted">Drag to reorder fields in detail modal</p>
-                <ul class="list-group" id="fieldOrderList" style="max-height: 300px; overflow-y: auto;">
-                    ${columns.map(col => {
-                        return `
-                            <li class="list-group-item draggable-field" draggable="true" data-fieldname="${col.fieldname}">
-                                <span class="drag-handle">☰</span> ${col.label || col.fieldname}
-                            </li>
-                        `;
-                    }).join('')}
-                </ul>
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label class="form-label fw-bold">Secondary Grouping Field</label>
+                    <select class="form-select" id="configgroup2">
+                        <option value="">-- None --</option>
+                        ${columns.map(c => `<option value="${c.fieldname}" ${config.groupby?.[1] === c.fieldname ? 'selected' : ''}>${c.label || c.fieldname}</option>`).join('')}
+                    </select>
+                </div>
+                <div class="col-md-3 mb-3">
+                    <label class="form-label fw-bold">Sort Records By</label>
+                    <select class="form-select" id="configsortby">
+                        <option value="">-- None --</option>
+                        ${columns.map(c => `<option value="${c.fieldname}" ${config.sortby === c.fieldname ? 'selected' : ''}>${c.label || c.fieldname}</option>`).join('')}
+                    </select>
+                </div>
+                <div class="col-md-3 mb-3">
+                    <label class="form-label fw-bold">Sort Order</label>
+                    <select class="form-select" id="configsortorder">
+                        <option value="asc" ${config.sortorder === 'asc' ? 'selected' : ''}>Ascending</option>
+                        <option value="desc" ${config.sortorder === 'desc' ? 'selected' : ''}>Descending</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div class="form-check mb-2">
+                <input class="form-check-input" type="checkbox" id="configcollapsed" ${config.collapsed !== false ? 'checked' : ''}>
+                <label class="form-check-label" for="configcollapsed">
+                    Start with groups collapsed
+                </label>
             </div>
         </div>
-    `;
+    </div>
+
+    <!-- CARD FIELDS -->
+    <div class="card mb-3">
+        <div class="card-header bg-info text-white">
+            <h6 class="mb-0">Card Display Fields (select up to 5)</h6>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                ${columns.map(c => `
+                    <div class="col-md-3 col-sm-4 col-6 mb-2">
+                        <div class="form-check">
+                            <input class="form-check-input card-field-check" type="checkbox" value="${c.fieldname}" id="card-${c.fieldname}" ${config.cardfields?.includes(c.fieldname) ? 'checked' : ''}>
+                            <label class="form-check-label small" for="card-${c.fieldname}">
+                                ${c.label || c.fieldname}
+                            </label>
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+        </div>
+    </div>
+
+    <!-- IMAGE FIELDS -->
+    <div class="card mb-3">
+        <div class="card-header bg-secondary text-white">
+            <h6 class="mb-0">Image Fields (description fields)</h6>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                ${columns.filter(c => c.fieldname.toLowerCase().includes('description')).map(c => `
+                    <div class="col-md-3 col-sm-4 col-6 mb-2">
+                        <div class="form-check">
+                            <input class="form-check-input image-field-check" type="checkbox" value="${c.fieldname}" id="img-${c.fieldname}" ${config.imagefields?.includes(c.fieldname) ? 'checked' : ''}>
+                            <label class="form-check-label small" for="img-${c.fieldname}">
+                                ${c.label || c.fieldname}
+                            </label>
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+        </div>
+    </div>
+
+    <!-- FIELD SORTING ORDER -->
+    <div class="card mb-3">
+        <div class="card-header bg-success text-white">
+            <h6 class="mb-0">Field Display Order (drag to reorder)</h6>
+        </div>
+        <div class="card-body" style="max-height: 400px; overflow-y: auto;">
+            <div class="row">
+                <div class="col-12">
+                    <ul class="list-group" id="fieldOrderList">
+                        ${columns.map(col => `
+                            <li class="list-group-item draggable-field d-flex align-items-center" draggable="true" data-fieldname="${col.fieldname}">
+                                <span class="drag-handle me-2">☰</span>
+                                <span>${col.label || col.fieldname}</span>
+                            </li>
+                        `).join('')}
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- GROUP SORTING -->
+    ${group1Field ? `
+    <div class="card mb-3">
+        <div class="card-header bg-warning">
+            <h6 class="mb-0">Primary Group Sort Order (drag to reorder)</h6>
+        </div>
+        <div class="card-body">
+            <ul class="list-group" id="group1SortList">
+                ${group1Values.map(v => `
+                    <li class="list-group-item draggable-group d-flex align-items-center" draggable="true" data-value="${v}">
+                        <span class="drag-handle me-2">☰</span>
+                        <span>${v}</span>
+                    </li>
+                `).join('')}
+            </ul>
+        </div>
+    </div>
+    ` : ''}
+
+    ${group2Field ? `
+    <div class="card mb-3">
+        <div class="card-header bg-warning">
+            <h6 class="mb-0">Secondary Group Sort Order (drag to reorder)</h6>
+        </div>
+        <div class="card-body">
+            <ul class="list-group" id="group2SortList">
+                ${group2Values.map(v => `
+                    <li class="list-group-item draggable-group d-flex align-items-center" draggable="true" data-value="${v}">
+                        <span class="drag-handle me-2">☰</span>
+                        <span>${v}</span>
+                    </li>
+                `).join('')}
+            </ul>
+        </div>
+    </div>
+    ` : ''}
+
+    <!-- TIME LOGS SETTINGS -->
+    <div class="card mb-3">
+        <div class="card-header bg-primary text-white">
+            <h6 class="mb-0">Time Logs Settings</h6>
+        </div>
+        <div class="card-body">
+            <div class="form-check mb-3">
+                <input class="form-check-input" type="checkbox" id="configShowTimeLogs" ${config.showtimelogsbutton ? 'checked' : ''}>
+                <label class="form-check-label fw-bold" for="configShowTimeLogs">
+                    Show Time Logs Button
+                </label>
+            </div>
+            
+            <div id="timeLogsPermissionsSection" style="display: ${config.showtimelogsbutton ? 'block' : 'none'}">
+                <label class="form-label fw-bold">User Permissions for Time Logs</label>
+                <div class="table-responsive">
+                    <table class="table table-sm table-bordered">
+                        <thead class="table-light">
+                            <tr>
+                                <th style="min-width: 180px;">User</th>
+                                <th class="text-center" style="width: 80px;">View</th>
+                                <th class="text-center" style="width: 80px;">Add</th>
+                                <th class="text-center" style="width: 80px;">Edit</th>
+                                <th class="text-center" style="width: 80px;">Delete</th>
+                                <th class="text-center" style="width: 120px;">Edit WS</th>
+                                <th class="text-center" style="width: 120px;">Edit Time</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${users.users.map(user => {
+                                const perms = config.timelogspermissions?.[user.email] || { canview: false, canadd: false, canedit: false, candelete: false, caneditworkstation: false, canedittimerequired: false };
+                                return `
+                                    <tr>
+                                        <td>${user.email}</td>
+                                        <td class="text-center"><input type="checkbox" class="time-log-perm" data-user="${user.email}" data-perm="canview" ${perms.canview ? 'checked' : ''}></td>
+                                        <td class="text-center"><input type="checkbox" class="time-log-perm" data-user="${user.email}" data-perm="canadd" ${perms.canadd ? 'checked' : ''}></td>
+                                        <td class="text-center"><input type="checkbox" class="time-log-perm" data-user="${user.email}" data-perm="canedit" ${perms.canedit ? 'checked' : ''}></td>
+                                        <td class="text-center"><input type="checkbox" class="time-log-perm" data-user="${user.email}" data-perm="candelete" ${perms.candelete ? 'checked' : ''}></td>
+                                        <td class="text-center"><input type="checkbox" class="time-log-perm" data-user="${user.email}" data-perm="caneditworkstation" ${perms.caneditworkstation ? 'checked' : ''}></td>
+                                        <td class="text-center"><input type="checkbox" class="time-log-perm" data-user="${user.email}" data-perm="canedittimerequired" ${perms.canedittimerequired ? 'checked' : ''}></td>
+                                    </tr>
+                                `;
+                            }).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- OPERATION PLANNING SETTINGS -->
+    <div class="card mb-3">
+        <div class="card-header bg-success text-white">
+            <h6 class="mb-0">Operation Planning Settings</h6>
+        </div>
+        <div class="card-body">
+            <div class="form-check mb-3">
+                <input class="form-check-input" type="checkbox" id="configShowOperationPlanning" ${config.showoperationplanningbutton !== false ? 'checked' : ''}>
+                <label class="form-check-label fw-bold" for="configShowOperationPlanning">
+                    Show Operation Planning Button
+                </label>
+            </div>
+            
+            <div id="operationPlanningPermissionsSection" style="display: ${config.showoperationplanningbutton !== false ? 'block' : 'none'}">
+                <label class="form-label fw-bold">User Permissions for Operation Planning</label>
+                <div class="table-responsive">
+                    <table class="table table-sm table-bordered">
+                        <thead class="table-light">
+                            <tr>
+                                <th style="min-width: 180px;">User</th>
+                                <th class="text-center" style="width: 100px;">View</th>
+                                <th class="text-center" style="width: 100px;">Add</th>
+                                <th class="text-center" style="width: 100px;">Edit</th>
+                                <th class="text-center" style="width: 100px;">Delete</th>
+                                <th class="text-center" style="width: 100px;">Reorder</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${users.users.map(user => {
+                                const perms = config.operationplanningpermissions?.[user.email] || { canview: false, canadd: false, canedit: false, candelete: false, canreorder: false };
+                                return `
+                                    <tr>
+                                        <td>${user.email}</td>
+                                        <td class="text-center"><input type="checkbox" class="op-planning-perm" data-user="${user.email}" data-perm="canview" ${perms.canview ? 'checked' : ''}></td>
+                                        <td class="text-center"><input type="checkbox" class="op-planning-perm" data-user="${user.email}" data-perm="canadd" ${perms.canadd ? 'checked' : ''}></td>
+                                        <td class="text-center"><input type="checkbox" class="op-planning-perm" data-user="${user.email}" data-perm="canedit" ${perms.canedit ? 'checked' : ''}></td>
+                                        <td class="text-center"><input type="checkbox" class="op-planning-perm" data-user="${user.email}" data-perm="candelete" ${perms.candelete ? 'checked' : ''}></td>
+                                        <td class="text-center"><input type="checkbox" class="op-planning-perm" data-user="${user.email}" data-perm="canreorder" ${perms.canreorder ? 'checked' : ''}></td>
+                                    </tr>
+                                `;
+                            }).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+`;
+
     
     document.getElementById('globalConfigContent').innerHTML = contentHtml;
     
