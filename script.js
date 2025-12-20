@@ -6178,4 +6178,158 @@ function openMobileReorderModal(reportName, primaryGroup, secondaryGroup) {
     });
 }
 
+
+
+
+// ✅ Populate report config dropdown
+function populateReportConfigDropdown() {
+    const select = document.getElementById('reportConfigSelect');
+    if (!select) return;
+    
+    select.innerHTML = '<option value="">-- Select a Report --</option>';
+    
+    if (allReports && allReports.length > 0) {
+        allReports.forEach(reportName => {
+            const option = document.createElement('option');
+            option.value = reportName;
+            option.textContent = reportName;
+            select.appendChild(option);
+        });
+    }
+}
+
+// ✅ Load report configuration into form
+function loadReportConfigIntoForm() {
+    const reportName = document.getElementById('reportConfigSelect').value;
+    if (!reportName) {
+        document.getElementById('reportConfigForm').style.display = 'none';
+        return;
+    }
+    
+    document.getElementById('reportConfigForm').style.display = 'block';
+    document.getElementById('configReportName').textContent = `Configuring: ${reportName}`;
+    
+    const config = reportConfig[reportName] || {};
+    
+    // Load values
+    document.getElementById('config_doctype').value = config.doctype || '';
+    document.getElementById('config_title_field').value = config.title_field || '';
+    document.getElementById('config_card_fields').value = Array.isArray(config.card_fields) ? config.card_fields.join(',') : '';
+    document.getElementById('config_group_by').value = Array.isArray(config.group_by) ? config.group_by.join(',') : '';
+    document.getElementById('config_status_fields').value = Array.isArray(config.status_fields) ? config.status_fields.join(',') : '';
+    document.getElementById('config_image_fields').value = Array.isArray(config.image_fields) ? config.image_fields.join(',') : '';
+    document.getElementById('config_sort_by').value = config.sort_by || '';
+    document.getElementById('config_sort_order').value = config.sort_order || 'asc';
+    document.getElementById('config_collapsed').checked = config.collapsed || false;
+    document.getElementById('config_show_time_logs').checked = config.show_time_logs_button || false;
+    document.getElementById('config_time_logs_field').value = config.time_logs_field || '';
+    document.getElementById('config_show_operation_planning').checked = config.show_operation_planning_button !== false;
+}
+
+// ✅ Save current report configuration
+function saveCurrentReportConfigToMemory() {
+    const reportName = document.getElementById('reportConfigSelect').value;
+    if (!reportName) {
+        alert('Please select a report first');
+        return;
+    }
+    
+    const doctype = document.getElementById('config_doctype').value.trim();
+    const titleField = document.getElementById('config_title_field').value.trim();
+    
+    if (!doctype || !titleField) {
+        alert('DocType and Title Field are required!');
+        return;
+    }
+    
+    // Get existing config or create new
+    if (!reportConfig[reportName]) {
+        reportConfig[reportName] = {};
+    }
+    
+    // Update config
+    reportConfig[reportName].doctype = doctype;
+    reportConfig[reportName].title_field = titleField;
+    
+    // Card fields
+    const cardFieldsStr = document.getElementById('config_card_fields').value.trim();
+    if (cardFieldsStr) {
+        reportConfig[reportName].card_fields = cardFieldsStr.split(',').map(f => f.trim()).filter(f => f);
+    }
+    
+    // Group by
+    const groupByStr = document.getElementById('config_group_by').value.trim();
+    if (groupByStr) {
+        reportConfig[reportName].group_by = groupByStr.split(',').map(f => f.trim()).filter(f => f);
+    }
+    
+    // Status fields
+    const statusFieldsStr = document.getElementById('config_status_fields').value.trim();
+    if (statusFieldsStr) {
+        reportConfig[reportName].status_fields = statusFieldsStr.split(',').map(f => f.trim()).filter(f => f);
+    }
+    
+    // Image fields
+    const imageFieldsStr = document.getElementById('config_image_fields').value.trim();
+    if (imageFieldsStr) {
+        reportConfig[reportName].image_fields = imageFieldsStr.split(',').map(f => f.trim()).filter(f => f);
+    }
+    
+    // Sort
+    const sortBy = document.getElementById('config_sort_by').value.trim();
+    if (sortBy) {
+        reportConfig[reportName].sort_by = sortBy;
+        reportConfig[reportName].sort_order = document.getElementById('config_sort_order').value;
+    }
+    
+    // Collapsed
+    reportConfig[reportName].collapsed = document.getElementById('config_collapsed').checked;
+    
+    // Time logs
+    reportConfig[reportName].show_time_logs_button = document.getElementById('config_show_time_logs').checked;
+    const timeLogsField = document.getElementById('config_time_logs_field').value.trim();
+    if (timeLogsField) {
+        reportConfig[reportName].time_logs_field = timeLogsField;
+    }
+    
+    // Operation planning
+    reportConfig[reportName].show_operation_planning_button = document.getElementById('config_show_operation_planning').checked;
+    
+    alert(`✅ Configuration for "${reportName}" saved in memory.\n\nClick "Save All Settings" button to persist to file.`);
+}
+
+// ✅ Clear form
+function clearReportConfigFormFields() {
+    document.getElementById('config_doctype').value = '';
+    document.getElementById('config_title_field').value = '';
+    document.getElementById('config_card_fields').value = '';
+    document.getElementById('config_group_by').value = '';
+    document.getElementById('config_status_fields').value = '';
+    document.getElementById('config_image_fields').value = '';
+    document.getElementById('config_sort_by').value = '';
+    document.getElementById('config_sort_order').value = 'asc';
+    document.getElementById('config_collapsed').checked = false;
+    document.getElementById('config_show_time_logs').checked = false;
+    document.getElementById('config_time_logs_field').value = '';
+    document.getElementById('config_show_operation_planning').checked = true;
+}
+
+// ✅ Initialize report config tab
+function initializeReportConfigTab() {
+    populateReportConfigDropdown();
+    
+    const selectEl = document.getElementById('reportConfigSelect');
+    const saveBtn = document.getElementById('saveReportConfigBtn');
+    const clearBtn = document.getElementById('clearReportConfigBtn');
+    
+    if (selectEl) selectEl.addEventListener('change', loadReportConfigIntoForm);
+    if (saveBtn) saveBtn.addEventListener('click', saveCurrentReportConfigToMemory);
+    if (clearBtn) clearBtn.addEventListener('click', clearReportConfigFormFields);
+}
+
+
+
+
+
+
 // ========== END MOBILE REORDER MODAL FUNCTIONS ==========
