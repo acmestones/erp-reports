@@ -870,10 +870,13 @@ async function loadAttachments(container, docName, config, row, columns, reportN
         return;
     }
 
+    // Add debug logging
+    console.log('📎 Attachments loaded:', files);
+
     container.innerHTML = '';
 
     // UPLOAD BUTTON
-    if (currentUser?.canedit) {
+    if (currentUser?.canedit || currentUser?.can_edit) {
         const uploadBtn = document.createElement('button');
         uploadBtn.className = 'btn btn-sm btn-outline-primary mb-2';
         uploadBtn.textContent = '📎 Upload Attachment';
@@ -915,7 +918,14 @@ async function loadAttachments(container, docName, config, row, columns, reportN
     }
 
     files.forEach(file => {
-        if (!file.file_url) return;
+        // FIX: Check both property name formats (underscore and camelCase)
+        const fileUrl = file.file_url || file.fileurl;
+        const fileName = file.file_name || file.filename;
+        
+        if (!fileUrl) {
+            console.warn('File missing file_url:', file);
+            return;
+        }
 
         const rowDiv = document.createElement('div');
         rowDiv.style.display = 'flex';
@@ -923,9 +933,9 @@ async function loadAttachments(container, docName, config, row, columns, reportN
         rowDiv.style.gap = '10px';
         rowDiv.style.marginBottom = '8px';
 
-        // IMPROVED IMAGE DETECTION - supports more formats
-        const isImage = /\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i.test(file.file_name);
-        const encodedUrl = encodeURIComponent(file.file_url);
+        // IMPROVED IMAGE DETECTION
+        const isImage = /\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i.test(fileName);
+        const encodedUrl = encodeURIComponent(fileUrl);
 
         // IMAGE ATTACHMENT
         if (isImage) {
@@ -946,7 +956,7 @@ async function loadAttachments(container, docName, config, row, columns, reportN
             img.onerror = function() {
                 this.style.display = 'none';
                 const errorText = document.createElement('span');
-                errorText.textContent = '🖼️ ' + file.file_name;
+                errorText.textContent = '🖼️ ' + fileName;
                 errorText.className = 'text-muted small';
                 rowDiv.appendChild(errorText);
             };
@@ -958,22 +968,22 @@ async function loadAttachments(container, docName, config, row, columns, reportN
         else {
             const link = document.createElement('a');
             link.href = `erp_proxy.php?action=proxyfile&fileurl=${encodedUrl}`;
-            link.textContent = '📄 ' + file.file_name;
+            link.textContent = '📄 ' + fileName;
             link.target = '_blank';
             rowDiv.appendChild(link);
         }
 
         // REMOVE BUTTON
-        if (currentUser?.canedit) {
+        if (currentUser?.canedit || currentUser?.can_edit) {
             const removeBtn = document.createElement('button');
             removeBtn.textContent = '🗑️';
             removeBtn.className = 'btn btn-sm btn-outline-danger';
             removeBtn.onclick = async () => {
-                if (!confirm(`Delete ${file.file_name}?`)) return;
+                if (!confirm(`Delete ${fileName}?`)) return;
                 
                 removeBtn.disabled = true;
                 try {
-                    await fetch(`erp_proxy.php?action=deleteattachment&filename=${encodeURIComponent(file.file_name)}&doctype=${encodeURIComponent(doctype)}&docname=${encodeURIComponent(docName)}`);
+                    await fetch(`erp_proxy.php?action=deleteattachment&filename=${encodeURIComponent(fileName)}&doctype=${encodeURIComponent(doctype)}&docname=${encodeURIComponent(docName)}`);
                     loadAttachments(container, docName, config, row, columns, reportName);
                 } catch (err) {
                     alert('Delete failed: ' + err.message);
