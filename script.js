@@ -3637,107 +3637,112 @@ const contentHtml = `
             e.target.checked ? 'block' : 'none';
     });
     
-    document.getElementById('saveGlobalConfigBtn').onclick = () => {
-        if (!reportConfig[reportName]) {
-            reportConfig[reportName] = {};
-        }
-        
-        const group1 = document.getElementById('config_group1').value;
-        const group2 = document.getElementById('config_group2').value;
-        
-        reportConfig[reportName].doctype = document.getElementById('config_doctype').value;
-        reportConfig[reportName].title_field = document.getElementById('config_title_field').value;
-        
-        const cardFieldChecks = document.querySelectorAll('.card-field-check:checked');
-        reportConfig[reportName].card_fields = Array.from(cardFieldChecks).map(cb => cb.value);
-        
-        const imageFieldChecks = document.querySelectorAll('.image-field-check:checked');
-        reportConfig[reportName].image_fields = Array.from(imageFieldChecks).map(cb => cb.value);
-        
-        reportConfig[reportName].group_by = [group1, group2].filter(g => g);
-        reportConfig[reportName].sort_by = document.getElementById('config_sortby').value;
-        reportConfig[reportName].sort_order = document.getElementById('config_sortorder').value;
-        reportConfig[reportName].collapsed = document.getElementById('config_collapsed').checked;
-        
-        const fieldOrder = [...document.querySelectorAll('#fieldOrderList .draggable-field')]
-            .map(li => li.dataset.fieldname);
-        reportConfig[reportName].field_order = fieldOrder;
-        
-        reportConfig[reportName].group_sort = {};
-        
-        const group1List = document.getElementById('group1SortList');
-        if (group1List && group1) {
-            const group1Order = [...group1List.querySelectorAll('.draggable-group')]
-                .map(li => li.dataset.value);
-            reportConfig[reportName].group_sort[group1] = group1Order;
-        }
-        
-        const group2List = document.getElementById('group2SortList');
-        if (group2List && group2) {
-            const group2Order = [...group2List.querySelectorAll('.draggable-group')]
-                .map(li => li.dataset.value);
-            reportConfig[reportName].group_sort[group2] = group2Order;
-        }
-        
-        // Save Time Logs configuration
-        reportConfig[reportName].show_time_logs_button = 
-            document.getElementById('configShowTimeLogs').checked;
-        
-        if (reportConfig[reportName].show_time_logs_button) {
-            const permissions = {};
-            document.querySelectorAll('.time-log-perm').forEach(checkbox => {
-                const user = checkbox.dataset.user;
-                const perm = checkbox.dataset.perm;
-                
-                if (!permissions[user]) {
-                    permissions[user] = {
-                        can_view: false,
-                        can_add: false,
-                        can_edit: false,
-                        can_delete: false,
-                        can_edit_workstation: false,
-                        can_edit_time_required: false
-                    };
-                }
-                
-                permissions[user][perm] = checkbox.checked;
-            });
-            
-            reportConfig[reportName].time_logs_permissions = permissions;
-        } else {
-            // Remove time logs permissions if feature is disabled
-            delete reportConfig[reportName].time_logs_permissions;
-        }
-        
-        // Save Operation Planning configuration
-        reportConfig[reportName].show_operation_planning_button = 
-            document.getElementById('configShowOperationPlanning').checked;
-        
-        if (reportConfig[reportName].show_operation_planning_button) {
-            const opPlanningPermissions = {};
-            document.querySelectorAll('.op-planning-perm').forEach(checkbox => {
-                const user = checkbox.dataset.user;
-                const perm = checkbox.dataset.perm;
-                if (!opPlanningPermissions[user]) {
-                    opPlanningPermissions[user] = {
-                        can_view: false,
-                        can_add: false,
-                        can_edit: false,
-                        can_delete: false,
-                        can_reorder: false
-                    };
-                }
-                opPlanningPermissions[user][perm] = checkbox.checked;
-            });
-            reportConfig[reportName].operation_planning_permissions = opPlanningPermissions;
-        } else {
-            // Remove operation planning permissions if feature is disabled
-            delete reportConfig[reportName].operation_planning_permissions;
-        }
-        
-        alert("Configuration saved! Click 'Save Changes' in main settings to persist.");
-        configModal.hide();
-    };
+document.getElementByIdsaveGlobalConfigBtn').onclick = () => {
+    // Validate mandatory fields
+    const doctype = document.getElementById('configdoctype')?.value.trim();
+    const titlefield = document.getElementById('configtitlefield')?.value;
+    const group1 = document.getElementById('configgroup1')?.value;
+    
+    if (!doctype) {
+        alert('⚠️ DocType is required!');
+        document.getElementById('configdoctype').focus();
+        return;
+    }
+    
+    if (!titlefield) {
+        alert('⚠️ Title Field is required!');
+        document.getElementById('configtitlefield').focus();
+        return;
+    }
+    
+    if (!group1) {
+        alert('⚠️ Primary Grouping Field is required!');
+        document.getElementById('configgroup1').focus();
+        return;
+    }
+    
+    // Initialize config if needed
+    if (!reportConfig[reportName]) reportConfig[reportName] = {};
+    
+    // Save basic settings
+    const group2 = document.getElementById('configgroup2')?.value || '';
+    reportConfig[reportName].doctype = doctype;
+    reportConfig[reportName].titlefield = titlefield;
+    
+    // Save card fields
+    const cardFieldChecks = document.querySelectorAll('.card-field-check:checked');
+    reportConfig[reportName].cardfields = Array.from(cardFieldChecks).map(cb => cb.value);
+    
+    // Save image fields
+    const imageFieldChecks = document.querySelectorAll('.image-field-check:checked');
+    reportConfig[reportName].imagefields = Array.from(imageFieldChecks).map(cb => cb.value);
+    
+    // Save grouping
+    reportConfig[reportName].groupby = [group1, group2].filter(g => g);
+    
+    // Save sorting
+    reportConfig[reportName].sortby = document.getElementById('configsortby')?.value || '';
+    reportConfig[reportName].sortorder = document.getElementById('configsortorder')?.value || 'asc';
+    reportConfig[reportName].collapsed = document.getElementById('configcollapsed')?.checked || false;
+    
+    // Save field order
+    const fieldOrder = [...document.querySelectorAll('#fieldOrderList .draggable-field')].map(li => li.dataset.fieldname);
+    reportConfig[reportName].fieldorder = fieldOrder;
+    
+    // Save group sorting
+    reportConfig[reportName].groupsort = {};
+    const group1List = document.getElementById('group1SortList');
+    if (group1List && group1) {
+        const group1Order = [...group1List.querySelectorAll('.draggable-group')].map(li => li.dataset.value);
+        reportConfig[reportName].groupsort[group1] = group1Order;
+    }
+    const group2List = document.getElementById('group2SortList');
+    if (group2List && group2) {
+        const group2Order = [...group2List.querySelectorAll('.draggable-group')].map(li => li.dataset.value);
+        reportConfig[reportName].groupsort[group2] = group2Order;
+    }
+    
+    // Save Time Logs configuration
+    reportConfig[reportName].showtimelogsbutton = document.getElementById('configShowTimeLogs')?.checked || false;
+    if (reportConfig[reportName].showtimelogsbutton) {
+        const permissions = {};
+        document.querySelectorAll('.time-log-perm').forEach(checkbox => {
+            const user = checkbox.dataset.user;
+            const perm = checkbox.dataset.perm;
+            if (!permissions[user]) {
+                permissions[user] = { canview: false, canadd: false, canedit: false, candelete: false, caneditworkstation: false, canedittimerequired: false };
+            }
+            permissions[user][perm] = checkbox.checked;
+        });
+        reportConfig[reportName].timelogspermissions = permissions;
+    } else {
+        delete reportConfig[reportName].timelogspermissions;
+    }
+    
+    // Save Operation Planning configuration
+    reportConfig[reportName].showoperationplanningbutton = document.getElementById('configShowOperationPlanning')?.checked !== false;
+    if (reportConfig[reportName].showoperationplanningbutton) {
+        const opPlanningPermissions = {};
+        document.querySelectorAll('.op-planning-perm').forEach(checkbox => {
+            const user = checkbox.dataset.user;
+            const perm = checkbox.dataset.perm;
+            if (!opPlanningPermissions[user]) {
+                opPlanningPermissions[user] = { canview: false, canadd: false, canedit: false, candelete: false, canreorder: false };
+            }
+            opPlanningPermissions[user][perm] = checkbox.checked;
+        });
+        reportConfig[reportName].operationplanningpermissions = opPlanningPermissions;
+    } else {
+        delete reportConfig[reportName].operationplanningpermissions;
+    }
+    
+    alert('✅ Configuration saved! Click "Save Changes" in main settings to persist.');
+    configModal.hide();
+    
+    // Blur any focused element to prevent aria-hidden focus conflict
+    if (document.activeElement) document.activeElement.blur();
+};
+
     
     // Blur any focused element to prevent aria-hidden focus conflict
     if (document.activeElement && document.activeElement.blur) {
