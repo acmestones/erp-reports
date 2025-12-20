@@ -2036,20 +2036,36 @@ CURRENT_MODAL_CONTEXT = {
 
                 insertImgBtn.onclick = () => imgInput.click();
 
-                imgInput.onchange = e => {
-                    const file = e.target.files[0];
-                    if (!file) return;
-
-                    const reader = new FileReader();
-                    reader.onload = ev => {
+                    imgInput.onchange = async e => {
+                        const file = e.target.files[0];
+                        if (!file) return;
+                    
+                        const fd = new FormData();
+                        fd.append('file', file);
+                        fd.append('doctype', doctype);
+                        fd.append('docname', docName);
+                        fd.append('is_private', 1);
+                    
+                        const res = await fetch('/erp_proxy.php?action=upload_attachment', {
+                            method: 'POST',
+                            body: fd
+                        });
+                    
+                        const data = await res.json();
+                        if (!data.file_url) {
+                            alert('Image upload failed');
+                            return;
+                        }
+                    
                         const img = document.createElement('img');
-                        img.src = ev.target.result;
+                        img.src = fixImageUrl(data.file_url);      // proxied for display
+                        img.dataset.originalSrc = data.file_url;   // ORIGINAL ERP URL
                         img.style.maxWidth = '100%';
+                    
                         editor.appendChild(img);
+                        imgInput.value = '';
                     };
-                    reader.readAsDataURL(file);
-                    imgInput.value = '';
-                };
+
 
                 editorWrapper.append(toolbar, editor);
 
