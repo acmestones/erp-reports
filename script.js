@@ -1903,7 +1903,6 @@ async function showDetailModal(row, columns, reportName, config) {
     console.log('🔥 showDetailModal START', row, columns, config);
     console.log('📊 Columns length:', columns?.length, columns);
 
-
     const modalEl = document.getElementById('detailModal');
     const modal = new bootstrap.Modal(modalEl);
 
@@ -1918,17 +1917,13 @@ async function showDetailModal(row, columns, reportName, config) {
     }
     console.log('📄 Doctype:', doctype);
 
+    CURRENT_MODAL_CONTEXT = {
+        row,
+        columns,
+        reportName,
+        config
+    };
 
-
-CURRENT_MODAL_CONTEXT = {
-    row,
-    columns,
-    reportName,
-    config
-};
-
-    
-    
     const titleField = config.titlefield || config.title_field || 'name';
     let docName = row[titleField] || row.name || row.id;
 
@@ -1939,12 +1934,10 @@ CURRENT_MODAL_CONTEXT = {
         docName = row[nameCol.fieldname];
     }
 
-    document.getElementById('modalTitle').textContent =
-        `${docName} Details`;
+    document.getElementById('modalTitle').textContent = `${docName} Details`;
 
     const modalBody = document.getElementById('modalBody');
     modalBody.innerHTML = '';
-
 
     /* =============================
        ERP BASE (SINGLE SOURCE)
@@ -1955,8 +1948,6 @@ CURRENT_MODAL_CONTEXT = {
         window.ERP_BASE ||
         'https://acmestones.erpnext.com';
 
-
-    
     /* =============================
        USER PERMISSIONS
     ============================== */
@@ -1966,9 +1957,9 @@ CURRENT_MODAL_CONTEXT = {
         config.userpermissions?.[userEmail] ||
         {};
 
-    const editableFields = userPerms.editable_fields || [];
-    const hiddenFields   = userPerms.hidden_fields || [];
-    const canEdit        = !!currentUser?.can_edit;
+    const editableFields = userPerms.editable_fields || userPerms.editablefields || [];
+    const hiddenFields = userPerms.hidden_fields || userPerms.hiddenfields || [];
+    const canEdit = !!currentUser?.can_edit || !!currentUser?.canedit;
 
     /* =============================
        FIELD RENDER LOOP
@@ -1977,9 +1968,8 @@ CURRENT_MODAL_CONTEXT = {
     for (const col of columns) {
         console.log('➡️ Rendering field:', col.fieldname, col.fieldtype);
 
-
         const reportFieldname = col.fieldname;
-       
+
         if (hiddenFields.includes(reportFieldname)) continue;
 
         const actualFieldname =
@@ -1999,8 +1989,6 @@ CURRENT_MODAL_CONTEXT = {
             continue;
         }
 
-
-
         const fieldDiv = document.createElement('div');
         fieldDiv.className = 'mb-3 pb-2 border-bottom';
 
@@ -2011,250 +1999,228 @@ CURRENT_MODAL_CONTEXT = {
 
         const valueDiv = document.createElement('div');
         valueDiv.className = 'mt-1';
-
-         valueDiv.dataset.reportField = reportFieldname;
+        valueDiv.dataset.reportField = reportFieldname;
 
         /* =============================
            EDITABLE FIELDS
         ============================== */
 
-if (isRichText) {
-    // ----- DISPLAY MODE -----
-    const displayDiv = document.createElement('div');
-    displayDiv.className = 'editable-richtext';
-    displayDiv.style.background = '#f8f9fa';
-    displayDiv.style.padding = '10px';
-    displayDiv.style.border = '1px solid #dee2e6';
-    displayDiv.style.borderRadius = '4px';
-    displayDiv.style.minHeight = '60px';
-    displayDiv.style.maxHeight = '300px';
-    displayDiv.style.overflowY = 'auto';
+        if (isEditable) {
+            const isRichText = ['Text', 'Small Text', 'Long Text', 'Text Editor', 'HTML', 'HTML Editor'].includes(col.fieldtype);
 
-    const htmlValue = value || `<p class="text-muted">No content</p>`;
-    displayDiv.innerHTML = sanitizeRichHtml(htmlValue);
-    normalizeFileLinks(displayDiv);
-    autoFixImages(displayDiv);
+            if (isRichText) {
+                // ----- DISPLAY MODE -----
+                const displayDiv = document.createElement('div');
+                displayDiv.className = 'editable-richtext';
+                displayDiv.style.background = '#f8f9fa';
+                displayDiv.style.padding = '10px';
+                displayDiv.style.border = '1px solid #dee2e6';
+                displayDiv.style.borderRadius = '4px';
+                displayDiv.style.minHeight = '60px';
+                displayDiv.style.maxHeight = '300px';
+                displayDiv.style.overflowY = 'auto';
 
-    // ----- EDIT MODE -----
-    const editorWrapper = document.createElement('div');
-    editorWrapper.style.display = 'none';
+                const htmlValue = value || `<p class="text-muted">No content</p>`;
+                displayDiv.innerHTML = sanitizeRichHtml(htmlValue);
+                normalizeFileLinks(displayDiv);
+                autoFixImages(displayDiv);
 
-    const toolbar = document.createElement('div');
-    toolbar.className = 'mb-2 d-flex gap-2 align-items-center';
+                // ----- EDIT MODE -----
+                const editorWrapper = document.createElement('div');
+                editorWrapper.style.display = 'none';
 
-    const insertImgBtn = document.createElement('button');
-    insertImgBtn.type = 'button';
-    insertImgBtn.className = 'btn btn-sm btn-outline-secondary';
-    insertImgBtn.innerHTML = '🖼️ Insert Image';
+                const toolbar = document.createElement('div');
+                toolbar.className = 'mb-2 d-flex gap-2 align-items-center';
 
-    const uploadStatus = document.createElement('span');
-    uploadStatus.className = 'text-muted small';
-    uploadStatus.id = 'uploadStatus_' + reportFieldname;
+                const insertImgBtn = document.createElement('button');
+                insertImgBtn.type = 'button';
+                insertImgBtn.className = 'btn btn-sm btn-outline-secondary';
+                insertImgBtn.innerHTML = '🖼️ Insert Image';
 
-    const imgInput = document.createElement('input');
-    imgInput.type = 'file';
-    imgInput.accept = 'image/*';
-    imgInput.style.display = 'none';
+                const uploadStatus = document.createElement('span');
+                uploadStatus.className = 'text-muted small';
+                uploadStatus.id = 'uploadStatus_' + reportFieldname;
 
-    toolbar.append(insertImgBtn, imgInput, uploadStatus);
+                const imgInput = document.createElement('input');
+                imgInput.type = 'file';
+                imgInput.accept = 'image/*';
+                imgInput.style.display = 'none';
 
-    const editor = document.createElement('div');
-    editor.contentEditable = true;
-    editor.className = 'editable-richtext';
-    editor.style.minHeight = '150px';
-    editor.style.maxHeight = '400px';
-    editor.style.overflowY = 'auto';
-    editor.style.border = '1px solid #ced4da';
-    editor.style.padding = '10px';
-    editor.style.background = '#fff';
-    editor.innerHTML = htmlValue;
-    
-    prepareRichTextEditor(editor);
-    editor.dataset.fieldname = actualFieldname;
-    editor.dataset.docname = docName;
-    editor.dataset.doctype = doctype;
+                toolbar.append(insertImgBtn, imgInput, uploadStatus);
 
-    insertImgBtn.onclick = () => imgInput.click();
+                const editor = document.createElement('div');
+                editor.contentEditable = true;
+                editor.className = 'editable-richtext';
+                editor.style.minHeight = '150px';
+                editor.style.maxHeight = '400px';
+                editor.style.overflowY = 'auto';
+                editor.style.border = '1px solid #ced4da';
+                editor.style.padding = '10px';
+                editor.style.background = '#fff';
+                editor.innerHTML = htmlValue;
 
-    // IMPROVED IMAGE UPLOAD WITH AUTO-SAVE
-    imgInput.onchange = async (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
+                prepareRichTextEditor(editor);
+                editor.dataset.fieldname = actualFieldname;
+                editor.dataset.docname = docName;
+                editor.dataset.doctype = doctype;
 
-        const statusEl = document.getElementById('uploadStatus_' + reportFieldname);
-        statusEl.textContent = 'Uploading...';
-        insertImgBtn.disabled = true;
-        insertImgBtn.textContent = '⏳ Uploading...';
+                insertImgBtn.onclick = () => imgInput.click();
 
-        const fd = new FormData();
-        fd.append('file', file);
-        fd.append('doctype', doctype);
-        fd.append('docname', docName);
-        fd.append('isprivate', 1);
+                // IMPROVED IMAGE UPLOAD WITH AUTO-SAVE
+                imgInput.onchange = async (e) => {
+                    const file = e.target.files[0];
+                    if (!file) return;
 
-        try {
-            const res = await fetch(`erp_proxy.php?action=uploadattachment`, { method: 'POST', body: fd });
-            const data = await res.json();
+                    const statusEl = document.getElementById('uploadStatus_' + reportFieldname);
+                    statusEl.textContent = 'Uploading...';
+                    insertImgBtn.disabled = true;
+                    insertImgBtn.textContent = '⏳ Uploading...';
 
-            if (!data.file_url) {
-                throw new Error('No file URL returned');
-            }
+                    const fd = new FormData();
+                    fd.append('file', file);
+                    fd.append('doctype', doctype);
+                    fd.append('docname', docName);
+                    fd.append('isprivate', 1);
 
-            // Insert image into editor
-            const img = document.createElement('img');
-            img.src = fixImageUrl(data.file_url); // proxied for display
-            img.dataset.originalSrc = data.file_url; // ORIGINAL ERP URL
-            img.style.maxWidth = '100%';
-            img.style.height = 'auto';
-            img.style.margin = '10px 0';
-            editor.appendChild(img);
+                    try {
+                        const res = await fetch(`erp_proxy.php?action=uploadattachment`, { method: 'POST', body: fd });
+                        const data = await res.json();
 
-            statusEl.textContent = '✓ Uploaded! Saving...';
-            statusEl.style.color = 'green';
+                        if (!data.file_url) {
+                            throw new Error('No file URL returned');
+                        }
 
-            // AUTO-SAVE after 500ms
-            setTimeout(() => {
-                const saveBtn = editor.parentElement.parentElement.querySelector('.btn-success');
-                if (saveBtn) {
-                    console.log('Auto-saving rich text field with image...');
-                    saveBtn.click();
-                }
-            }, 500);
+                        // Insert image into editor
+                        const img = document.createElement('img');
+                        img.src = fixImageUrl(data.file_url); // proxied for display
+                        img.dataset.originalSrc = data.file_url; // ORIGINAL ERP URL
+                        img.style.maxWidth = '100%';
+                        img.style.height = 'auto';
+                        img.style.margin = '10px 0';
+                        editor.appendChild(img);
 
-            setTimeout(() => {
-                statusEl.textContent = '';
-            }, 3000);
+                        statusEl.textContent = '✓ Uploaded! Saving...';
+                        statusEl.style.color = 'green';
 
-        } catch (err) {
-            console.error('Upload error:', err);
-            statusEl.textContent = '❌ Upload failed';
-            statusEl.style.color = 'red';
-            alert('Failed to upload image: ' + err.message);
-        } finally {
-            insertImgBtn.disabled = false;
-            insertImgBtn.textContent = '🖼️ Insert Image';
-            imgInput.value = ''; // Reset input
-        }
-    };
+                        // AUTO-SAVE after 500ms
+                        setTimeout(() => {
+                            const saveBtn = editor.parentElement.parentElement.querySelector('.btn-success');
+                            if (saveBtn) {
+                                console.log('Auto-saving rich text field with image...');
+                                saveBtn.click();
+                            }
+                        }, 500);
 
-    editorWrapper.append(toolbar, editor);
+                        setTimeout(() => {
+                            statusEl.textContent = '';
+                        }, 3000);
 
-    // ----- ACTION BUTTONS -----
-    const editBtn = document.createElement('button');
-    editBtn.className = 'btn btn-sm btn-primary me-2';
-    editBtn.textContent = 'Edit';
+                    } catch (err) {
+                        console.error('Upload error:', err);
+                        statusEl.textContent = '❌ Upload failed';
+                        statusEl.style.color = 'red';
+                        alert('Failed to upload image: ' + err.message);
+                    } finally {
+                        insertImgBtn.disabled = false;
+                        insertImgBtn.textContent = '🖼️ Insert Image';
+                        imgInput.value = ''; // Reset input
+                    }
+                };
 
-    const cancelBtn = document.createElement('button');
-    cancelBtn.className = 'btn btn-sm btn-secondary me-2';
-    cancelBtn.textContent = 'Cancel';
-    cancelBtn.style.display = 'none';
+                editorWrapper.append(toolbar, editor);
 
-    const saveBtn = createSaveButton(editor, reportName, modal);
-    saveBtn.style.display = 'none';
+                // ----- ACTION BUTTONS -----
+                const editBtn = document.createElement('button');
+                editBtn.className = 'btn btn-sm btn-primary me-2';
+                editBtn.textContent = 'Edit';
 
-    editBtn.onclick = () => {
-        editorWrapper.style.display = 'block';
-        displayDiv.style.display = 'none';
-        editBtn.style.display = 'none';
-        cancelBtn.style.display = 'inline-block';
-        saveBtn.style.display = 'inline-block';
-    };
+                const cancelBtn = document.createElement('button');
+                cancelBtn.className = 'btn btn-sm btn-secondary me-2';
+                cancelBtn.textContent = 'Cancel';
+                cancelBtn.style.display = 'none';
 
-    cancelBtn.onclick = () => {
-        editorWrapper.style.display = 'none';
-        displayDiv.style.display = 'block';
-        editBtn.style.display = 'inline-block';
-        cancelBtn.style.display = 'none';
-        saveBtn.style.display = 'none';
-        // Reset editor content
-        editor.innerHTML = htmlValue;
-    };
+                const saveBtn = createSaveButton(editor, reportName, modal);
+                saveBtn.style.display = 'none';
 
-    valueDiv.append(displayDiv, editorWrapper, editBtn, cancelBtn, saveBtn);
-}
+                editBtn.onclick = () => {
+                    editorWrapper.style.display = 'block';
+                    displayDiv.style.display = 'none';
+                    editBtn.style.display = 'none';
+                    cancelBtn.style.display = 'inline-block';
+                    saveBtn.style.display = 'inline-block';
+                };
 
+                cancelBtn.onclick = () => {
+                    editorWrapper.style.display = 'none';
+                    displayDiv.style.display = 'block';
+                    editBtn.style.display = 'inline-block';
+                    cancelBtn.style.display = 'none';
+                    saveBtn.style.display = 'none';
+                    // Reset editor content
+                    editor.innerHTML = htmlValue;
+                };
+
+                valueDiv.append(displayDiv, editorWrapper, editBtn, cancelBtn, saveBtn);
             } else {
                 /* ----- SIMPLE INPUT ----- */
-
                 const input = document.createElement('input');
                 input.className = 'form-control form-control-sm';
                 input.value = value || '';
 
                 input.dataset.fieldname = actualFieldname;
-                input.dataset.docname  = docName;
-                input.dataset.doctype  = doctype;
+                input.dataset.docname = docName;
+                input.dataset.doctype = doctype;
 
                 const saveBtn = createSaveButton(input, reportName, modal);
                 valueDiv.append(input, saveBtn);
             }
-        
-        
-    
+        }
         /* =============================
            READ-ONLY FIELDS
         ============================== */
-    } else if (hasValue) {
+        else if (hasValue || reportFieldname === ATTACHMENTS_REPORT_FIELD) {
 
-    // 📎 ATTACHMENTS (HARDCODED BY DESIGN)
-    if (reportFieldname === ATTACHMENTS_REPORT_FIELD) {
+            // 📎 ATTACHMENTS (HARDCODED BY DESIGN)
+            if (reportFieldname === ATTACHMENTS_REPORT_FIELD) {
+                valueDiv.innerHTML = '<div class="text-muted small">Loading attachments…</div>';
+                loadAttachments(valueDiv, docName, config, row, columns, reportName);
+            }
+            // 📝 Rich text (notes, descriptions, job card etc.)
+            else if (typeof value === 'string' && value.includes('<')) {
+                valueDiv.innerHTML = sanitizeRichHtml(value);
+                normalizeFileLinks(valueDiv);
+                normalizeAttachmentLayout(valueDiv);
+                autoFixImages(valueDiv);
+                constrainRichTextImages(valueDiv);
+            }
+            // 🔗 Link field
+            else if (col.fieldtype === 'Link' && col.options) {
+                const link = document.createElement('a');
+                link.href = `${ERP_BASE}/app/${col.options.toLowerCase().replace(/\s+/g, '-')}/${encodeURIComponent(value)}`;
+                link.target = '_blank';
+                link.rel = 'noopener noreferrer';
+                link.textContent = value;
+                valueDiv.appendChild(link);
+            }
+            // 📄 Plain text
+            else {
+                valueDiv.textContent = value;
+            }
+        }
 
-        valueDiv.innerHTML =
-            '<div class="text-muted small">Loading attachments…</div>';
-
-        loadAttachments(
-            valueDiv,
-            docName,
-            config,
-            row,
-            columns,
-            reportName
-        );
-    }
-
-    // 📝 Rich text (notes, descriptions, job card etc.)
-    else if (typeof value === 'string' && value.includes('<')) {
-
-        valueDiv.innerHTML = sanitizeRichHtml(value);
-        normalizeFileLinks(valueDiv);
-        normalizeAttachmentLayout(valueDiv);
-        autoFixImages(valueDiv);
-        constrainRichTextImages(valueDiv);
-    }
-
-    // 🔗 Link field
-    else if (col.fieldtype === 'Link' && col.options) {
-
-        const link = document.createElement('a');
-        link.href = `${ERP_BASE}/app/${col.options
-            .toLowerCase()
-            .replace(/\s+/g, '-')}/${encodeURIComponent(value)}`;
-        link.target = '_blank';
-        link.rel = 'noopener noreferrer';
-        link.textContent = value;
-
-        valueDiv.appendChild(link);
-    }
-
-    // 📄 Plain text
-    else {
-        valueDiv.textContent = value;
-    }
-}
-
-        // ✅ THIS WAS MISSING
+        // ✅ Append field to modal
         fieldDiv.append(labelDiv, valueDiv);
         modalBody.appendChild(fieldDiv);
-        
-}
-    
-       modal.show();
-    
-        modalEl.addEventListener('shown.bs.modal', () => {
-            autoFixImages(modalEl);
-            constrainRichTextImages(modalEl);
-        }, { once: true });
+    }
 
+    modal.show();
+
+    modalEl.addEventListener('shown.bs.modal', () => {
+        autoFixImages(modalEl);
+        constrainRichTextImages(modalEl);
+    }, { once: true });
 }
+
 
 
 
