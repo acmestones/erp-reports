@@ -25,33 +25,30 @@ function logError($message) {
    PROXY IMAGE (private + public) — FIXED
 ========================================================= */
 if (isset($_GET['action']) && $_GET['action'] === 'proxyimage') {
-
     if (ob_get_length()) {
         ob_clean();
     }
-
+    
     $fileUrl = $_GET['fileurl'] ?? '';
     if (!$fileUrl) {
         http_response_code(400);
         exit;
     }
-
+    
     $fileUrl = urldecode($fileUrl);
-
-    // ✅ FIX: convert relative ERPNext URLs to absolute
+    
+    // FIX: convert relative ERPNext URLs to absolute
     if (str_starts_with($fileUrl, '/files/') || str_starts_with($fileUrl, '/private/files/')) {
         $fileUrl = ERP_BASE . $fileUrl;
     }
-
-    // ✅ STRICT allow-list
-    if (
-        !str_starts_with($fileUrl, ERP_BASE . '/files/') &&
-        !str_starts_with($fileUrl, ERP_BASE . '/private/files/')
-    ) {
+    
+    // STRICT allow-list
+    if (!str_starts_with($fileUrl, ERP_BASE . '/files/') && 
+        !str_starts_with($fileUrl, ERP_BASE . '/private/files/')) {
         http_response_code(403);
         exit;
     }
-
+    
     $ch = curl_init($fileUrl);
     curl_setopt_array($ch, [
         CURLOPT_RETURNTRANSFER => true,
@@ -61,26 +58,39 @@ if (isset($_GET['action']) && $_GET['action'] === 'proxyimage') {
         ],
         CURLOPT_SSL_VERIFYPEER => false
     ]);
-
+    
     $data = curl_exec($ch);
     $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     $contentType = curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
     curl_close($ch);
-
+    
     // ❌ block login pages / HTML
     if ($httpCode !== 200 || !$data || str_contains($contentType, 'text/html')) {
         http_response_code(404);
         exit;
     }
-
+    
+    // ✅ FIXED: Detect content type from file extension if missing
+    if (empty($contentType) || $contentType === 'application/octet-stream') {
+        $ext = strtolower(pathinfo(parse_url($fileUrl, PHP_URL_PATH), PATHINFO_EXTENSION));
+        $mimeTypes = [
+            'png' => 'image/png',
+            'jpg' => 'image/jpeg',
+            'jpeg' => 'image/jpeg',
+            'gif' => 'image/gif',
+            'webp' => 'image/webp',
+            'svg' => 'image/svg+xml',
+            'bmp' => 'image/bmp'
+        ];
+        $contentType = $mimeTypes[$ext] ?? 'image/jpeg';
+    }
+    
     // ✅ IMAGE RESPONSE (inline display)
-    header('Content-Type: ' . ($contentType ?: 'image/jpeg'));
+    header('Content-Type: ' . $contentType);
     header('Cache-Control: public, max-age=86400');
-
     echo $data;
     exit;
 }
-
 
 
 /* =========================================================
