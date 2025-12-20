@@ -2277,87 +2277,200 @@ async function showDetailModal(row, columns, reportName, config) {
 
 
 
-function createSaveButton(inputElement, reportName, modal) {
+function createSaveButton(input, reportFieldname, modal) {
     const saveBtn = document.createElement('button');
-    saveBtn.className = 'btn btn-sm btn-success mt-1';
-    saveBtn.textContent = 'Save';
-
+    saveBtn.className = 'btn btn-sm btn-primary ms-2';
+    saveBtn.innerHTML = '💾 Save';
+    
     saveBtn.onclick = async () => {
         saveBtn.disabled = true;
         saveBtn.textContent = 'Saving...';
-
-        const doctype = inputElement.dataset.doctype;
-        const docname = inputElement.dataset.docname;
-        const fieldname = inputElement.dataset.fieldname;
-
-        let value;
-
-        if (inputElement.classList.contains('editable-richtext')) {
-            // Clone the content and restore original image URLs before saving
-            const tempDiv = document.createElement('div');
-            tempDiv.innerHTML = inputElement.innerHTML;
-
-            // Restore original URLs from data-original-src
-            tempDiv.querySelectorAll('img').forEach(img => {
-                const originalSrc = img.dataset.originalSrc;
-                if (originalSrc) {
-                    img.setAttribute('src', originalSrc);
-                    img.removeAttribute('data-original-src');
-                }
-            });
-
-            value = tempDiv.innerHTML;
-        } else {
-            value = inputElement.value;
-        }
-
-        if (typeof value === 'string' && !value.includes('<') && !value.includes('>')) {
-            value = value.trim();
-        }
-
-        if (!value || value.trim() === '') {
-            alert('Please enter a value before saving.');
-            saveBtn.disabled = false;
-            saveBtn.textContent = 'Save';
-            return;
-        }
-
-        // Wrap rich text content in ql-editor div if needed
-        if (inputElement.classList.contains('editable-richtext')) {
-            if (!value.includes('ql-editor')) {
-                value = `<div class="ql-editor read-mode">${value}</div>`;
-            }
-        }
-
-        console.log('Saving field:', doctype, docname, fieldname);
-
+        
         try {
-            const result = await updateField(doctype, docname, fieldname, value);
-            console.log('Update result:', result);
-
-            if (result.error || result.exc) {
-                throw new Error(result.error || result.exc || 'Update failed');
+            const doctype = CURRENT_MODAL_CONTEXT.config.doctype;
+            const docName = modal.querySelector('#modalTitle').textContent.replace(' Details', '');
+            
+            let valueToSave;
+            
+            // Handle rich text editor (Quill)
+            if (input.classList.contains('ql-container')) {
+                const editor = input.querySelector('.ql-editor');
+                
+                // Get all images and restore original ERPNext URLs
+                const images = editor.querySelectorAll('img');
+                images.forEach(img => {
+                    if (img.dataset.originalSrc) {
+                        img.src = img.dataset.originalSrc;
+                    }
+                });
+                
+                valueToSave = editor.innerHTML;
+            } 
+            // Handle regular input/textarea
+            else {
+                valueToSave = input.value;
             }
-
-            saveBtn.textContent = '✓ Saved';
-            saveBtn.classList.remove('btn-success');
-            saveBtn.classList.add('btn-secondary');
-
-            // Reload report and close modal after 1.5 seconds
+            
+            console.log('💾 Saving field:', reportFieldname, 'Value length:', valueToSave?.length);
+            
+            // Get the actual database field name
+            const actualFieldname = window.reportFieldMapping?.[reportFieldname]?.erpField || reportFieldname;
+            
+            // Save to database
+            const response = await updateField(doctype, docName, actualFieldname, valueToSave);
+            console.log('✅ Save response:', response);
+            
+            // ✅ FIXED: Update the UI without full modal refresh
+            // 1. Update the modal context data
+            if (CURRENT_MODAL_CONTEXT && CURRENT_MODAL_CONTEXT.row) {
+                CURRENT_MODAL_CONTEXT.row[reportFieldname] = valueToSave;
+            }
+            
+            // 2. Switch back to read mode for this field only
+            const fieldDiv = saveBtn.closest('.mb-3');
+            const valueDiv = fieldDiv.querySelector('.mt-1');
+            
+            // Clear the edit UI
+            valueDiv.innerHTML = '';
+            
+            // Render the saved content in read mode
+            if (valueToSave && typeof valueToSave === 'string' && valueToSave.includes('<')) {
+                // Rich text content
+                valueDiv.innerHTML = sanitizeRichHtml(valueToSave);
+                normalizeFileLinks(valueDiv);
+                normalizeAttachmentLayout(valueDiv);
+                autoFixImages(valueDiv);
+                constrainRichTextImages(valueDiv);
+            } else {
+                // Plain text
+                valueDiv.textContent = valueToSave || '(empty)';
+            }
+            
+            // 3. Re-add the edit button if user has permission
+            const canEdit = currentUser?.canedit;
+            const userPerms = CURRENT_MODAL_CONTEXT.config.userpermissions?.[localStorage.getItem("userEmail")];
+            const editableFields = userPerms?.editablefields || [];
+            
+            if (canEdit && editableFields.includes(reportFieldname)) {
+                const editBtn = document.createElement('button');
+                editBtn.className = 'btn btn-sm btn-outline-secondary ms-2';
+                editBtn.innerHTML = '✏️ Edit';
+                editBtn.onclick = () => makeFieldEditable(fieldDiv, reportFieldname, valueToSave, modal);
+                valueDiv.appendChild(editBtn);
+            }
+            
+            // Show success message briefly
+            saveBtn.className = 'btn btn-sm btn-success ms-2';
+            saveBtn.innerHTML = '✅ Saved';
+            
             setTimeout(() => {
-                loadReport(reportName);
-                modal.hide();
-            }, 1500);
-
-        } catch (err) {
-            console.error('Save error:', err);
-            alert('Error saving: ' + err.message);
+                saveBtn.remove();
+            }, 2000);
+            
+        } catch (error) {
+            console.error('❌ Save error:', error);
+            alert('Failed to save: ' + error.message);
             saveBtn.disabled = false;
-            saveBtn.textContent = 'Save';
+            saveBtn.textContent = '💾 Save';
         }
     };
-
+    
     return saveBtn;
+}
+
+// Helper function to make a field editable
+function makeFieldEditable(fieldDiv, reportFieldname, currentValue, modal) {
+    const valueDiv = fieldDiv.querySelector('.mt-1');
+    const col = CURRENT_MODAL_CONTEXT.columns.find(c => c.fieldname === reportFieldname);
+    
+    // Clear current content
+    valueDiv.innerHTML = '';
+    
+    // Determine if it's a rich text field
+    const isRichText = ['Text', 'Small Text', 'Long Text', 'Text Editor', 'HTML', 'HTML Editor'].includes(col?.fieldtype);
+    
+    if (isRichText) {
+        // Create Quill editor
+        const editorContainer = document.createElement('div');
+        editorContainer.style.border = '1px solid #ccc';
+        editorContainer.style.minHeight = '200px';
+        editorContainer.style.backgroundColor = '#fff';
+        valueDiv.appendChild(editorContainer);
+        
+        const quill = new Quill(editorContainer, {
+            theme: 'snow',
+            modules: {
+                toolbar: [
+                    ['bold', 'italic', 'underline', 'strike'],
+                    ['blockquote', 'code-block'],
+                    [{ 'header': 1 }, { 'header': 2 }],
+                    [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                    [{ 'indent': '-1'}, { 'indent': '+1' }],
+                    ['link', 'image'],
+                    ['clean']
+                ]
+            }
+        });
+        
+        // Set content
+        const editor = editorContainer.querySelector('.ql-editor');
+        editor.innerHTML = currentValue || '';
+        
+        // Fix image URLs for display
+        prepareRichTextEditor(editor);
+        constrainRichTextImages(editorContainer);
+        
+        const saveBtn = createSaveButton(editorContainer, reportFieldname, modal);
+        const cancelBtn = document.createElement('button');
+        cancelBtn.className = 'btn btn-sm btn-outline-secondary ms-2';
+        cancelBtn.textContent = '❌ Cancel';
+        cancelBtn.onclick = () => {
+            // Restore read mode without saving
+            valueDiv.innerHTML = '';
+            if (currentValue && currentValue.includes('<')) {
+                valueDiv.innerHTML = sanitizeRichHtml(currentValue);
+                normalizeFileLinks(valueDiv);
+                autoFixImages(valueDiv);
+            } else {
+                valueDiv.textContent = currentValue || '(empty)';
+            }
+            
+            const editBtn = document.createElement('button');
+            editBtn.className = 'btn btn-sm btn-outline-secondary ms-2';
+            editBtn.innerHTML = '✏️ Edit';
+            editBtn.onclick = () => makeFieldEditable(fieldDiv, reportFieldname, currentValue, modal);
+            valueDiv.appendChild(editBtn);
+        };
+        
+        valueDiv.appendChild(saveBtn);
+        valueDiv.appendChild(cancelBtn);
+        
+    } else {
+        // Regular textarea
+        const textarea = document.createElement('textarea');
+        textarea.className = 'form-control';
+        textarea.rows = 3;
+        textarea.value = currentValue || '';
+        valueDiv.appendChild(textarea);
+        
+        const saveBtn = createSaveButton(textarea, reportFieldname, modal);
+        const cancelBtn = document.createElement('button');
+        cancelBtn.className = 'btn btn-sm btn-outline-secondary ms-2';
+        cancelBtn.textContent = '❌ Cancel';
+        cancelBtn.onclick = () => {
+            valueDiv.innerHTML = '';
+            valueDiv.textContent = currentValue || '(empty)';
+            
+            const editBtn = document.createElement('button');
+            editBtn.className = 'btn btn-sm btn-outline-secondary ms-2';
+            editBtn.innerHTML = '✏️ Edit';
+            editBtn.onclick = () => makeFieldEditable(fieldDiv, reportFieldname, currentValue, modal);
+            valueDiv.appendChild(editBtn);
+        };
+        
+        valueDiv.appendChild(saveBtn);
+        valueDiv.appendChild(cancelBtn);
+    }
 }
 
 
