@@ -2774,6 +2774,31 @@ async function openAdminSettings() {
             }
             
             renderReportsListAdmin(allReports);
+
+
+               // Auto-populate Report Management with assigned reports
+                (async () => {
+                    const users = await getUsers();
+                    const assignedReports = new Set();
+                    
+                    users.users.forEach(u => {
+                        if (u.allowed_reports) {
+                            u.allowed_reports.forEach(r => assignedReports.add(r));
+                        }
+                    });
+                    
+                    // Merge with any already-fetched reports
+                    const allReportsSet = new Set([...allReports, ...Array.from(assignedReports)]);
+                    const initialReports = Array.from(allReportsSet).sort();
+                    
+                    if (initialReports.length > 0) {
+                        await renderReportsListAdmin(initialReports);
+                    }
+                })();
+            
+
+
+            
             btn.textContent = "✓ Reports Fetched (" + allReports.length + ")";
             btn.classList.add("btn-success");
             btn.classList.remove("btn-primary");
