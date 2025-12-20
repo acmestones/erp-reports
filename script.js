@@ -33,6 +33,9 @@ document.getElementById("userEmail").textContent = userEmail;
             window.location.replace("login.html");
             return;
         }
+
+        // ✅ ADD THIS LINE - Normalize can_edit to canedit
+        currentUser.canedit = currentUser.can_edit;
         
         if (currentUser.role === 'admin') {
             document.getElementById("adminControls").style.display = 'block';
