@@ -1131,33 +1131,60 @@ if (nonImages.length > 0) {
 
 
 
-function renderReportsList(reports) {
-    const div = document.getElementById("reportSelector");
-    div.innerHTML = "";
+async function renderReportsListAdmin(reports) {
+    const div = document.getElementById('reportsList');
     
-    if (!reports || reports.length === 0) {
-        div.innerHTML = "<p class='text-muted'>No reports available</p>";
+    // Get all reports assigned to users
+    const users = await getUsers();
+    const assignedReports = new Set();
+    
+    users.users.forEach(u => {
+        if (u.allowed_reports) {
+            u.allowed_reports.forEach(r => assignedReports.add(r));
+        }
+    });
+    
+    // Merge fetched reports with assigned reports
+    const allReportsSet = new Set([...reports, ...Array.from(assignedReports)]);
+    const allReports = Array.from(allReportsSet).sort();
+    
+    if (allReports.length === 0) {
+        div.innerHTML = '<p class="text-muted">No reports found. Click "Fetch All Reports" to load from ERPNext.</p>';
         return;
     }
     
-    reports.forEach(r => {
-        const btn = document.createElement("button");
-        btn.className = "btn btn-outline-primary btn-sm me-2 mb-2";
-        btn.textContent = r;
-        btn.dataset.report = r;
-        btn.addEventListener("click", function() {
-            document.querySelectorAll("#reportSelector button").forEach(b => b.classList.remove("active"));
-            this.classList.add("active");
-            loadReport(r);
-        });
-        div.appendChild(btn);
-    });
+    // Separate into assigned vs fetched
+    const assignedOnly = Array.from(assignedReports).filter(r => !reports.includes(r)).sort();
     
-    if (reports.length > 0) {
-        div.firstChild.classList.add("active");
-        loadReport(reports[0]);
+    let html = `<h6>Available Reports (${allReports.length})</h6>`;
+    
+    if (assignedOnly.length > 0) {
+        html += `<div class="alert alert-success small mb-3">
+            <strong>✓ ${assignedOnly.length} reports</strong> already assigned to users (showing below)
+        </div>`;
     }
+    
+    html += `<div class="alert alert-info small">Configure each report's permissions, grouping, and field visibility.</div>
+        <div class="list-group" style="max-height: 400px; overflow-y: auto;">
+            ${allReports.map(r => {
+                const isAssigned = assignedReports.has(r);
+                const badge = isAssigned ? '<span class="badge bg-success ms-2">Assigned</span>' : '';
+                return `
+                    <div class="list-group-item d-flex justify-content-between align-items-center">
+                        <span>${r}${badge}</span>
+                        <button class="btn btn-sm btn-outline-primary config-report-btn" data-report="${r}">Configure</button>
+                    </div>
+                `;
+            }).join('')}
+        </div>`;
+    
+    div.innerHTML = html;
+    
+    div.querySelectorAll('.config-report-btn').forEach(btn => {
+        btn.addEventListener('click', () => openGlobalReportConfigModal(btn.dataset.report));
+    });
 }
+
 
 
 
