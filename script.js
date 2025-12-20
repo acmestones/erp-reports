@@ -527,23 +527,28 @@ function normalizeFileLinks(container) {
     container.querySelectorAll('a').forEach(link => {
         const href = link.getAttribute('href');
         if (!href) return;
-
+        
         // Skip images
         if (href.match(/\.(jpg|jpeg|png|gif|webp)$/i)) return;
-
+        
         const fixedUrl = fixFileUrl(href);
         link.setAttribute('href', fixedUrl);
-
-        // 🔥 Force browser to navigate
-        link.addEventListener('click', e => {
-            e.preventDefault();
-            e.stopPropagation();
-
-            // This ALWAYS triggers a real request
-            window.location.href = fixedUrl;
-        });
+        
+        // ✅ FIX: Set target for /app/ links instead of using click handler
+        if (fixedUrl.includes('/app/')) {
+            link.target = '_blank';
+            link.rel = 'noopener noreferrer';
+        } else {
+            // For file downloads, force navigation
+            link.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                window.location.href = fixedUrl;
+            });
+        }
     });
 }
+
 
 
 
@@ -685,21 +690,26 @@ function fixImageUrl(url) {
 
 
 //Fix file url
+// Fix file url
 function fixFileUrl(url) {
     if (!url) return url;
-
+    
+    // ✅ FIX: Handle ERPNext app links
+    if (url.startsWith('/app/')) {
+        return ERP_BASE + url;
+    }
+    
     if (url.startsWith('/private/files/') || url.startsWith('/files/')) {
-        return `/erp_proxy.php?action=proxyfile&fileurl=${encodeURIComponent(
-            'https://acmestones.erpnext.com' + url
-        )}`;
+        return `erp_proxy.php?action=proxyfile&fileurl=${encodeURIComponent(ERP_BASE + url)}`;
     }
-
+    
     if (url.includes('/private/files/') || url.includes('/files/')) {
-        return `/erp_proxy.php?action=proxyfile&fileurl=${encodeURIComponent(url)}`;
+        return `erp_proxy.php?action=proxyfile&fileurl=${encodeURIComponent(url)}`;
     }
-
+    
     return url;
 }
+
 
 
 
