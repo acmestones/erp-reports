@@ -1236,7 +1236,13 @@ async function fetchDoctypeFields(doctype) {
 async function buildFieldMapping(columns, reportName) {
     const mapping = {};
     const config = reportConfig[reportName] || {};
-    const doctype = config.doctype || 'Work Order';
+            const doctype = config.doctype;
+        if (!doctype) {
+            console.error(`❌ DocType is REQUIRED for report "${reportName}". Configure it in Report Management → Configure.`);
+            alert(`Please configure DocType for report "${reportName}" in Admin Settings → Report Management → Configure`);
+            throw new Error('Missing DocType configuration');
+        }
+
     
     console.log(`🔍 Building field mapping for report: ${reportName}, DocType: ${doctype}`);
     
@@ -1474,7 +1480,13 @@ async function loadReport(reportName) {
             });
         }
         
-        const imageFields = config.image_fields || ['item_description', 'custom_description_cleaned', 'description'];
+                // Use configured image fields or auto-detect description fields
+        const imageFields = config.image_fields || 
+            columns.filter(c => 
+                c.fieldname.toLowerCase().includes('description') || 
+                c.fieldname.toLowerCase().includes('image')
+            ).map(c => c.fieldname);
+
         
         // Optimize image URL fixing using regex instead of DOM manipulation
         rows.forEach(row => {
@@ -1503,7 +1515,12 @@ async function loadReport(reportName) {
         const sortedRows = sortRows(rows, columns, config);
         
         // Group data using the groupby configuration
-        const grouped = groupData(sortedRows, columns, config.group_by || ['status'], config.group_sort);
+            // Use configured grouping or show flat list
+    const groupByFields = config.group_by || [];
+    const grouped = groupByFields.length > 0 
+        ? groupData(sortedRows, columns, groupByFields, config.group_sort)
+        : { 'All Records': { 'All': sortedRows } };
+
         
         currentReportData = {
             grouped,
@@ -1700,18 +1717,10 @@ function renderGroupedCards(grouped, columns, reportName) {
             const titleField = config.title_field || "work_order_id";
             
             // Helper function to get card ID from row (same logic as createCard)
-            const getCardId = (row) => {
-                const possibleIds = [
-                    row.name,
-                    row[titleField],
-                    row.work_order_id,
-                    row.sales_order_id,
-                    row.job_card,
-                    row.item_code,
-                    row.customer
-                ];
-                return possibleIds.find(id => id && id !== '') || '';
-            };
+                const getCardId = (row) => {
+                    return row[titleField] || row.name || '';
+                };
+
             
             if (cardPriority && Array.isArray(cardPriority)) {
                 cardsToRender = [...cardsToRender].sort((a, b) => {
@@ -1851,10 +1860,16 @@ function createCard(row, columns, reportName, config) {
     
     const userPerms = config.user_permissions?.[userEmail];
     const hiddenFields = userPerms?.hidden_fields || [];
-    const cardFields = config.card_fields || ["customer", "production_item", "quantity_to_manufacture", "completed_qty", "workstation"];
+    const cardFields = config.card_fields || [];
+
+        if (cardFields.length === 0) {
+            console.warn(`No card_fields configured for report. Configure in Report Management.`);
+        }
+
     const imageFields = config.image_fields || [];
     
-    const name = row[titleField] || row.name || row["work_order_id"] || row["item_code"] || "Record";
+    const name = row[titleField] || row.name || docName || "Record";
+
     
     const statusFields = ["status", "operation_status", "work_order_status"];
     let status;
