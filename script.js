@@ -838,7 +838,10 @@ async function loadAttachments(container, docName, config, row, columns, reportN
         return;
     }
 
-    const url = `erp_proxy.php?action=listattachments&doctype=${encodeURIComponent(doctype)}&docname=${encodeURIComponent(docName)}`;
+    // ✅ CORRECT: action=list_attachments (with underscore)
+    const url = `erp_proxy.php?action=list_attachments&doctype=${encodeURIComponent(doctype)}&docname=${encodeURIComponent(docName)}`;
+    
+    console.log('📎 Fetching attachments:', url);
     
     let res;
     try {
@@ -851,11 +854,13 @@ async function loadAttachments(container, docName, config, row, columns, reportN
 
     if (!res.ok) {
         console.error('Failed to load attachments:', res.status);
-        container.innerHTML = `<div class="text-muted">No attachments</div>`;
+        container.innerHTML = `<div class="text-muted">Error loading attachments (${res.status})</div>`;
         return;
     }
 
     const text = await res.text();
+    console.log('📎 Raw response:', text);
+    
     if (!text) {
         container.innerHTML = `<div class="text-muted">No attachments</div>`;
         return;
@@ -865,18 +870,17 @@ async function loadAttachments(container, docName, config, row, columns, reportN
     try {
         files = JSON.parse(text);
     } catch (e) {
-        console.error('Invalid JSON from listattachments:', text);
-        container.innerHTML = `<div class="text-muted">No attachments</div>`;
+        console.error('Invalid JSON from list_attachments:', text);
+        container.innerHTML = `<div class="text-danger">Invalid response format</div>`;
         return;
     }
 
-    // Add debug logging
-    console.log('📎 Attachments loaded:', files);
-
+    console.log('📎 Parsed files:', files);
+    
     container.innerHTML = '';
 
     // UPLOAD BUTTON
-    if (currentUser?.canedit || currentUser?.can_edit) {
+    if (currentUser?.canedit) {
         const uploadBtn = document.createElement('button');
         uploadBtn.className = 'btn btn-sm btn-outline-primary mb-2';
         uploadBtn.textContent = '📎 Upload Attachment';
@@ -895,10 +899,11 @@ async function loadAttachments(container, docName, config, row, columns, reportN
                 fd.append('file', input.files[0]);
                 fd.append('doctype', doctype);
                 fd.append('docname', docName);
-                fd.append('isprivate', 1);
+                fd.append('is_private', 1);
                 
                 try {
-                    await fetch(`erp_proxy.php?action=uploadattachment`, { method: 'POST', body: fd });
+                    // ✅ CORRECT: action=upload_attachment (with underscore)
+                    await fetch(`erp_proxy.php?action=upload_attachment`, { method: 'POST', body: fd });
                     loadAttachments(container, docName, config, row, columns, reportName);
                 } catch (err) {
                     alert('Upload failed: ' + err.message);
@@ -912,15 +917,15 @@ async function loadAttachments(container, docName, config, row, columns, reportN
     }
 
     // FILE LIST
-    if (!files.length) {
+    if (!files || !files.length) {
         container.insertAdjacentHTML('beforeend', `<div class="text-muted">No attachments</div>`);
         return;
     }
 
     files.forEach(file => {
-        // FIX: Check both property name formats (underscore and camelCase)
-        const fileUrl = file.file_url || file.fileurl;
-        const fileName = file.file_name || file.filename;
+        // ✅ ERPNext returns: file_name and file_url (with underscores)
+        const fileUrl = file.file_url;
+        const fileName = file.file_name;
         
         if (!fileUrl) {
             console.warn('File missing file_url:', file);
@@ -933,7 +938,6 @@ async function loadAttachments(container, docName, config, row, columns, reportN
         rowDiv.style.gap = '10px';
         rowDiv.style.marginBottom = '8px';
 
-        // IMPROVED IMAGE DETECTION
         const isImage = /\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i.test(fileName);
         const encodedUrl = encodeURIComponent(fileUrl);
 
@@ -952,7 +956,6 @@ async function loadAttachments(container, docName, config, row, columns, reportN
             img.style.cursor = 'pointer';
             img.style.borderRadius = '4px';
             
-            // Add error handling for broken images
             img.onerror = function() {
                 this.style.display = 'none';
                 const errorText = document.createElement('span');
@@ -970,20 +973,23 @@ async function loadAttachments(container, docName, config, row, columns, reportN
             link.href = `erp_proxy.php?action=proxyfile&fileurl=${encodedUrl}`;
             link.textContent = '📄 ' + fileName;
             link.target = '_blank';
+            link.className = 'text-decoration-none';
             rowDiv.appendChild(link);
         }
 
         // REMOVE BUTTON
-        if (currentUser?.canedit || currentUser?.can_edit) {
+        if (currentUser?.canedit) {
             const removeBtn = document.createElement('button');
             removeBtn.textContent = '🗑️';
             removeBtn.className = 'btn btn-sm btn-outline-danger';
+            removeBtn.title = 'Delete attachment';
             removeBtn.onclick = async () => {
                 if (!confirm(`Delete ${fileName}?`)) return;
                 
                 removeBtn.disabled = true;
                 try {
-                    await fetch(`erp_proxy.php?action=deleteattachment&filename=${encodeURIComponent(fileName)}&doctype=${encodeURIComponent(doctype)}&docname=${encodeURIComponent(docName)}`);
+                    // ✅ CORRECT: action=delete_attachment, file_name parameter
+                    await fetch(`erp_proxy.php?action=delete_attachment&file_name=${encodeURIComponent(fileName)}&doctype=${encodeURIComponent(doctype)}&docname=${encodeURIComponent(docName)}`);
                     loadAttachments(container, docName, config, row, columns, reportName);
                 } catch (err) {
                     alert('Delete failed: ' + err.message);
@@ -2077,65 +2083,45 @@ async function showDetailModal(row, columns, reportName, config) {
                 insertImgBtn.onclick = () => imgInput.click();
 
                 // IMPROVED IMAGE UPLOAD WITH AUTO-SAVE
-                imgInput.onchange = async (e) => {
-                    const file = e.target.files[0];
-                    if (!file) return;
-
-                    const statusEl = document.getElementById('uploadStatus_' + reportFieldname);
-                    statusEl.textContent = 'Uploading...';
-                    insertImgBtn.disabled = true;
-                    insertImgBtn.textContent = '⏳ Uploading...';
-
-                    const fd = new FormData();
-                    fd.append('file', file);
-                    fd.append('doctype', doctype);
-                    fd.append('docname', docName);
-                    fd.append('isprivate', 1);
-
-                    try {
-                        const res = await fetch(`erp_proxy.php?action=uploadattachment`, { method: 'POST', body: fd });
-                        const data = await res.json();
-
-                        if (!data.file_url) {
-                            throw new Error('No file URL returned');
-                        }
-
-                        // Insert image into editor
-                        const img = document.createElement('img');
-                        img.src = fixImageUrl(data.file_url); // proxied for display
-                        img.dataset.originalSrc = data.file_url; // ORIGINAL ERP URL
-                        img.style.maxWidth = '100%';
-                        img.style.height = 'auto';
-                        img.style.margin = '10px 0';
-                        editor.appendChild(img);
-
-                        statusEl.textContent = '✓ Uploaded! Saving...';
-                        statusEl.style.color = 'green';
-
-                        // AUTO-SAVE after 500ms
-                        setTimeout(() => {
-                            const saveBtn = editor.parentElement.parentElement.querySelector('.btn-success');
-                            if (saveBtn) {
-                                console.log('Auto-saving rich text field with image...');
-                                saveBtn.click();
+                    imgInput.onchange = async (e) => {
+                        const file = e.target.files[0];
+                        if (!file) return;
+                        
+                        const fd = new FormData();
+                        fd.append('file', file);
+                        fd.append('doctype', doctype);
+                        fd.append('docname', docName);
+                        fd.append('is_private', 1);
+                        
+                        try {
+                            const res = await fetch(`erp_proxy.php?action=upload_attachment`, { method: 'POST', body: fd });
+                            const text = await res.text();
+                            console.log('📤 Upload response:', text);
+                            
+                            if (!text) {
+                                throw new Error('Empty response from server');
                             }
-                        }, 500);
+                            
+                            const data = JSON.parse(text);
+                            
+                            // ✅ ERPNext returns: { message: { file_url: "...", file_name: "..." } }
+                            if (!data.message || !data.message.file_url) {
+                                throw new Error('No file URL in response: ' + JSON.stringify(data));
+                            }
+                            
+                            const img = document.createElement('img');
+                            img.src = fixImageUrl(data.message.file_url);  // ✅ CORRECT: data.message.file_url
+                            img.dataset.originalSrc = data.message.file_url;  // ✅ ORIGINAL ERP URL
+                            img.style.maxWidth = '100%';
+                            editor.appendChild(img);
+                            imgInput.value = '';
+                            
+                        } catch (err) {
+                            console.error('Image upload error:', err);
+                            alert('Failed to upload image: ' + err.message);
+                        }
+                    };
 
-                        setTimeout(() => {
-                            statusEl.textContent = '';
-                        }, 3000);
-
-                    } catch (err) {
-                        console.error('Upload error:', err);
-                        statusEl.textContent = '❌ Upload failed';
-                        statusEl.style.color = 'red';
-                        alert('Failed to upload image: ' + err.message);
-                    } finally {
-                        insertImgBtn.disabled = false;
-                        insertImgBtn.textContent = '🖼️ Insert Image';
-                        imgInput.value = ''; // Reset input
-                    }
-                };
 
                 editorWrapper.append(toolbar, editor);
 
