@@ -1864,14 +1864,30 @@ function createCard(row, columns, reportName, config) {
     const name = row[titleField] || row.name || docName || "Record";
 
     
-    const statusFields = ["status", "operation_status", "work_order_status"];
-    let status;
-    for (const sf of statusFields) {
-        if (row[sf]) {
-            status = row[sf];
-            break;
-        }
-    }
+            // Auto-detect status fields from available columns
+            const statusFieldCandidates = columns
+                .filter(c => c.fieldname.toLowerCase().includes('status'))
+                .map(c => c.fieldname);
+            
+            // Merge with common status fields (priority order)
+            const statusFields = [
+                'status',              // Most common
+                'work_order_status',
+                'operation_status',
+                'sales_order_status',
+                ...statusFieldCandidates
+            ];
+            
+            // Remove duplicates and find first available status value
+            const uniqueStatusFields = [...new Set(statusFields)];
+            let status;
+            for (const sf of uniqueStatusFields) {
+                if (row[sf]) {
+                    status = row[sf];
+                    break;
+                }
+            }
+
     
     const imgUrl = extractImageFromRow(row, columns, imageFields);
     if (imgUrl) {
