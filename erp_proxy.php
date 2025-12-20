@@ -30,26 +30,53 @@ if (isset($_GET['action']) && $_GET['action'] === 'proxyimage') {
     }
     
     $fileUrl = $_GET['fileurl'] ?? '';
+    
+    error_log("🖼️ PROXY IMAGE REQUEST");
+    error_log("Raw fileurl param: " . $fileUrl);
+    
     if (!$fileUrl) {
+        error_log("❌ Missing fileurl parameter");
         http_response_code(400);
-        exit;
+        exit('Missing fileurl');
     }
     
-    $fileUrl = urldecode($fileUrl);
+    // ✅ FIXED: Don't decode yet - keep it encoded
+    $decodedFileUrl = urldecode($fileUrl);
+    error_log("Decoded fileUrl: " . $decodedFileUrl);
     
-    // FIX: convert relative ERPNext URLs to absolute
-    if (str_starts_with($fileUrl, '/files/') || str_starts_with($fileUrl, '/private/files/')) {
-        $fileUrl = ERP_BASE . $fileUrl;
+    // Convert relative to absolute
+    if (substr($decodedFileUrl, 0, 7) === '/files/' || substr($decodedFileUrl, 0, 15) === '/private/files/') {
+        // ✅ CRITICAL: URL-encode the path to handle spaces
+        $decodedFileUrl = ERP_BASE . $decodedFileUrl;
+        error_log("Converted to absolute: " . $decodedFileUrl);
     }
     
-    // STRICT allow-list
-    if (!str_starts_with($fileUrl, ERP_BASE . '/files/') && 
-        !str_starts_with($fileUrl, ERP_BASE . '/private/files/')) {
+    // Validate
+    $allowed1 = ERP_BASE . '/files/';
+    $allowed2 = ERP_BASE . '/private/files/';
+    if (substr($decodedFileUrl, 0, strlen($allowed1)) !== $allowed1 && 
+        substr($decodedFileUrl, 0, strlen($allowed2)) !== $allowed2) {
+        error_log("❌ URL not allowed: " . $decodedFileUrl);
         http_response_code(403);
-        exit;
+        exit('Invalid file path');
     }
     
-    $ch = curl_init($fileUrl);
+    // ✅ CRITICAL FIX: Properly encode the URL for CURL
+    // Parse the URL and encode only the path component
+    $parsedUrl = parse_url($decodedFileUrl);
+    $scheme = $parsedUrl['scheme'] ?? 'https';
+    $host = $parsedUrl['host'] ?? '';
+    $path = $parsedUrl['path'] ?? '';
+    
+    // Encode each path segment separately to preserve slashes
+    $pathParts = explode('/', $path);
+    $encodedParts = array_map('rawurlencode', $pathParts);
+    $encodedPath = implode('/', $encodedParts);
+    
+    $finalUrl = $scheme . '://' . $host . $encodedPath;
+    error_log("✅ Final encoded URL for CURL: " . $finalUrl);
+    
+    $ch = curl_init($finalUrl);
     curl_setopt_array($ch, [
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_FOLLOWLOCATION => true,
@@ -64,15 +91,24 @@ if (isset($_GET['action']) && $_GET['action'] === 'proxyimage') {
     $contentType = curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
     curl_close($ch);
     
-    // ❌ block login pages / HTML
-    if ($httpCode !== 200 || !$data || str_contains($contentType, 'text/html')) {
+    error_log("CURL response - HTTP: $httpCode, Content-Type: $contentType, Data length: " . strlen($data));
+    
+    // Block login pages / HTML
+    if ($httpCode !== 200 || !$data) {
+        error_log("❌ Failed: HTTP $httpCode or empty data");
         http_response_code(404);
-        exit;
+        exit('File not found');
     }
     
-    // ✅ FIXED: Detect content type from file extension if missing
+    if (strpos($contentType, 'text/html') !== false) {
+        error_log("❌ Got HTML instead of image");
+        http_response_code(404);
+        exit('HTML response');
+    }
+    
+    // Detect content type from extension if missing
     if (empty($contentType) || $contentType === 'application/octet-stream') {
-        $ext = strtolower(pathinfo(parse_url($fileUrl, PHP_URL_PATH), PATHINFO_EXTENSION));
+        $ext = strtolower(pathinfo($path, PATHINFO_EXTENSION));
         $mimeTypes = [
             'png' => 'image/png',
             'jpg' => 'image/jpeg',
@@ -82,10 +118,13 @@ if (isset($_GET['action']) && $_GET['action'] === 'proxyimage') {
             'svg' => 'image/svg+xml',
             'bmp' => 'image/bmp'
         ];
-        $contentType = $mimeTypes[$ext] ?? 'image/jpeg';
+        $contentType = isset($mimeTypes[$ext]) ? $mimeTypes[$ext] : 'image/jpeg';
+        error_log("📸 Detected content type from extension .$ext: $contentType");
     }
     
-    // ✅ IMAGE RESPONSE (inline display)
+    error_log("✅ Sending image: $contentType");
+    
+    // IMAGE RESPONSE
     header('Content-Type: ' . $contentType);
     header('Cache-Control: public, max-age=86400');
     echo $data;
