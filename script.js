@@ -2078,8 +2078,7 @@ async function showDetailModal(row, columns, reportName, config) {
                 displayDiv.style.border = '1px solid #dee2e6';
                 displayDiv.style.borderRadius = '4px';
                 displayDiv.style.minHeight = '60px';
-                displayDiv.style.maxHeight = '300px';
-                displayDiv.style.overflowY = 'auto';
+
 
                 const htmlValue = value || `<p class="text-muted">No content</p>`;
                 displayDiv.innerHTML = sanitizeRichHtml(htmlValue);
