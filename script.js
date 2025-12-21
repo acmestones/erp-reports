@@ -1,8 +1,6 @@
 const API_BASE = "/erp_proxy.php";
-const ERP_BASE = window.ERP_BASE || 'https://acmestones.erpnext.com';
-const ATTACHMENTS_REPORT_FIELD = 'attachments';
-
-
+const ERP_BASE = window.ERP_BASE || "https://acmestones.erpnext.com";
+const ATTACHMENTS_REPORT_FIELD = "attachments";
 
 let userEmail = localStorage.getItem("userEmail");
 let currentUser = null;
@@ -15,1133 +13,988 @@ let linkFieldOptions = {};
 let currentReportColumns = [];
 let CURRENT_MODAL_CONTEXT = null;
 
-
 if (!userEmail) {
-    window.location.replace("login.html");
+  window.location.replace("login.html");
 }
 
 document.getElementById("userEmail").textContent = userEmail;
 
 (async function init() {
-    try {
-        const users = await getUsers();
-        currentUser = users.users.find(u => u.email === userEmail);
-        
-        if (!currentUser) {
-            alert("User not found!");
-            localStorage.removeItem("userEmail");
-            window.location.replace("login.html");
-            return;
-        }
+  try {
+    const users = await getUsers();
+    currentUser = users.users.find((u) => u.email === userEmail);
 
-        // ✅ ADD THIS LINE - Normalize can_edit to canedit
-        currentUser.canedit = currentUser.can_edit;
-        
-        if (currentUser.role === 'admin') {
-            document.getElementById("adminControls").style.display = 'block';
-            document.getElementById("settingsBtn").addEventListener("click", openAdminSettings);
-        }
+    if (!currentUser) {
+      alert("User not found!");
+      localStorage.removeItem("userEmail");
+      window.location.replace("login.html");
+      return;
+    }
 
+    // Normalize user edit flag to strict snake_case.
+    // Accept legacy "canedit" if it exists, but use "can_edit" everywhere in code.
+    currentUser.can_edit = currentUser.can_edit ?? currentUser.canedit ?? false;
+    delete currentUser.canedit;
 
+    if (currentUser.role === "admin") {
+      document.getElementById("adminControls").style.display = "block";
+      document.getElementById("settingsBtn").addEventListener("click", openAdminSettings);
+    }
 
-        document.getElementById('addUserBtn').onclick = function () {
-    const usersList = document.getElementById('usersList');
-    if (!usersList) return;
+    document.getElementById("addUserBtn").onclick = function () {
+      const usersList = document.getElementById("usersList");
+      if (!usersList) return;
 
-    // Check if a blank new user email input already exists - prevent multiple empties
-    const existingEmpty = usersList.querySelector('.card.border-success .new-user-email[value=""], .card.border-success .new-user-email:not([value])');
-    if (existingEmpty) {
+      // Check if a blank new user email input already exists - prevent multiple empties
+      const existingEmpty = usersList.querySelector(
+        '.card.border-success .new-user-email[value=""], .card.border-success .new-user-email:not([value])'
+      );
+      if (existingEmpty) {
         alert("Please enter an email for the existing new user before adding another.");
         existingEmpty.focus();
         return;
-    }
+      }
 
-    const newCard = document.createElement('div');
-    newCard.className = 'card mb-3 border-success';
-    newCard.innerHTML = `
+      const newCard = document.createElement("div");
+      newCard.className = "card mb-3 border-success";
+      newCard.innerHTML = `
         <div class="card-body">
-            <div class="mb-2">
-                <label class="form-label small fw-bold">Email</label>
-                <input type="email" class="form-control form-control-sm new-user-email" placeholder="Enter email" required>
+          <div class="mb-2">
+            <label class="form-label small fw-bold">Email</label>
+            <input type="email" class="form-control form-control-sm new-user-email" placeholder="Enter email" required>
+          </div>
+          <div class="mb-2">
+            <label class="form-label small fw-bold">Role</label>
+            <select class="form-select form-select-sm user-role" data-idx="new">
+              <option value="user">User</option>
+              <option value="admin">Admin</option>
+            </select>
+          </div>
+          <div class="mb-2">
+            <label class="form-label small fw-bold">Can Edit Records</label>
+            <input type="checkbox" class="form-check-input user-edit" data-idx="new">
+          </div>
+          <div class="mb-2">
+            <label class="form-label small fw-bold">Allowed Reports</label>
+            <div class="border rounded p-2" style="max-height: 150px; overflow-y: auto;">
+              ${(window.allReports || [])
+                .map(
+                  (r) => `
+                    <div class="form-check">
+                      <input class="form-check-input user-report-check" type="checkbox" value="${r}" data-idx="new" id="newreport-${r}">
+                      <label class="form-check-label" for="newreport-${r}">${r}</label>
+                    </div>
+                  `
+                )
+                .join("")}
             </div>
-            <div class="mb-2">
-                <label class="form-label small fw-bold">Role</label>
-                <select class="form-select form-select-sm user-role" data-idx="new">
-                    <option value="user">User</option>
-                    <option value="admin">Admin</option>
-                </select>
-            </div>
-            <div class="mb-2">
-                <label class="form-label small fw-bold">Can Edit Records</label>
-                <input type="checkbox" class="form-check-input user-edit" data-idx="new">
-            </div>
-            <div class="mb-2">
-                <label class="form-label small fw-bold">Allowed Reports</label>
-                <div class="border rounded p-2" style="max-height: 150px; overflow-y: auto;">
-                    ${(window.allReports || []).map(r => `
-                        <div class="form-check">
-                            <input class="form-check-input user-report-check" type="checkbox" value="${r}" data-idx="new" id="newreport-${r}">
-                            <label class="form-check-label" for="newreport-${r}">${r}</label>
-                        </div>
-                    `).join('')}
-                </div>
-            </div>
+          </div>
         </div>
-    `;
-    usersList.prepend(newCard);
-    newCard.querySelector('.new-user-email').focus();
-};
+      `;
+      usersList.prepend(newCard);
+      newCard.querySelector(".new-user-email").focus();
+    };
 
+    reportConfig = await getReportConfig();
 
-
-        
-
-
-
-        
-        reportConfig = await getReportConfig();
-
-        // Normalize: if backend returned an array or null, use an empty object
-if (!reportConfig || Array.isArray(reportConfig)) {
-    reportConfig = {};
-}
-        
-            if (currentUser.allowed_reports && currentUser.allowed_reports.length > 0) {
-                // Render report selector buttons for the user
-                const div = document.getElementById('reportSelector');
-                div.innerHTML = '';
-                
-                currentUser.allowed_reports.forEach((reportName) => {
-                    const btn = document.createElement('button');
-                    btn.className = 'btn btn-outline-primary btn-sm me-2 mb-2';
-                    btn.textContent = reportName;
-                    btn.dataset.report = reportName;
-                    btn.addEventListener('click', function() {
-                        document.querySelectorAll('#reportSelector button').forEach(b => b.classList.remove('active'));
-                        this.classList.add('active');
-                        loadReport(reportName);
-                    });
-                    div.appendChild(btn);
-                });
-                
-                // Auto-load first report
-                if (currentUser.allowed_reports.length > 0) {
-                    div.firstChild.classList.add('active');
-                    loadReport(currentUser.allowed_reports[0]);
-                }
-            } else {
-                document.getElementById('reportArea').innerHTML = '<p class="text-center text-muted">No reports assigned to you. Please contact admin.</p>';
-            }
-
-        
-        const colSelector = document.getElementById("columnSelector");
-        if (window.innerWidth >= 768) {
-            colSelector.addEventListener("change", (e) => {
-                currentColumns = parseInt(e.target.value);
-                if (currentReportData) {
-                    renderGroupedCards(currentReportData.grouped, currentReportData.columns, currentReportData.reportName);
-                }
-            });
-        }
-    } catch (err) {
-        console.error("Init error:", err);
-        alert("Error initializing app: " + err.message);
+    // Normalize: if backend returned an array or null, use an empty object
+    if (!reportConfig || Array.isArray(reportConfig)) {
+      reportConfig = {};
     }
+
+    // Normalize allowed_reports to strict snake_case.
+    currentUser.allowed_reports = currentUser.allowed_reports ?? currentUser.allowedreports ?? [];
+    delete currentUser.allowedreports;
+
+    if (currentUser.allowed_reports && currentUser.allowed_reports.length > 0) {
+      // Render report selector buttons for the user
+      const div = document.getElementById("reportSelector");
+      div.innerHTML = "";
+
+      currentUser.allowed_reports.forEach((reportName) => {
+        const btn = document.createElement("button");
+        btn.className = "btn btn-outline-primary btn-sm me-2 mb-2";
+        btn.textContent = reportName;
+        btn.dataset.report = reportName;
+        btn.addEventListener("click", function () {
+          document.querySelectorAll("#reportSelector button").forEach((b) => b.classList.remove("active"));
+          this.classList.add("active");
+          loadReport(reportName);
+        });
+        div.appendChild(btn);
+      });
+
+      // Auto-load first report
+      if (currentUser.allowed_reports.length > 0) {
+        div.firstChild.classList.add("active");
+        loadReport(currentUser.allowed_reports[0]);
+      }
+    } else {
+      document.getElementById("reportArea").innerHTML =
+        '<p class="text-center text-muted">No reports assigned to you. Please contact admin.</p>';
+    }
+
+    const colSelector = document.getElementById("columnSelector");
+    if (window.innerWidth >= 768) {
+      colSelector.addEventListener("change", (e) => {
+        currentColumns = parseInt(e.target.value);
+        if (currentReportData) {
+          renderGroupedCards(currentReportData.grouped, currentReportData.columns, currentReportData.reportName);
+        }
+      });
+    }
+  } catch (err) {
+    console.error("Init error:", err);
+    alert("Error initializing app: " + err.message);
+  }
 })();
 
 document.getElementById("logoutBtn").addEventListener("click", () => {
-    localStorage.removeItem("userEmail");
-    window.location.replace("login.html");
+  localStorage.removeItem("userEmail");
+  window.location.replace("login.html");
 });
 
-
-
-
-
-
 async function getUsers() {
-    const res = await fetch(`${API_BASE}?action=get_users`);
-    if (!res.ok) throw new Error("Failed to fetch users");
-    return res.json();
+  const res = await fetch(`${API_BASE}?action=get_users`);
+  if (!res.ok) throw new Error("Failed to fetch users");
+  return res.json();
 }
 
 async function getReport(name) {
-    const res = await fetch(`${API_BASE}?report=${encodeURIComponent(name)}`);
-    if (!res.ok) throw new Error("Failed to fetch report");
-    return res.json();
+  const res = await fetch(`${API_BASE}?report=${encodeURIComponent(name)}`);
+  if (!res.ok) throw new Error("Failed to fetch report");
+  return res.json();
 }
 
 async function getAllReports() {
-    const res = await fetch(`${API_BASE}?action=get_all_reports`);
-    if (!res.ok) throw new Error("Failed to fetch reports list");
-    return res.json();
+  const res = await fetch(`${API_BASE}?action=get_all_reports`);
+  if (!res.ok) throw new Error("Failed to fetch reports list");
+  return res.json();
 }
 
 async function getReportConfig() {
-    const res = await fetch(`${API_BASE}?action=get_report_config`);
-    if (!res.ok) return {};
-    return res.json();
+  const res = await fetch(`${API_BASE}?action=get_report_config`);
+  if (!res.ok) return {};
+  return res.json();
 }
-
-
 
 function getGroups(report, level) {
   if (!report || !report.group_by) return [];
-  
-  const groups = Array.isArray(report.group_by) ? report.group_by : report.group_by.split(',').map(g => g.trim());
-  
-  if (level === 'primary') {
+
+  const groups = Array.isArray(report.group_by) ? report.group_by : report.group_by.split(",").map((g) => g.trim());
+
+  if (level === "primary") {
     // Get primary grouping field name
     const primaryField = groups.length > 0 ? groups[0] : null;
     if (!primaryField) return [];
-    
+
     // Get actual values from group_sort if available
     if (report.group_sort && report.group_sort[primaryField]) {
-      return Array.isArray(report.group_sort[primaryField]) 
-        ? report.group_sort[primaryField] 
-        : [];
+      return Array.isArray(report.group_sort[primaryField]) ? report.group_sort[primaryField] : [];
     }
     return [];
-  } else if (level === 'secondary') {
+  } else if (level === "secondary") {
     // Get secondary grouping field name
     const secondaryField = groups.length > 1 ? groups[1] : null;
     if (!secondaryField) return [];
-    
+
     // Get actual values from group_sort if available
     if (report.group_sort && report.group_sort[secondaryField]) {
-      return Array.isArray(report.group_sort[secondaryField]) 
-        ? report.group_sort[secondaryField] 
-        : [];
+      return Array.isArray(report.group_sort[secondaryField]) ? report.group_sort[secondaryField] : [];
     }
     return [];
+  }
+
+  return [];
+}
+
+async function saveReportConfig(config) {
+  const res = await fetch(`${API_BASE}?action=save_report_config`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ config }) // Must be the FULL config
+  });
+  return res.json();
+}
+
+async function saveCardPriority(reportName, primaryGroup, secondaryGroup, cardOrder) {
+  const res = await fetch(`${API_BASE}?action=save_card_priority`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      report_name: reportName,
+      primary_group: primaryGroup,
+      secondary_group: secondaryGroup,
+      card_order: cardOrder
+    })
+  });
+  return res.json();
+}
+
+// ========== FORCE SCROLL RESET HELPER ==========
+function forceResetScroll() {
+  console.log("🔧 Force resetting scroll...");
+
+  // Remove Bootstrap modal classes
+  document.body.classList.remove("modal-open");
+
+  // Reset all body styles
+  document.body.style.overflow = "";
+  document.body.style.position = "";
+  document.body.style.paddingRight = "";
+  document.body.style.touchAction = "";
+
+  // Reset html element too
+  document.documentElement.style.overflow = "";
+  document.documentElement.style.position = "";
+
+  // Remove all modal backdrops
+  const backdrops = document.querySelectorAll(".modal-backdrop");
+  backdrops.forEach((backdrop) => {
+    console.log("Removing backdrop:", backdrop);
+    backdrop.remove();
+  });
+
+  // Force redraw
+  document.body.offsetHeight; // Trigger reflow
+
+  console.log("✅ Scroll reset complete");
+}
+// ========== END HELPER ==========
+
+function initializeSortable(container, reportName, primaryGroup, secondaryGroup) {
+  // Only enable for admins
+  if (!currentUser || currentUser.role !== "admin") {
+    return;
+  }
+
+  // ========== CRITICAL: DISABLE ON MOBILE ==========
+  // Check if mobile - if yes, skip desktop drag entirely
+  const isMobile = window.innerWidth <= 768;
+  if (isMobile) {
+    console.log("Mobile detected - using modal reorder instead of desktop drag");
+    return; // Exit early - no desktop drag on mobile
+  }
+  // ========== END MOBILE CHECK ==========
+
+  // Desktop-only drag and drop
+  new Sortable(container, {
+    animation: 150,
+    delay: 500,
+    delayOnTouchOnly: true,
+    handle: ".drag-handle",
+
+    ghostClass: "sortable-ghost",
+    chosenClass: "sortable-chosen",
+    dragClass: "sortable-drag",
+
+    onChoose: function (evt) {
+      console.log("Card selected");
+      evt.item.classList.add("is-dragging");
+    },
+
+    onStart: function (evt) {
+      console.log("Drag started");
+    },
+
+    onEnd: async function (evt) {
+      evt.item.classList.remove("is-dragging");
+
+      // Get the new order of cards
+      const cards = Array.from(container.querySelectorAll(".card-report"));
+      const cardOrder = cards.map((card) => card.dataset.docname).filter((name) => name);
+
+      console.log("=== DRAG DROP DEBUG ===");
+      console.log("Report Name:", reportName);
+      console.log("Primary Group:", primaryGroup);
+      console.log("Secondary Group:", secondaryGroup);
+      console.log("New card order:", cardOrder);
+      console.log("Card count:", cardOrder.length);
+
+      // Save to backend
+      try {
+        const result = await saveCardPriority(reportName, primaryGroup, secondaryGroup, cardOrder);
+
+        console.log("Save result:", result);
+
+        if (result.success) {
+          console.log("✅ Card priority saved successfully");
+          if (!reportConfig[reportName]) {
+            reportConfig[reportName] = {};
+          }
+          if (!reportConfig[reportName].card_priority) {
+            reportConfig[reportName].card_priority = {};
+          }
+          if (!reportConfig[reportName].card_priority[primaryGroup]) {
+            reportConfig[reportName].card_priority[primaryGroup] = {};
+          }
+          reportConfig[reportName].card_priority[primaryGroup][secondaryGroup] = cardOrder;
+          console.log("Updated local reportConfig");
+        } else {
+          console.error("❌ Failed to save card priority:", result.error);
+          alert("Failed to save card order. Please try again.");
+        }
+      } catch (error) {
+        console.error("❌ Error saving card priority:", error);
+        alert("Error saving card order. Please try again.");
+      }
+    },
+
+    onUnchoose: function (evt) {
+      console.log("Drag cancelled");
+      evt.item.classList.remove("is-dragging");
+    }
+  });
+
+  // Add visual indicator that cards are draggable
+  const cards = container.querySelectorAll(".card-report");
+  cards.forEach((card) => {
+    card.classList.add("sortable-enabled");
+  });
+}
+
+async function getLinkOptions(doctype) {
+  if (linkFieldOptions[doctype]) {
+    return linkFieldOptions[doctype];
+  }
+
+  const res = await fetch(`${API_BASE}?action=get_link_options&doctype=${encodeURIComponent(doctype)}`);
+  if (!res.ok) return [];
+  const data = await res.json();
+
+  if (data.data && Array.isArray(data.data)) {
+    linkFieldOptions[doctype] = data.data.map((d) => d.name);
+    return linkFieldOptions[doctype];
   }
   return [];
 }
 
-
-
-
-
-
-async function saveReportConfig(config) {
-    const res = await fetch(`${API_BASE}?action=save_report_config`, {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({config}) // Must be the FULL config
-    });
-    return res.json();
-}
-
-
-
-
-async function saveCardPriority(reportName, primaryGroup, secondaryGroup, cardOrder) {
-    const res = await fetch(`${API_BASE}?action=save_card_priority`, {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({
-            report_name: reportName,
-            primary_group: primaryGroup,
-            secondary_group: secondaryGroup,
-            card_order: cardOrder
-        })
-    });
-    return res.json();
-}
-
-
-
-
-// ========== FORCE SCROLL RESET HELPER ==========
-function forceResetScroll() {
-    console.log('🔧 Force resetting scroll...');
-    
-    // Remove Bootstrap modal classes
-    document.body.classList.remove('modal-open');
-    
-    // Reset all body styles
-    document.body.style.overflow = '';
-    document.body.style.position = '';
-    document.body.style.paddingRight = '';
-    document.body.style.touchAction = '';
-    
-    // Reset html element too
-    document.documentElement.style.overflow = '';
-    document.documentElement.style.position = '';
-    
-    // Remove all modal backdrops
-    const backdrops = document.querySelectorAll('.modal-backdrop');
-    backdrops.forEach(backdrop => {
-        console.log('Removing backdrop:', backdrop);
-        backdrop.remove();
-    });
-    
-    // Force redraw
-    document.body.offsetHeight; // Trigger reflow
-    
-    console.log('✅ Scroll reset complete');
-}
-// ========== END HELPER ==========
-
-
-
-
-
-
-
-
-
-function initializeSortable(container, reportName, primaryGroup, secondaryGroup) {
-    // Only enable for admins
-    if (!currentUser || currentUser.role !== 'admin') {
-        return;
-    }
-    
-    // ========== CRITICAL: DISABLE ON MOBILE ==========
-    // Check if mobile - if yes, skip desktop drag entirely
-    const isMobile = window.innerWidth <= 768;
-    if (isMobile) {
-        console.log('Mobile detected - using modal reorder instead of desktop drag');
-        return; // Exit early - no desktop drag on mobile
-    }
-    // ========== END MOBILE CHECK ==========
-
-    // Desktop-only drag and drop
-    new Sortable(container, {
-        animation: 150,
-        delay: 500,
-        delayOnTouchOnly: true,
-        handle: '.drag-handle',
-        
-        ghostClass: 'sortable-ghost',
-        chosenClass: 'sortable-chosen',
-        dragClass: 'sortable-drag',
-        
-        onChoose: function(evt) {
-            console.log('Card selected');
-            evt.item.classList.add('is-dragging');
-        },
-        
-        onStart: function(evt) {
-            console.log('Drag started');
-        },
-        
-        onEnd: async function(evt) {
-            evt.item.classList.remove('is-dragging');
-            
-            // Get the new order of cards
-            const cards = Array.from(container.querySelectorAll('.card-report'));
-            const cardOrder = cards.map(card => card.dataset.docname).filter(name => name);
-            
-            console.log('=== DRAG DROP DEBUG ===');
-            console.log('Report Name:', reportName);
-            console.log('Primary Group:', primaryGroup);
-            console.log('Secondary Group:', secondaryGroup);
-            console.log('New card order:', cardOrder);
-            console.log('Card count:', cardOrder.length);
-            
-            // Save to backend
-            try {
-                const result = await saveCardPriority(
-                    reportName, 
-                    primaryGroup, 
-                    secondaryGroup, 
-                    cardOrder
-                );
-                
-                console.log('Save result:', result);
-                
-                if (result.success) {
-                    console.log('✅ Card priority saved successfully');
-                    if (!reportConfig[reportName]) {
-                        reportConfig[reportName] = {};
-                    }
-                    if (!reportConfig[reportName].card_priority) {
-                        reportConfig[reportName].card_priority = {};
-                    }
-                    if (!reportConfig[reportName].card_priority[primaryGroup]) {
-                        reportConfig[reportName].card_priority[primaryGroup] = {};
-                    }
-                    reportConfig[reportName].card_priority[primaryGroup][secondaryGroup] = cardOrder;
-                    console.log('Updated local reportConfig');
-                } else {
-                    console.error('❌ Failed to save card priority:', result.error);
-                    alert('Failed to save card order. Please try again.');
-                }
-            } catch (error) {
-                console.error('❌ Error saving card priority:', error);
-                alert('Error saving card order. Please try again.');
-            }
-        },
-        
-        onUnchoose: function(evt) {
-            console.log('Drag cancelled');
-            evt.item.classList.remove('is-dragging');
-        }
-    });
-    
-    // Add visual indicator that cards are draggable
-    const cards = container.querySelectorAll('.card-report');
-    cards.forEach(card => {
-        card.classList.add('sortable-enabled');
-    });
-}
-
-
-
-
-
-
-
-
-
-async function getLinkOptions(doctype) {
-    if (linkFieldOptions[doctype]) {
-        return linkFieldOptions[doctype];
-    }
-    
-    const res = await fetch(`${API_BASE}?action=get_link_options&doctype=${encodeURIComponent(doctype)}`);
-    if (!res.ok) return [];
-    const data = await res.json();
-    
-    if (data.data && Array.isArray(data.data)) {
-        linkFieldOptions[doctype] = data.data.map(d => d.name);
-        return linkFieldOptions[doctype];
-    }
-    return [];
-}
-
 async function updateField(doctype, docname, fieldname, value) {
-    const res = await fetch(`${API_BASE}?action=update_field`, {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({doctype, docname, fieldname, value})
-    });
-    
-    const responseText = await res.text();
-    console.log("Update response:", responseText);
-    
-    if (!res.ok) {
-        throw new Error("Server error: " + res.status);
+  const res = await fetch(`${API_BASE}?action=update_field`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ doctype, docname, fieldname, value })
+  });
+
+  const responseText = await res.text();
+  console.log("Update response:", responseText);
+
+  if (!res.ok) {
+    throw new Error("Server error: " + res.status);
+  }
+
+  try {
+    const jsonResponse = JSON.parse(responseText);
+    if (jsonResponse.exc || jsonResponse.exception) {
+      throw new Error(jsonResponse.exception || jsonResponse.exc || "Update failed");
     }
-    
-    try {
-        const jsonResponse = JSON.parse(responseText);
-        if (jsonResponse.exc || jsonResponse.exception) {
-            throw new Error(jsonResponse.exception || jsonResponse.exc || "Update failed");
-        }
-        return jsonResponse;
-    } catch (e) {
-        if (responseText.includes('error')) {
-            throw new Error(responseText);
-        }
-        return { message: "Updated successfully" };
+    return jsonResponse;
+  } catch (e) {
+    if (responseText.includes("error")) {
+      throw new Error(responseText);
     }
+    return { message: "Updated successfully" };
+  }
 }
 
 function extractImageFromRow(row, columns, imageFieldsList) {
-    if (imageFieldsList && imageFieldsList.length > 0) {
-        for (const fieldname of imageFieldsList) {
-            if (row[fieldname]) {
-                const imgUrl = extractImageUrl(row[fieldname]);
-                if (imgUrl) return imgUrl;
-            }
-        }
+  if (imageFieldsList && imageFieldsList.length > 0) {
+    for (const fieldname of imageFieldsList) {
+      if (row[fieldname]) {
+        const imgUrl = extractImageUrl(row[fieldname]);
+        if (imgUrl) return imgUrl;
+      }
     }
-    
-    for (const col of columns) {
-        if (col.fieldname.toLowerCase().includes('description')) {
-            if (row[col.fieldname]) {
-                const imgUrl = extractImageUrl(row[col.fieldname]);
-                if (imgUrl) return imgUrl;
-            }
-        }
+  }
+
+  for (const col of columns) {
+    if (col.fieldname.toLowerCase().includes("description")) {
+      if (row[col.fieldname]) {
+        const imgUrl = extractImageUrl(row[col.fieldname]);
+        if (imgUrl) return imgUrl;
+      }
     }
-    
-    return null;
+  }
+
+  return null;
 }
 
 function extractImageUrl(htmlContent) {
-    if (!htmlContent || typeof htmlContent !== 'string') return null;
-    
-    const patterns = [
-        /<img[^>]+src=["']([^"']+)["']/i,
-        /src=["']([^"']+)["']/i,
-        /url\(["']?([^"')]+)["']?\)/i
-    ];
-    
-    for (const pattern of patterns) {
-        const match = htmlContent.match(pattern);
-        if (match && match[1]) {
-            return fixImageUrl(match[1]);
-        }
+  if (!htmlContent || typeof htmlContent !== "string") return null;
+
+  const patterns = [
+    /<img[^>]+src=["']([^"']+)["']/i,
+    /src=["']([^"']+)["']/i,
+    /url\(["']?([^"')]+)["']?\)/i
+  ];
+
+  for (const pattern of patterns) {
+    const match = htmlContent.match(pattern);
+    if (match && match[1]) {
+      return fixImageUrl(match[1]);
     }
-    
-    return null;
+  }
+
+  return null;
 }
-
-
-
-
-
-
 
 /**
  * Rewrite all image src and anchor href URLs inside rich HTML
  * so private ERPNext files are routed via erp_proxy.php
  */
 function sanitizeRichHtml(html) {
-    if (!html || typeof html !== 'string') return html;
+  if (!html || typeof html !== "string") return html;
 
-    // Fix IMG src only
-    html = html.replace(/<img([^>]+)src=["']([^"']+)["']/gi, (m, a, u) => {
-        return `<img${a}src="${fixImageUrl(u)}"`;
-    });
+  // Fix IMG src only
+  html = html.replace(/<img([^>]+)src=["']([^"']+)["']/gi, (m, a, u) => {
+    return `<img${a}src="${fixImageUrl(u)}"`;
+  });
 
-    // Fix FILE links only (skip images)
-    html = html.replace(/<a([^>]*)href=["']([^"']+)["']([^>]*)>/gi,
-        (m, pre, href, post) => {
-            if (href.match(/\.(jpg|jpeg|png|gif|webp)(\?|$)/i)) {
-                return m; // image link → untouched
-            }
-            return `<a${pre}href="${fixFileUrl(href)}"${post}>`;
-        }
-    );
+  // Fix FILE links only (skip images)
+  html = html.replace(/<a([^>]*)href=["']([^"']+)["']([^>]*)>/gi, (m, pre, href, post) => {
+    if (href.match(/\.(jpg|jpeg|png|gif|webp)(\?|$)/i)) {
+      return m; // image link → untouched
+    }
+    return `<a${pre}href="${fixFileUrl(href)}"${post}>`;
+  });
 
-    return html;
+  return html;
 }
-
-
-
-
 
 function prepareRichTextEditor(editor) {
-    editor.querySelectorAll('img').forEach(img => {
-        const src = img.getAttribute('src');
-        if (!src) return;
+  editor.querySelectorAll("img").forEach((img) => {
+    const src = img.getAttribute("src");
+    if (!src) return;
 
-        // If image is coming from proxy, extract original ERP URL
-        if (src.includes('action=proxyimage')) {
-            const params = new URLSearchParams(src.split('?')[1]);
-            const original = params.get('fileurl');
-            if (original) {
-                const decoded = decodeURIComponent(original);
-                img.dataset.originalSrc = decoded;
-                img.src = fixImageUrl(decoded); // keep proxy for display
-            }
-        }
-        // If already a normal ERP file
-        else if (
-            src.includes('/files/') ||
-            src.includes('/private/files/')
-        ) {
-            img.dataset.originalSrc = src;
-            img.src = fixImageUrl(src);
-        }
-    });
+    // If image is coming from proxy, extract original ERP URL
+    if (src.includes("action=proxyimage")) {
+      const params = new URLSearchParams(src.split("?")[1]);
+      const original = params.get("fileurl");
+      if (original) {
+        const decoded = decodeURIComponent(original);
+        img.dataset.originalSrc = decoded;
+        img.src = fixImageUrl(decoded); // keep proxy for display
+      }
+    }
+    // If already a normal ERP file
+    else if (src.includes("/files/") || src.includes("/private/files/")) {
+      img.dataset.originalSrc = src;
+      img.src = fixImageUrl(src);
+    }
+  });
 }
-
-
-
-
-
-
-
-
-
 
 function normalizeFileLinks(container) {
-    container.querySelectorAll('a').forEach(link => {
-        const href = link.getAttribute('href');
-        if (!href) return;
-        
-        // Skip images
-        if (href.match(/\.(jpg|jpeg|png|gif|webp)$/i)) return;
-        
-        const fixedUrl = fixFileUrl(href);
-        link.setAttribute('href', fixedUrl);
-        
-        // ✅ FIX: Set target for /app/ links instead of using click handler
-        if (fixedUrl.includes('/app/')) {
-            link.target = '_blank';
-            link.rel = 'noopener noreferrer';
-        } else {
-            // For file downloads, force navigation
-            link.addEventListener('click', (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                window.location.href = fixedUrl;
-            });
-        }
-    });
+  container.querySelectorAll("a").forEach((link) => {
+    const href = link.getAttribute("href");
+    if (!href) return;
+
+    // Skip images
+    if (href.match(/\.(jpg|jpeg|png|gif|webp)$/i)) return;
+
+    const fixedUrl = fixFileUrl(href);
+    link.setAttribute("href", fixedUrl);
+
+    // ✅ FIX: Set target for /app/ links instead of using click handler
+    if (fixedUrl.includes("/app/")) {
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+    } else {
+      // For file downloads, force navigation
+      link.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        window.location.href = fixedUrl;
+      });
+    }
+  });
 }
-
-
-
-
-
-
-
 
 function normalizeAttachmentLayout(container) {
-    container.querySelectorAll('img').forEach(img => {
-        img.style.display = 'inline-block';
-        img.style.margin = '6px';
-        img.style.maxWidth = '120px';
-    });
+  container.querySelectorAll("img").forEach((img) => {
+    img.style.display = "inline-block";
+    img.style.margin = "6px";
+    img.style.maxWidth = "120px";
+  });
 }
-
-
-
 
 function autoFixImages(container) {
-    if (!container) return;
+  if (!container) return;
 
-    container.querySelectorAll('img').forEach(img => {
-        let src = img.getAttribute('src');
-        if (!src || src.startsWith('data:image')) return;
+  container.querySelectorAll("img").forEach((img) => {
+    let src = img.getAttribute("src");
+    if (!src || src.startsWith("data:image")) return;
 
-        // Absolute ERP URL
-        if (src.startsWith('/')) {
-            src = 'https://acmestones.erpnext.com' + src;
-        }
+    // Absolute ERP URL
+    if (src.startsWith("/")) {
+      src = "https://acmestones.erpnext.com" + src;
+    }
 
-        // Strip ?fid
-        try {
-            const u = new URL(src);
-            src = u.origin + u.pathname;
-        } catch {
-            src = src.split('?')[0];
-        }
+    // Strip ?fid
+    try {
+      const u = new URL(src);
+      src = u.origin + u.pathname;
+    } catch {
+      src = src.split("?")[0];
+    }
 
-        if (src.includes('/private/files/')) {
-            img.src = `/erp_proxy.php?action=proxyimage&fileurl=${encodeURIComponent(src)}`;
-        } else if (src.includes('/files/')) {
-            img.src = src;
-        }
+    if (src.includes("/private/files/")) {
+      img.src = `/erp_proxy.php?action=proxyimage&fileurl=${encodeURIComponent(src)}`;
+    } else if (src.includes("/files/")) {
+      img.src = src;
+    }
 
-        img.style.cursor = 'pointer';
-        img.onclick = e => {
-            e.preventDefault();
-            window.open(img.src, '_blank', 'noopener');
-        };
-    });
+    img.style.cursor = "pointer";
+    img.onclick = (e) => {
+      e.preventDefault();
+      window.open(img.src, "_blank", "noopener");
+    };
+  });
 }
-
-
-
-
 
 function constrainRichTextImages(container) {
-    if (!container) return;
+  if (!container) return;
 
-    container.querySelectorAll(
-        '.editable-richtext img, .ql-editor img'
-    ).forEach(img => {
+  container.querySelectorAll(".editable-richtext img, .ql-editor img").forEach((img) => {
+    // Visual constraints
+    img.style.maxHeight = "300px";
+    img.style.width = "auto";
+    img.style.maxWidth = "100%";
+    img.style.cursor = "pointer";
 
-        // Visual constraints
-        img.style.maxHeight = '300px';
-        img.style.width = 'auto';
-        img.style.maxWidth = '100%';
-        img.style.cursor = 'pointer';
-
-        // Open full image on click
-        if (!img.dataset.bound) {
-            img.addEventListener('click', e => {
-                e.stopPropagation();
-                window.open(img.src, '_blank', 'noopener');
-            });
-            img.dataset.bound = '1';
-        }
-    });
+    // Open full image on click
+    if (!img.dataset.bound) {
+      img.addEventListener("click", (e) => {
+        e.stopPropagation();
+        window.open(img.src, "_blank", "noopener");
+      });
+      img.dataset.bound = "1";
+    }
+  });
 }
-
-
-
-
-
 
 // Enhanced fixImageUrl function
-
-
 function fixImageUrl(url) {
-    if (!url) return null;
-    url = url.trim();
-    
-    console.log('Fixing URL:', url); // Debug log
-    
-    // Already absolute URL
-    if (url.startsWith("http://") || url.startsWith("https://")) {
-        // Check if it's a private file (anywhere in the URL)
-        if (url.includes('/private/files/')) {
-            console.log('Private file detected, proxying');
-            // Extract just the path part
-            let fileUrl = url;
-            // If it's on staging domain, replace with ERP domain
-            if (url.includes('stagingreports.acmestones.com')) {
-                fileUrl = url.replace('stagingreports.acmestones.com', 'acmestones.erpnext.com');
-            }
-            return `${API_BASE}?action=proxyimage&fileurl=${encodeURIComponent(fileUrl)}`;
-        }
-        return url;
+  if (!url) return null;
+  url = url.trim();
+
+  console.log("Fixing URL:", url); // Debug log
+
+  // Already absolute URL
+  if (url.startsWith("http://") || url.startsWith("https://")) {
+    // Check if it's a private file (anywhere in the URL)
+    if (url.includes("/private/files/")) {
+      console.log("Private file detected, proxying");
+      // Extract just the path part
+      let fileUrl = url;
+      // If it's on staging domain, replace with ERP domain
+      if (url.includes("stagingreports.acmestones.com")) {
+        fileUrl = url.replace("stagingreports.acmestones.com", "acmestones.erpnext.com");
+      }
+      return `${API_BASE}?action=proxyimage&fileurl=${encodeURIComponent(fileUrl)}`;
     }
-    
-    // Protocol-relative URL
-    if (url.startsWith("//")) {
-        return "https:" + url;
-    }
-    
-    // Handle private files by proxying through PHP
-    if (url.includes('/private/files/')) {
-        const fullUrl = `https://acmestones.erpnext.com${url}`;
-        console.log('Proxying private file:', fullUrl);
-        return `${API_BASE}?action=proxyimage&fileurl=${encodeURIComponent(fullUrl)}`;
-    }
-    
-    // Root-relative URL (including public /files/)
-    if (url.startsWith("/")) {
-        return `https://acmestones.erpnext.com${url}`;
-    }
-    
-    // Relative URL
-    return `https://acmestones.erpnext.com/${url}`;
+    return url;
+  }
+
+  // Protocol-relative URL
+  if (url.startsWith("//")) {
+    return "https:" + url;
+  }
+
+  // Handle private files by proxying through PHP
+  if (url.includes("/private/files/")) {
+    const fullUrl = `https://acmestones.erpnext.com${url}`;
+    console.log("Proxying private file:", fullUrl);
+    return `${API_BASE}?action=proxyimage&fileurl=${encodeURIComponent(fullUrl)}`;
+  }
+
+  // Root-relative URL (including public /files/)
+  if (url.startsWith("/")) {
+    return `https://acmestones.erpnext.com${url}`;
+  }
+
+  // Relative URL
+  return `https://acmestones.erpnext.com/${url}`;
 }
 
-
-
-
-
-
-
-
-
-
-//Fix file url
 // Fix file url
 function fixFileUrl(url) {
-    if (!url) return url;
-    
-    // ✅ FIX: Handle ERPNext app links
-    if (url.startsWith('/app/')) {
-        return ERP_BASE + url;
-    }
-    
-    if (url.startsWith('/private/files/') || url.startsWith('/files/')) {
-        return `erp_proxy.php?action=proxyfile&fileurl=${encodeURIComponent(ERP_BASE + url)}`;
-    }
-    
-    if (url.includes('/private/files/') || url.includes('/files/')) {
-        return `erp_proxy.php?action=proxyfile&fileurl=${encodeURIComponent(url)}`;
-    }
-    
-    return url;
+  if (!url) return url;
+
+  // ✅ FIX: Handle ERPNext app links
+  if (url.startsWith("/app/")) {
+    return ERP_BASE + url;
+  }
+
+  if (url.startsWith("/private/files/") || url.startsWith("/files/")) {
+    return `erp_proxy.php?action=proxyfile&fileurl=${encodeURIComponent(ERP_BASE + url)}`;
+  }
+
+  if (url.includes("/private/files/") || url.includes("/files/")) {
+    return `erp_proxy.php?action=proxyfile&fileurl=${encodeURIComponent(url)}`;
+  }
+
+  return url;
 }
 
+function injectAttachmentControls(container, row, columns, reportName, config, docName) {
+  /* ===============================
+     HARD GUARD — ATTACHMENTS ONLY
+  =============================== */
+  if (container.dataset.reportField !== ATTACHMENTS_REPORT_FIELD) {
+    return;
+  }
 
+  // STRICT: use can_edit only
+  const canEdit = currentUser?.can_edit === true;
 
+  /* ===============================
+     UPLOAD BUTTON (ALWAYS VISIBLE)
+  =============================== */
+  if (canEdit && !container.querySelector(".upload-attachment-btn")) {
+    const uploadBtn = document.createElement("button");
+    uploadBtn.className = "btn btn-sm btn-outline-primary mb-2 upload-attachment-btn";
+    uploadBtn.textContent = "➕ Upload Attachment";
 
+    uploadBtn.onclick = () => {
+      const input = document.createElement("input");
+      input.type = "file";
 
+      input.onchange = async () => {
+        if (!input.files.length) return;
 
+        const fd = new FormData();
+        fd.append("file", input.files[0]);
+        fd.append("doctype", config.doctype);
+        fd.append("docname", docName);
+        fd.append("is_private", 1);
 
+        await fetch("/erp_proxy.php?action=upload_attachment", {
+          method: "POST",
+          body: fd
+        });
 
+        // 🔁 Refresh attachments only
+        loadAttachments(container, docName, config, row, columns, reportName);
+      };
 
+      input.click();
+    };
 
+    container.prepend(uploadBtn);
+  }
 
-function injectAttachmentControls(
-    container,
-    row,
-    columns,
-    reportName,
-    config,
-    docName
-) {
-    /* ===============================
-       HARD GUARD — ATTACHMENTS ONLY
-    =============================== */
+  /* ===============================
+     REMOVE BUTTONS (FILES + IMAGES)
+  =============================== */
+  if (!canEdit) return;
 
-    if (container.dataset.reportField !== ATTACHMENTS_REPORT_FIELD) {
-        return;
-    }
+  const attachmentLinks = Array.from(container.querySelectorAll("a")).filter(
+    (a) => a.href && (a.href.includes("/files/") || a.href.includes("/private/files/"))
+  );
 
-    const canEdit = currentUser?.can_edit === true;
+  attachmentLinks.forEach((link) => {
+    if (link.dataset.hasRemoveBtn) return;
+    link.dataset.hasRemoveBtn = "1";
 
-    /* ===============================
-       UPLOAD BUTTON (ALWAYS VISIBLE)
-    =============================== */
+    const href = link.getAttribute("href");
+    const fileName = decodeURIComponent(href.split("/").pop().split("?")[0]);
 
-    if (canEdit && !container.querySelector('.upload-attachment-btn')) {
-        const uploadBtn = document.createElement('button');
-        uploadBtn.className =
-            'btn btn-sm btn-outline-primary mb-2 upload-attachment-btn';
-        uploadBtn.textContent = '➕ Upload Attachment';
+    const removeBtn = document.createElement("button");
+    removeBtn.className = "btn btn-sm btn-outline-danger ms-2";
+    removeBtn.textContent = "❌";
 
-        uploadBtn.onclick = () => {
-            const input = document.createElement('input');
-            input.type = 'file';
+    removeBtn.onclick = async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
 
-            input.onchange = async () => {
-                if (!input.files.length) return;
+      if (!confirm(`Remove "${fileName}"?`)) return;
 
-                const fd = new FormData();
-                fd.append('file', input.files[0]);
-                fd.append('doctype', config.doctype);
-                fd.append('docname', docName);
-                fd.append('is_private', 1);
+      await fetch(
+        `/erp_proxy.php?action=delete_attachment` +
+          `&file_name=${encodeURIComponent(fileName)}` +
+          `&doctype=${encodeURIComponent(config.doctype)}` +
+          `&docname=${encodeURIComponent(docName)}`
+      );
 
-                await fetch('/erp_proxy.php?action=upload_attachment', {
-                    method: 'POST',
-                    body: fd
-                });
+      // 🔁 Refresh attachments only
+      loadAttachments(container, docName, config, row, columns, reportName);
+    };
 
-                // 🔁 Refresh attachments only
-                loadAttachments(
-                    container,
-                    docName,
-                    config,
-                    row,
-                    columns,
-                    reportName
-                );
-            };
-
-            input.click();
-        };
-
-        container.prepend(uploadBtn);
-    }
-
-    /* ===============================
-       REMOVE BUTTONS (FILES + IMAGES)
-    =============================== */
-
-    if (!canEdit) return;
-
-    const attachmentLinks = Array.from(container.querySelectorAll('a')).filter(
-        a =>
-            a.href &&
-            (a.href.includes('/files/') ||
-             a.href.includes('/private/files/'))
-    );
-
-    attachmentLinks.forEach(link => {
-        if (link.dataset.hasRemoveBtn) return;
-        link.dataset.hasRemoveBtn = '1';
-
-        const href = link.getAttribute('href');
-        const fileName = decodeURIComponent(
-            href.split('/').pop().split('?')[0]
-        );
-
-        const removeBtn = document.createElement('button');
-        removeBtn.className = 'btn btn-sm btn-outline-danger ms-2';
-        removeBtn.textContent = '❌';
-
-        removeBtn.onclick = async e => {
-            e.preventDefault();
-            e.stopPropagation();
-
-            if (!confirm(`Remove "${fileName}"?`)) return;
-
-            await fetch(
-                `/erp_proxy.php?action=delete_attachment` +
-                `&file_name=${encodeURIComponent(fileName)}` +
-                `&doctype=${encodeURIComponent(config.doctype)}` +
-                `&docname=${encodeURIComponent(docName)}`
-            );
-
-            // 🔁 Refresh attachments only
-            loadAttachments(
-                container,
-                docName,
-                config,
-                row,
-                columns,
-                reportName
-            );
-        };
-
-        link.after(removeBtn);
-    });
+    link.after(removeBtn);
+  });
 }
-
-
-
-
-
-
-
 
 async function loadAttachments(container, docName, config, row, columns, reportName) {
-    const doctype = config?.doctype;
-    if (!doctype) {
-        container.innerHTML = `<div class="text-danger">Missing doctype</div>`;
-        return;
-    }
-
-    const url = `erp_proxy.php?action=list_attachments&doctype=${encodeURIComponent(doctype)}&docname=${encodeURIComponent(docName)}`;
-    
-    console.log('📎 Fetching attachments:', url);
-    
-    let res;
-    try {
-        res = await fetch(url);
-    } catch (e) {
-        console.error('Network error loading attachments:', e);
-        container.innerHTML = `<div class="text-muted">No attachments</div>`;
-        return;
-    }
-
-    if (!res.ok) {
-        console.error('Failed to load attachments:', res.status);
-        container.innerHTML = `<div class="text-muted">Error loading attachments (${res.status})</div>`;
-        return;
-    }
-
-    const text = await res.text();
-    console.log('📎 Raw response:', text);
-    
-    if (!text) {
-        container.innerHTML = `<div class="text-muted">No attachments</div>`;
-        return;
-    }
-
-    let files;
-    try {
-        files = JSON.parse(text);
-    } catch (e) {
-        console.error('Invalid JSON from list_attachments:', text);
-        container.innerHTML = `<div class="text-danger">Invalid response format</div>`;
-        return;
-    }
-
-    // 🔥 CRITICAL DEBUG - Check structure
-    console.log('📎 Parsed files array:', files);
-    console.log('📎 Number of files:', files?.length);
-    if (files && files.length > 0) {
-        console.log('📎 First file structure:', files[0]);
-        console.log('📎 All property names:', Object.keys(files[0]));
-    }
-    
-    container.innerHTML = '';
-
-    // UPLOAD BUTTON
-    if (currentUser?.canedit) {
-        const uploadBtn = document.createElement('button');
-        uploadBtn.className = 'btn btn-sm btn-outline-primary mb-2';
-        uploadBtn.textContent = '📎 Upload Attachment';
-        container.appendChild(uploadBtn);
-        
-        uploadBtn.onclick = () => {
-            const input = document.createElement('input');
-            input.type = 'file';
-            input.onchange = async () => {
-                if (!input.files.length) return;
-                
-                uploadBtn.disabled = true;
-                uploadBtn.textContent = 'Uploading...';
-                
-                const fd = new FormData();
-                fd.append('file', input.files[0]);
-                fd.append('doctype', doctype);
-                fd.append('docname', docName);
-                fd.append('is_private', 1);
-                
-                try {
-                    const res = await fetch(`erp_proxy.php?action=upload_attachment`, { method: 'POST', body: fd });
-                    const text = await res.text();
-                    console.log('📤 Upload response:', text);
-                    
-                    if (!res.ok) {
-                        throw new Error('Upload failed: ' + text);
-                    }
-                    
-                    loadAttachments(container, docName, config, row, columns, reportName);
-                } catch (err) {
-                    console.error('Upload error:', err);
-                    alert('Upload failed: ' + err.message);
-                } finally {
-                    uploadBtn.disabled = false;
-                    uploadBtn.textContent = '📎 Upload Attachment';
-                }
-            };
-            input.click();
-        };
-    }
-
-    
-// FILE LIST
-if (!files || !files.length) {
-    container.insertAdjacentHTML('beforeend', `<div class="text-muted">No attachments</div>`);
+  const doctype = config?.doctype;
+  if (!doctype) {
+    container.innerHTML = `<div class="text-danger">Missing doctype</div>`;
     return;
-}
+  }
 
-// ✅ NEW: Separate images and files
-const images = [];
-const nonImages = [];
+  const url = `erp_proxy.php?action=list_attachments&doctype=${encodeURIComponent(doctype)}&docname=${encodeURIComponent(docName)}`;
 
-files.forEach(file => {
+  console.log("📎 Fetching attachments:", url);
+
+  let res;
+  try {
+    res = await fetch(url);
+  } catch (e) {
+    console.error("Network error loading attachments:", e);
+    container.innerHTML = `<div class="text-muted">No attachments</div>`;
+    return;
+  }
+
+  if (!res.ok) {
+    console.error("Failed to load attachments:", res.status);
+    container.innerHTML = `<div class="text-muted">Error loading attachments (${res.status})</div>`;
+    return;
+  }
+
+  const text = await res.text();
+  console.log("📎 Raw response:", text);
+
+  if (!text) {
+    container.innerHTML = `<div class="text-muted">No attachments</div>`;
+    return;
+  }
+
+  let files;
+  try {
+    files = JSON.parse(text);
+  } catch (e) {
+    console.error("Invalid JSON from list_attachments:", text);
+    container.innerHTML = `<div class="text-danger">Invalid response format</div>`;
+    return;
+  }
+
+  // 🔥 CRITICAL DEBUG - Check structure
+  console.log("📎 Parsed files array:", files);
+  console.log("📎 Number of files:", files?.length);
+  if (files && files.length > 0) {
+    console.log("📎 First file structure:", files[0]);
+    console.log("📎 All property names:", Object.keys(files[0]));
+  }
+
+  container.innerHTML = "";
+
+  // UPLOAD BUTTON
+  if (currentUser?.can_edit === true) {
+    const uploadBtn = document.createElement("button");
+    uploadBtn.className = "btn btn-sm btn-outline-primary mb-2";
+    uploadBtn.textContent = "📎 Upload Attachment";
+    container.appendChild(uploadBtn);
+
+    uploadBtn.onclick = () => {
+      const input = document.createElement("input");
+      input.type = "file";
+      input.onchange = async () => {
+        if (!input.files.length) return;
+
+        uploadBtn.disabled = true;
+        uploadBtn.textContent = "Uploading...";
+
+        const fd = new FormData();
+        fd.append("file", input.files[0]);
+        fd.append("doctype", doctype);
+        fd.append("docname", docName);
+        fd.append("is_private", 1);
+
+        try {
+          const res = await fetch(`erp_proxy.php?action=upload_attachment`, { method: "POST", body: fd });
+          const text = await res.text();
+          console.log("📤 Upload response:", text);
+
+          if (!res.ok) {
+            throw new Error("Upload failed: " + text);
+          }
+
+          loadAttachments(container, docName, config, row, columns, reportName);
+        } catch (err) {
+          console.error("Upload error:", err);
+          alert("Upload failed: " + err.message);
+        } finally {
+          uploadBtn.disabled = false;
+          uploadBtn.textContent = "📎 Upload Attachment";
+        }
+      };
+      input.click();
+    };
+  }
+
+  // FILE LIST
+  if (!files || !files.length) {
+    container.insertAdjacentHTML("beforeend", `<div class="text-muted">No attachments</div>`);
+    return;
+  }
+
+  // ✅ NEW: Separate images and files
+  const images = [];
+  const nonImages = [];
+
+  files.forEach((file) => {
     const fileUrl = file.file_url || file.fileurl || file.url;
     const fileName = file.file_name || file.filename || file.name;
-    
+
     if (!fileUrl) return;
-    
+
     const isImage = /\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i.test(fileName);
-    
+
     if (isImage) {
-        images.push({ fileUrl, fileName });
+      images.push({ fileUrl, fileName });
     } else {
-        nonImages.push({ fileUrl, fileName });
+      nonImages.push({ fileUrl, fileName });
     }
-});
+  });
 
-// ✅ RENDER IMAGES IN GRID
-if (images.length > 0) {
-    const imagesGrid = document.createElement('div');
-    imagesGrid.style.display = 'grid';
-    imagesGrid.style.gridTemplateColumns = 'repeat(auto-fill, minmax(120px, 1fr))';
-    imagesGrid.style.gap = '10px';
-    imagesGrid.style.marginBottom = '15px';
-    
+  // ✅ RENDER IMAGES IN GRID
+  if (images.length > 0) {
+    const imagesGrid = document.createElement("div");
+    imagesGrid.style.display = "grid";
+    imagesGrid.style.gridTemplateColumns = "repeat(auto-fill, minmax(120px, 1fr))";
+    imagesGrid.style.gap = "10px";
+    imagesGrid.style.marginBottom = "15px";
+
     images.forEach(({ fileUrl, fileName }) => {
-        const encodedUrl = encodeURIComponent(fileUrl);
-        const proxyUrl = `erp_proxy.php?action=proxyimage&fileurl=${encodedUrl}`;
-        
-        const imageWrapper = document.createElement('div');
-        imageWrapper.style.position = 'relative';
-        imageWrapper.style.display = 'flex';
-        imageWrapper.style.flexDirection = 'column';
-        imageWrapper.style.alignItems = 'center';
-        
-        const link = document.createElement('a');
-        link.href = proxyUrl;
-        link.target = '_blank';
-        
-        const img = document.createElement('img');
-        img.src = proxyUrl;
-        img.style.width = '100%';
-        img.style.height = '120px';
-        img.style.objectFit = 'cover';
-        img.style.border = '1px solid #ddd';
-        img.style.cursor = 'pointer';
-        img.style.borderRadius = '4px';
-        
-        img.onerror = function() {
-            this.style.display = 'none';
-            const errorText = document.createElement('span');
-            errorText.textContent = '❌ ' + fileName;
-            errorText.className = 'text-danger small';
-            imageWrapper.appendChild(errorText);
+      const encodedUrl = encodeURIComponent(fileUrl);
+      const proxyUrl = `erp_proxy.php?action=proxyimage&fileurl=${encodedUrl}`;
+
+      const imageWrapper = document.createElement("div");
+      imageWrapper.style.position = "relative";
+      imageWrapper.style.display = "flex";
+      imageWrapper.style.flexDirection = "column";
+      imageWrapper.style.alignItems = "center";
+
+      const link = document.createElement("a");
+      link.href = proxyUrl;
+      link.target = "_blank";
+
+      const img = document.createElement("img");
+      img.src = proxyUrl;
+      img.style.width = "100%";
+      img.style.height = "120px";
+      img.style.objectFit = "cover";
+      img.style.border = "1px solid #ddd";
+      img.style.cursor = "pointer";
+      img.style.borderRadius = "4px";
+
+      img.onerror = function () {
+        this.style.display = "none";
+        const errorText = document.createElement("span");
+        errorText.textContent = "❌ " + fileName;
+        errorText.className = "text-danger small";
+        imageWrapper.appendChild(errorText);
+      };
+
+      link.appendChild(img);
+      imageWrapper.appendChild(link);
+
+      // Image filename below
+      const fileNameLabel = document.createElement("div");
+      fileNameLabel.className = "text-muted small text-center mt-1";
+      fileNameLabel.style.fontSize = "0.75rem";
+      fileNameLabel.style.wordBreak = "break-word";
+      fileNameLabel.textContent = fileName;
+      imageWrapper.appendChild(fileNameLabel);
+
+      // Remove button for images
+      if (currentUser?.can_edit === true) {
+        const removeBtn = document.createElement("button");
+        removeBtn.textContent = "🗑️";
+        removeBtn.className = "btn btn-sm btn-outline-danger mt-1";
+        removeBtn.style.width = "100%";
+        removeBtn.title = "Delete";
+        removeBtn.onclick = async () => {
+          if (!confirm(`Delete ${fileName}?`)) return;
+
+          removeBtn.disabled = true;
+          try {
+            const deleteUrl = `erp_proxy.php?action=delete_attachment&file_name=${encodeURIComponent(fileName)}&doctype=${encodeURIComponent(doctype)}&docname=${encodeURIComponent(docName)}`;
+            const res = await fetch(deleteUrl);
+            const text = await res.text();
+
+            if (!res.ok) {
+              throw new Error("Delete failed: " + text);
+            }
+
+            loadAttachments(container, docName, config, row, columns, reportName);
+          } catch (err) {
+            console.error("Delete error:", err);
+            alert("Delete failed: " + err.message);
+            removeBtn.disabled = false;
+          }
         };
-        
-        link.appendChild(img);
-        imageWrapper.appendChild(link);
-        
-        // Image filename below
-        const fileNameLabel = document.createElement('div');
-        fileNameLabel.className = 'text-muted small text-center mt-1';
-        fileNameLabel.style.fontSize = '0.75rem';
-        fileNameLabel.style.wordBreak = 'break-word';
-        fileNameLabel.textContent = fileName;
-        imageWrapper.appendChild(fileNameLabel);
-        
-        // Remove button for images
-        if (currentUser?.canedit) {
-            const removeBtn = document.createElement('button');
-            removeBtn.textContent = '🗑️';
-            removeBtn.className = 'btn btn-sm btn-outline-danger mt-1';
-            removeBtn.style.width = '100%';
-            removeBtn.title = 'Delete';
-            removeBtn.onclick = async () => {
-                if (!confirm(`Delete ${fileName}?`)) return;
-                
-                removeBtn.disabled = true;
-                try {
-                    const deleteUrl = `erp_proxy.php?action=delete_attachment&file_name=${encodeURIComponent(fileName)}&doctype=${encodeURIComponent(doctype)}&docname=${encodeURIComponent(docName)}`;
-                    const res = await fetch(deleteUrl);
-                    const text = await res.text();
-                    
-                    if (!res.ok) {
-                        throw new Error('Delete failed: ' + text);
-                    }
-                    
-                    loadAttachments(container, docName, config, row, columns, reportName);
-                } catch (err) {
-                    console.error('Delete error:', err);
-                    alert('Delete failed: ' + err.message);
-                    removeBtn.disabled = false;
-                }
-            };
-            imageWrapper.appendChild(removeBtn);
-        }
-        
-        imagesGrid.appendChild(imageWrapper);
+        imageWrapper.appendChild(removeBtn);
+      }
+
+      imagesGrid.appendChild(imageWrapper);
     });
-    
+
     container.appendChild(imagesGrid);
-}
+  }
 
-// ✅ RENDER NON-IMAGES AS LIST
-if (nonImages.length > 0) {
-    const filesList = document.createElement('div');
-    filesList.style.marginTop = '10px';
-    
+  // ✅ RENDER NON-IMAGES AS LIST
+  if (nonImages.length > 0) {
+    const filesList = document.createElement("div");
+    filesList.style.marginTop = "10px";
+
     nonImages.forEach(({ fileUrl, fileName }) => {
-        const encodedUrl = encodeURIComponent(fileUrl);
-        
-        const rowDiv = document.createElement('div');
-        rowDiv.style.display = 'flex';
-        rowDiv.style.alignItems = 'center';
-        rowDiv.style.gap = '10px';
-        rowDiv.style.marginBottom = '8px';
-        rowDiv.style.padding = '8px';
-        rowDiv.style.border = '1px solid #e0e0e0';
-        rowDiv.style.borderRadius = '4px';
-        rowDiv.style.backgroundColor = '#f9f9f9';
-        
-        const link = document.createElement('a');
-        link.href = `erp_proxy.php?action=proxyfile&fileurl=${encodedUrl}`;
-        link.textContent = '📄 ' + fileName;
-        link.target = '_blank';
-        link.className = 'text-decoration-none flex-grow-1';
-        link.style.color = '#0d6efd';
-        rowDiv.appendChild(link);
-        
-        // Remove button for files
-        if (currentUser?.canedit) {
-            const removeBtn = document.createElement('button');
-            removeBtn.textContent = '🗑️';
-            removeBtn.className = 'btn btn-sm btn-outline-danger';
-            removeBtn.title = 'Delete';
-            removeBtn.onclick = async () => {
-                if (!confirm(`Delete ${fileName}?`)) return;
-                
-                removeBtn.disabled = true;
-                try {
-                    const deleteUrl = `erp_proxy.php?action=delete_attachment&file_name=${encodeURIComponent(fileName)}&doctype=${encodeURIComponent(doctype)}&docname=${encodeURIComponent(docName)}`;
-                    const res = await fetch(deleteUrl);
-                    const text = await res.text();
-                    
-                    if (!res.ok) {
-                        throw new Error('Delete failed: ' + text);
-                    }
-                    
-                    loadAttachments(container, docName, config, row, columns, reportName);
-                } catch (err) {
-                    console.error('Delete error:', err);
-                    alert('Delete failed: ' + err.message);
-                    removeBtn.disabled = false;
-                }
-            };
-            rowDiv.appendChild(removeBtn);
-        }
-        
-        filesList.appendChild(rowDiv);
+      const encodedUrl = encodeURIComponent(fileUrl);
+
+      const rowDiv = document.createElement("div");
+      rowDiv.style.display = "flex";
+      rowDiv.style.alignItems = "center";
+      rowDiv.style.gap = "10px";
+      rowDiv.style.marginBottom = "8px";
+      rowDiv.style.padding = "8px";
+      rowDiv.style.border = "1px solid #e0e0e0";
+      rowDiv.style.borderRadius = "4px";
+      rowDiv.style.backgroundColor = "#f9f9f9";
+
+      const link = document.createElement("a");
+      link.href = `erp_proxy.php?action=proxyfile&fileurl=${encodedUrl}`;
+      link.textContent = "📄 " + fileName;
+      link.target = "_blank";
+      link.className = "text-decoration-none flex-grow-1";
+      link.style.color = "#0d6efd";
+      rowDiv.appendChild(link);
+
+      // Remove button for files
+      if (currentUser?.can_edit === true) {
+        const removeBtn = document.createElement("button");
+        removeBtn.textContent = "🗑️";
+        removeBtn.className = "btn btn-sm btn-outline-danger";
+        removeBtn.title = "Delete";
+        removeBtn.onclick = async () => {
+          if (!confirm(`Delete ${fileName}?`)) return;
+
+          removeBtn.disabled = true;
+          try {
+            const deleteUrl = `erp_proxy.php?action=delete_attachment&file_name=${encodeURIComponent(fileName)}&doctype=${encodeURIComponent(doctype)}&docname=${encodeURIComponent(docName)}`;
+            const res = await fetch(deleteUrl);
+            const text = await res.text();
+
+            if (!res.ok) {
+              throw new Error("Delete failed: " + text);
+            }
+
+            loadAttachments(container, docName, config, row, columns, reportName);
+          } catch (err) {
+            console.error("Delete error:", err);
+            alert("Delete failed: " + err.message);
+            removeBtn.disabled = false;
+          }
+        };
+        rowDiv.appendChild(removeBtn);
+      }
+
+      filesList.appendChild(rowDiv);
     });
-    
+
     container.appendChild(filesList);
+  }
 }
 
-}
 
 
 
