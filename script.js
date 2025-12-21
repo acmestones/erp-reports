@@ -3378,7 +3378,7 @@ async function openGlobalReportConfigModal(reportName) {
                 .map(
                   (col) => `
                   <li class="list-group-item draggable-field d-flex align-items-center" draggable="true" data-fieldname="${col.fieldname}">
-                    <span class="drag-handle me-2">☰</span>
+                    <span class="drag-handle admin-drag-handle me-2"></span>
                     <span>${col.label || col.fieldname}</span>
                   </li>
                 `
@@ -3404,7 +3404,7 @@ async function openGlobalReportConfigModal(reportName) {
               .map(
                 (v) => `
                 <li class="list-group-item draggable-group d-flex align-items-center" draggable="true" data-value="${v}">
-                  <span class="drag-handle me-2">☰</span>
+                  <span class="drag-handle admin-drag-handle me-2"></span>
                   <span>${v}</span>
                 </li>
               `
@@ -3430,7 +3430,7 @@ async function openGlobalReportConfigModal(reportName) {
               .map(
                 (v) => `
                 <li class="list-group-item draggable-group d-flex align-items-center" draggable="true" data-value="${v}">
-                  <span class="drag-handle me-2">☰</span>
+                  <span class="drag-handle admin-drag-handle me-2"></span>
                   <span>${v}</span>
                 </li>
               `
