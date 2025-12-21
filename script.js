@@ -1647,13 +1647,14 @@ function renderGroupedCards(grouped, columns, reportName) {
       // IMPORTANT: createCard() below also normalizes title_field/titlefield,
       // but keep a consistent default here too.
 
-       const titleField = config.titlefield || "name";
-      const idField = config.idfield || "name";
+      const titleField = config.title_field || "name";
+      const idField = config.id_field || "name";
       
-      // ✅ Helper function using admin-configured id_field
+      // Helper function using admin-configured id_field
       const getCardId = (row) => {
         return row[idField];
       };
+
 
 
 
@@ -1753,19 +1754,19 @@ function createCard(row, columns, reportName, config) {
   config.operation_planning_permissions =
     config.operation_planning_permissions ?? config.operationplanningpermissions ?? {};
 
-// ✅ SMART DOCNAME DETECTION - Admin-configured fields
-const titleField = config.titlefield || "name";
-const idField = config.idfield || "name";
+// ✅ SMART DOCNAME DETECTION - snake_case only
+const titleField = config.title_field || "name";
+const idField = config.id_field || "name";
 
 // For UNIQUE ID: Use admin-configured id_field
 const uniqueDocId = row[idField];
 card.dataset.docname = uniqueDocId;
 
-// For DISPLAY: Use configured titleField
+// For DISPLAY: Use configured title_field
 const displayTitle = row[titleField] || uniqueDocId;
 
 if (!uniqueDocId) {
-  console.warn("⚠️ No unique ID found. Configure 'Unique ID Field' in Admin Settings → Report Management → Configure.", row);
+  console.warn("⚠️ No unique ID found. Configure 'Unique ID Field' in Admin Settings.", row);
 }
 
 
@@ -3218,13 +3219,15 @@ async function openGlobalReportConfigModal(reportName) {
   <label class="form-label fw-bold">Unique ID Field (for sorting) <span class="text-danger">*</span></label>
   <select class="form-select" id="config_id_field" required>
     ${columns.map(c => `
-      <option value="${c.fieldname}" ${config.idfield === c.fieldname ? 'selected' : ''}>
+      <option value="${c.fieldname}" ${config.id_field === c.fieldname ? 'selected' : ''}>
         ${c.label || c.fieldname}
       </option>
     `).join('')}
   </select>
-  <small class="text-muted">Field that uniquely identifies each record (e.g., work_order_id, name)</small>
+  <small class="text-muted">Field that uniquely identifies each record</small>
 </div>
+
+
 
 
           
@@ -6116,8 +6119,8 @@ function openMobileReorderModal(reportName, primaryGroup, secondaryGroup) {
   let cards = grouped[primaryGroup][secondaryGroup];
 
   // Normalize config keys (read legacy too)
- const title_field = config.title_field || config.titleField || 'name';
-const id_field = config.id_field || config.idField || config.idfield || 'name';
+ const title_field = config.title_field || 'name';
+const id_field = config.id_field || 'name';
 
   const card_fields = config.card_fields ?? config.cardFields ?? [];
   const card_priority_root = config.card_priority ?? config.cardPriority ?? {};
