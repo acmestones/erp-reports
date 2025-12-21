@@ -4944,149 +4944,225 @@ async function loadWorkstationDropdown(currentWorkstation, jobCard, jobCardInfo,
 
 
 
-function renderGroupVisibilityControls(reportName, userEmail) {
-  const report = reportConfig[reportName];
-  if (!report) return;
+// ==================================================
+// COMPLETE REPLACEMENT (snake_case + backward compatible)
+// Replace EVERYTHING from your pasted block:
+// - renderGroupVisibilityControls
+// - saveGroupVisibilitySettings
+// - renderGroupVisibilityCheckboxesForAllReports
+// - renderGroupVisibilityCheckboxesForReport
+// - openOperationPlanningModal
+// - fetchWorkOrderOperations
+// - renderOperationsTable
+// - saveNewOperation
+// - addNewOperation
+// - cancelNewOperation   (kept once; removed duplicate)
+// ==================================================
 
-  const userPerms = report.userpermissions?.[userEmail] || {};
+// ---------- Helpers (used by group visibility + operation planning) ----------
+function _safe_id_part(value) {
+  return String(value).replace(/[^\w\-]/g, "_");
+}
 
-  const primaryGroups = getGroups(report, 'primary');
-  const secondaryGroups = getGroups(report, 'secondary');
+// reportConfig is still your global object; we just normalize inside it.
+function _ensure_report_config(report_name) {
+  if (!reportConfig[report_name]) reportConfig[report_name] = {};
+  const cfg = reportConfig[report_name];
 
-  const primaryContainer = document.getElementById('primaryGroupsList');
-  const secondaryContainer = document.getElementById('secondaryGroupsList');
+  // legacy -> canonical (snake_case keys inside config)
+  cfg.user_permissions = cfg.user_permissions ?? cfg.userpermissions ?? {};
+  delete cfg.userpermissions;
 
-  primaryContainer.innerHTML = '';
-  secondaryContainer.innerHTML = '';
+  cfg.operation_planning_permissions =
+    cfg.operation_planning_permissions ?? cfg.operationplanningpermissions ?? {};
+  delete cfg.operationplanningpermissions;
 
-  primaryGroups.forEach(group => {
-    const checked = userPerms.hiddenprimarygroups?.includes(group) ? 'checked' : '';
-    primaryContainer.innerHTML += `<div><input type="checkbox" class="hide-primary-group" value="${group}" ${checked}> ${group}</div>`;
+  return cfg;
+}
+
+function _get_user_group_perms(report_name, user_email) {
+  const cfg = _ensure_report_config(report_name);
+
+  const raw = cfg.user_permissions[user_email] ?? {};
+
+  // legacy -> canonical (snake_case)
+  const hidden_primary_groups =
+    raw.hidden_primary_groups ?? raw.hiddenprimarygroups ?? raw.hiddenPrimaryGroups ?? [];
+  const hidden_secondary_groups =
+    raw.hidden_secondary_groups ?? raw.hiddensecondarygroups ?? raw.hiddenSecondaryGroups ?? [];
+
+  cfg.user_permissions[user_email] = {
+    ...raw,
+    hidden_primary_groups,
+    hidden_secondary_groups
+  };
+
+  return cfg.user_permissions[user_email];
+}
+
+function _get_user_op_perms(config, user_email) {
+  // Accept a config object passed in (often reportConfig[reportName])
+  const cfg = config || {};
+
+  cfg.operation_planning_permissions =
+    cfg.operation_planning_permissions ?? cfg.operationplanningpermissions ?? {};
+  delete cfg.operationplanningpermissions;
+
+  const raw = cfg.operation_planning_permissions?.[user_email] || {};
+
+  // canonical snake_case (read legacy canadd/canedit... too)
+  return {
+    can_view: raw.can_view ?? raw.canview ?? false,
+    can_add: raw.can_add ?? raw.canadd ?? false,
+    can_edit: raw.can_edit ?? raw.canedit ?? false,
+    can_delete: raw.can_delete ?? raw.candelete ?? false,
+    can_reorder: raw.can_reorder ?? raw.canreorder ?? false
+  };
+}
+
+// ==================================================
+// 1) Group visibility controls (single-report page)
+// ==================================================
+function renderGroupVisibilityControls(report_name, user_email) {
+  const report = _ensure_report_config(report_name);
+  const user_perms = _get_user_group_perms(report_name, user_email);
+
+  const primary_groups = getGroups(report, "primary") || [];
+  const secondary_groups = getGroups(report, "secondary") || [];
+
+  const primary_container = document.getElementById("primaryGroupsList");
+  const secondary_container = document.getElementById("secondaryGroupsList");
+  if (!primary_container || !secondary_container) return;
+
+  primary_container.innerHTML = "";
+  secondary_container.innerHTML = "";
+
+  primary_groups.forEach((group) => {
+    const checked = user_perms.hidden_primary_groups.includes(group) ? "checked" : "";
+    primary_container.innerHTML += `
+      <div class="form-check">
+        <input type="checkbox" class="form-check-input hide-primary-group" value="${group}" ${checked}>
+        <label class="form-check-label">${group}</label>
+      </div>
+    `;
   });
 
-  secondaryGroups.forEach(group => {
-    const checked = userPerms.hiddensecondarygroups?.includes(group) ? 'checked' : '';
-    secondaryContainer.innerHTML += `<div><input type="checkbox" class="hide-secondary-group" value="${group}" ${checked}> ${group}</div>`;
+  secondary_groups.forEach((group) => {
+    const checked = user_perms.hidden_secondary_groups.includes(group) ? "checked" : "";
+    secondary_container.innerHTML += `
+      <div class="form-check">
+        <input type="checkbox" class="form-check-input hide-secondary-group" value="${group}" ${checked}>
+        <label class="form-check-label">${group}</label>
+      </div>
+    `;
   });
 }
 
+function saveGroupVisibilitySettings(report_name, user_email) {
+  const report = _ensure_report_config(report_name);
+  _get_user_group_perms(report_name, user_email); // ensure object exists
 
+  const primary_checkboxes = document.querySelectorAll(
+    "#primaryGroupsList input.hide-primary-group:checked"
+  );
+  const secondary_checkboxes = document.querySelectorAll(
+    "#secondaryGroupsList input.hide-secondary-group:checked"
+  );
 
-
-
-
-
-
-function saveGroupVisibilitySettings(reportName, userEmail) {
-  const report = reportConfig[reportName];
-  if (!report) return;
-
-  const primaryCheckboxes = document.querySelectorAll('#primaryGroupsList input.hide-primary-group:checked');
-  const secondaryCheckboxes = document.querySelectorAll('#secondaryGroupsList input.hide-secondary-group:checked');
-
-  const hiddenprimarygroups = Array.from(primaryCheckboxes).map(cb => cb.value);
-  const hiddensecondarygroups = Array.from(secondaryCheckboxes).map(cb => cb.value);
-
-  if (!report.userpermissions) report.userpermissions = {};
-  if (!report.userpermissions[userEmail]) report.userpermissions[userEmail] = {};
-
-  report.userpermissions[userEmail].hiddenprimarygroups = hiddenprimarygroups;
-  report.userpermissions[userEmail].hiddensecondarygroups = hiddensecondarygroups;
+  report.user_permissions[user_email].hidden_primary_groups = Array.from(primary_checkboxes).map(
+    (cb) => cb.value
+  );
+  report.user_permissions[user_email].hidden_secondary_groups = Array.from(secondary_checkboxes).map(
+    (cb) => cb.value
+  );
 }
 
-
-
-
-
-
-function renderGroupVisibilityCheckboxesForAllReports(userEmail, allowedReports) {
-  allowedReports.forEach((reportName, idx) => {
-    renderGroupVisibilityCheckboxesForReport(userEmail, reportName, idx);
+// ==================================================
+// 2) Group visibility controls (per-user config modal tabs)
+// ==================================================
+function renderGroupVisibilityCheckboxesForAllReports(user_email, allowed_reports) {
+  allowed_reports.forEach((report_name, idx) => {
+    renderGroupVisibilityCheckboxesForReport(user_email, report_name, idx);
   });
 }
 
+function renderGroupVisibilityCheckboxesForReport(user_email, report_name, tab_idx) {
+  const cfg = _ensure_report_config(report_name);
+  const user_perms = _get_user_group_perms(report_name, user_email);
 
+  const primary_groups = getGroups(cfg, "primary") || [];
+  const secondary_groups = getGroups(cfg, "secondary") || [];
 
+  const primary_container = document.getElementById(`primaryGroupsContainer_${tab_idx}`);
+  const secondary_container = document.getElementById(`secondaryGroupsContainer_${tab_idx}`);
 
-function renderGroupVisibilityCheckboxesForReport(userEmail, reportName, tabIdx) {
-  const config = reportConfig[reportName] || {};
-  const userPerms = config.user_permissions?.[userEmail] || { hiddenprimarygroups: [], hiddensecondarygroups: [] };
-
-  const primaryGroups = getGroups(config, 'primary');
-  const secondaryGroups = getGroups(config, 'secondary');
-
-  const primaryContainer = document.getElementById(`primaryGroupsContainer_${tabIdx}`);
-  const secondaryContainer = document.getElementById(`secondaryGroupsContainer_${tabIdx}`);
-
-  if (!primaryContainer || !secondaryContainer) {
-    console.error('Group containers not found for tab', tabIdx);
+  if (!primary_container || !secondary_container) {
+    console.error("Group containers not found for tab", tab_idx);
     return;
   }
 
-  primaryContainer.innerHTML = '';
-  secondaryContainer.innerHTML = '';
+  primary_container.innerHTML = "";
+  secondary_container.innerHTML = "";
 
-  // Handle primary groups
-  if (primaryGroups.length === 0) {
-    primaryContainer.innerHTML = '<p class="text-muted small mb-0">No primary groups configured for this report</p>';
+  if (primary_groups.length === 0) {
+    primary_container.innerHTML =
+      '<p class="text-muted small mb-0">No primary groups configured for this report</p>';
   } else {
-    primaryGroups.forEach(group => {
-      const checked = userPerms.hiddenprimarygroups?.includes(group) ? 'checked' : '';
-      primaryContainer.innerHTML += `
+    primary_groups.forEach((group) => {
+      const checked = user_perms.hidden_primary_groups.includes(group) ? "checked" : "";
+      const safe_id = _safe_id_part(group);
+
+      primary_container.innerHTML += `
         <div class="form-check">
-          <input class="form-check-input" type="checkbox" value="${group}" id="primary_${tabIdx}_${group}" ${checked}>
-          <label class="form-check-label" for="primary_${tabIdx}_${group}">${group}</label>
+          <input class="form-check-input" type="checkbox" value="${group}"
+                 id="primary_${tab_idx}_${safe_id}" ${checked}>
+          <label class="form-check-label" for="primary_${tab_idx}_${safe_id}">${group}</label>
         </div>
       `;
     });
   }
 
-  // Handle secondary groups
-  if (secondaryGroups.length === 0) {
-    secondaryContainer.innerHTML = '<p class="text-muted small mb-0">No secondary groups configured for this report</p>';
+  if (secondary_groups.length === 0) {
+    secondary_container.innerHTML =
+      '<p class="text-muted small mb-0">No secondary groups configured for this report</p>';
   } else {
-    secondaryGroups.forEach(group => {
-      const checked = userPerms.hiddensecondarygroups?.includes(group) ? 'checked' : '';
-      secondaryContainer.innerHTML += `
+    secondary_groups.forEach((group) => {
+      const checked = user_perms.hidden_secondary_groups.includes(group) ? "checked" : "";
+      const safe_id = _safe_id_part(group);
+
+      secondary_container.innerHTML += `
         <div class="form-check">
-          <input class="form-check-input" type="checkbox" value="${group}" id="secondary_${tabIdx}_${group}" ${checked}>
-          <label class="form-check-label" for="secondary_${tabIdx}_${group}">${group}</label>
+          <input class="form-check-input" type="checkbox" value="${group}"
+                 id="secondary_${tab_idx}_${safe_id}" ${checked}>
+          <label class="form-check-label" for="secondary_${tab_idx}_${safe_id}">${group}</label>
         </div>
       `;
     });
   }
 }
 
+// ==================================================
+// 3) Operation planning modal (snake_case variables + normalized perms)
+// ==================================================
+async function openOperationPlanningModal(row, config, report_name) {
+  const work_order_id = row.work_order_id || row.name;
 
-
-
-
-
-
-
-
-
-
-async function openOperationPlanningModal(row, config, reportName) {
-  const workOrderId = row.work_order_id || row.name;
-  
-  if (!workOrderId) {
-    alert('No Work Order ID found for this record');
+  if (!work_order_id) {
+    alert("No Work Order ID found for this record");
     return;
   }
-  
-  console.log('Opening Operation Planning for:', workOrderId);
-  
-  const userEmail = localStorage.getItem("userEmail");
-  const opPerms = config.operation_planning_permissions?.[userEmail] || {};
-  
-  // Create modal HTML
-  const modalHtml = `
+
+  console.log("Opening Operation Planning for:", work_order_id);
+
+  const user_email = localStorage.getItem("userEmail");
+  const op_perms = _get_user_op_perms(config, user_email);
+
+  const modal_html = `
     <div class="modal fade" id="operationPlanningModal" tabindex="-1">
       <div class="modal-dialog modal-xl">
         <div class="modal-content">
           <div class="modal-header">
-            <h5 class="modal-title">Operation Planning - ${workOrderId}</h5>
+            <h5 class="modal-title">Operation Planning - ${work_order_id}</h5>
             <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
           </div>
           <div class="modal-body">
@@ -5099,297 +5175,269 @@ async function openOperationPlanningModal(row, config, reportName) {
             </div>
           </div>
           <div class="modal-footer">
-            ${opPerms.can_add ? '<button type="button" class="btn btn-primary" id="addOperationBtn"><i class="bi bi-plus"></i> Add Operation</button>' : ''}
+            ${
+              op_perms.can_add
+                ? '<button type="button" class="btn btn-primary" id="addOperationBtn"><i class="bi bi-plus"></i> Add Operation</button>'
+                : ""
+            }
             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
           </div>
         </div>
       </div>
     </div>
   `;
-  
-  // Remove existing modal if any
-  const existingModal = document.getElementById('operationPlanningModal');
-  if (existingModal) existingModal.remove();
-  
-  document.body.insertAdjacentHTML('beforeend', modalHtml);
-  
-  const modal = new bootstrap.Modal(document.getElementById('operationPlanningModal'));
+
+  const existing_modal = document.getElementById("operationPlanningModal");
+  if (existing_modal) existing_modal.remove();
+
+  document.body.insertAdjacentHTML("beforeend", modal_html);
+
+  const modal = new bootstrap.Modal(document.getElementById("operationPlanningModal"));
   modal.show();
-  
-  // Load operations data
+
   try {
-    const operations = await fetchWorkOrderOperations(workOrderId);
-    console.log('Fetched operations:', operations);
-    renderOperationsTable(operations, opPerms, workOrderId);
-    
-    // Setup add operation button
-    if (opPerms.can_add) {
-      const addBtn = document.getElementById('addOperationBtn');
-      if (addBtn) {
-        addBtn.onclick = () => {
-          addNewOperation(workOrderId, opPerms);
+    const operations = await fetchWorkOrderOperations(work_order_id);
+    console.log("Fetched operations:", operations);
+
+    renderOperationsTable(operations, op_perms, work_order_id);
+
+    if (op_perms.can_add) {
+      const add_btn = document.getElementById("addOperationBtn");
+      if (add_btn) {
+        add_btn.onclick = () => {
+          addNewOperation(work_order_id, op_perms);
         };
       }
     }
   } catch (error) {
-    console.error('Error in openOperationPlanningModal:', error);
-    document.getElementById('operationPlanningContent').innerHTML = 
-      `<div class="alert alert-danger">
+    console.error("Error in openOperationPlanningModal:", error);
+    document.getElementById("operationPlanningContent").innerHTML = `
+      <div class="alert alert-danger">
         <strong>Error loading operations:</strong><br>
         ${error.message}<br>
         <small>Check browser console for more details</small>
-      </div>`;
+      </div>
+    `;
   }
 }
 
+async function fetchWorkOrderOperations(work_order_id) {
+  console.log("=== Fetch Work Order Operations ===");
+  console.log("Work Order ID:", work_order_id);
 
+  const url = `${API_BASE}?action=get_work_order_operations&work_order=${encodeURIComponent(
+    work_order_id
+  )}`;
+  console.log("Full URL:", url);
 
-
-
-
-
-
-async function fetchWorkOrderOperations(workOrderId) {
-  console.log('=== Fetch Work Order Operations ===');
-  console.log('Work Order ID:', workOrderId);
-  
-  const url = `${API_BASE}?action=get_work_order_operations&work_order=${encodeURIComponent(workOrderId)}`;
-  console.log('Full URL:', url);
-  
   try {
     const response = await fetch(url);
-    console.log('Response received, status:', response.status, response.statusText);
-    
+    console.log("Response received, status:", response.status, response.statusText);
+
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
-    
+
     const text = await response.text();
-    console.log('Raw response text:', text);
-    
+    console.log("Raw response text:", text);
+
     let data;
     try {
       data = JSON.parse(text);
     } catch (e) {
-      console.error('JSON parse error:', e);
-      console.error('Response was:', text);
-      throw new Error('Invalid JSON response from server');
+      console.error("JSON parse error:", e);
+      console.error("Response was:", text);
+      throw new Error("Invalid JSON response from server");
     }
-    
-    console.log('Parsed response data:', data);
-    
+
+    console.log("Parsed response data:", data);
+
     if (!data.success) {
-      throw new Error(data.message || 'Failed to fetch operations');
+      throw new Error(data.message || "Failed to fetch operations");
     }
-    
-    console.log('Operations:', data.operations);
+
+    console.log("Operations:", data.operations);
     return data.operations || [];
-    
   } catch (error) {
-    console.error('=== Fetch Error ===');
-    console.error('Error type:', error.name);
-    console.error('Error message:', error.message);
-    console.error('Full error:', error);
+    console.error("=== Fetch Error ===");
+    console.error("Error type:", error.name);
+    console.error("Error message:", error.message);
+    console.error("Full error:", error);
     throw error;
   }
 }
 
+function renderOperationsTable(operations, permissions, work_order_id) {
+  const content = document.getElementById("operationPlanningContent");
 
-
-
-
-
-
-function renderOperationsTable(operations, permissions, workOrderId) {
-  const content = document.getElementById('operationPlanningContent');
-  
   if (!operations || operations.length === 0) {
     content.innerHTML = '<p class="text-muted">No operations found for this work order.</p>';
     return;
   }
-  
-  let tableHtml = `
+
+  let table_html = `
     <div class="table-responsive">
       <table class="table table-bordered table-hover" id="operationsTable">
         <thead class="table-light">
           <tr>
-            ${permissions.can_reorder ? '<th width="50">Order</th>' : ''}
+            ${permissions.can_reorder ? '<th width="50">Order</th>' : ""}
             <th>Operation</th>
             <th>Workstation</th>
             <th>Time (mins)</th>
             <th>Plant</th>
             <th>Qty to Manufacture</th>
             <th>Completed Qty</th>
-            ${permissions.can_edit || permissions.can_delete ? '<th width="150">Actions</th>' : ''}
+            ${permissions.can_edit || permissions.can_delete ? '<th width="150">Actions</th>' : ""}
           </tr>
         </thead>
         <tbody id="operationsTableBody">
   `;
-  
-  operations.forEach((op, index) => {
-    const forQty = op.for_quantity || 0;
-    const completedQty = op.total_completed_qty || 0;
-    const isCompleted = completedQty >= forQty && forQty > 0;
-    const rowClass = isCompleted ? 'table-success' : '';
-    
-    tableHtml += `
-      <tr data-operation-id="${op.name}" data-idx="${op.idx}" class="${rowClass}">
-        ${permissions.can_reorder ? `<td class="text-center"><i class="bi bi-grip-vertical drag-handle" style="cursor: move;"></i></td>` : ''}
-        <td>${op.operation || ''}</td>
-        <td>${op.workstation || ''}</td>
-        <td>${op.time_in_mins || ''}</td>
-        <td>${op.custom_plant || ''}</td>
-        <td class="text-center"><strong>${forQty}</strong></td>
-        <td class="text-center"><strong>${completedQty}</strong></td>
-        ${permissions.can_edit || permissions.can_delete ? `
+
+  operations.forEach((op) => {
+    const for_qty = op.for_quantity || 0;
+    const completed_qty = op.total_completed_qty || 0;
+    const is_completed = completed_qty >= for_qty && for_qty > 0;
+    const row_class = is_completed ? "table-success" : "";
+
+    table_html += `
+      <tr data-operation-id="${op.name}" data-idx="${op.idx}" class="${row_class}">
+        ${
+          permissions.can_reorder
+            ? `<td class="text-center"><i class="bi bi-grip-vertical drag-handle" style="cursor: move;"></i></td>`
+            : ""
+        }
+        <td>${op.operation || ""}</td>
+        <td>${op.workstation || ""}</td>
+        <td>${op.time_in_mins || ""}</td>
+        <td>${op.custom_plant || ""}</td>
+        <td class="text-center"><strong>${for_qty}</strong></td>
+        <td class="text-center"><strong>${completed_qty}</strong></td>
+        ${
+          permissions.can_edit || permissions.can_delete
+            ? `
           <td>
-            ${permissions.can_edit ? `<button class="btn btn-sm btn-warning me-1" onclick="editOperation('${op.name}', '${workOrderId}')"><i class="bi bi-pencil"></i> Edit</button>` : ''}
-            ${permissions.can_delete ? `<button class="btn btn-sm btn-danger" onclick="deleteOperation('${op.name}', '${workOrderId}')"><i class="bi bi-trash"></i> Delete</button>` : ''}
+            ${
+              permissions.can_edit
+                ? `<button class="btn btn-sm btn-warning me-1" onclick="editOperation('${op.name}', '${work_order_id}')"><i class="bi bi-pencil"></i> Edit</button>`
+                : ""
+            }
+            ${
+              permissions.can_delete
+                ? `<button class="btn btn-sm btn-danger" onclick="deleteOperation('${op.name}', '${work_order_id}')"><i class="bi bi-trash"></i> Delete</button>`
+                : ""
+            }
           </td>
-        ` : ''}
+        `
+            : ""
+        }
       </tr>
     `;
   });
-  
-  tableHtml += `
+
+  table_html += `
         </tbody>
       </table>
     </div>
   `;
-  
-  content.innerHTML = tableHtml;
-  
-  // Enable drag and drop reordering if permission exists
+
+  content.innerHTML = table_html;
+
   if (permissions.can_reorder) {
-    enableOperationReordering(workOrderId);
+    enableOperationReordering(work_order_id);
   }
 }
 
+async function saveNewOperation(work_order_id) {
+  const operation = document.getElementById("newOpOperation")?.value;
+  const workstation = document.getElementById("newOpWorkstation")?.value;
+  const time_in_mins = document.getElementById("newOpTime")?.value;
+  const custom_plant = document.getElementById("newOpPlant")?.value;
 
-
-
-
-
-
-
-
-
-
-async function saveNewOperation(workOrderId) {
-  const operation = document.getElementById('newOpOperation').value;
-  const workstation = document.getElementById('newOpWorkstation').value;
-  const time = document.getElementById('newOpTime').value;
-  const plant = document.getElementById('newOpPlant').value;
-  
   if (!operation) {
-    alert('Operation name is required');
+    alert("Operation name is required");
     return;
   }
-  
+
   try {
     const response = await fetch(`${API_BASE}?action=add_work_order_operation`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        work_order: workOrderId,
-        operation: operation,
-        workstation: workstation,
-        time_in_mins: time,
-        custom_plant: plant
+        work_order: work_order_id,
+        operation,
+        workstation,
+        time_in_mins,
+        custom_plant
       })
     });
-    
+
     const data = await response.json();
-    
+
     if (data.success) {
-      alert('Operation added successfully!');
-      // Remove the form
-      document.getElementById('newOperationForm')?.remove();
-      // Reload operations
-      const operations = await fetchWorkOrderOperations(workOrderId);
-      const userEmail = localStorage.getItem("userEmail");
-      const config = reportConfig[currentReportData.reportName] || {};
-      const opPerms = config.operation_planning_permissions?.[userEmail] || {};
-      renderOperationsTable(operations, opPerms, workOrderId);
+      alert("Operation added successfully!");
+      document.getElementById("newOperationForm")?.remove();
+
+      const operations = await fetchWorkOrderOperations(work_order_id);
+
+      const user_email = localStorage.getItem("userEmail");
+      const cfg = reportConfig[currentReportData.reportName] || {};
+      const op_perms = _get_user_op_perms(cfg, user_email);
+
+      renderOperationsTable(operations, op_perms, work_order_id);
     } else {
-      console.error('Add operation failed:', data);
-      alert('Error: ' + (data.message || 'Failed to add operation'));
+      console.error("Add operation failed:", data);
+      alert("Error: " + (data.message || "Failed to add operation"));
     }
   } catch (error) {
-    console.error('Add operation error:', error);
-    alert('Error adding operation: ' + error.message);
+    console.error("Add operation error:", error);
+    alert("Error adding operation: " + error.message);
   }
 }
 
-function cancelNewOperation() {
-  document.getElementById('newOperationForm')?.remove();
-}
+async function addNewOperation(work_order_id, permissions) {
+  const operation_options = await getOperationOptions();
+  const workstation_options = await getWorkstationOptions();
+  const plant_options = await getPlantOptions();
 
+  console.log("Plant options fetched:", plant_options);
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-async function addNewOperation(workOrderId, permissions) {
-  // Fetch options
-  const operationOptions = await getOperationOptions();
-  const workstationOptions = await getWorkstationOptions();
-  const plantOptions = await getPlantOptions();
-  
-  console.log('Plant options fetched:', plantOptions);
-  
-  // Create operation dropdown
-  let operationSelect = `<select class="form-select" id="newOpOperation" required>
+  let operation_select = `<select class="form-select" id="newOpOperation" required>
     <option value="">-- Select Operation --</option>`;
-  operationOptions.forEach(opt => {
-    operationSelect += `<option value="${opt}">${opt}</option>`;
+  operation_options.forEach((opt) => {
+    operation_select += `<option value="${opt}">${opt}</option>`;
   });
-  operationSelect += `</select>`;
-  
-  // Create workstation dropdown
-  let workstationSelect = `<select class="form-select" id="newOpWorkstation">
+  operation_select += `</select>`;
+
+  let workstation_select = `<select class="form-select" id="newOpWorkstation">
     <option value="">-- Select Workstation --</option>`;
-  workstationOptions.forEach(opt => {
-    workstationSelect += `<option value="${opt}">${opt}</option>`;
+  workstation_options.forEach((opt) => {
+    workstation_select += `<option value="${opt}">${opt}</option>`;
   });
-  workstationSelect += `</select>`;
-  
-  // Create plant floor dropdown
-  let plantInput;
-  if (plantOptions.length > 0) {
-    plantInput = `<select class="form-select" id="newOpPlant">
+  workstation_select += `</select>`;
+
+  let plant_input;
+  if (plant_options.length > 0) {
+    plant_input = `<select class="form-select" id="newOpPlant">
       <option value="">-- Select Plant Floor --</option>`;
-    plantOptions.forEach(opt => {
-      plantInput += `<option value="${opt}">${opt}</option>`;
+    plant_options.forEach((opt) => {
+      plant_input += `<option value="${opt}">${opt}</option>`;
     });
-    plantInput += `</select>`;
+    plant_input += `</select>`;
   } else {
-    // Fallback to text input if no options found
-    plantInput = `<input type="text" class="form-control" id="newOpPlant" placeholder="Enter plant floor">`;
+    plant_input = `<input type="text" class="form-control" id="newOpPlant" placeholder="Enter plant floor">`;
   }
-  
-  // Create inline form in modal
+
   const form = `
     <div class="card p-3 mb-3" id="newOperationForm">
       <h6>Add New Operation</h6>
       <div class="row g-2">
         <div class="col-md-3">
           <label class="form-label">Operation <span class="text-danger">*</span></label>
-          ${operationSelect}
+          ${operation_select}
         </div>
         <div class="col-md-3">
           <label class="form-label">Workstation</label>
-          ${workstationSelect}
+          ${workstation_select}
         </div>
         <div class="col-md-2">
           <label class="form-label">Time (mins)</label>
@@ -5397,7 +5445,7 @@ async function addNewOperation(workOrderId, permissions) {
         </div>
         <div class="col-md-2">
           <label class="form-label">Plant Floor</label>
-          ${plantInput}
+          ${plant_input}
         </div>
         <div class="col-md-2 d-flex align-items-end">
           <button class="btn btn-success me-2" id="saveNewOpBtn">Save</button>
@@ -5406,34 +5454,23 @@ async function addNewOperation(workOrderId, permissions) {
       </div>
     </div>
   `;
-  
-  const content = document.getElementById('operationPlanningContent');
-  content.insertAdjacentHTML('afterbegin', form);
-  
-  // Attach event listeners
-  document.getElementById('saveNewOpBtn').addEventListener('click', async () => {
-    await saveNewOperation(workOrderId);
+
+  const content = document.getElementById("operationPlanningContent");
+  content.insertAdjacentHTML("afterbegin", form);
+
+  document.getElementById("saveNewOpBtn").addEventListener("click", async () => {
+    await saveNewOperation(work_order_id);
   });
-  
-  document.getElementById('cancelNewOpBtn').addEventListener('click', () => {
+
+  document.getElementById("cancelNewOpBtn").addEventListener("click", () => {
     cancelNewOperation();
   });
 }
 
-
-
-
-
-
-
-
-
-
-
-
 function cancelNewOperation() {
-  document.getElementById('newOperationForm')?.remove();
+  document.getElementById("newOperationForm")?.remove();
 }
+
 
 
 
