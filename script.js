@@ -5481,280 +5481,274 @@ function cancelNewOperation() {
 
 
 
-async function editOperation(operationName, workOrderId) {
-  console.log('Editing operation:', operationName, 'for WO:', workOrderId);
-  
-  // Find the operation row
-  const row = document.querySelector(`tr[data-operation-id="${operationName}"]`);
+// ==================================================
+// COMPLETE REPLACEMENT (snake_case variables + snake_case perms)
+// Replace EVERYTHING you pasted in this message:
+// - editOperation
+// - saveEditOperation
+// - cancelEditOperation
+// - deleteOperation
+// - enableOperationReordering
+// - saveOperationOrder
+// ==================================================
+//
+// NOTE: This expects you already replaced earlier block with the version
+// that defines:
+// - fetchWorkOrderOperations(work_order_id)
+// - renderOperationsTable(operations, permissions, work_order_id)
+// - _get_user_op_perms(config, user_email)
+//
+// Drag/drop note: drop requires preventing default in dragover to work. [web:66]
+
+// -------------------- EDIT OPERATION --------------------
+async function editOperation(operation_name, work_order_id) {
+  console.log("Editing operation:", operation_name, "for WO:", work_order_id);
+
+  const row = document.querySelector(`tr[data-operation-id="${operation_name}"]`);
   if (!row) {
-    alert('Operation row not found');
+    alert("Operation row not found");
     return;
   }
-  
-  const cells = row.querySelectorAll('td');
-  
+
+  const cells = row.querySelectorAll("td");
+
   // Determine cell indices based on whether reorder column exists
-  const hasReorderCol = cells[0].querySelector('.drag-handle') !== null;
-  const offset = hasReorderCol ? 1 : 0;
-  
-  const currentOperation = cells[offset].textContent.trim();
-  const currentWorkstation = cells[offset + 1].textContent.trim();
-  const currentTime = cells[offset + 2].textContent.trim();
-  const currentPlant = cells[offset + 3].textContent.trim();
-  // Skip qty columns - they are readonly (offset + 4 and offset + 5)
-  
+  const has_reorder_col = cells[0].querySelector(".drag-handle") !== null;
+  const offset = has_reorder_col ? 1 : 0;
+
+  const current_operation = cells[offset].textContent.trim();
+  const current_workstation = cells[offset + 1].textContent.trim();
+  const current_time = cells[offset + 2].textContent.trim();
+  const current_plant = cells[offset + 3].textContent.trim();
+  // qty columns are readonly (offset + 4 and offset + 5)
+
   // Fetch options
-  const operationOptions = await getOperationOptions();
-  const workstationOptions = await getWorkstationOptions();
-  const plantOptions = await getPlantOptions();
-  
-  // Create operation dropdown
-  let operationSelect = `<select class="form-select form-select-sm" id="edit_operation">`;
-  operationOptions.forEach(opt => {
-    const selected = opt === currentOperation ? 'selected' : '';
-    operationSelect += `<option value="${opt}" ${selected}>${opt}</option>`;
+  const operation_options = await getOperationOptions();
+  const workstation_options = await getWorkstationOptions();
+  const plant_options = await getPlantOptions();
+
+  // Operation dropdown
+  let operation_select = `<select class="form-select form-select-sm" id="edit_operation">`;
+  operation_options.forEach((opt) => {
+    const selected = opt === current_operation ? "selected" : "";
+    operation_select += `<option value="${opt}" ${selected}>${opt}</option>`;
   });
-  operationSelect += `</select>`;
-  
-  // Create workstation dropdown
-  let workstationSelect = `<select class="form-select form-select-sm" id="edit_workstation">`;
-  workstationOptions.forEach(opt => {
-    const selected = opt === currentWorkstation ? 'selected' : '';
-    workstationSelect += `<option value="${opt}" ${selected}>${opt}</option>`;
+  operation_select += `</select>`;
+
+  // Workstation dropdown
+  let workstation_select = `<select class="form-select form-select-sm" id="edit_workstation">`;
+  workstation_options.forEach((opt) => {
+    const selected = opt === current_workstation ? "selected" : "";
+    workstation_select += `<option value="${opt}" ${selected}>${opt}</option>`;
   });
-  workstationSelect += `</select>`;
-  
-  // Create plant floor dropdown
-  let plantInput;
-  if (plantOptions.length > 0) {
-    plantInput = `<select class="form-select form-select-sm" id="edit_plant">
+  workstation_select += `</select>`;
+
+  // Plant dropdown (or fallback)
+  let plant_input;
+  if (plant_options.length > 0) {
+    plant_input = `<select class="form-select form-select-sm" id="edit_plant">
       <option value="">-- Select Plant Floor --</option>`;
-    plantOptions.forEach(opt => {
-      const selected = opt === currentPlant ? 'selected' : '';
-      plantInput += `<option value="${opt}" ${selected}>${opt}</option>`;
+    plant_options.forEach((opt) => {
+      const selected = opt === current_plant ? "selected" : "";
+      plant_input += `<option value="${opt}" ${selected}>${opt}</option>`;
     });
-    plantInput += `</select>`;
+    plant_input += `</select>`;
   } else {
-    plantInput = `<input type="text" class="form-control form-control-sm" id="edit_plant" value="${currentPlant}" placeholder="Enter plant floor">`;
+    plant_input = `<input type="text" class="form-control form-control-sm" id="edit_plant"
+                    value="${current_plant}" placeholder="Enter plant floor">`;
   }
-  
+
   // Replace editable cells with inputs
-  cells[offset].innerHTML = operationSelect;
-  cells[offset + 1].innerHTML = workstationSelect;
-  cells[offset + 2].innerHTML = `<input type="number" class="form-control form-control-sm" id="edit_time" value="${currentTime}">`;
-  cells[offset + 3].innerHTML = plantInput;
-  // Leave qty columns unchanged (offset + 4 and offset + 5)
-  
-  // Replace action buttons
+  cells[offset].innerHTML = operation_select;
+  cells[offset + 1].innerHTML = workstation_select;
+  cells[offset + 2].innerHTML = `<input type="number" class="form-control form-control-sm" id="edit_time_in_mins" value="${current_time}">`;
+  cells[offset + 3].innerHTML = plant_input;
+
+  // Replace action buttons (actions cell index: offset + 6 remains correct)
   cells[offset + 6].innerHTML = `
-    <button class="btn btn-sm btn-success me-1" onclick="saveEditOperation('${operationName}', '${workOrderId}')">
+    <button class="btn btn-sm btn-success me-1" onclick="saveEditOperation('${operation_name}', '${work_order_id}')">
       <i class="bi bi-check"></i> Save
     </button>
-    <button class="btn btn-sm btn-secondary" onclick="cancelEditOperation('${workOrderId}')">
+    <button class="btn btn-sm btn-secondary" onclick="cancelEditOperation('${work_order_id}')">
       <i class="bi bi-x"></i> Cancel
     </button>
   `;
 }
 
+// -------------------- SAVE EDIT --------------------
+async function saveEditOperation(operation_name, work_order_id) {
+  const operation = document.getElementById("edit_operation")?.value;
+  const workstation = document.getElementById("edit_workstation")?.value;
+  const time_in_mins = document.getElementById("edit_time_in_mins")?.value;
+  const custom_plant = document.getElementById("edit_plant")?.value;
 
-
-
-
-
-
-
-
-
-async function saveEditOperation(operationName, workOrderId) {
-  const operation = document.getElementById('edit_operation').value;
-  const workstation = document.getElementById('edit_workstation').value;
-  const time = document.getElementById('edit_time').value;
-  const plant = document.getElementById('edit_plant').value;
-  
   if (!operation) {
-    alert('Operation name is required');
+    alert("Operation name is required");
     return;
   }
-  
+
   try {
     const response = await fetch(`${API_BASE}?action=update_work_order_operation`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        work_order: workOrderId,
-        operation_name: operationName,
+        work_order: work_order_id,
+        operation_name: operation_name,
         operation: operation,
         workstation: workstation,
-        time_in_mins: time,
-        custom_plant: plant
+        time_in_mins: time_in_mins,
+        custom_plant: custom_plant
       })
     });
-    
-    const data = await response.json();
-    
-    if (data.success) {
-      alert('Operation updated successfully!');
-      // Reload operations
-      const operations = await fetchWorkOrderOperations(workOrderId);
-      const userEmail = localStorage.getItem("userEmail");
-      const config = reportConfig[currentReportData.reportName] || {};
-      const opPerms = config.operation_planning_permissions?.[userEmail] || {};
-      renderOperationsTable(operations, opPerms, workOrderId);
-    } else {
-      console.error('Update failed:', data);
-      alert('Error: ' + (data.message || 'Failed to update operation') + 
-            (data.response ? '\nDetails: ' + JSON.stringify(data.response) : ''));
-    }
 
+    const data = await response.json();
+
+    if (data.success) {
+      alert("Operation updated successfully!");
+
+      const operations = await fetchWorkOrderOperations(work_order_id);
+
+      const user_email = localStorage.getItem("userEmail");
+      const cfg = reportConfig[currentReportData.reportName] || {};
+      const op_perms = _get_user_op_perms(cfg, user_email);
+
+      renderOperationsTable(operations, op_perms, work_order_id);
+    } else {
+      console.error("Update failed:", data);
+      alert(
+        "Error: " +
+          (data.message || "Failed to update operation") +
+          (data.response ? "\nDetails: " + JSON.stringify(data.response) : "")
+      );
+    }
   } catch (error) {
-    alert('Error updating operation: ' + error.message);
+    alert("Error updating operation: " + error.message);
   }
 }
 
+// -------------------- CANCEL EDIT --------------------
+async function cancelEditOperation(work_order_id) {
+  const operations = await fetchWorkOrderOperations(work_order_id);
 
+  const user_email = localStorage.getItem("userEmail");
+  const cfg = reportConfig[currentReportData.reportName] || {};
+  const op_perms = _get_user_op_perms(cfg, user_email);
 
-
-
-
-
-
-
-async function cancelEditOperation(workOrderId) {
-  // Reload the table to cancel editing
-  const operations = await fetchWorkOrderOperations(workOrderId);
-  const userEmail = localStorage.getItem("userEmail");
-  const config = reportConfig[currentReportData.reportName] || {};
-  const opPerms = config.operation_planning_permissions?.[userEmail] || {};
-  renderOperationsTable(operations, opPerms, workOrderId);
+  renderOperationsTable(operations, op_perms, work_order_id);
 }
 
-
-
-
-
-
-
-
-
-
-
-
-async function deleteOperation(operationName, workOrderId) {
-  if (!confirm('Are you sure you want to delete this operation? This will also delete the linked job card.')) {
+// -------------------- DELETE OPERATION --------------------
+async function deleteOperation(operation_name, work_order_id) {
+  if (!confirm("Are you sure you want to delete this operation? This will also delete the linked job card.")) {
     return;
   }
-  
+
   try {
     const response = await fetch(`${API_BASE}?action=delete_work_order_operation`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        work_order: workOrderId,
-        operation_name: operationName
+        work_order: work_order_id,
+        operation_name: operation_name
       })
     });
-    
+
     const data = await response.json();
-    
+
     if (data.success) {
-      alert(data.message || 'Operation deleted successfully!');
-      // Reload operations
-      const operations = await fetchWorkOrderOperations(workOrderId);
-      const userEmail = localStorage.getItem("userEmail");
-      const config = reportConfig[currentReportData.reportName] || {};
-      const opPerms = config.operation_planning_permissions?.[userEmail] || {};
-      renderOperationsTable(operations, opPerms, workOrderId);
+      alert(data.message || "Operation deleted successfully!");
+
+      const operations = await fetchWorkOrderOperations(work_order_id);
+
+      const user_email = localStorage.getItem("userEmail");
+      const cfg = reportConfig[currentReportData.reportName] || {};
+      const op_perms = _get_user_op_perms(cfg, user_email);
+
+      renderOperationsTable(operations, op_perms, work_order_id);
     } else {
-      console.error('Delete failed:', data);
-      alert('Error: ' + (data.message || 'Failed to delete operation'));
+      console.error("Delete failed:", data);
+      alert("Error: " + (data.message || "Failed to delete operation"));
     }
   } catch (error) {
-    console.error('Delete error:', error);
-    alert('Error deleting operation: ' + error.message);
+    console.error("Delete error:", error);
+    alert("Error deleting operation: " + error.message);
   }
 }
 
+// -------------------- REORDER (drag/drop) --------------------
+function enableOperationReordering(work_order_id) {
+  const tbody = document.getElementById("operationsTableBody");
+  if (!tbody) return;
 
+  let dragged_row = null;
 
+  tbody.querySelectorAll("tr").forEach((row) => {
+    row.setAttribute("draggable", true);
 
-
-
-
-
-
-function enableOperationReordering(workOrderId) {
-  const tbody = document.getElementById('operationsTableBody');
-  
-  let draggedRow = null;
-  
-  tbody.querySelectorAll('tr').forEach(row => {
-    row.setAttribute('draggable', true);
-    
-    row.addEventListener('dragstart', (e) => {
-      draggedRow = row;
-      row.style.opacity = '0.5';
+    row.addEventListener("dragstart", () => {
+      dragged_row = row;
+      row.style.opacity = "0.5";
     });
-    
-    row.addEventListener('dragend', (e) => {
-      row.style.opacity = '';
+
+    row.addEventListener("dragend", () => {
+      row.style.opacity = "";
     });
-    
-    row.addEventListener('dragover', (e) => {
+
+    row.addEventListener("dragover", (e) => {
+      e.preventDefault(); // required so drop fires [web:66]
+    });
+
+    row.addEventListener("drop", async (e) => {
       e.preventDefault();
-    });
-    
-    row.addEventListener('drop', async (e) => {
-      e.preventDefault();
-      if (draggedRow !== row) {
-        const allRows = Array.from(tbody.querySelectorAll('tr'));
-        const draggedIndex = allRows.indexOf(draggedRow);
-        const targetIndex = allRows.indexOf(row);
-        
-        if (draggedIndex < targetIndex) {
-          row.after(draggedRow);
-        } else {
-          row.before(draggedRow);
-        }
-        
-        // Save new order to backend
-        await saveOperationOrder(workOrderId);
-      }
+      if (!dragged_row || dragged_row === row) return;
+
+      const all_rows = Array.from(tbody.querySelectorAll("tr"));
+      const dragged_index = all_rows.indexOf(dragged_row);
+      const target_index = all_rows.indexOf(row);
+
+      if (dragged_index < target_index) row.after(dragged_row);
+      else row.before(dragged_row);
+
+      await saveOperationOrder(work_order_id);
     });
   });
 }
 
+async function saveOperationOrder(work_order_id) {
+  const tbody = document.getElementById("operationsTableBody");
+  if (!tbody) return;
 
+  const rows = tbody.querySelectorAll("tr");
 
-
-async function saveOperationOrder(workOrderId) {
-  const tbody = document.getElementById('operationsTableBody');
-  const rows = tbody.querySelectorAll('tr');
-  const newOrder = Array.from(rows).map((row, index) => ({
+  const operations_order = Array.from(rows).map((row, index) => ({
     name: row.dataset.operationId,
     idx: index + 1
   }));
-  
+
   try {
     const response = await fetch(`${API_BASE}?action=reorder_work_order_operations`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        work_order: workOrderId,
-        operations_order: newOrder
+        work_order: work_order_id,
+        operations_order: operations_order
       })
     });
-    
-        const data = await response.json();
-        if (!data.success) {
-          console.error('Reorder failed:', data);
-          alert('Error saving order: ' + (data.message || 'Unknown error') + 
-                (data.response ? '\nDetails: ' + JSON.stringify(data.response) : ''));
-        }
 
+    const data = await response.json();
+    if (!data.success) {
+      console.error("Reorder failed:", data);
+      alert(
+        "Error saving order: " +
+          (data.message || "Unknown error") +
+          (data.response ? "\nDetails: " + JSON.stringify(data.response) : "")
+      );
+    }
   } catch (error) {
-    alert('Error saving operation order: ' + error.message);
+    alert("Error saving operation order: " + error.message);
   }
 }
+
 
 
 
