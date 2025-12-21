@@ -4385,7 +4385,9 @@ async function updateJobCardTimeRequired(jobCard, timeRequired) {
 
 // Time Logs Modal Function
 async function showTimeLogsModal(jobCard, reportName, config) {
-    const timeLogsPerms = config.time_logs_permissions?.[userEmail] || {};
+    const userEmail = localStorage.getItem("userEmail");
+    const timeLogsPerms = config.timelogspermissions?.[userEmail] || {};
+
     
     // Create modal if it doesn't exist
     let modalEl = document.getElementById('timeLogsModal');
@@ -4674,7 +4676,9 @@ console.log('🎯 About to call loadWorkstationDropdown, permissions check:', {
 async function showTimeLogForm(existingLog, jobCard, jobCardInfo, reportName, config) {
     const isEdit = !!existingLog;
     const bodyEl = document.getElementById('timeLogsBody');
-    const timeLogsPerms = config.time_logs_permissions?.[userEmail] || {};
+    const userEmail = localStorage.getItem("userEmail");
+    const timeLogsPerms = config.timelogspermissions?.[userEmail] || {};
+
     
     // Fetch employees and workstations
     let employees = [];
