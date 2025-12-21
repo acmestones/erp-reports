@@ -1887,62 +1887,57 @@ function createCard(row, columns, reportName, config) {
 
     // ========== SMART DOCNAME DETECTION ==========
     // Priority order:
-    // 1. Use title_field from config (the displayed title)
+    // 1. Use titlefield from config (the displayed title)
     // 2. Fall back to row.name (ERPNext document name)
     // 3. Try common ID fields
     // 4. Use first available field
-    
-        const titleField = config.title_field || 'name';
-        const docName = row[titleField] || row.name || '';
-        card.dataset.docname = docName;
-        
-        if (!docName) {
-            console.warn('No docname found. Configure title_field in report settings.', row);
-        }
+    const titleField = config.titlefield || "work_order_id";
+    const docName =
+        row[titleField] ||
+        row.name ||
+        row.work_order_id ||
+        row.job_card ||
+        "";
+    card.dataset.docname = docName;
 
-
-    
-    // console.log('Card docname set to:', card.dataset.docname, 'from field:', titleField);
+    if (!docName) {
+        console.warn("No docname found. Configure title field in report settings.", row);
+    }
     // ========== END SMART DETECTION ==========
-    
-    const userPerms = config.user_permissions?.[userEmail];
-    const hiddenFields = userPerms?.hidden_fields || [];
-    const cardFields = config.card_fields || [];
 
-        if (cardFields.length === 0) {
-            console.warn(`No card_fields configured for report. Configure in Report Management.`);
-        }
+    const userPerms = config.userpermissions?.[userEmail] || {};
+    const hiddenFields = userPerms.hiddenfields || [];
+    const cardFields = config.cardfields || [];
 
-    const imageFields = config.image_fields || [];
-    
+    if (cardFields.length === 0) {
+        console.warn(`No cardfields configured for report. Configure in Report Management.`);
+    }
+
+    const imageFields = config.imagefields || [];
     const name = row[titleField] || row.name || docName || "Record";
 
-    
-            // Auto-detect status fields from available columns
-            const statusFieldCandidates = columns
-                .filter(c => c.fieldname.toLowerCase().includes('status'))
-                .map(c => c.fieldname);
-            
-            // Merge with common status fields (priority order)
-            const statusFields = [
-                'status',              // Most common
-                'work_order_status',
-                'operation_status',
-                'sales_order_status',
-                ...statusFieldCandidates
-            ];
-            
-            // Remove duplicates and find first available status value
-            const uniqueStatusFields = [...new Set(statusFields)];
-            let status;
-            for (const sf of uniqueStatusFields) {
-                if (row[sf]) {
-                    status = row[sf];
-                    break;
-                }
-            }
+    // Auto-detect status fields from available columns
+    const statusFieldCandidates = columns
+        .filter(c => c.fieldname.toLowerCase().includes("status"))
+        .map(c => c.fieldname);
 
-    
+    const statusFields = [
+        "status",
+        "work_order_status",
+        "operation_status",
+        "sales_order_status",
+        ...statusFieldCandidates
+    ];
+
+    const uniqueStatusFields = [...new Set(statusFields)];
+    let status;
+    for (const sf of uniqueStatusFields) {
+        if (row[sf]) {
+            status = row[sf];
+            break;
+        }
+    }
+
     const imgUrl = extractImageFromRow(row, columns, imageFields);
     if (imgUrl) {
         const img = document.createElement("img");
@@ -1951,54 +1946,52 @@ function createCard(row, columns, reportName, config) {
         img.alt = name;
         img.style.height = "180px";
         img.style.objectFit = "cover";
-        img.onerror = function() {
+        img.onerror = function () {
             console.error("Failed to load image:", imgUrl);
             this.style.display = "none";
         };
         card.appendChild(img);
     }
-    
+
     const cardBody = document.createElement("div");
     cardBody.className = "card-body";
 
+    // ========== ADD DRAG HANDLE FOR MOBILE ==========
+    if (currentUser && currentUser.role === "admin") {
+        const dragHandle = document.createElement("div");
+        dragHandle.className = "drag-handle";
+        dragHandle.innerHTML = '<i class="bi bi-grip-vertical"></i>';
 
-        // ========== ADD DRAG HANDLE FOR MOBILE ==========
-        if (currentUser && currentUser.role === 'admin') {
-            const dragHandle = document.createElement("div");
-            dragHandle.className = "drag-handle";
-            dragHandle.innerHTML = '<i class="bi bi-grip-vertical"></i>';
-            
-            // Check if mobile
-            const isMobile = window.innerWidth <= 768;
-            
-            if (isMobile) {
-                dragHandle.title = "Tap to reorder";
-                dragHandle.style.cursor = "pointer";
-                
-                // Store data for mobile reorder
-                dragHandle.dataset.reportName = reportName;
-                dragHandle.dataset.primaryGroup = config.group_by?.[0] ? row[config.group_by[0]] : 'All';
-                dragHandle.dataset.secondaryGroup = config.group_by?.[1] ? row[config.group_by[1]] : 'All';
-                
-                // Open mobile reorder modal on tap
-                dragHandle.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    openMobileReorderModal(
-                        dragHandle.dataset.reportName,
-                        dragHandle.dataset.primaryGroup,
-                        dragHandle.dataset.secondaryGroup
-                    );
-                });
-            } else {
-                dragHandle.title = "Hold and drag to reorder";
-            }
-            
-            cardBody.appendChild(dragHandle);
+        const isMobile = window.innerWidth <= 768;
+
+        if (isMobile) {
+            dragHandle.title = "Tap to reorder";
+            dragHandle.style.cursor = "pointer";
+
+            dragHandle.dataset.reportName = reportName;
+            dragHandle.dataset.primaryGroup = config.groupby?.[0]
+                ? row[config.groupby[0]]
+                : "All";
+            dragHandle.dataset.secondaryGroup = config.groupby?.[1]
+                ? row[config.groupby[1]]
+                : "All";
+
+            dragHandle.addEventListener("click", e => {
+                e.stopPropagation();
+                openMobileReorderModal(
+                    dragHandle.dataset.reportName,
+                    dragHandle.dataset.primaryGroup,
+                    dragHandle.dataset.secondaryGroup
+                );
+            });
+        } else {
+            dragHandle.title = "Hold and drag to reorder";
         }
-        // ========== END DRAG HANDLE ==========
 
+        cardBody.appendChild(dragHandle);
+    }
+    // ========== END DRAG HANDLE ==========
 
-    
     if (status) {
         const badge = document.createElement("span");
         badge.className = "badge bg-secondary mb-2";
@@ -2007,12 +2000,12 @@ function createCard(row, columns, reportName, config) {
         badge.textContent = status;
         cardBody.appendChild(badge);
     }
-    
+
     const title = document.createElement("h6");
     title.className = "card-title mb-2";
     title.textContent = name;
     cardBody.appendChild(title);
-    
+
     let count = 0;
     cardFields.forEach(fieldKey => {
         if (count >= 5) return;
@@ -2020,83 +2013,76 @@ function createCard(row, columns, reportName, config) {
         if (row[fieldKey] !== null && row[fieldKey] !== undefined && row[fieldKey] !== "") {
             const col = columns.find(c => c.fieldname === fieldKey);
             const label = col ? (fieldLabels[fieldKey] || col.label || fieldKey) : fieldKey;
-            
+
             const p = document.createElement("p");
             p.className = "mb-1 small";
-            
+
             let value = row[fieldKey];
             if (typeof value === "string" && value.length > 40) {
                 value = value.substring(0, 40) + "...";
             }
-            
+
             p.innerHTML = `<strong>${label}:</strong> ${value}`;
             cardBody.appendChild(p);
             count++;
         }
     });
-    
-    // Create buttons container
+
+    // Buttons container
     const buttonsContainer = document.createElement("div");
     buttonsContainer.className = "d-flex flex-column gap-2 mt-2";
-    
-    // View Details button (always present)
+
+    // View Details (always)
     const detailsBtn = document.createElement("button");
     detailsBtn.className = "btn btn-sm btn-outline-primary";
     detailsBtn.textContent = "View Details";
     detailsBtn.addEventListener("click", () => {
         showDetailModal(row, columns, reportName, config);
     });
-
-
     buttonsContainer.appendChild(detailsBtn);
-    
-    // Add Time Logs button if configured
-    if (config.show_time_logs_button && row['job_card']) {
-        const timeLogsPerms = config.time_logs_permissions?.[userEmail] || {};
-        
-        if (timeLogsPerms.can_view) {
+
+    // Time Logs button
+    if (config.showtimelogsbutton && row.job_card) {
+        const timeLogsPerms = config.timelogspermissions?.[userEmail] || {};
+        if (timeLogsPerms.canview) {
             const timeLogsBtn = document.createElement("button");
             timeLogsBtn.className = "btn btn-sm btn-outline-info";
             timeLogsBtn.innerHTML = '<i class="bi bi-clock-history"></i> Time Logs';
             timeLogsBtn.addEventListener("click", () => {
-                // Extract plain text from HTML link if it exists
-                let jobCardName = row['job_card'];
-                
-                // If it's an HTML string, extract the text content
-                if (typeof jobCardName === 'string' && jobCardName.includes('<a')) {
-                    const tempDiv = document.createElement('div');
+                let jobCardName = row.job_card;
+                if (typeof jobCardName === "string" && jobCardName.includes("<a")) {
+                    const tempDiv = document.createElement("div");
                     tempDiv.innerHTML = jobCardName;
                     jobCardName = tempDiv.textContent || tempDiv.innerText || jobCardName;
                 }
-                
                 showTimeLogsModal(jobCardName, reportName, config);
             });
             buttonsContainer.appendChild(timeLogsBtn);
         }
     }
-    
-    // Add Operation Planning button if configured
-    if (config.show_operation_planning_button !== false) {
-        const opPerms = config.operation_planning_permissions?.[userEmail] || {};
-        
-        if (opPerms.can_view) {
+
+    // Operation Planning button
+    if (config.showoperationplanningbutton !== false) {
+        const opPerms = config.operationplanningpermissions?.[userEmail] || {};
+        if (opPerms.canview) {
             const opPlanningBtn = document.createElement("button");
             opPlanningBtn.className = "btn btn-sm btn-outline-success";
             opPlanningBtn.innerHTML = '<i class="bi bi-diagram-3"></i> Operation Planning';
             opPlanningBtn.addEventListener("click", () => {
-                console.log('Row data:', row);
-                console.log('Work Order ID:', row.work_order_id || row.name);
+                console.log("Row data:", row);
+                console.log("Work Order ID:", row.work_order_id || row.name);
                 openOperationPlanningModal(row, config, reportName);
             });
             buttonsContainer.appendChild(opPlanningBtn);
         }
     }
-    
+
     cardBody.appendChild(buttonsContainer);
     card.appendChild(cardBody);
-    
+
     return card;
 }
+
 
 
 
