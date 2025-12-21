@@ -715,4 +715,112 @@ body {
 
 
 
+/* ========== OPERATION PLANNING MODAL STYLES ========== */
+
+/* Hide mobile card reorder buttons inside modals - they conflict with operation planning */
+.modal .drag-handle {
+  display: none !important;
+}
+
+/* Exception: Show operation table drag handles */
+#operationsTable .bi-grip-vertical {
+  display: inline-block !important;
+  color: #6c757d;
+}
+
+/* Operation table styling */
+#operationsTable {
+  font-size: 0.9rem;
+}
+
+#operationsTable thead th {
+  background-color: #f8f9fa;
+  font-weight: 600;
+  border-bottom: 2px solid #dee2e6;
+}
+
+/* Order column with gray background */
+#operationsTable tbody tr td:first-child {
+  background-color: #f8f9fa;
+  border-right: 2px solid #e9ecef;
+}
+
+/* Hover effect for draggable operation rows */
+#operationsTable tbody tr[style*="cursor: move"]:hover {
+  background-color: #e3f2fd !important;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  transition: all 0.2s ease;
+}
+
+/* Visual feedback during drag */
+#operationsTable tbody tr.dragging {
+  opacity: 0.5;
+  background-color: #fff3cd !important;
+  border: 2px dashed #ffc107;
+}
+
+/* Sortable ghost placeholder for operations */
+#operationsTable tbody .sortable-ghost {
+  opacity: 0.3 !important;
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.2) 0%, rgba(118, 75, 162, 0.2) 100%) !important;
+  border: 3px dashed #667eea !important;
+}
+
+/* Operation row completed styling */
+#operationsTable tbody tr.table-success {
+  background-color: #d1e7dd !important;
+}
+
+#operationsTable tbody tr.table-success:hover {
+  background-color: #badbcc !important;
+}
+
+/* Grip icon styling in operation table */
+#operationsTable .bi-grip-vertical {
+  font-size: 1.2rem;
+  cursor: move;
+  transition: all 0.2s ease;
+}
+
+#operationsTable .bi-grip-vertical:hover {
+  color: #667eea;
+  transform: scale(1.1);
+}
+
+/* Operation modal full-width */
+#operationPlanningModal .modal-dialog {
+  max-width: 95%;
+}
+
+@media (min-width: 1200px) {
+  #operationPlanningModal .modal-dialog {
+    max-width: 1400px;
+  }
+}
+
+/* Mobile responsiveness for operation table */
+@media (max-width: 768px) {
+  #operationsTable {
+    font-size: 0.8rem;
+  }
+  
+  #operationsTable tbody tr td {
+    padding: 0.5rem 0.25rem;
+  }
+  
+  #operationsTable .btn-sm {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.75rem;
+  }
+  
+  /* Larger grip handle on mobile */
+  #operationsTable .bi-grip-vertical {
+    font-size: 1.5rem;
+  }
+}
+
+/* ========== END OPERATION PLANNING MODAL STYLES ========== */
+
+
+
 
