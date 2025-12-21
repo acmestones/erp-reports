@@ -1649,10 +1649,12 @@ function renderGroupedCards(grouped, columns, reportName) {
 
       const titleField = config.title_field || "work_order_id";
 
-      // Helper function to get card ID from row (same logic as createCard)
+      // ✅ FIXED: Helper function to get UNIQUE card ID (NOT display title)
+      // Always use row.name first (ERPNext primary key - always unique)
       const getCardId = (row) => {
-        return row[titleField] || row.name || "";
+        return row.name || row[titleField];
       };
+
 
       if (cardPriority && Array.isArray(cardPriority)) {
         cardsToRender = [...cardsToRender].sort((a, b) => {
@@ -1750,15 +1752,20 @@ function createCard(row, columns, reportName, config) {
   config.operation_planning_permissions =
     config.operation_planning_permissions ?? config.operationplanningpermissions ?? {};
 
-  // SMART DOCNAME DETECTION
-  const titleField = config.title_field || "work_order_id";
-  const docName =
-    row[titleField] ||
-    row.name ||
-    row.work_order_id ||
-    row.job_card ||
-    "";
-  card.dataset.docname = docName;
+// ✅ SMART DOCNAME DETECTION - 100% GENERIC
+const titleField = config.titlefield || 'name';
+
+// For UNIQUE ID: Always use row.name (ERPNext primary key)
+const uniqueDocId = row.name;
+card.dataset.docname = uniqueDocId;
+
+// For DISPLAY: Use configured titleField, fallback to name
+const displayTitle = row[titleField] || row.name;
+
+if (!uniqueDocId) {
+  console.warn("No unique ID found for row:", row);
+}
+
 
   if (!docName) {
     console.warn("No docname found. Configure title field in report settings.", row);
