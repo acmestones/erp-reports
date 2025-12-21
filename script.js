@@ -1484,42 +1484,45 @@ async function loadReport(reportName) {
         console.log(`Fetching report: ${reportName}`);
         const data = await getReport(reportName);
         console.log("Report data received:", data);
-        
+
         if (!data.message || !data.message.result) {
             alert("No data returned from report");
             return;
         }
-        
+
         const columns = data.message.columns || [];
         const rows = data.message.result || [];
-        
+
         console.log("Rows:", rows.length, "Columns:", columns.length);
-        
+
         currentReportColumns = columns;
-        
+
         // Build field name mapping from report names to actual database field names
         const fieldMapping = await buildFieldMapping(columns, reportName);
         window.reportFieldMapping = fieldMapping;
         console.log("Field mapping created:", fieldMapping);
-        
+
         // Build field labels from columns
         fieldLabels = {};
         columns.forEach(col => {
             fieldLabels[col.fieldname] = col.label || col.fieldname;
         });
-        
+
         // Build label-to-fieldname mapping for config resolution
         const labelToFieldname = {};
         columns.forEach(col => {
-            const cleanLabel = (col.label || col.fieldname).toLowerCase().replace(/[^a-z0-9]+/g, '_');
+            const cleanLabel = (col.label || col.fieldname)
+                .toLowerCase()
+                .replace(/[^a-z0-9]+/g, '_');
             labelToFieldname[cleanLabel] = col.fieldname;
         });
-        
+
+        // IMPORTANT: use camelCase config keys
         const config = reportConfig[reportName] || {};
-        
-        // Auto-map group_by fields if they don't match report field names
-        if (config.group_by) {
-            config.group_by = config.group_by.map(field => {
+
+        // Auto-map groupby fields if they don't match report field names
+        if (config.groupby && Array.isArray(config.groupby)) {
+            config.groupby = config.groupby.map(field => {
                 // If field exists in report, use it
                 if (columns.find(col => col.fieldname === field)) {
                     return field;
@@ -1533,59 +1536,56 @@ async function loadReport(reportName) {
                 return field;
             });
         }
-        
-                // Use configured image fields or auto-detect description fields
-        const imageFields = config.image_fields || 
-            columns.filter(c => 
-                c.fieldname.toLowerCase().includes('description') || 
-                c.fieldname.toLowerCase().includes('image')
-            ).map(c => c.fieldname);
 
-        
-        // Optimize image URL fixing using regex instead of DOM manipulation
+        // Use configured image fields or auto-detect description fields
+        const imageFields = (config.imagefields && config.imagefields.length > 0)
+            ? config.imagefields
+            : columns
+                .filter(c =>
+                    c.fieldname.toLowerCase().includes('description') ||
+                    c.fieldname.toLowerCase().includes('image')
+                )
+                .map(c => c.fieldname);
+
+        // Optimize image URL fixing using regex
         rows.forEach(row => {
             imageFields.forEach(field => {
                 if (row[field] && typeof row[field] === 'string') {
                     let html = row[field];
-                    
-                    // Fix image src attributes using regex (much faster)
                     html = html.replace(/src=["']([^"']+)["']/g, (match, url) => {
                         return `src="${fixImageUrl(url)}"`;
                     });
-                    
-                    
                     row[field] = html;
                 }
             });
         });
-        
+
         // Get ordered columns if field order is configured
         let orderedColumns = columns;
-        if (config.field_order) {
-            orderedColumns = sortColumnsByOrder(columns, config.field_order);
+        if (config.fieldorder && Array.isArray(config.fieldorder)) {
+            orderedColumns = sortColumnsByOrder(columns, config.fieldorder);
         }
-        
+
         // Sort rows if configured
         const sortedRows = sortRows(rows, columns, config);
-        
-        // Group data using the groupby configuration
-            // Use configured grouping or show flat list
-    const groupByFields = config.group_by || [];
-    const grouped = groupByFields.length > 0 
-        ? groupData(sortedRows, columns, groupByFields, config.group_sort)
-        : { 'All Records': { 'All': sortedRows } };
 
-        
+        // Group data using the groupby configuration
+        const groupByFields = (config.groupby && Array.isArray(config.groupby))
+            ? config.groupby.filter(Boolean)
+            : [];
+
+        const grouped = groupByFields.length > 0
+            ? groupData(sortedRows, columns, groupByFields, config.groupsort || {})
+            : { 'All Records': { 'All': sortedRows } };
+
         currentReportData = {
             grouped,
             columns: orderedColumns,
             reportName
         };
-        
+
         renderGroupedCards(grouped, orderedColumns, reportName);
 
-
-        
     } catch (err) {
         console.error("Error loading report:", err);
         alert("Error loading report: " + err.message);
