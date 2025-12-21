@@ -3373,18 +3373,57 @@ async function openGlobalReportConfigModal(reportName) {
       <div class="card-body" style="max-height: 400px; overflow-y: auto;">
         <div class="row">
           <div class="col-12">
-            <ul class="list-group" id="fieldOrderList">
-              ${columns
-                .map(
-                  (col) => `
-                  <li class="list-group-item draggable-field d-flex align-items-center" draggable="true" data-fieldname="${col.fieldname}">
-                    <span class="drag-handle admin-drag-handle me-2"></span>
-                    <span>${col.label || col.fieldname}</span>
-                  </li>
-                `
-                )
-                .join("")}
-            </ul>
+                    <ul class="list-group" id="fieldOrderList">
+                      ${(() => {
+                        // Get saved field order from config
+                        const savedFieldOrder = config.fieldorder && Array.isArray(config.fieldorder) && config.fieldorder.length > 0 
+                          ? config.fieldorder 
+                          : [];
+                        
+                        // If we have saved order, use it to arrange fields
+                        if (savedFieldOrder.length > 0) {
+                          const orderedFields = [];
+                          const remainingFields = [...columns];
+                          
+                          // First, add fields in saved order
+                          savedFieldOrder.forEach(fieldname => {
+                            const colIndex = remainingFields.findIndex(c => c.fieldname === fieldname);
+                            if (colIndex >= 0) {
+                              orderedFields.push(remainingFields[colIndex]);
+                              remainingFields.splice(colIndex, 1);
+                            }
+                          });
+                          
+                          // Then add any remaining fields (new fields not in saved order)
+                          orderedFields.push(...remainingFields);
+                          
+                          // Generate the HTML
+                          return orderedFields
+                            .map(
+                              (col) => `
+                              <li class="list-group-item draggable-field d-flex align-items-center" draggable="true" data-fieldname="${col.fieldname}">
+                                <span class="drag-handle admin-drag-handle me-2"></span>
+                                <span>${col.label || col.fieldname}</span>
+                              </li>
+                            `
+                            )
+                            .join("");
+                        } else {
+                          // No saved order, use default column order
+                          return columns
+                            .map(
+                              (col) => `
+                              <li class="list-group-item draggable-field d-flex align-items-center" draggable="true" data-fieldname="${col.fieldname}">
+                                <span class="drag-handle admin-drag-handle me-2"></span>
+                                <span>${col.label || col.fieldname}</span>
+                              </li>
+                            `
+                            )
+                            .join("");
+                        }
+                      })()}
+                    </ul>
+
           </div>
         </div>
       </div>
