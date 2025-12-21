@@ -5757,208 +5757,228 @@ async function saveOperationOrder(work_order_id) {
 
 
 
+// ==================================================
+// COMPLETE REPLACEMENT (FIELD MAPPING UI) - snake_case
+// Replace EVERYTHING you pasted in this message:
+// - initFieldMappingsTab
+// - loadFieldMappingsForReport
+// - saveMappingsForReport
+// ==================================================
+//
+// Notes:
+// - Keeps DOM ids as-is (#mappingReportSelect etc.) because changing ids would break HTML.
+// - Converts internal variables to snake_case.
+// - Stores config keys in snake_case: doctype, unmapped_fields, field_mappings (already snake_case).
+// - Backward-compatible read for legacy field_mappings/doctype if you previously had camelCase keys.
+
 // ==================== FIELD MAPPING UI FUNCTIONS ====================
 
 function initFieldMappingsTab() {
-    const reportSelect = document.getElementById('mappingReportSelect');
-    if (!reportSelect) return;
-    
-    // Populate report dropdown
-    reportSelect.innerHTML = '<option value="">-- Select Report --</option>';
-    
-    if (currentUser && currentUser.allowed_reports) {
-        currentUser.allowed_reports.forEach(reportName => {
-            const option = document.createElement('option');
-            option.value = reportName;
-            option.textContent = reportName;
-            reportSelect.appendChild(option);
-        });
+  const report_select = document.getElementById("mappingReportSelect");
+  if (!report_select) return;
+
+  // Populate report dropdown
+  report_select.innerHTML = '<option value="">-- Select Report --</option>';
+
+  if (currentUser && currentUser.allowed_reports) {
+    currentUser.allowed_reports.forEach((report_name) => {
+      const option = document.createElement("option");
+      option.value = report_name;
+      option.textContent = report_name;
+      report_select.appendChild(option);
+    });
+  }
+
+  // Avoid multiple listeners if init is called more than once
+  report_select.onchange = async (e) => {
+    const report_name = e.target.value;
+    if (!report_name) {
+      const container = document.getElementById("fieldMappingContainer");
+      if (container) container.style.display = "none";
+      return;
     }
-    
-    // Handle report selection
-    reportSelect.addEventListener('change', async (e) => {
-        const reportName = e.target.value;
-        if (!reportName) {
-            document.getElementById('fieldMappingContainer').style.display = 'none';
-            return;
-        }
-        
-        await loadFieldMappingsForReport(reportName);
-    });
-    
-    // Handle doctype change
-    document.getElementById('changeDoctypeBtn')?.addEventListener('click', () => {
-        const reportName = reportSelect.value;
-        if (!reportName) return;
-        
-        const newDoctype = prompt('Enter DocType name:', reportConfig[reportName]?.doctype || 'Work Order');
-        if (newDoctype) {
-            if (!reportConfig[reportName]) {
-                reportConfig[reportName] = {};
-            }
-            reportConfig[reportName].doctype = newDoctype;
-            
-            // Clear cache and reload
-            delete doctypeFieldsCache[newDoctype];
-            loadFieldMappingsForReport(reportName);
-        }
-    });
+
+    await loadFieldMappingsForReport(report_name);
+  };
+
+  // Handle doctype change
+  const change_doctype_btn = document.getElementById("changeDoctypeBtn");
+  if (change_doctype_btn) {
+    change_doctype_btn.onclick = () => {
+      const report_name = report_select.value;
+      if (!report_name) return;
+
+      const cfg = reportConfig[report_name] || {};
+      const current_doctype = cfg.doctype ?? cfg.docType ?? "Work Order";
+
+      const new_doctype = prompt("Enter DocType name:", current_doctype);
+      if (!new_doctype) return;
+
+      if (!reportConfig[report_name]) reportConfig[report_name] = {};
+      reportConfig[report_name].doctype = new_doctype;
+
+      // Clear cache and reload
+      if (typeof doctypeFieldsCache === "object") {
+        delete doctypeFieldsCache[new_doctype];
+      }
+
+      loadFieldMappingsForReport(report_name);
+    };
+  }
 }
 
+async function loadFieldMappingsForReport(report_name) {
+  const container = document.getElementById("fieldMappingContainer");
+  const mappings_list = document.getElementById("fieldMappingsList");
+  const doctype_input = document.getElementById("mappingDoctype");
 
+  if (!container || !mappings_list || !doctype_input) return;
 
+  container.style.display = "block";
+  mappings_list.innerHTML =
+    '<p class="text-center"><span class="spinner-border spinner-border-sm"></span> Loading...</p>';
 
+  const cfg = reportConfig[report_name] || {};
 
+  // Backward compatible: docType -> doctype
+  const doctype = cfg.doctype ?? cfg.docType ?? "Work Order";
+  doctype_input.value = doctype;
 
-async function loadFieldMappingsForReport(reportName) {
-    const container = document.getElementById('fieldMappingContainer');
-    const mappingsList = document.getElementById('fieldMappingsList');
-    const doctypeInput = document.getElementById('mappingDoctype');
-    
-    container.style.display = 'block';
-    mappingsList.innerHTML = '<p class="text-center"><span class="spinner-border spinner-border-sm"></span> Loading...</p>';
-    
-    const config = reportConfig[reportName] || {};
-    const doctype = config.doctype || 'Work Order';
-    doctypeInput.value = doctype;
-    
-    console.log('🔄 Loading field mappings for:', reportName, 'DocType:', doctype);
-    
-    // Fetch ERP fields
-    const erpFields = await fetchDoctypeFields(doctype);
-    
-    console.log('📦 Fetched ERP fields:', erpFields.length, 'fields');
-    
-    if (erpFields.length === 0) {
-        mappingsList.innerHTML = `
-            <div class="alert alert-danger">
-                ❌ Failed to load fields from DocType "${doctype}". 
-                Please check:
-                <ul>
-                    <li>DocType name is correct</li>
-                    <li>API connection is working</li>
-                    <li>Browser console for errors (F12)</li>
-                </ul>
-            </div>`;
-        return;
-    }
-    
-    // Get unmapped fields from current mapping
-    const unmappedFields = config.unmapped_fields || [];
-    const manualMappings = config.field_mappings || {};
-    
-    // Get all report columns if available
-    let allReportFields = [];
-    if (currentReportData && currentReportData.reportName === reportName) {
-        allReportFields = currentReportData.columns.map(col => ({
-            reportField: col.fieldname,
-            label: col.label || col.fieldname
-        }));
-        console.log('✅ Using report columns:', allReportFields.length);
+  console.log("🔄 Loading field mappings for:", report_name, "DocType:", doctype);
+
+  // Fetch ERP fields
+  const erp_fields = await fetchDoctypeFields(doctype);
+  console.log("📦 Fetched ERP fields:", erp_fields.length, "fields");
+
+  if (!erp_fields || erp_fields.length === 0) {
+    mappings_list.innerHTML = `
+      <div class="alert alert-danger">
+        ❌ Failed to load fields from DocType "${doctype}".
+        Please check:
+        <ul>
+          <li>DocType name is correct</li>
+          <li>API connection is working</li>
+          <li>Browser console for errors (F12)</li>
+        </ul>
+      </div>`;
+    return;
+  }
+
+  // Get unmapped fields + manual mappings
+  const unmapped_fields = cfg.unmapped_fields ?? cfg.unmappedFields ?? [];
+  const manual_mappings = cfg.field_mappings ?? cfg.fieldMappings ?? {};
+
+  // Get all report columns if available
+  let all_report_fields = [];
+  if (currentReportData && currentReportData.reportName === report_name) {
+    all_report_fields = currentReportData.columns.map((col) => ({
+      report_field: col.fieldname,
+      label: col.label || col.fieldname
+    }));
+    console.log("✅ Using report columns:", all_report_fields.length);
+  } else {
+    // Use unmapped fields only
+    all_report_fields = unmapped_fields;
+    console.log("⚠️ Report not loaded, using unmapped fields only:", all_report_fields.length);
+  }
+
+  if (!all_report_fields || all_report_fields.length === 0) {
+    mappings_list.innerHTML =
+      '<div class="alert alert-warning">📊 Please load the report first by clicking on it in the main view, then return here to configure mappings.</div>';
+    return;
+  }
+
+  // Render mapping UI
+  let html =
+    '<div class="table-responsive"><table class="table table-sm table-bordered table-hover">';
+  html +=
+    "<thead class=\"table-light\"><tr><th>Report Field</th><th>Label</th><th>Maps To (ERP Field)</th><th>Status</th></tr></thead><tbody>";
+
+  all_report_fields.forEach((field) => {
+    const report_field = field.report_field ?? field.reportField; // support both shapes
+    const label = field.label ?? report_field;
+
+    const current_mapping = manual_mappings[report_field];
+
+    // Auto mapping info (whatever your app sets)
+    const field_info = window.reportFieldMapping?.[report_field];
+
+    let status_badge = "";
+    if (field_info && field_info.erpField) {
+      status_badge = '<span class="badge bg-success">✓ Mapped</span>';
+    } else if (current_mapping) {
+      status_badge = '<span class="badge bg-info">Manual</span>';
     } else {
-        // Use unmapped fields only
-        allReportFields = unmappedFields;
-        console.log('⚠️ Report not loaded, using unmapped fields only:', allReportFields.length);
+      status_badge = '<span class="badge bg-warning">Unmapped</span>';
     }
-    
-    if (allReportFields.length === 0) {
-        mappingsList.innerHTML = '<div class="alert alert-warning">📊 Please load the report first by clicking on it in the main view, then return here to configure mappings.</div>';
-        return;
-    }
-    
-    // Render mapping UI
-    let html = '<div class="table-responsive"><table class="table table-sm table-bordered table-hover">';
-    html += '<thead class="table-light"><tr><th>Report Field</th><th>Label</th><th>Maps To (ERP Field)</th><th>Status</th></tr></thead><tbody>';
-    
-    allReportFields.forEach(field => {
-        const reportField = field.reportField;
-        const label = field.label;
-        const currentMapping = manualMappings[reportField];
-        const fieldInfo = window.reportFieldMapping?.[reportField];
-        
-        let statusBadge = '';
-        if (fieldInfo && fieldInfo.erpField) {
-            statusBadge = '<span class="badge bg-success">✓ Mapped</span>';
-        } else if (currentMapping) {
-            statusBadge = '<span class="badge bg-info">Manual</span>';
-        } else {
-            statusBadge = '<span class="badge bg-warning">Unmapped</span>';
-        }
-        
-        // Build options for this dropdown
-        let optionsHtml = '<option value="">-- No Mapping --</option>';
-        erpFields.forEach(f => {
-            const selected = (currentMapping === f.fieldname || fieldInfo?.erpField === f.fieldname) ? 'selected' : '';
-            const readOnlyMarker = f.read_only && !f.allow_on_submit ? '🔒' : '';
-            optionsHtml += `<option value="${f.fieldname}" ${selected}>${readOnlyMarker} ${f.label || f.fieldname} (${f.fieldname})</option>`;
-        });
-        
-        html += `<tr>
-            <td><code class="text-danger">${reportField}</code></td>
-            <td><strong>${label}</strong></td>
-            <td>
-                <select class="form-select form-select-sm field-mapping-select" data-report-field="${reportField}">
-                    ${optionsHtml}
-                </select>
-            </td>
-            <td>${statusBadge}</td>
-        </tr>`;
+
+    // Build options for dropdown
+    let options_html = '<option value="">-- No Mapping --</option>';
+    erp_fields.forEach((f) => {
+      const selected =
+        current_mapping === f.fieldname || field_info?.erpField === f.fieldname ? "selected" : "";
+
+      const read_only_marker = f.read_only && !f.allow_on_submit ? "🔒" : "";
+      options_html += `<option value="${f.fieldname}" ${selected}>${read_only_marker} ${f.label || f.fieldname} (${f.fieldname})</option>`;
     });
-    
-    html += '</tbody></table></div>';
+
     html += `
-        <div class="d-flex justify-content-between align-items-center mt-3">
-            <small class="text-muted">🔒 = Read-only field</small>
-            <button class="btn btn-primary" id="saveMappingsBtn">💾 Save Mappings</button>
-        </div>`;
-    
-    mappingsList.innerHTML = html;
-    
-    // Attach save handler
-    document.getElementById('saveMappingsBtn').addEventListener('click', () => {
-        saveMappingsForReport(reportName);
-    });
+      <tr>
+        <td><code class="text-danger">${report_field}</code></td>
+        <td><strong>${label}</strong></td>
+        <td>
+          <select class="form-select form-select-sm field-mapping-select" data-report-field="${report_field}">
+            ${options_html}
+          </select>
+        </td>
+        <td>${status_badge}</td>
+      </tr>
+    `;
+  });
+
+  html += "</tbody></table></div>";
+  html += `
+    <div class="d-flex justify-content-between align-items-center mt-3">
+      <small class="text-muted">🔒 = Read-only field</small>
+      <button class="btn btn-primary" id="saveMappingsBtn">💾 Save Mappings</button>
+    </div>
+  `;
+
+  mappings_list.innerHTML = html;
+
+  document.getElementById("saveMappingsBtn").onclick = () => {
+    saveMappingsForReport(report_name);
+  };
 }
 
+async function saveMappingsForReport(report_name) {
+  const selects = document.querySelectorAll(".field-mapping-select");
+  const field_mappings = {};
 
-
-
-
-
-async function saveMappingsForReport(reportName) {
-    const selects = document.querySelectorAll('.field-mapping-select');
-    const mappings = {};
-    
-    selects.forEach(select => {
-        const reportField = select.dataset.reportField;
-        const erpField = select.value;
-        if (erpField) {
-            mappings[reportField] = erpField;
-        }
-    });
-    
-    // Save to config
-    if (!reportConfig[reportName]) {
-        reportConfig[reportName] = {};
+  selects.forEach((select) => {
+    const report_field = select.dataset.reportField;
+    const erp_field = select.value;
+    if (erp_field) {
+      field_mappings[report_field] = erp_field;
     }
-    reportConfig[reportName].field_mappings = mappings;
-    
-    console.log('💾 Saving field mappings:', mappings);
-    
-    try {
-        await saveReportConfig(reportConfig);
-        alert('✅ Field mappings saved! Reloading report...');
-        
-        // Reload the report to apply new mappings
-        await loadReport(reportName);
-        
-        // Refresh the mapping UI
-        await loadFieldMappingsForReport(reportName);
-        
-    } catch (err) {
-        alert('❌ Error saving: ' + err.message);
-    }
+  });
+
+  if (!reportConfig[report_name]) reportConfig[report_name] = {};
+  reportConfig[report_name].field_mappings = field_mappings;
+
+  console.log("💾 Saving field mappings:", field_mappings);
+
+  try {
+    await saveReportConfig(reportConfig);
+    alert("✅ Field mappings saved! Reloading report...");
+
+    await loadReport(report_name);
+    await loadFieldMappingsForReport(report_name);
+  } catch (err) {
+    alert("❌ Error saving: " + err.message);
+  }
 }
+
 
 
 
