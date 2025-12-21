@@ -1763,13 +1763,9 @@ card.dataset.docname = uniqueDocId;
 const displayTitle = row[titleField] || row.name;
 
 if (!uniqueDocId) {
-  console.warn("No unique ID found for row:", row);
+  console.warn("No unique ID (row.name) found for row:", row);
 }
 
-
-  if (!docName) {
-    console.warn("No docname found. Configure title field in report settings.", row);
-  }
 
   const userEmail = localStorage.getItem("userEmail");
   const userPermsRaw = config.user_permissions?.[userEmail] || {};
@@ -1786,7 +1782,8 @@ if (!uniqueDocId) {
   }
 
   const imageFields = config.image_fields || [];
-  const name = row[titleField] || row.name || docName || "Record";
+ // ✅ Use displayTitle for showing on card
+const name = displayTitle;
 
   // Auto-detect status fields from available columns
   const statusFieldCandidates = columns
