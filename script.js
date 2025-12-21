@@ -1012,64 +1012,64 @@ async function loadAttachments(container, docName, config, row, columns, reportN
 
 
 async function renderReportsListAdmin(reports) {
-    const div = document.getElementById('reportsList');
-    
-    // Get all reports assigned to users
-    const users = await getUsers();
-    const assignedReports = new Set();
-    
-    users.users.forEach(u => {
-        if (u.allowed_reports) {
-            u.allowed_reports.forEach(r => assignedReports.add(r));
-        }
-    });
-    
-    // Merge fetched reports with assigned reports
-    const allReportsSet = new Set([...reports, ...Array.from(assignedReports)]);
-    const allReports = Array.from(allReportsSet).sort();
-    
-    if (allReports.length === 0) {
-        div.innerHTML = '<p class="text-muted">No reports found. Click "Fetch All Reports" to load from ERPNext.</p>';
-        return;
+  const div = document.getElementById("reportsList");
+
+  // Get all reports assigned to users
+  const users = await getUsers();
+  const assignedReports = new Set();
+
+  users.users.forEach((u) => {
+    const allowed = u.allowed_reports ?? u.allowedreports ?? [];
+    if (Array.isArray(allowed)) {
+      allowed.forEach((r) => assignedReports.add(r));
     }
-    
-    // Separate into assigned vs fetched
-    const assignedOnly = Array.from(assignedReports).filter(r => !reports.includes(r)).sort();
-    
-    let html = `<h6>Available Reports (${allReports.length})</h6>`;
-    
-    if (assignedOnly.length > 0) {
-        html += `<div class="alert alert-success small mb-3">
-            <strong>✓ ${assignedOnly.length} reports</strong> already assigned to users (showing below)
-        </div>`;
-    }
-    
-    html += `<div class="alert alert-info small">Configure each report's permissions, grouping, and field visibility.</div>
-        <div class="list-group" style="max-height: 400px; overflow-y: auto;">
-            ${allReports.map(r => {
-                const isAssigned = assignedReports.has(r);
-                const badge = isAssigned ? '<span class="badge bg-success ms-2">Assigned</span>' : '';
-                return `
-                    <div class="list-group-item d-flex justify-content-between align-items-center">
-                        <span>${r}${badge}</span>
-                        <button class="btn btn-sm btn-outline-primary config-report-btn" data-report="${r}">Configure</button>
-                    </div>
-                `;
-            }).join('')}
-        </div>`;
-    
-    div.innerHTML = html;
-    
-    div.querySelectorAll('.config-report-btn').forEach(btn => {
-        btn.addEventListener('click', () => openGlobalReportConfigModal(btn.dataset.report));
-    });
+  });
+
+  // Merge fetched reports with assigned reports
+  const allReportsSet = new Set([...(reports || []), ...Array.from(assignedReports)]);
+  const allReports = Array.from(allReportsSet).sort();
+
+  if (allReports.length === 0) {
+    div.innerHTML =
+      '<p class="text-muted">No reports found. Click "Fetch All Reports" to load from ERPNext.</p>';
+    return;
+  }
+
+  // Separate into assigned vs fetched
+  const assignedOnly = Array.from(assignedReports)
+    .filter((r) => !(reports || []).includes(r))
+    .sort();
+
+  let html = `<h6>Available Reports (${allReports.length})</h6>`;
+
+  if (assignedOnly.length > 0) {
+    html += `<div class="alert alert-success small mb-3">
+      <strong>✓ ${assignedOnly.length} reports</strong> already assigned to users (showing below)
+    </div>`;
+  }
+
+  html += `<div class="alert alert-info small">Configure each report's permissions, grouping, and field visibility.</div>
+    <div class="list-group" style="max-height: 400px; overflow-y: auto;">
+      ${allReports
+        .map((r) => {
+          const isAssigned = assignedReports.has(r);
+          const badge = isAssigned ? '<span class="badge bg-success ms-2">Assigned</span>' : "";
+          return `
+            <div class="list-group-item d-flex justify-content-between align-items-center">
+              <span>${r}${badge}</span>
+              <button class="btn btn-sm btn-outline-primary config-report-btn" data-report="${r}">Configure</button>
+            </div>
+          `;
+        })
+        .join("")}
+    </div>`;
+
+  div.innerHTML = html;
+
+  div.querySelectorAll(".config-report-btn").forEach((btn) => {
+    btn.addEventListener("click", () => openGlobalReportConfigModal(btn.dataset.report));
+  });
 }
-
-
-
-
-
-
 
 async function getOperationOptions() {
   try {
@@ -1077,7 +1077,7 @@ async function getOperationOptions() {
     const data = await response.json();
     return data.success ? data.options : [];
   } catch (error) {
-    console.error('Error fetching operation options:', error);
+    console.error("Error fetching operation options:", error);
     return [];
   }
 }
@@ -1088,11 +1088,10 @@ async function getWorkstationOptions() {
     const data = await response.json();
     return data.success ? data.options : [];
   } catch (error) {
-    console.error('Error fetching workstation options:', error);
+    console.error("Error fetching workstation options:", error);
     return [];
   }
 }
-
 
 async function getPlantOptions() {
   try {
@@ -1100,844 +1099,869 @@ async function getPlantOptions() {
     const data = await response.json();
     return data.success ? data.options : [];
   } catch (error) {
-    console.error('Error fetching plant options:', error);
+    console.error("Error fetching plant options:", error);
     return [];
   }
 }
-
-
-
-
-
-
-
-
-
-
-
 
 // Build a mapping of report field names to actual database field names
 // Cache for DocType metadata
 let doctypeFieldsCache = {};
 
 async function fetchDoctypeFields(doctype) {
-    if (doctypeFieldsCache[doctype]) {
-        console.log(`📦 Using cached fields for ${doctype}`);
-        return doctypeFieldsCache[doctype];
+  if (doctypeFieldsCache[doctype]) {
+    console.log(`📦 Using cached fields for ${doctype}`);
+    return doctypeFieldsCache[doctype];
+  }
+
+  try {
+    const res = await fetch(
+      `${API_BASE}?action=get_doctype_meta&doctype=${encodeURIComponent(doctype)}`
+    );
+    const data = await res.json();
+    if (data.success) {
+      doctypeFieldsCache[doctype] = data.fields;
+      console.log(`✅ Fetched ${data.fields.length} fields for ${doctype}`);
+      return data.fields;
     }
-    
-    try {
-        const res = await fetch(`${API_BASE}?action=get_doctype_meta&doctype=${encodeURIComponent(doctype)}`);
-        const data = await res.json();
-        if (data.success) {
-            doctypeFieldsCache[doctype] = data.fields;
-            console.log(`✅ Fetched ${data.fields.length} fields for ${doctype}`);
-            return data.fields;
-        }
-    } catch (err) {
-        console.error('Error fetching DocType fields:', err);
-    }
-    return [];
+  } catch (err) {
+    console.error("Error fetching DocType fields:", err);
+  }
+  return [];
 }
 
 async function buildFieldMapping(columns, reportName) {
-    const mapping = {};
-    const config = reportConfig[reportName] || {};
-            const doctype = config.doctype;
-        if (!doctype) {
-            console.error(`❌ DocType is REQUIRED for report "${reportName}". Configure it in Report Management → Configure.`);
-            alert(`Please configure DocType for report "${reportName}" in Admin Settings → Report Management → Configure`);
-            throw new Error('Missing DocType configuration');
-        }
+  const mapping = {};
 
-    
-    console.log(`🔍 Building field mapping for report: ${reportName}, DocType: ${doctype}`);
-    
-    // Fetch actual ERP fields
-    const erpFields = await fetchDoctypeFields(doctype);
-    
-    // Get manual mappings from config
-    const manualMappings = config.field_mappings || {};
-    
-    // Track unmapped fields
-    const unmappedFields = [];
-    
-    for (const col of columns) {
-        const reportFieldname = col.fieldname;
-        
-        // Priority 1: Manual mapping from config
-        if (manualMappings[reportFieldname]) {
-            const erpField = erpFields.find(f => f.fieldname === manualMappings[reportFieldname]);
-            mapping[reportFieldname] = {
-                erpField: manualMappings[reportFieldname],
-                isEditable: erpField ? (!erpField.read_only || erpField.allow_on_submit) : false,
-                isComputed: false,
-                fieldtype: erpField?.fieldtype,
-                options: erpField?.options,
-                label: erpField?.label || manualMappings[reportFieldname]
-            };
-            console.log(`✅ Manual: ${reportFieldname} → ${manualMappings[reportFieldname]}`);
-            continue;
-        }
-        
-        // Priority 2: Exact fieldname match
-        const exactMatch = erpFields.find(f => f.fieldname === reportFieldname);
-        if (exactMatch) {
-            mapping[reportFieldname] = {
-                erpField: exactMatch.fieldname,
-                isEditable: !exactMatch.read_only || exactMatch.allow_on_submit,
-                isComputed: false,
-                fieldtype: exactMatch.fieldtype,
-                options: exactMatch.options,
-                label: exactMatch.label
-            };
-            console.log(`✅ Exact: ${reportFieldname}`);
-            continue;
-        }
-        
-        // Priority 3: Try with custom_ prefix
-        const customFieldname = reportFieldname.startsWith('custom_') ? reportFieldname : 'custom_' + reportFieldname;
-        const customMatch = erpFields.find(f => f.fieldname === customFieldname);
-        if (customMatch) {
-            mapping[reportFieldname] = {
-                erpField: customMatch.fieldname,
-                isEditable: !customMatch.read_only || customMatch.allow_on_submit,
-                isComputed: false,
-                fieldtype: customMatch.fieldtype,
-                options: customMatch.options,
-                label: customMatch.label
-            };
-            console.log(`✅ Custom: ${reportFieldname} → ${customFieldname}`);
-            continue;
-        }
-        
-        // Priority 4: Label matching (fuzzy)
-        const normalizeLabel = (str) => str.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
-        const reportLabel = normalizeLabel(col.label || reportFieldname);
-        
-        const labelMatch = erpFields.find(f => {
-            const erpLabel = normalizeLabel(f.label || '');
-            return erpLabel && erpLabel === reportLabel;
-        });
-        
-        if (labelMatch) {
-            mapping[reportFieldname] = {
-                erpField: labelMatch.fieldname,
-                isEditable: !labelMatch.read_only || labelMatch.allow_on_submit,
-                isComputed: false,
-                fieldtype: labelMatch.fieldtype,
-                options: labelMatch.options,
-                label: labelMatch.label
-            };
-            console.log(`✅ Label: ${reportFieldname} → ${labelMatch.fieldname} (via label: "${col.label}")`);
-            continue;
-        }
-        
-        // No match found - mark as computed/unmapped
-        mapping[reportFieldname] = {
-            erpField: null,
-            isEditable: false,
-            isComputed: true,
-            label: col.label || reportFieldname
-        };
-        unmappedFields.push({
-            reportField: reportFieldname,
-            label: col.label || reportFieldname
-        });
-        console.log(`⚠️ Unmapped: ${reportFieldname} (${col.label})`);
+  if (!reportConfig[reportName]) reportConfig[reportName] = {};
+  const config = reportConfig[reportName] || {};
+
+  const doctype = config.doctype;
+  if (!doctype) {
+    console.error(
+      `❌ DocType is REQUIRED for report "${reportName}". Configure it in Report Management → Configure.`
+    );
+    alert(
+      `Please configure DocType for report "${reportName}" in Admin Settings → Report Management → Configure`
+    );
+    throw new Error("Missing DocType configuration");
+  }
+
+  console.log(`🔍 Building field mapping for report: ${reportName}, DocType: ${doctype}`);
+
+  // Fetch actual ERP fields
+  const erpFields = await fetchDoctypeFields(doctype);
+
+  // Get manual mappings from config (support legacy key too)
+  const manualMappings = config.field_mappings ?? config.fieldmappings ?? {};
+
+  // Track unmapped fields
+  const unmappedFields = [];
+
+  for (const col of columns) {
+    const reportFieldname = col.fieldname;
+
+    // Priority 1: Manual mapping from config
+    if (manualMappings[reportFieldname]) {
+      const erpField = erpFields.find((f) => f.fieldname === manualMappings[reportFieldname]);
+      mapping[reportFieldname] = {
+        erpField: manualMappings[reportFieldname],
+        isEditable: erpField ? (!erpField.read_only || erpField.allow_on_submit) : false,
+        isComputed: false,
+        fieldtype: erpField?.fieldtype,
+        options: erpField?.options,
+        label: erpField?.label || manualMappings[reportFieldname]
+      };
+      console.log(`✅ Manual: ${reportFieldname} → ${manualMappings[reportFieldname]}`);
+      continue;
     }
-    
-    // Store unmapped fields in config for manual mapping UI
-    if (unmappedFields.length > 0) {
-        if (!reportConfig[reportName]) {
-            reportConfig[reportName] = {};
-        }
-        reportConfig[reportName].unmapped_fields = unmappedFields;
-        console.log(`⚠️ ${unmappedFields.length} fields need manual mapping`);
+
+    // Priority 2: Exact fieldname match
+    const exactMatch = erpFields.find((f) => f.fieldname === reportFieldname);
+    if (exactMatch) {
+      mapping[reportFieldname] = {
+        erpField: exactMatch.fieldname,
+        isEditable: !exactMatch.read_only || exactMatch.allow_on_submit,
+        isComputed: false,
+        fieldtype: exactMatch.fieldtype,
+        options: exactMatch.options,
+        label: exactMatch.label
+      };
+      console.log(`✅ Exact: ${reportFieldname}`);
+      continue;
     }
-    
-    return mapping;
+
+    // Priority 3: Try with custom_ prefix
+    const customFieldname = reportFieldname.startsWith("custom_")
+      ? reportFieldname
+      : "custom_" + reportFieldname;
+    const customMatch = erpFields.find((f) => f.fieldname === customFieldname);
+    if (customMatch) {
+      mapping[reportFieldname] = {
+        erpField: customMatch.fieldname,
+        isEditable: !customMatch.read_only || customMatch.allow_on_submit,
+        isComputed: false,
+        fieldtype: customMatch.fieldtype,
+        options: customMatch.options,
+        label: customMatch.label
+      };
+      console.log(`✅ Custom: ${reportFieldname} → ${customFieldname}`);
+      continue;
+    }
+
+    // Priority 4: Label matching (fuzzy)
+    const normalizeLabel = (str) =>
+      str.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
+    const reportLabel = normalizeLabel(col.label || reportFieldname);
+
+    const labelMatch = erpFields.find((f) => {
+      const erpLabel = normalizeLabel(f.label || "");
+      return erpLabel && erpLabel === reportLabel;
+    });
+
+    if (labelMatch) {
+      mapping[reportFieldname] = {
+        erpField: labelMatch.fieldname,
+        isEditable: !labelMatch.read_only || labelMatch.allow_on_submit,
+        isComputed: false,
+        fieldtype: labelMatch.fieldtype,
+        options: labelMatch.options,
+        label: labelMatch.label
+      };
+      console.log(`✅ Label: ${reportFieldname} → ${labelMatch.fieldname} (via label: "${col.label}")`);
+      continue;
+    }
+
+    // No match found - mark as computed/unmapped
+    mapping[reportFieldname] = {
+      erpField: null,
+      isEditable: false,
+      isComputed: true,
+      label: col.label || reportFieldname
+    };
+    unmappedFields.push({
+      report_field: reportFieldname,
+      label: col.label || reportFieldname
+    });
+    console.log(`⚠️ Unmapped: ${reportFieldname} (${col.label})`);
+  }
+
+  // Store unmapped fields in config for manual mapping UI
+  if (unmappedFields.length > 0) {
+    reportConfig[reportName].unmapped_fields = unmappedFields;
+    delete reportConfig[reportName].unmappedfields;
+    console.log(`⚠️ ${unmappedFields.length} fields need manual mapping`);
+  }
+
+  return mapping;
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 async function cleanupCardPriority(reportName) {
-    if (!currentReportData || !currentReportData.grouped) {
-        console.log('No report data to clean');
-        return;
-    }
-    
-    const config = reportConfig[reportName] || {};
-    if (!config.card_priority) return;
-    
-    let cleaned = false;
-    
-    // For each primary group
-    Object.keys(config.card_priority).forEach(primaryGroup => {
-        // For each secondary group
-        Object.keys(config.card_priority[primaryGroup]).forEach(secondaryGroup => {
-            const savedOrder = config.card_priority[primaryGroup][secondaryGroup];
-            
-            // Get current cards in this subgroup
-            const currentCards = currentReportData.grouped[primaryGroup]?.[secondaryGroup] || [];
-            const currentCardIds = currentCards.map(card => card.name);
-            
-            // Filter out cards that no longer exist
-            const cleanedOrder = savedOrder.filter(id => currentCardIds.includes(id));
-            
-            // If anything was removed, update
-            if (cleanedOrder.length !== savedOrder.length) {
-                config.card_priority[primaryGroup][secondaryGroup] = cleanedOrder;
-                cleaned = true;
-                console.log(`Cleaned ${savedOrder.length - cleanedOrder.length} stale cards from ${primaryGroup} > ${secondaryGroup}`);
-            }
-        });
+  if (!currentReportData || !currentReportData.grouped) {
+    console.log("No report data to clean");
+    return;
+  }
+
+  if (!reportConfig[reportName]) reportConfig[reportName] = {};
+  const config = reportConfig[reportName] || {};
+
+  // Support legacy key too
+  config.card_priority = config.card_priority ?? config.cardpriority;
+
+  if (!config.card_priority) return;
+
+  let cleaned = false;
+
+  // For each primary group
+  Object.keys(config.card_priority).forEach((primaryGroup) => {
+    // For each secondary group
+    Object.keys(config.card_priority[primaryGroup] || {}).forEach((secondaryGroup) => {
+      const savedOrder = config.card_priority[primaryGroup][secondaryGroup] || [];
+
+      // Get current cards in this subgroup
+      const currentCards = currentReportData.grouped[primaryGroup]?.[secondaryGroup] || [];
+      const currentCardIds = currentCards.map((card) => card.name);
+
+      // Filter out cards that no longer exist
+      const cleanedOrder = savedOrder.filter((id) => currentCardIds.includes(id));
+
+      // If anything was removed, update
+      if (cleanedOrder.length !== savedOrder.length) {
+        config.card_priority[primaryGroup][secondaryGroup] = cleanedOrder;
+        cleaned = true;
+        console.log(
+          `Cleaned ${savedOrder.length - cleanedOrder.length} stale cards from ${primaryGroup} > ${secondaryGroup}`
+        );
+      }
     });
-    
-    // Save if anything was cleaned
-    if (cleaned) {
-        await saveReportConfig(config);
-        console.log('✅ Cleanup complete and saved');
-    }
+  });
+
+  // Save if anything was cleaned
+  if (cleaned) {
+    await saveReportConfig(config);
+    console.log("✅ Cleanup complete and saved");
+  }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 async function loadReport(reportName) {
-    try {
-        console.log(`Fetching report: ${reportName}`);
-        const data = await getReport(reportName);
-        console.log("Report data received:", data);
+  try {
+    console.log(`Fetching report: ${reportName}`);
+    const data = await getReport(reportName);
+    console.log("Report data received:", data);
 
-        if (!data.message || !data.message.result) {
-            alert("No data returned from report");
-            return;
-        }
-
-        const columns = data.message.columns || [];
-        const rows = data.message.result || [];
-
-        console.log("Rows:", rows.length, "Columns:", columns.length);
-
-        currentReportColumns = columns;
-
-        // Build field name mapping from report names to actual database field names
-        const fieldMapping = await buildFieldMapping(columns, reportName);
-        window.reportFieldMapping = fieldMapping;
-        console.log("Field mapping created:", fieldMapping);
-
-        // Build field labels from columns
-        fieldLabels = {};
-        columns.forEach(col => {
-            fieldLabels[col.fieldname] = col.label || col.fieldname;
-        });
-
-        // Build label-to-fieldname mapping for config resolution
-        const labelToFieldname = {};
-        columns.forEach(col => {
-            const cleanLabel = (col.label || col.fieldname)
-                .toLowerCase()
-                .replace(/[^a-z0-9]+/g, '_');
-            labelToFieldname[cleanLabel] = col.fieldname;
-        });
-
-        // IMPORTANT: use camelCase config keys
-        const config = reportConfig[reportName] || {};
-
-        // Auto-map groupby fields if they don't match report field names
-        if (config.groupby && Array.isArray(config.groupby)) {
-            config.groupby = config.groupby.map(field => {
-                // If field exists in report, use it
-                if (columns.find(col => col.fieldname === field)) {
-                    return field;
-                }
-                // Try to find by label match
-                const cleanField = field.toLowerCase().replace(/[^a-z0-9]+/g, '_');
-                if (labelToFieldname[cleanField]) {
-                    console.log(`📋 Auto-mapping groupby: ${field} → ${labelToFieldname[cleanField]}`);
-                    return labelToFieldname[cleanField];
-                }
-                return field;
-            });
-        }
-
-        // Use configured image fields or auto-detect description fields
-        const imageFields = (config.imagefields && config.imagefields.length > 0)
-            ? config.imagefields
-            : columns
-                .filter(c =>
-                    c.fieldname.toLowerCase().includes('description') ||
-                    c.fieldname.toLowerCase().includes('image')
-                )
-                .map(c => c.fieldname);
-
-        // Optimize image URL fixing using regex
-        rows.forEach(row => {
-            imageFields.forEach(field => {
-                if (row[field] && typeof row[field] === 'string') {
-                    let html = row[field];
-                    html = html.replace(/src=["']([^"']+)["']/g, (match, url) => {
-                        return `src="${fixImageUrl(url)}"`;
-                    });
-                    row[field] = html;
-                }
-            });
-        });
-
-        // Get ordered columns if field order is configured
-        let orderedColumns = columns;
-        if (config.fieldorder && Array.isArray(config.fieldorder)) {
-            orderedColumns = sortColumnsByOrder(columns, config.fieldorder);
-        }
-
-        // Sort rows if configured
-        const sortedRows = sortRows(rows, columns, config);
-
-        // Group data using the groupby configuration
-        const groupByFields = (config.groupby && Array.isArray(config.groupby))
-            ? config.groupby.filter(Boolean)
-            : [];
-
-        const grouped = groupByFields.length > 0
-            ? groupData(sortedRows, columns, groupByFields, config.groupsort || {})
-            : { 'All Records': { 'All': sortedRows } };
-
-        currentReportData = {
-            grouped,
-            columns: orderedColumns,
-            reportName
-        };
-
-        renderGroupedCards(grouped, orderedColumns, reportName);
-
-    } catch (err) {
-        console.error("Error loading report:", err);
-        alert("Error loading report: " + err.message);
+    if (!data.message || !data.message.result) {
+      alert("No data returned from report");
+      return;
     }
+
+    const columns = data.message.columns || [];
+    const rows = data.message.result || [];
+
+    console.log("Rows:", rows.length, "Columns:", columns.length);
+
+    currentReportColumns = columns;
+
+    // Build field name mapping from report names to actual database field names
+    const fieldMapping = await buildFieldMapping(columns, reportName);
+    window.reportFieldMapping = fieldMapping;
+    console.log("Field mapping created:", fieldMapping);
+
+    // Build field labels from columns
+    fieldLabels = {};
+    columns.forEach((col) => {
+      fieldLabels[col.fieldname] = col.label || col.fieldname;
+    });
+
+    // Build label-to-fieldname mapping for config resolution
+    const labelToFieldname = {};
+    columns.forEach((col) => {
+      const cleanLabel = (col.label || col.fieldname).toLowerCase().replace(/[^a-z0-9]+/g, "_");
+      labelToFieldname[cleanLabel] = col.fieldname;
+    });
+
+    if (!reportConfig[reportName]) reportConfig[reportName] = {};
+    const config = reportConfig[reportName] || {};
+
+    // ---- Normalize legacy config keys into underscore snake_case ----
+    config.group_by = config.group_by ?? config.groupby ?? [];
+    delete config.groupby;
+
+    config.group_sort = config.group_sort ?? config.groupsort ?? {};
+    delete config.groupsort;
+
+    config.image_fields = config.image_fields ?? config.imagefields ?? [];
+    delete config.imagefields;
+
+    config.field_order = config.field_order ?? config.fieldorder ?? [];
+    delete config.fieldorder;
+
+    config.sort_by = config.sort_by ?? config.sortby ?? "";
+    delete config.sortby;
+
+    config.sort_order = config.sort_order ?? config.sortorder ?? "asc";
+    delete config.sortorder;
+
+    config.title_field = config.title_field ?? config.titlefield ?? "work_order_id";
+    delete config.titlefield;
+
+    config.card_fields = config.card_fields ?? config.cardfields ?? [];
+    delete config.cardfields;
+
+    config.user_permissions = config.user_permissions ?? config.userpermissions ?? {};
+    delete config.userpermissions;
+
+    config.time_logs_permissions = config.time_logs_permissions ?? config.timelogspermissions ?? {};
+    delete config.timelogspermissions;
+
+    config.operation_planning_permissions =
+      config.operation_planning_permissions ?? config.operationplanningpermissions ?? {};
+    delete config.operationplanningpermissions;
+
+    config.show_time_logs_button = config.show_time_logs_button ?? config.showtimelogsbutton ?? false;
+    delete config.showtimelogsbutton;
+
+    config.show_operation_planning_button =
+      config.show_operation_planning_button ?? config.showoperationplanningbutton ?? false;
+    delete config.showoperationplanningbutton;
+
+    config.card_priority = config.card_priority ?? config.cardpriority ?? {};
+    delete config.cardpriority;
+    // ---------------------------------------------------------------
+
+    // Auto-map group_by fields if they don't match report field names
+    if (config.group_by && Array.isArray(config.group_by)) {
+      config.group_by = config.group_by.map((field) => {
+        // If field exists in report, use it
+        if (columns.find((col) => col.fieldname === field)) {
+          return field;
+        }
+        // Try to find by label match
+        const cleanField = field.toLowerCase().replace(/[^a-z0-9]+/g, "_");
+        if (labelToFieldname[cleanField]) {
+          console.log(`📋 Auto-mapping group_by: ${field} → ${labelToFieldname[cleanField]}`);
+          return labelToFieldname[cleanField];
+        }
+        return field;
+      });
+    }
+
+    // Use configured image fields or auto-detect description fields
+    const imageFields =
+      config.image_fields && config.image_fields.length > 0
+        ? config.image_fields
+        : columns
+            .filter(
+              (c) =>
+                c.fieldname.toLowerCase().includes("description") ||
+                c.fieldname.toLowerCase().includes("image")
+            )
+            .map((c) => c.fieldname);
+
+    // Optimize image URL fixing using regex
+    rows.forEach((row) => {
+      imageFields.forEach((field) => {
+        if (row[field] && typeof row[field] === "string") {
+          let html = row[field];
+          html = html.replace(/src=["']([^"']+)["']/g, (match, url) => {
+            return `src="${fixImageUrl(url)}"`;
+          });
+          row[field] = html;
+        }
+      });
+    });
+
+    // Get ordered columns if field order is configured
+    let orderedColumns = columns;
+    if (config.field_order && Array.isArray(config.field_order) && config.field_order.length > 0) {
+      orderedColumns = sortColumnsByOrder(columns, config.field_order);
+    }
+
+    // Sort rows if configured
+    const sortedRows = sortRows(rows, columns, config);
+
+    // Group data using the group_by configuration
+    const groupByFields =
+      config.group_by && Array.isArray(config.group_by) ? config.group_by.filter(Boolean) : [];
+
+    const grouped =
+      groupByFields.length > 0
+        ? groupData(sortedRows, columns, groupByFields, config.group_sort || {})
+        : { "All Records": { All: sortedRows } };
+
+    currentReportData = {
+      grouped,
+      columns: orderedColumns,
+      reportName
+    };
+
+    renderGroupedCards(grouped, orderedColumns, reportName);
+  } catch (err) {
+    console.error("Error loading report:", err);
+    alert("Error loading report: " + err.message);
+  }
 }
 
-
-
-
-
-
-
-
 function sortColumnsByOrder(columns, fieldOrder) {
-    const ordered = [];
-    const remaining = [...columns];
-    
-    fieldOrder.forEach(fieldname => {
-        const idx = remaining.findIndex(c => c.fieldname === fieldname);
-        if (idx >= 0) {
-            ordered.push(remaining[idx]);
-            remaining.splice(idx, 1);
-        }
-    });
-    
-    return [...ordered, ...remaining];
+  const ordered = [];
+  const remaining = [...columns];
+
+  fieldOrder.forEach((fieldname) => {
+    const idx = remaining.findIndex((c) => c.fieldname === fieldname);
+    if (idx >= 0) {
+      ordered.push(remaining[idx]);
+      remaining.splice(idx, 1);
+    }
+  });
+
+  return [...ordered, ...remaining];
 }
 
 function sortRows(rows, columns, config) {
-    if (!config.sort_by) return rows;
-    
-    const sortField = config.sort_by;
-    const sortOrder = config.sort_order || 'asc';
-    
-    return [...rows].sort((a, b) => {
-        const valA = a[sortField];
-        const valB = b[sortField];
-        
-        if (valA === valB) return 0;
-        if (valA === null || valA === undefined) return 1;
-        if (valB === null || valB === undefined) return -1;
-        
-        const comparison = valA < valB ? -1 : 1;
-        return sortOrder === 'asc' ? comparison : -comparison;
-    });
+  if (!config.sort_by) return rows;
+
+  const sortField = config.sort_by;
+  const sortOrder = config.sort_order || "asc";
+
+  return [...rows].sort((a, b) => {
+    const valA = a[sortField];
+    const valB = b[sortField];
+
+    if (valA === valB) return 0;
+    if (valA === null || valA === undefined) return 1;
+    if (valB === null || valB === undefined) return -1;
+
+    const comparison = valA < valB ? -1 : 1;
+    return sortOrder === "asc" ? comparison : -comparison;
+  });
 }
 
 function groupData(rows, columns, groupFields, groupSort = {}) {
-    const grouped = {};
-    
-    rows.forEach(row => {
-        const level1 = row[groupFields[0]] || 'Unknown';
-        const level2 = groupFields[1] ? (row[groupFields[1]] || 'Unknown') : 'All';
-        
-        if (!grouped[level1]) {
-            grouped[level1] = {};
-        }
-        if (!grouped[level1][level2]) {
-            grouped[level1][level2] = [];
-        }
-        grouped[level1][level2].push(row);
-    });
-    
-    const sortedGrouped = {};
-    
-    const level1Keys = Object.keys(grouped);
-    if (groupSort[groupFields[0]]) {
-        const customOrder = groupSort[groupFields[0]];
-        level1Keys.sort((a, b) => {
-            const indexA = customOrder.indexOf(a);
-            const indexB = customOrder.indexOf(b);
-            if (indexA === -1 && indexB === -1) return a.localeCompare(b);
-            if (indexA === -1) return 1;
-            if (indexB === -1) return -1;
-            return indexA - indexB;
-        });
-    } else {
-        level1Keys.sort();
+  const grouped = {};
+
+  rows.forEach((row) => {
+    const level1 = row[groupFields[0]] || "Unknown";
+    const level2 = groupFields[1] ? row[groupFields[1]] || "Unknown" : "All";
+
+    if (!grouped[level1]) {
+      grouped[level1] = {};
     }
-    
-    level1Keys.forEach(key1 => {
-        sortedGrouped[key1] = {};
-        
-        const level2Keys = Object.keys(grouped[key1]);
-        if (groupFields[1] && groupSort[groupFields[1]]) {
-            const customOrder = groupSort[groupFields[1]];
-            level2Keys.sort((a, b) => {
-                const indexA = customOrder.indexOf(a);
-                const indexB = customOrder.indexOf(b);
-                if (indexA === -1 && indexB === -1) return a.localeCompare(b);
-                if (indexA === -1) return 1;
-                if (indexB === -1) return -1;
-                return indexA - indexB;
-            });
-        } else {
-            level2Keys.sort();
-        }
-        
-        level2Keys.forEach(key2 => {
-            sortedGrouped[key1][key2] = grouped[key1][key2];
-        });
+    if (!grouped[level1][level2]) {
+      grouped[level1][level2] = [];
+    }
+    grouped[level1][level2].push(row);
+  });
+
+  const sortedGrouped = {};
+
+  const level1Keys = Object.keys(grouped);
+  if (groupSort[groupFields[0]]) {
+    const customOrder = groupSort[groupFields[0]];
+    level1Keys.sort((a, b) => {
+      const indexA = customOrder.indexOf(a);
+      const indexB = customOrder.indexOf(b);
+      if (indexA === -1 && indexB === -1) return a.localeCompare(b);
+      if (indexA === -1) return 1;
+      if (indexB === -1) return -1;
+      return indexA - indexB;
     });
-    
-    return sortedGrouped;
+  } else {
+    level1Keys.sort();
+  }
+
+  level1Keys.forEach((key1) => {
+    sortedGrouped[key1] = {};
+
+    const level2Keys = Object.keys(grouped[key1]);
+    if (groupFields[1] && groupSort[groupFields[1]]) {
+      const customOrder = groupSort[groupFields[1]];
+      level2Keys.sort((a, b) => {
+        const indexA = customOrder.indexOf(a);
+        const indexB = customOrder.indexOf(b);
+        if (indexA === -1 && indexB === -1) return a.localeCompare(b);
+        if (indexA === -1) return 1;
+        if (indexB === -1) return -1;
+        return indexA - indexB;
+      });
+    } else {
+      level2Keys.sort();
+    }
+
+    level2Keys.forEach((key2) => {
+      sortedGrouped[key1][key2] = grouped[key1][key2];
+    });
+  });
+
+  return sortedGrouped;
 }
-
-
-
-
-
 
 function renderGroupedCards(grouped, columns, reportName) {
-    const reportArea = document.getElementById("reportArea");
-    reportArea.innerHTML = "";
-    
-    const config = reportConfig[reportName] || {};
-    const collapsed = config.collapsed !== false;
-    
-    // Get hidden groups for current user
-    const userEmail = localStorage.getItem("userEmail");
-    const userPerms = config.user_permissions?.[userEmail] || {};
-    const hiddenPrimaryGroups = userPerms.hiddenprimarygroups || [];
-    const hiddenSecondaryGroups = userPerms.hiddensecondarygroups || [];
-    
-    Object.keys(grouped).forEach(level1 => {
-        // Skip this primary group if it's hidden for the user
-        if (hiddenPrimaryGroups.includes(level1)) {
-            console.log('Hiding primary group:', level1);
-            return;
-        }
-        
-        const level1Div = document.createElement("div");
-        level1Div.className = "mb-4";
-        
-        const level1Count = Object.values(grouped[level1]).reduce((sum, arr) => sum + arr.length, 0);
-        
-        const level1Header = document.createElement("div");
-        level1Header.className = "operation-header p-3 text-white rounded mb-2";
-        level1Header.style.cursor = "pointer";
-        level1Header.innerHTML = `
-            <h5 class="mb-0">
-                <span class="toggle-icon">${collapsed ? '▶' : '▼'}</span> ${level1} 
-                <span class="badge bg-light text-dark ms-2">${level1Count}</span>
-            </h5>
-        `;
-        
-        const level1Content = document.createElement("div");
-        level1Content.className = "level1-content";
-        level1Content.style.display = collapsed ? "none" : "block";
-        
-        Object.keys(grouped[level1]).forEach(level2 => {
-            // Skip this secondary group if it's hidden for the user
-            if (hiddenSecondaryGroups.includes(level2)) {
-                console.log('Hiding secondary group:', level2);
-                return;
-            }
-            
-            const level2Div = document.createElement("div");
-            level2Div.className = "mb-3 ms-md-3";
-            
-            const level2Header = document.createElement("div");
-            level2Header.className = "workstation-header p-2 text-white rounded mb-2";
-            level2Header.style.cursor = "pointer";
-            level2Header.innerHTML = `
-                <h6 class="mb-0">
-                    <span class="toggle-icon">${collapsed ? '▶' : '▼'}</span> ${level2} 
-                    <span class="badge bg-light text-dark ms-2">${grouped[level1][level2].length}</span>
-                </h6>
-            `;
-            
-            const level2Content = document.createElement("div");
-            level2Content.className = "level2-content";
-            level2Content.style.display = collapsed ? "none" : "block";
-            
-            const cardsContainer = document.createElement("div");
-            cardsContainer.className = "d-flex flex-wrap gap-3 mt-2";
-            
-            // ========== COMPLETE FIXED VERSION ==========
-            // Apply saved card priority if it exists
-            const cardPriority = config.card_priority?.[level1]?.[level2];
-            let cardsToRender = grouped[level1][level2];
-            
-            const titleField = config.title_field || "work_order_id";
-            
-            // Helper function to get card ID from row (same logic as createCard)
-                const getCardId = (row) => {
-                    return row[titleField] || row.name || '';
-                };
+  const reportArea = document.getElementById("reportArea");
+  reportArea.innerHTML = "";
 
-            
-            if (cardPriority && Array.isArray(cardPriority)) {
-                cardsToRender = [...cardsToRender].sort((a, b) => {
-                    const idA = getCardId(a);
-                    const idB = getCardId(b);
-                    
-                    const indexA = cardPriority.indexOf(idA);
-                    const indexB = cardPriority.indexOf(idB);
-                    
-                    // Both cards are in the priority list - use priority order
-                    if (indexA !== -1 && indexB !== -1) {
-                        return indexA - indexB;
-                    }
-                    
-                    // Only A is in priority list - A comes first
-                    if (indexA !== -1) return -1;
-                    
-                    // Only B is in priority list - B comes first
-                    if (indexB !== -1) return 1;
-                    
-                    // Neither is in priority list - NEW CARDS
-                    // Sort new cards by the configured sort_by field (sales_order_id)
-                    if (config.sort_by) {
-                        const sortField = config.sort_by;
-                        const valA = a[sortField];
-                        const valB = b[sortField];
-                        
-                        if (valA === valB) return 0;
-                        if (valA === null || valA === undefined) return 1;
-                        if (valB === null || valB === undefined) return -1;
-                        
-                        const comparison = valA < valB ? -1 : 1;
-                        return config.sort_order === 'desc' ? -comparison : comparison;
-                    }
-                    
-                    return 0;
-                });
-            }
-            // ========== END FIX ==========
+  if (!reportConfig[reportName]) reportConfig[reportName] = {};
+  const config = reportConfig[reportName] || {};
 
-                const fragment = document.createDocumentFragment(); // ✅ Batch DOM operations
-                cardsToRender.forEach(row => {
-                    const card = createCard(row, columns, reportName, config);
-                    card.className = card.className + ' card-grid-item';
-                    fragment.appendChild(card); // ✅ No reflow
-                });
-                cardsContainer.appendChild(fragment); // ✅ One reflow only
-                            
-            // Initialize drag-and-drop for this subgroup (admin only)
-            if (currentUser && currentUser.role === 'admin') {
-                initializeSortable(cardsContainer, reportName, level1, level2);
-            }
-            
-            level2Content.appendChild(cardsContainer);
-            level2Div.appendChild(level2Header);
-            level2Div.appendChild(level2Content);
-            
-            level2Header.addEventListener("click", () => {
-                level2Content.style.display = level2Content.style.display === "none" ? "block" : "none";
-                const icon = level2Header.querySelector(".toggle-icon");
-                icon.textContent = level2Content.style.display === "none" ? "▶" : "▼";
-            });
-            
-            level1Content.appendChild(level2Div);
+  // Normalize legacy keys (for safety)
+  config.user_permissions = config.user_permissions ?? config.userpermissions ?? {};
+  delete config.userpermissions;
+
+  // Normalize nested hidden group keys for current user (support legacy names too)
+  const userEmail = localStorage.getItem("userEmail");
+  const userPermsRaw = config.user_permissions?.[userEmail] || {};
+
+  const hiddenPrimaryGroups =
+    userPermsRaw.hidden_primary_groups ??
+    userPermsRaw.hiddenprimarygroups ??
+    [];
+  const hiddenSecondaryGroups =
+    userPermsRaw.hidden_secondary_groups ??
+    userPermsRaw.hiddensecondarygroups ??
+    [];
+
+  // Keep collapsed logic as-is
+  const collapsed = config.collapsed !== false;
+
+  Object.keys(grouped).forEach((level1) => {
+    // Skip this primary group if it's hidden for the user
+    if (hiddenPrimaryGroups.includes(level1)) {
+      console.log("Hiding primary group:", level1);
+      return;
+    }
+
+    const level1Div = document.createElement("div");
+    level1Div.className = "mb-4";
+
+    const level1Count = Object.values(grouped[level1]).reduce((sum, arr) => sum + arr.length, 0);
+
+    const level1Header = document.createElement("div");
+    level1Header.className = "operation-header p-3 text-white rounded mb-2";
+    level1Header.style.cursor = "pointer";
+    level1Header.innerHTML = `
+      <h5 class="mb-0">
+        <span class="toggle-icon">${collapsed ? "▶" : "▼"}</span> ${level1}
+        <span class="badge bg-light text-dark ms-2">${level1Count}</span>
+      </h5>
+    `;
+
+    const level1Content = document.createElement("div");
+    level1Content.className = "level1-content";
+    level1Content.style.display = collapsed ? "none" : "block";
+
+    Object.keys(grouped[level1]).forEach((level2) => {
+      // Skip this secondary group if it's hidden for the user
+      if (hiddenSecondaryGroups.includes(level2)) {
+        console.log("Hiding secondary group:", level2);
+        return;
+      }
+
+      const level2Div = document.createElement("div");
+      level2Div.className = "mb-3 ms-md-3";
+
+      const level2Header = document.createElement("div");
+      level2Header.className = "workstation-header p-2 text-white rounded mb-2";
+      level2Header.style.cursor = "pointer";
+      level2Header.innerHTML = `
+        <h6 class="mb-0">
+          <span class="toggle-icon">${collapsed ? "▶" : "▼"}</span> ${level2}
+          <span class="badge bg-light text-dark ms-2">${grouped[level1][level2].length}</span>
+        </h6>
+      `;
+
+      const level2Content = document.createElement("div");
+      level2Content.className = "level2-content";
+      level2Content.style.display = collapsed ? "none" : "block";
+
+      const cardsContainer = document.createElement("div");
+      cardsContainer.className = "d-flex flex-wrap gap-3 mt-2";
+
+      // Apply saved card priority if it exists
+      config.card_priority = config.card_priority ?? config.cardpriority ?? {};
+      delete config.cardpriority;
+
+      const cardPriority = config.card_priority?.[level1]?.[level2];
+      let cardsToRender = grouped[level1][level2];
+
+      // IMPORTANT: createCard() below also normalizes title_field/titlefield,
+      // but keep a consistent default here too.
+      config.title_field = config.title_field ?? config.titlefield ?? "work_order_id";
+      delete config.titlefield;
+
+      const titleField = config.title_field || "work_order_id";
+
+      // Helper function to get card ID from row (same logic as createCard)
+      const getCardId = (row) => {
+        return row[titleField] || row.name || "";
+      };
+
+      if (cardPriority && Array.isArray(cardPriority)) {
+        cardsToRender = [...cardsToRender].sort((a, b) => {
+          const idA = getCardId(a);
+          const idB = getCardId(b);
+
+          const indexA = cardPriority.indexOf(idA);
+          const indexB = cardPriority.indexOf(idB);
+
+          // Both cards are in the priority list - use priority order
+          if (indexA !== -1 && indexB !== -1) return indexA - indexB;
+
+          // Only A is in priority list - A comes first
+          if (indexA !== -1) return -1;
+
+          // Only B is in priority list - B comes first
+          if (indexB !== -1) return 1;
+
+          // Neither is in priority list - NEW CARDS
+          if (config.sort_by) {
+            const sortField = config.sort_by;
+            const valA = a[sortField];
+            const valB = b[sortField];
+
+            if (valA === valB) return 0;
+            if (valA === null || valA === undefined) return 1;
+            if (valB === null || valB === undefined) return -1;
+
+            const comparison = valA < valB ? -1 : 1;
+            return config.sort_order === "desc" ? -comparison : comparison;
+          }
+
+          return 0;
         });
-        
-        level1Div.appendChild(level1Header);
-        level1Div.appendChild(level1Content);
-        
-        level1Header.addEventListener("click", () => {
-            level1Content.style.display = level1Content.style.display === "none" ? "block" : "none";
-            const icon = level1Header.querySelector(".toggle-icon");
-            icon.textContent = level1Content.style.display === "none" ? "▶" : "▼";
-        });
-        
-        // Apply current collapse state to newly rendered groups
-        const level2ContentsArray = Array.from(level1Content.querySelectorAll('.level2-content'));
-        applyCurrentCollapseState(level1Content, level2ContentsArray);
+      }
 
-        reportArea.appendChild(level1Div);
+      const fragment = document.createDocumentFragment();
+      cardsToRender.forEach((row) => {
+        const card = createCard(row, columns, reportName, config);
+        card.className = card.className + " card-grid-item";
+        fragment.appendChild(card);
+      });
+      cardsContainer.appendChild(fragment);
+
+      // Initialize drag-and-drop for this subgroup (admin only)
+      if (currentUser && currentUser.role === "admin") {
+        initializeSortable(cardsContainer, reportName, level1, level2);
+      }
+
+      level2Content.appendChild(cardsContainer);
+      level2Div.appendChild(level2Header);
+      level2Div.appendChild(level2Content);
+
+      level2Header.addEventListener("click", () => {
+        level2Content.style.display = level2Content.style.display === "none" ? "block" : "none";
+        const icon = level2Header.querySelector(".toggle-icon");
+        icon.textContent = level2Content.style.display === "none" ? "▶" : "▼";
+      });
+
+      level1Content.appendChild(level2Div);
     });
+
+    level1Div.appendChild(level1Header);
+    level1Div.appendChild(level1Content);
+
+    level1Header.addEventListener("click", () => {
+      level1Content.style.display = level1Content.style.display === "none" ? "block" : "none";
+      const icon = level1Header.querySelector(".toggle-icon");
+      icon.textContent = level1Content.style.display === "none" ? "▶" : "▼";
+    });
+
+    // Apply current collapse state to newly rendered groups
+    const level2ContentsArray = Array.from(level1Content.querySelectorAll(".level2-content"));
+    applyCurrentCollapseState(level1Content, level2ContentsArray);
+
+    reportArea.appendChild(level1Div);
+  });
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 function createCard(row, columns, reportName, config) {
-    const card = document.createElement("div");
-    card.className = "card card-report h-100";
+  const card = document.createElement("div");
+  card.className = "card card-report h-100";
 
-    // ========== SMART DOCNAME DETECTION ==========
-    // Priority order:
-    // 1. Use titlefield from config (the displayed title)
-    // 2. Fall back to row.name (ERPNext document name)
-    // 3. Try common ID fields
-    // 4. Use first available field
-    const titleField = config.titlefield || "work_order_id";
-    const docName =
-        row[titleField] ||
-        row.name ||
-        row.work_order_id ||
-        row.job_card ||
-        "";
-    card.dataset.docname = docName;
+  // Normalize legacy keys for this config object (safe)
+  config.title_field = config.title_field ?? config.titlefield ?? "work_order_id";
+  delete config.titlefield;
 
-    if (!docName) {
-        console.warn("No docname found. Configure title field in report settings.", row);
+  config.card_fields = config.card_fields ?? config.cardfields ?? [];
+  delete config.cardfields;
+
+  config.image_fields = config.image_fields ?? config.imagefields ?? [];
+  delete config.imagefields;
+
+  config.group_by = config.group_by ?? config.groupby ?? [];
+  delete config.groupby;
+
+  config.user_permissions = config.user_permissions ?? config.userpermissions ?? {};
+  delete config.userpermissions;
+
+  config.show_time_logs_button = config.show_time_logs_button ?? config.showtimelogsbutton ?? false;
+  delete config.showtimelogsbutton;
+
+  config.time_logs_permissions = config.time_logs_permissions ?? config.timelogspermissions ?? {};
+  delete config.timelogspermissions;
+
+  config.show_operation_planning_button =
+    config.show_operation_planning_button ?? config.showoperationplanningbutton ?? false;
+  delete config.showoperationplanningbutton;
+
+  config.operation_planning_permissions =
+    config.operation_planning_permissions ?? config.operationplanningpermissions ?? {};
+  delete config.operationplanningpermissions;
+
+  // SMART DOCNAME DETECTION
+  const titleField = config.title_field || "work_order_id";
+  const docName =
+    row[titleField] ||
+    row.name ||
+    row.work_order_id ||
+    row.job_card ||
+    "";
+  card.dataset.docname = docName;
+
+  if (!docName) {
+    console.warn("No docname found. Configure title field in report settings.", row);
+  }
+
+  const userEmail = localStorage.getItem("userEmail");
+  const userPermsRaw = config.user_permissions?.[userEmail] || {};
+
+  const hiddenFields =
+    userPermsRaw.hidden_fields ??
+    userPermsRaw.hiddenfields ??
+    [];
+
+  const cardFields = config.card_fields || [];
+
+  if (cardFields.length === 0) {
+    console.warn("No card_fields configured for report. Configure in Report Management.");
+  }
+
+  const imageFields = config.image_fields || [];
+  const name = row[titleField] || row.name || docName || "Record";
+
+  // Auto-detect status fields from available columns
+  const statusFieldCandidates = columns
+    .filter((c) => c.fieldname.toLowerCase().includes("status"))
+    .map((c) => c.fieldname);
+
+  const statusFields = [
+    "status",
+    "work_order_status",
+    "operation_status",
+    "sales_order_status",
+    ...statusFieldCandidates
+  ];
+
+  const uniqueStatusFields = [...new Set(statusFields)];
+  let status;
+  for (const sf of uniqueStatusFields) {
+    if (row[sf]) {
+      status = row[sf];
+      break;
     }
-    // ========== END SMART DETECTION ==========
+  }
 
-    const userPerms = config.userpermissions?.[userEmail] || {};
-    const hiddenFields = userPerms.hiddenfields || [];
-    const cardFields = config.cardfields || [];
+  const imgUrl = extractImageFromRow(row, columns, imageFields);
+  if (imgUrl) {
+    const img = document.createElement("img");
+    img.className = "card-img-top";
+    img.src = imgUrl;
+    img.alt = name;
+    img.style.height = "180px";
+    img.style.objectFit = "cover";
+    img.onerror = function () {
+      console.error("Failed to load image:", imgUrl);
+      this.style.display = "none";
+    };
+    card.appendChild(img);
+  }
 
-    if (cardFields.length === 0) {
-        console.warn(`No cardfields configured for report. Configure in Report Management.`);
+  const cardBody = document.createElement("div");
+  cardBody.className = "card-body";
+
+  // ADD DRAG HANDLE FOR MOBILE
+  if (currentUser && currentUser.role === "admin") {
+    const dragHandle = document.createElement("div");
+    dragHandle.className = "drag-handle";
+    dragHandle.innerHTML = '<i class="bi bi-grip-vertical"></i>';
+
+    const isMobile = window.innerWidth <= 768;
+
+    if (isMobile) {
+      dragHandle.title = "Tap to reorder";
+      dragHandle.style.cursor = "pointer";
+
+      dragHandle.dataset.reportName = reportName;
+      dragHandle.dataset.primaryGroup = config.group_by?.[0] ? row[config.group_by[0]] : "All";
+      dragHandle.dataset.secondaryGroup = config.group_by?.[1] ? row[config.group_by[1]] : "All";
+
+      dragHandle.addEventListener("click", (e) => {
+        e.stopPropagation();
+        openMobileReorderModal(
+          dragHandle.dataset.reportName,
+          dragHandle.dataset.primaryGroup,
+          dragHandle.dataset.secondaryGroup
+        );
+      });
+    } else {
+      dragHandle.title = "Hold and drag to reorder";
     }
 
-    const imageFields = config.imagefields || [];
-    const name = row[titleField] || row.name || docName || "Record";
+    cardBody.appendChild(dragHandle);
+  }
 
-    // Auto-detect status fields from available columns
-    const statusFieldCandidates = columns
-        .filter(c => c.fieldname.toLowerCase().includes("status"))
-        .map(c => c.fieldname);
+  if (status) {
+    const badge = document.createElement("span");
+    badge.className = "badge bg-secondary mb-2";
+    badge.style.fontSize = "0.7rem";
+    badge.style.padding = "0.25rem 0.5rem";
+    badge.textContent = status;
+    cardBody.appendChild(badge);
+  }
 
-    const statusFields = [
-        "status",
-        "work_order_status",
-        "operation_status",
-        "sales_order_status",
-        ...statusFieldCandidates
-    ];
+  const title = document.createElement("h6");
+  title.className = "card-title mb-2";
+  title.textContent = name;
+  cardBody.appendChild(title);
 
-    const uniqueStatusFields = [...new Set(statusFields)];
-    let status;
-    for (const sf of uniqueStatusFields) {
-        if (row[sf]) {
-            status = row[sf];
-            break;
+  let count = 0;
+  cardFields.forEach((fieldKey) => {
+    if (count >= 5) return;
+    if (hiddenFields.includes(fieldKey)) return;
+
+    if (row[fieldKey] !== null && row[fieldKey] !== undefined && row[fieldKey] !== "") {
+      const col = columns.find((c) => c.fieldname === fieldKey);
+      const label = col ? fieldLabels[fieldKey] || col.label || fieldKey : fieldKey;
+
+      const p = document.createElement("p");
+      p.className = "mb-1 small";
+
+      let value = row[fieldKey];
+      if (typeof value === "string" && value.length > 40) {
+        value = value.substring(0, 40) + "...";
+      }
+
+      p.innerHTML = `<strong>${label}:</strong> ${value}`;
+      cardBody.appendChild(p);
+      count++;
+    }
+  });
+
+  // Buttons container
+  const buttonsContainer = document.createElement("div");
+  buttonsContainer.className = "d-flex flex-column gap-2 mt-2";
+
+  // View Details (always)
+  const detailsBtn = document.createElement("button");
+  detailsBtn.className = "btn btn-sm btn-outline-primary";
+  detailsBtn.textContent = "View Details";
+  detailsBtn.addEventListener("click", () => {
+    showDetailModal(row, columns, reportName, config);
+  });
+  buttonsContainer.appendChild(detailsBtn);
+
+  // Time Logs button
+  if (config.show_time_logs_button && row.job_card) {
+    const userEmail2 = localStorage.getItem("userEmail");
+    const timeLogsPerms = config.time_logs_permissions?.[userEmail2] || {};
+    if (timeLogsPerms.can_view || timeLogsPerms.canview) {
+      const timeLogsBtn = document.createElement("button");
+      timeLogsBtn.className = "btn btn-sm btn-outline-info";
+      timeLogsBtn.innerHTML = '<i class="bi bi-clock-history"></i> Time Logs';
+      timeLogsBtn.addEventListener("click", () => {
+        let jobCardName = row.job_card;
+        if (typeof jobCardName === "string" && jobCardName.includes("<a")) {
+          const tempDiv = document.createElement("div");
+          tempDiv.innerHTML = jobCardName;
+          jobCardName = tempDiv.textContent || tempDiv.innerText || jobCardName;
         }
+        showTimeLogsModal(jobCardName, reportName, config);
+      });
+      buttonsContainer.appendChild(timeLogsBtn);
     }
+  }
 
-    const imgUrl = extractImageFromRow(row, columns, imageFields);
-    if (imgUrl) {
-        const img = document.createElement("img");
-        img.className = "card-img-top";
-        img.src = imgUrl;
-        img.alt = name;
-        img.style.height = "180px";
-        img.style.objectFit = "cover";
-        img.onerror = function () {
-            console.error("Failed to load image:", imgUrl);
-            this.style.display = "none";
-        };
-        card.appendChild(img);
+  // Operation Planning button
+  if (config.show_operation_planning_button !== false) {
+    const userEmail2 = localStorage.getItem("userEmail");
+    const opPerms = config.operation_planning_permissions?.[userEmail2] || {};
+
+    if (opPerms.can_view || opPerms.canview) {
+      const opPlanningBtn = document.createElement("button");
+      opPlanningBtn.className = "btn btn-sm btn-outline-success";
+      opPlanningBtn.innerHTML = '<i class="bi bi-diagram-3"></i> Operation Planning';
+      opPlanningBtn.addEventListener("click", () => {
+        console.log("Row data:", row);
+        console.log("Work Order ID:", row.work_order_id || row.name);
+        openOperationPlanningModal(row, config, reportName);
+      });
+      buttonsContainer.appendChild(opPlanningBtn);
     }
+  }
 
-    const cardBody = document.createElement("div");
-    cardBody.className = "card-body";
+  cardBody.appendChild(buttonsContainer);
+  card.appendChild(cardBody);
 
-    // ========== ADD DRAG HANDLE FOR MOBILE ==========
-    if (currentUser && currentUser.role === "admin") {
-        const dragHandle = document.createElement("div");
-        dragHandle.className = "drag-handle";
-        dragHandle.innerHTML = '<i class="bi bi-grip-vertical"></i>';
-
-        const isMobile = window.innerWidth <= 768;
-
-        if (isMobile) {
-            dragHandle.title = "Tap to reorder";
-            dragHandle.style.cursor = "pointer";
-
-            dragHandle.dataset.reportName = reportName;
-            dragHandle.dataset.primaryGroup = config.groupby?.[0]
-                ? row[config.groupby[0]]
-                : "All";
-            dragHandle.dataset.secondaryGroup = config.groupby?.[1]
-                ? row[config.groupby[1]]
-                : "All";
-
-            dragHandle.addEventListener("click", e => {
-                e.stopPropagation();
-                openMobileReorderModal(
-                    dragHandle.dataset.reportName,
-                    dragHandle.dataset.primaryGroup,
-                    dragHandle.dataset.secondaryGroup
-                );
-            });
-        } else {
-            dragHandle.title = "Hold and drag to reorder";
-        }
-
-        cardBody.appendChild(dragHandle);
-    }
-    // ========== END DRAG HANDLE ==========
-
-    if (status) {
-        const badge = document.createElement("span");
-        badge.className = "badge bg-secondary mb-2";
-        badge.style.fontSize = "0.7rem";
-        badge.style.padding = "0.25rem 0.5rem";
-        badge.textContent = status;
-        cardBody.appendChild(badge);
-    }
-
-    const title = document.createElement("h6");
-    title.className = "card-title mb-2";
-    title.textContent = name;
-    cardBody.appendChild(title);
-
-    let count = 0;
-    cardFields.forEach(fieldKey => {
-        if (count >= 5) return;
-        if (hiddenFields.includes(fieldKey)) return;
-        if (row[fieldKey] !== null && row[fieldKey] !== undefined && row[fieldKey] !== "") {
-            const col = columns.find(c => c.fieldname === fieldKey);
-            const label = col ? (fieldLabels[fieldKey] || col.label || fieldKey) : fieldKey;
-
-            const p = document.createElement("p");
-            p.className = "mb-1 small";
-
-            let value = row[fieldKey];
-            if (typeof value === "string" && value.length > 40) {
-                value = value.substring(0, 40) + "...";
-            }
-
-            p.innerHTML = `<strong>${label}:</strong> ${value}`;
-            cardBody.appendChild(p);
-            count++;
-        }
-    });
-
-    // Buttons container
-    const buttonsContainer = document.createElement("div");
-    buttonsContainer.className = "d-flex flex-column gap-2 mt-2";
-
-    // View Details (always)
-    const detailsBtn = document.createElement("button");
-    detailsBtn.className = "btn btn-sm btn-outline-primary";
-    detailsBtn.textContent = "View Details";
-    detailsBtn.addEventListener("click", () => {
-        showDetailModal(row, columns, reportName, config);
-    });
-    buttonsContainer.appendChild(detailsBtn);
-
-    // Time Logs button
-    if (config.showtimelogsbutton && row.job_card) {
-        const userEmail = localStorage.getItem("userEmail");
-        const timeLogsPerms = config.timelogspermissions?.[userEmail] || {};
-        if (timeLogsPerms.canview) {
-            const timeLogsBtn = document.createElement("button");
-            timeLogsBtn.className = "btn btn-sm btn-outline-info";
-            timeLogsBtn.innerHTML = '<i class="bi bi-clock-history"></i> Time Logs';
-            timeLogsBtn.addEventListener("click", () => {
-                let jobCardName = row.job_card;
-                if (typeof jobCardName === "string" && jobCardName.includes("<a")) {
-                    const tempDiv = document.createElement("div");
-                    tempDiv.innerHTML = jobCardName;
-                    jobCardName = tempDiv.textContent || tempDiv.innerText || jobCardName;
-                }
-                showTimeLogsModal(jobCardName, reportName, config);
-            });
-            buttonsContainer.appendChild(timeLogsBtn);
-        }
-    }
-
-    // Operation Planning button
-    if (config.showoperationplanningbutton !== false) {
-        const userEmail = localStorage.getItem("userEmail");
-        const opPerms = config.operationplanningpermissions?.[userEmail] || {};
-
-        if (opPerms.canview) {
-            const opPlanningBtn = document.createElement("button");
-            opPlanningBtn.className = "btn btn-sm btn-outline-success";
-            opPlanningBtn.innerHTML = '<i class="bi bi-diagram-3"></i> Operation Planning';
-            opPlanningBtn.addEventListener("click", () => {
-                console.log("Row data:", row);
-                console.log("Work Order ID:", row.work_order_id || row.name);
-                openOperationPlanningModal(row, config, reportName);
-            });
-            buttonsContainer.appendChild(opPlanningBtn);
-        }
-    }
-
-    cardBody.appendChild(buttonsContainer);
-    card.appendChild(cardBody);
-
-    return card;
+  return card;
 }
+
 
 
 
