@@ -313,48 +313,65 @@ function initializeSortable(container, reportName, primaryGroup, secondaryGroup)
       console.log("Drag started");
     },
 
-    onEnd: async function (evt) {
-      evt.item.classList.remove("is-dragging");
+onEnd: async function (evt) {
+  evt.item.classList.remove("is-dragging");
 
-      // Get the new order of cards
-      const cards = Array.from(container.querySelectorAll(".card-report"));
-      const cardOrder = cards.map((card) => card.dataset.docname).filter((name) => name);
+  // Get the new order of cards
+  const cards = Array.from(container.querySelectorAll(".card-report"));
+  const cardOrder = cards.map((card) => card.dataset.docname).filter((name) => name);
 
-      console.log("=== DRAG DROP DEBUG ===");
-      console.log("Report Name:", reportName);
-      console.log("Primary Group:", primaryGroup);
-      console.log("Secondary Group:", secondaryGroup);
-      console.log("New card order:", cardOrder);
-      console.log("Card count:", cardOrder.length);
+  console.log("=== DRAG DROP DEBUG ===");
+  console.log("Report Name:", reportName);
+  console.log("Primary Group:", primaryGroup);
+  console.log("Secondary Group:", secondaryGroup);
+  console.log("New card order:", cardOrder);
+  console.log("Card count:", cardOrder.length);
 
-      // Save to backend
-      try {
-        const result = await saveCardPriority(reportName, primaryGroup, secondaryGroup, cardOrder);
+  // Save to backend
+  try {
+    const result = await saveCardPriority(reportName, primaryGroup, secondaryGroup, cardOrder);
 
-        console.log("Save result:", result);
+    console.log("Save result:", result);
 
-        if (result.success) {
-          console.log("✅ Card priority saved successfully");
-          if (!reportConfig[reportName]) {
-            reportConfig[reportName] = {};
-          }
-          if (!reportConfig[reportName].card_priority) {
-            reportConfig[reportName].card_priority = {};
-          }
-          if (!reportConfig[reportName].card_priority[primaryGroup]) {
-            reportConfig[reportName].card_priority[primaryGroup] = {};
-          }
-          reportConfig[reportName].card_priority[primaryGroup][secondaryGroup] = cardOrder;
-          console.log("Updated local reportConfig");
-        } else {
-          console.error("❌ Failed to save card priority:", result.error);
-          alert("Failed to save card order. Please try again.");
-        }
-      } catch (error) {
-        console.error("❌ Error saving card priority:", error);
-        alert("Error saving card order. Please try again.");
+    if (result.success) {
+      console.log("✅ Card priority saved successfully");
+      
+      // Update local reportConfig (snake_case)
+      if (!reportConfig[reportName]) {
+        reportConfig[reportName] = {};
       }
-    },
+      if (!reportConfig[reportName].card_priority) {
+        reportConfig[reportName].card_priority = {};
+      }
+      if (!reportConfig[reportName].card_priority[primaryGroup]) {
+        reportConfig[reportName].card_priority[primaryGroup] = {};
+      }
+      reportConfig[reportName].card_priority[primaryGroup][secondaryGroup] = cardOrder;
+      
+      console.log("✅ Updated local reportConfig");
+      
+      // 🔑 FIX: Show visual feedback (no reload needed, cards already in correct position)
+      if (navigator.vibrate) navigator.vibrate([30, 50, 30]);
+      
+      // Optional: Show toast notification (if you have one)
+      // showToast('Card order saved!');
+      
+    } else {
+      console.error("❌ Failed to save card priority:", result.error);
+      alert("Failed to save card order. Please try again.");
+      
+      // Reload report to restore original order
+      await loadReport(reportName);
+    }
+  } catch (error) {
+    console.error("❌ Error saving card priority:", error);
+    alert("Error saving card order. Please try again.");
+    
+    // Reload report to restore original order
+    await loadReport(reportName);
+  }
+},
+
 
     onUnchoose: function (evt) {
       console.log("Drag cancelled");
