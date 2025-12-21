@@ -2586,506 +2586,508 @@ function preserveUserData() {
 
 
 async function openAdminSettings() {
+  const modal = new bootstrap.Modal(document.getElementById("adminModal"));
 
+  const userData = await getUsers();
+  renderUsersList(userData.users);
 
-   
-    const modal = new bootstrap.Modal(document.getElementById("adminModal"));
-    
-    const userData = await getUsers();
-    renderUsersList(userData.users);
-    
-    // PRESERVE DATA IMMEDIATELY after rendering the list
-    setTimeout(() => {
+  // PRESERVE DATA IMMEDIATELY after rendering the list
+  setTimeout(() => {
+    preserveUserData();
+    console.log("Initial data preserved:", tempUserData);
+  }, 100);
+
+  // Auto-populate Report Management with assigned reports
+  (async () => {
+    const users = await getUsers();
+    const assignedReports = new Set();
+
+    users.users.forEach((u) => {
+      const allowed = u.allowed_reports ?? u.allowedreports ?? [];
+      if (Array.isArray(allowed)) {
+        allowed.forEach((r) => assignedReports.add(r));
+      }
+    });
+
+    // Merge with any already-fetched reports
+    const allReportsSet = new Set([...(allReports || []), ...Array.from(assignedReports)]);
+    const initialReports = Array.from(allReportsSet).sort();
+
+    if (initialReports.length > 0) {
+      await renderReportsListAdmin(initialReports);
+    }
+  })();
+
+  document.getElementById("fetchReportsBtn").onclick = async () => {
+    const btn = document.getElementById("fetchReportsBtn");
+    btn.disabled = true;
+    btn.textContent = "Fetching Reports...";
+
+    try {
+      const reportsData = await getAllReports();
+
+      if (reportsData.data && Array.isArray(reportsData.data)) {
+        allReports = reportsData.data.map((r) => r.name);
+      } else {
+        allReports = [];
+      }
+
+      await renderReportsListAdmin(allReports);
+
+      btn.textContent = "✓ Reports Fetched (" + allReports.length + ")";
+      btn.classList.add("btn-success");
+      btn.classList.remove("btn-primary");
+
+      renderUsersList(userData.users);
+
+      // Re-preserve after re-rendering
+      setTimeout(() => {
         preserveUserData();
-        console.log("Initial data preserved:", tempUserData);
-    }, 100);
+        console.log("Data re-preserved after fetch:", tempUserData);
+      }, 100);
+    } catch (err) {
+      console.error("Error fetching reports:", err);
+      alert("Error fetching reports: " + err.message);
+      btn.disabled = false;
+      btn.textContent = "Fetch All Reports from ERPNext";
+    }
+  };
 
+  document.getElementById("saveSettingsBtn").onclick = async () => {
+    try {
+      // Re-preserve right before save to capture any checkbox changes
+      preserveUserData();
+      console.log("Final preserved data before save:", tempUserData);
 
+      await saveUserSettings();
+      await saveReportConfig(reportConfig);
+      alert("Settings saved successfully!");
+      modal.hide();
+      location.reload();
+    } catch (err) {
+      alert("Error saving settings: " + err.message);
+    }
+  };
 
-
-               // Auto-populate Report Management with assigned reports
-                (async () => {
-                    const users = await getUsers();
-                    const assignedReports = new Set();
-                    
-                    users.users.forEach(u => {
-                        if (u.allowed_reports) {
-                            u.allowed_reports.forEach(r => assignedReports.add(r));
-                        }
-                    });
-                    
-                    // Merge with any already-fetched reports
-                    const allReportsSet = new Set([...allReports, ...Array.from(assignedReports)]);
-                    const initialReports = Array.from(allReportsSet).sort();
-                    
-                    if (initialReports.length > 0) {
-                        await renderReportsListAdmin(initialReports);
-                    }
-                })();
-    
-
-
-    
-    document.getElementById("fetchReportsBtn").onclick = async () => {
-        const btn = document.getElementById("fetchReportsBtn");
-        btn.disabled = true;
-        btn.textContent = "Fetching Reports...";
-        
-        try {
-            const reportsData = await getAllReports();
-            
-            if (reportsData.data && Array.isArray(reportsData.data)) {
-                allReports = reportsData.data.map(r => r.name);
-            } else {
-                allReports = [];
-            }
-            
-            renderReportsListAdmin(allReports);
-
-
-                    
-            btn.textContent = "✓ Reports Fetched (" + allReports.length + ")";
-            btn.classList.add("btn-success");
-            btn.classList.remove("btn-primary");
-            
-            renderUsersList(userData.users);
-            
-            // Re-preserve after re-rendering
-            setTimeout(() => {
-                preserveUserData();
-                console.log("Data re-preserved after fetch:", tempUserData);
-            }, 100);
-        } catch (err) {
-            console.error("Error fetching reports:", err);
-            alert("Error fetching reports: " + err.message);
-            btn.disabled = false;
-            btn.textContent = "Fetch All Reports from ERPNext";
-        }
-    };
-    
-    document.getElementById("saveSettingsBtn").onclick = async () => {
-        try {
-            // Re-preserve right before save to capture any checkbox changes
-            preserveUserData();
-            console.log("Final preserved data before save:", tempUserData);
-            
-            await saveUserSettings();
-            await saveReportConfig(reportConfig);
-            alert("Settings saved successfully!");
-            modal.hide();
-            location.reload();
-        } catch (err) {
-            alert("Error saving settings: " + err.message);
-        }
-    };
-    
-    initFieldMappingsTab();
-    modal.show();
+  initFieldMappingsTab();
+  modal.show();
 }
-
 
 function renderUsersList(users) {
-    const div = document.getElementById("usersList");
-    div.innerHTML = "";
-    
-    const infoDiv = document.createElement("div");
-    infoDiv.className = "alert alert-info mb-3";
-    infoDiv.innerHTML = `
-        <strong>📌 How to configure:</strong>
-        <ol class="mb-0 mt-2">
-            <li>Go to "Report Management" tab and click "Fetch All Reports" to see all available reports</li>
-            <li>In "User Management", check reports to assign them to users</li>
-            <li>Click "Configure Report" to set field permissions for each user</li>
-        </ol>
-    `;
-    div.appendChild(infoDiv);
-    
-    users.forEach((user, idx) => {
-        const userCard = document.createElement("div");
-        userCard.className = "card mb-3";
-        
-        // Use allReports if available, otherwise use the union of all users' assigned reports
-        let availableReports = allReports.length > 0 ? allReports : [];
-        
-        if (availableReports.length === 0) {
-            // Collect all reports from all users
-            const allAssignedReports = new Set();
-            users.forEach(u => {
-                if (u.allowed_reports) {
-                    u.allowed_reports.forEach(r => allAssignedReports.add(r));
-                }
-            });
-            availableReports = Array.from(allAssignedReports).sort();
-        }
-        
-        let reportsHtml = '';
-        if (availableReports.length > 0) {
-            reportsHtml = availableReports.map(r => `
-                <div class="form-check">
-                    <input class="form-check-input user-report-check" 
-                           type="checkbox" 
-                           value="${r}" 
-                           data-idx="${idx}"
-                           id="report_${idx}_${r.replace(/\s+/g, '_')}"
-                           ${user.allowed_reports.includes(r) ? 'checked' : ''}>
-                    <label class="form-check-label" for="report_${idx}_${r.replace(/\s+/g, '_')}">
-                        ${r}
-                    </label>
-                </div>
-            `).join('');
-        } else {
-            reportsHtml = `
-                <div class="alert alert-warning small mb-0">
-                    <strong>⚠️ No reports available.</strong><br>
-                    Go to "Report Management" tab to fetch reports from ERPNext, or the user has no reports assigned yet.
-                </div>
-            `;
-        }
-        
-        userCard.innerHTML = `
-            <div class="card-body">
-                <div class="d-flex justify-content-between align-items-start mb-3">
-                    <h6 class="mb-0">${user.email}</h6>
-                    <div>
-                        <button class="btn btn-sm btn-info me-2 config-user-reports" data-email="${user.email}">
-                            ⚙️ Configure Reports
-                        </button>
-                        <button class="btn btn-sm btn-danger remove-user" data-idx="${idx}" data-email="${user.email}">
-                            🗑️ Remove
-                        </button>
-                    </div>
-                </div>
-                
-                <div class="row mb-3">
-                    <div class="col-md-6 mb-2">
-                        <label class="form-label small fw-bold">Role:</label>
-                        <select class="form-select form-select-sm user-role" data-idx="${idx}">
-                            <option value="user" ${user.role === 'user' ? 'selected' : ''}>👤 User</option>
-                            <option value="admin" ${user.role === 'admin' ? 'selected' : ''}>👑 Admin</option>
-                        </select>
-                    </div>
-                    <div class="col-md-6 mb-2">
-                        <label class="form-label small fw-bold">Permissions:</label>
-                        <div class="form-check">
-                            <input type="checkbox" 
-                                   class="form-check-input user-edit" 
-                                   data-idx="${idx}" 
-                                   id="edit_${idx}"
-                                   ${user.can_edit ? 'checked' : ''}>
-                            <label class="form-check-label" for="edit_${idx}">
-                                ✏️ Can Edit Records
-                            </label>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="mb-2">
-                    <label class="form-label small fw-bold">
-                        📊 Allowed Reports 
-                        <span class="badge bg-primary" id="count_${idx}">${user.allowed_reports.length}</span>
-                    </label>
-                    <div class="border rounded p-2" style="max-height: 200px; overflow-y: auto;">
-                        ${reportsHtml}
-                    </div>
-                </div>
-            </div>
-        `;
-        div.appendChild(userCard);
-        
-        userCard.querySelectorAll('.user-report-check').forEach(checkbox => {
-            checkbox.addEventListener('change', () => {
-                const count = userCard.querySelectorAll('.user-report-check:checked').length;
-                document.getElementById(`count_${idx}`).textContent = count;
-            });
-        });
-        
-        userCard.querySelector('.config-user-reports').addEventListener('click', () => {
-            openReportConfigModal(user.email);
-        });
-    });
-    
-    div.querySelectorAll('.remove-user').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            const email = e.target.dataset.email;
-            if (confirm(`Remove user: ${email}?`)) {
-                e.target.closest('.card').remove();
-            }
-        });
-    });
-    
-    // ... rest of add user button code stays the same
-}
+  const div = document.getElementById("usersList");
+  div.innerHTML = "";
 
+  const infoDiv = document.createElement("div");
+  infoDiv.className = "alert alert-info mb-3";
+  infoDiv.innerHTML = `
+    <strong>📌 How to configure:</strong>
+    <ol class="mb-0 mt-2">
+      <li>Go to "Report Management" tab and click "Fetch All Reports" to see all available reports</li>
+      <li>In "User Management", check reports to assign them to users</li>
+      <li>Click "Configure Report" to set field permissions for each user</li>
+    </ol>
+  `;
+  div.appendChild(infoDiv);
 
-function renderReportsListAdmin(reports) {
-    const div = document.getElementById("reportsList");
-    
-    if (!reports || reports.length === 0) {
-        div.innerHTML = "<p class='text-muted'>No reports found.</p>";
-        return;
+  users.forEach((user, idx) => {
+    // Normalize legacy user keys (support both; use underscore everywhere in code)
+    user.allowed_reports = user.allowed_reports ?? user.allowedreports ?? [];
+    user.can_edit = user.can_edit ?? user.canedit ?? false;
+
+    const userCard = document.createElement("div");
+    userCard.className = "card mb-3";
+
+    // Use allReports if available, otherwise use the union of all users' assigned reports
+    let availableReports = allReports.length > 0 ? allReports : [];
+
+    if (availableReports.length === 0) {
+      // Collect all reports from all users
+      const allAssignedReports = new Set();
+      users.forEach((u) => {
+        const allowed = u.allowed_reports ?? u.allowedreports ?? [];
+        if (Array.isArray(allowed)) {
+          allowed.forEach((r) => allAssignedReports.add(r));
+        }
+      });
+      availableReports = Array.from(allAssignedReports).sort();
     }
-    
-    div.innerHTML = `
-        <h6>Available Reports (${reports.length}):</h6>
-        <div class="alert alert-info small">
-            Configure each report's permissions, grouping, and field visibility.
+
+    let reportsHtml = "";
+    if (availableReports.length > 0) {
+      reportsHtml = availableReports
+        .map((r) => {
+          const safeId = r.replace(/\s+/g, "_");
+          return `
+            <div class="form-check">
+              <input class="form-check-input user-report-check"
+                     type="checkbox"
+                     value="${r}"
+                     data-idx="${idx}"
+                     id="report_${idx}_${safeId}"
+                     ${user.allowed_reports.includes(r) ? "checked" : ""}>
+              <label class="form-check-label" for="report_${idx}_${safeId}">
+                ${r}
+              </label>
+            </div>
+          `;
+        })
+        .join("");
+    } else {
+      reportsHtml = `
+        <div class="alert alert-warning small mb-0">
+          <strong>⚠️ No reports available.</strong><br>
+          Go to "Report Management" tab to fetch reports from ERPNext, or the user has no reports assigned yet.
         </div>
-        <div class="list-group" style="max-height: 400px; overflow-y: auto;">
-            ${reports.map(r => `
-                <div class="list-group-item d-flex justify-content-between align-items-center">
-                    ${r}
-                    <button class="btn btn-sm btn-outline-primary config-report-btn" data-report="${r}">
-                        ⚙️ Configure
-                    </button>
-                </div>
-            `).join('')}
+      `;
+    }
+
+    userCard.innerHTML = `
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-start mb-3">
+          <h6 class="mb-0">${user.email}</h6>
+          <div>
+            <button class="btn btn-sm btn-info me-2 config-user-reports" data-email="${user.email}">
+              ⚙️ Configure Reports
+            </button>
+            <button class="btn btn-sm btn-danger remove-user" data-idx="${idx}" data-email="${user.email}">
+              🗑️ Remove
+            </button>
+          </div>
         </div>
+
+        <div class="row mb-3">
+          <div class="col-md-6 mb-2">
+            <label class="form-label small fw-bold">Role:</label>
+            <select class="form-select form-select-sm user-role" data-idx="${idx}">
+              <option value="user" ${user.role === "user" ? "selected" : ""}>👤 User</option>
+              <option value="admin" ${user.role === "admin" ? "selected" : ""}>👑 Admin</option>
+            </select>
+          </div>
+          <div class="col-md-6 mb-2">
+            <label class="form-label small fw-bold">Permissions:</label>
+            <div class="form-check">
+              <input type="checkbox"
+                     class="form-check-input user-edit"
+                     data-idx="${idx}"
+                     id="edit_${idx}"
+                     ${user.can_edit ? "checked" : ""}>
+              <label class="form-check-label" for="edit_${idx}">
+                ✏️ Can Edit Records
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <div class="mb-2">
+          <label class="form-label small fw-bold">
+            📊 Allowed Reports
+            <span class="badge bg-primary" id="count_${idx}">${user.allowed_reports.length}</span>
+          </label>
+          <div class="border rounded p-2" style="max-height: 200px; overflow-y: auto;">
+            ${reportsHtml}
+          </div>
+        </div>
+      </div>
     `;
-    
-    div.querySelectorAll('.config-report-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            openGlobalReportConfigModal(btn.dataset.report);
-        });
+    div.appendChild(userCard);
+
+    userCard.querySelectorAll(".user-report-check").forEach((checkbox) => {
+      checkbox.addEventListener("change", () => {
+        const count = userCard.querySelectorAll(".user-report-check:checked").length;
+        document.getElementById(`count_${idx}`).textContent = count;
+      });
     });
+
+    userCard.querySelector(".config-user-reports").addEventListener("click", () => {
+      openReportConfigModal(user.email);
+    });
+  });
+
+  div.querySelectorAll(".remove-user").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      const email = e.target.dataset.email;
+      if (confirm(`Remove user: ${email}?`)) {
+        e.target.closest(".card").remove();
+      }
+    });
+  });
+
+  // ... rest of add user button code stays the same
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 async function openReportConfigModal(userEmail) {
-    const configModalHtml = `
-        <div class="modal fade" id="reportConfigModal" tabindex="-1">
-            <div class="modal-dialog modal-xl">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title">Configure Reports for ${userEmail}</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                    </div>
-                    <div class="modal-body">
-                        <div id="reportConfigTabs"></div>
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                        <button type="button" class="btn btn-primary" id="saveReportConfigBtn">Save Configuration</button>
-                    </div>
-                </div>
-            </div>
+  const configModalHtml = `
+    <div class="modal fade" id="reportConfigModal" tabindex="-1">
+      <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Configure Reports for ${userEmail}</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <div id="reportConfigTabs"></div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            <button type="button" class="btn btn-primary" id="saveReportConfigBtn">Save Configuration</button>
+          </div>
         </div>
-    `;
-    
-    const existingModal = document.getElementById('reportConfigModal');
-    if (existingModal) existingModal.remove();
-    
-    document.body.insertAdjacentHTML('beforeend', configModalHtml);
-    
-    const configModal = new bootstrap.Modal(document.getElementById('reportConfigModal'));
-    
-    const users = await getUsers();
-    const user = users.users.find(u => u.email === userEmail);
-    
-    if (!user || !user.allowed_reports || user.allowed_reports.length === 0) {
-        document.getElementById('reportConfigTabs').innerHTML = '<p class="text-muted">No reports assigned to this user</p>';
-        configModal.show();
-        return;
-    }
-    
-    let tabsHtml = '<ul class="nav nav-tabs mb-3" id="reportConfigTabList">';
-    user.allowed_reports.forEach((report, idx) => {
-        tabsHtml += `
-            <li class="nav-item">
-                <a class="nav-link ${idx === 0 ? 'active' : ''}" data-bs-toggle="tab" href="#tab_${idx}" role="tab">
-                    ${report}
-                </a>
-            </li>
-        `;
-    });
-    tabsHtml += '</ul><div class="tab-content">';
-    
-    for (let idx = 0; idx < user.allowed_reports.length; idx++) {
-        const reportName = user.allowed_reports[idx];
-        const config = reportConfig[reportName] || {};
-        const userPerms = config.user_permissions?.[userEmail] || { editable_fields: [], hidden_fields: [], hiddenprimarygroups: [], hiddensecondarygroups: [] };
-        
-        let columns = currentReportColumns;
-        if (currentReportData && currentReportData.reportName === reportName) {
-            columns = currentReportData.columns;
-        }
-        
-        tabsHtml += `
-            <div class="tab-pane fade ${idx === 0 ? 'show active' : ''}" id="tab_${idx}" role="tabpanel">
-                <h6>Field Permissions for ${reportName}</h6>
-                <div class="row">
-                    <div class="col-md-6">
-                        <h6 class="small fw-bold mt-3">Editable Fields:</h6>
-                        <div class="border rounded p-2" style="max-height: 300px; overflow-y: auto;">
-                            ${columns.map(col => `
-                                <div class="form-check">
-                                    <input class="form-check-input editable-field-check" 
-                                           type="checkbox" 
-                                           value="${col.fieldname}" 
-                                           data-report="${reportName}"
-                                           data-user="${userEmail}"
-                                           id="edit_${idx}_${col.fieldname}"
-                                           ${userPerms.editable_fields?.includes(col.fieldname) ? 'checked' : ''}>
-                                    <label class="form-check-label" for="edit_${idx}_${col.fieldname}">
-                                        ${col.label || col.fieldname}
-                                    </label>
-                                </div>
-                            `).join('')}
-                        </div>
-                    </div>
-                    <div class="col-md-6">
-                        <h6 class="small fw-bold mt-3">Hidden Fields:</h6>
-                        <div class="border rounded p-2" style="max-height: 300px; overflow-y: auto;">
-                            ${columns.map(col => `
-                                <div class="form-check">
-                                    <input class="form-check-input hidden-field-check" 
-                                           type="checkbox" 
-                                           value="${col.fieldname}" 
-                                           data-report="${reportName}"
-                                           data-user="${userEmail}"
-                                           id="hide_${idx}_${col.fieldname}"
-                                           ${userPerms.hidden_fields?.includes(col.fieldname) ? 'checked' : ''}>
-                                    <label class="form-check-label" for="hide_${idx}_${col.fieldname}">
-                                        ${col.label || col.fieldname}
-                                    </label>
-                                </div>
-                            `).join('')}
-                        </div>
-                    </div>
-                </div>
-        
-                <!-- Group Visibility Controls -->
-                <div style="margin-top: 20px;">
-                  <h6>Hide Primary Groups:</h6>
-                  <div id="primaryGroupsContainer_${idx}" class="border rounded p-2" style="max-height: 150px; overflow-y: auto;">
-                      <!-- Filled dynamically -->
-                  </div>
-                  
-                  <h6 class="mt-3">Hide Secondary Groups:</h6>
-                  <div id="secondaryGroupsContainer_${idx}" class="border rounded p-2" style="max-height: 150px; overflow-y: auto;">
-                      <!-- Filled dynamically -->
-                  </div>
-                </div>
-                <!-- End Group Visibility Controls -->
-            </div>
-        `;
+      </div>
+    </div>
+  `;
 
-    }
-    
-    tabsHtml += '</div>';
-    document.getElementById('reportConfigTabs').innerHTML = tabsHtml;
-    
-    // Populate group visibility checkboxes for all reports
-    if (user.allowed_reports.length > 0) {
-        renderGroupVisibilityCheckboxesForAllReports(userEmail, user.allowed_reports);
-    }
-    
-    // Add event listener for tab change to update group visibility
-    const tabLinks = document.querySelectorAll('#reportConfigTabList .nav-link');
-    tabLinks.forEach((tabLink, idx) => {
-        tabLink.addEventListener('shown.bs.tab', () => {
-            renderGroupVisibilityCheckboxesForReport(userEmail, user.allowed_reports[idx], idx);
-        });
-    });
-    
-    document.getElementById('saveReportConfigBtn').onclick = () => {
-        user.allowed_reports.forEach((reportName, idx) => {
-            if (!reportConfig[reportName]) {
-                reportConfig[reportName] = {};
-            }
-            if (!reportConfig[reportName].user_permissions) {
-                reportConfig[reportName].user_permissions = {};
-            }
-            
-            const editableChecks = document.querySelectorAll(`.editable-field-check[data-report="${reportName}"][data-user="${userEmail}"]:checked`);
-            const hiddenChecks = document.querySelectorAll(`.hidden-field-check[data-report="${reportName}"][data-user="${userEmail}"]:checked`);
-            
-            // Save hidden groups
-            const hiddenPrimary = Array.from(document.querySelectorAll(`#primaryGroupsContainer_${idx} input[type=checkbox]:checked`))
-                                     .map(cb => cb.value);
-            const hiddenSecondary = Array.from(document.querySelectorAll(`#secondaryGroupsContainer_${idx} input[type=checkbox]:checked`))
-                                     .map(cb => cb.value);
+  const existingModal = document.getElementById("reportConfigModal");
+  if (existingModal) existingModal.remove();
 
-            reportConfig[reportName].user_permissions[userEmail] = {
-                editable_fields: Array.from(editableChecks).map(cb => cb.value),
-                hidden_fields: Array.from(hiddenChecks).map(cb => cb.value),
-                hiddenprimarygroups: hiddenPrimary,
-                hiddensecondarygroups: hiddenSecondary
-            };
-        });
-        
-        alert("Configuration saved! Click 'Save Changes' in main settings to persist.");
-        configModal.hide();
-    };
-    
+  document.body.insertAdjacentHTML("beforeend", configModalHtml);
+
+  const configModal = new bootstrap.Modal(document.getElementById("reportConfigModal"));
+
+  const users = await getUsers();
+  const user = users.users.find((u) => u.email === userEmail);
+
+  // Normalize user legacy keys
+  if (user) {
+    user.allowed_reports = user.allowed_reports ?? user.allowedreports ?? [];
+  }
+
+  if (!user || !user.allowed_reports || user.allowed_reports.length === 0) {
+    document.getElementById("reportConfigTabs").innerHTML =
+      '<p class="text-muted">No reports assigned to this user</p>';
     configModal.show();
+    return;
+  }
+
+  let tabsHtml = '<ul class="nav nav-tabs mb-3" id="reportConfigTabList">';
+  user.allowed_reports.forEach((report, idx) => {
+    tabsHtml += `
+      <li class="nav-item">
+        <a class="nav-link ${idx === 0 ? "active" : ""}" data-bs-toggle="tab" href="#tab_${idx}" role="tab">
+          ${report}
+        </a>
+      </li>
+    `;
+  });
+  tabsHtml += '</ul><div class="tab-content">';
+
+  for (let idx = 0; idx < user.allowed_reports.length; idx++) {
+    const reportName = user.allowed_reports[idx];
+
+    if (!reportConfig[reportName]) reportConfig[reportName] = {};
+    const config = reportConfig[reportName] || {};
+
+    // Normalize legacy report config keys
+    config.user_permissions = config.user_permissions ?? config.userpermissions ?? {};
+    delete config.userpermissions;
+
+    // Normalize per-user permission object + legacy keys
+    const permsDefault = {
+      editable_fields: [],
+      hidden_fields: [],
+      hidden_primary_groups: [],
+      hidden_secondary_groups: []
+    };
+
+    const userPermsRaw = config.user_permissions?.[userEmail] || {};
+
+    const userPerms = {
+      editable_fields: userPermsRaw.editable_fields ?? userPermsRaw.editablefields ?? permsDefault.editable_fields,
+      hidden_fields: userPermsRaw.hidden_fields ?? userPermsRaw.hiddenfields ?? permsDefault.hidden_fields,
+      hidden_primary_groups:
+        userPermsRaw.hidden_primary_groups ?? userPermsRaw.hiddenprimarygroups ?? permsDefault.hidden_primary_groups,
+      hidden_secondary_groups:
+        userPermsRaw.hidden_secondary_groups ??
+        userPermsRaw.hiddensecondarygroups ??
+        permsDefault.hidden_secondary_groups
+    };
+
+    let columns = currentReportColumns;
+    if (currentReportData && currentReportData.reportName === reportName) {
+      columns = currentReportData.columns;
+    }
+
+    tabsHtml += `
+      <div class="tab-pane fade ${idx === 0 ? "show active" : ""}" id="tab_${idx}" role="tabpanel">
+        <h6>Field Permissions for ${reportName}</h6>
+        <div class="row">
+          <div class="col-md-6">
+            <h6 class="small fw-bold mt-3">Editable Fields:</h6>
+            <div class="border rounded p-2" style="max-height: 300px; overflow-y: auto;">
+              ${columns
+                .map(
+                  (col) => `
+                    <div class="form-check">
+                      <input class="form-check-input editable-field-check"
+                             type="checkbox"
+                             value="${col.fieldname}"
+                             data-report="${reportName}"
+                             data-user="${userEmail}"
+                             id="edit_${idx}_${col.fieldname}"
+                             ${userPerms.editable_fields.includes(col.fieldname) ? "checked" : ""}>
+                      <label class="form-check-label" for="edit_${idx}_${col.fieldname}">
+                        ${col.label || col.fieldname}
+                      </label>
+                    </div>
+                  `
+                )
+                .join("")}
+            </div>
+          </div>
+          <div class="col-md-6">
+            <h6 class="small fw-bold mt-3">Hidden Fields:</h6>
+            <div class="border rounded p-2" style="max-height: 300px; overflow-y: auto;">
+              ${columns
+                .map(
+                  (col) => `
+                    <div class="form-check">
+                      <input class="form-check-input hidden-field-check"
+                             type="checkbox"
+                             value="${col.fieldname}"
+                             data-report="${reportName}"
+                             data-user="${userEmail}"
+                             id="hide_${idx}_${col.fieldname}"
+                             ${userPerms.hidden_fields.includes(col.fieldname) ? "checked" : ""}>
+                      <label class="form-check-label" for="hide_${idx}_${col.fieldname}">
+                        ${col.label || col.fieldname}
+                      </label>
+                    </div>
+                  `
+                )
+                .join("")}
+            </div>
+          </div>
+        </div>
+
+        <!-- Group Visibility Controls -->
+        <div style="margin-top: 20px;">
+          <h6>Hide Primary Groups:</h6>
+          <div id="primaryGroupsContainer_${idx}" class="border rounded p-2" style="max-height: 150px; overflow-y: auto;">
+            <!-- Filled dynamically -->
+          </div>
+
+          <h6 class="mt-3">Hide Secondary Groups:</h6>
+          <div id="secondaryGroupsContainer_${idx}" class="border rounded p-2" style="max-height: 150px; overflow-y: auto;">
+            <!-- Filled dynamically -->
+          </div>
+        </div>
+        <!-- End Group Visibility Controls -->
+      </div>
+    `;
+  }
+
+  tabsHtml += "</div>";
+  document.getElementById("reportConfigTabs").innerHTML = tabsHtml;
+
+  // Populate group visibility checkboxes for all reports
+  if (user.allowed_reports.length > 0) {
+    renderGroupVisibilityCheckboxesForAllReports(userEmail, user.allowed_reports);
+  }
+
+  // Update group visibility on tab change
+  const tabLinks = document.querySelectorAll("#reportConfigTabList .nav-link");
+  tabLinks.forEach((tabLink, idx) => {
+    tabLink.addEventListener("shown.bs.tab", () => {
+      renderGroupVisibilityCheckboxesForReport(userEmail, user.allowed_reports[idx], idx);
+    });
+  });
+
+  document.getElementById("saveReportConfigBtn").onclick = () => {
+    user.allowed_reports.forEach((reportName, idx) => {
+      if (!reportConfig[reportName]) reportConfig[reportName] = {};
+      if (!reportConfig[reportName].user_permissions) reportConfig[reportName].user_permissions = {};
+
+      const editableChecks = document.querySelectorAll(
+        `.editable-field-check[data-report="${reportName}"][data-user="${userEmail}"]:checked`
+      );
+      const hiddenChecks = document.querySelectorAll(
+        `.hidden-field-check[data-report="${reportName}"][data-user="${userEmail}"]:checked`
+      );
+
+      const hiddenPrimary = Array.from(
+        document.querySelectorAll(`#primaryGroupsContainer_${idx} input[type=checkbox]:checked`)
+      ).map((cb) => cb.value);
+
+      const hiddenSecondary = Array.from(
+        document.querySelectorAll(`#secondaryGroupsContainer_${idx} input[type=checkbox]:checked`)
+      ).map((cb) => cb.value);
+
+      // Save in underscore snake_case (but legacy readers will still work)
+      reportConfig[reportName].user_permissions[userEmail] = {
+        editable_fields: Array.from(editableChecks).map((cb) => cb.value),
+        hidden_fields: Array.from(hiddenChecks).map((cb) => cb.value),
+        hidden_primary_groups: hiddenPrimary,
+        hidden_secondary_groups: hiddenSecondary
+      };
+    });
+
+    alert("Configuration saved! Click 'Save Changes' in main settings to persist.");
+    configModal.hide();
+  };
+
+  configModal.show();
 }
-
-
-
-
-
-
-
-
-
 
 // Helper function to render group visibility checkboxes for all reports in the modal
 function renderGroupVisibilityCheckboxesForAllReports(userEmail, allowedReports) {
-    allowedReports.forEach((reportName, idx) => {
-        renderGroupVisibilityCheckboxesForReport(userEmail, reportName, idx);
-    });
+  allowedReports.forEach((reportName, idx) => {
+    renderGroupVisibilityCheckboxesForReport(userEmail, reportName, idx);
+  });
 }
 
 // Helper function to render group visibility checkboxes for a single report tab
 function renderGroupVisibilityCheckboxesForReport(userEmail, reportName, tabIdx) {
-    const config = reportConfig[reportName] || {};
-    const userPerms = config.user_permissions?.[userEmail] || { hiddenprimarygroups: [], hiddensecondarygroups: [] };
-    
-    // Assuming you have functions or data to get primary and secondary groups for a report
-    const primaryGroups = getGroups(config, 'primary');  // returns array of primary group names
-    const secondaryGroups = getGroups(config, 'secondary');  // returns array of secondary group names
-    
-    const primaryContainer = document.getElementById(`primaryGroupsContainer_${tabIdx}`);
-    const secondaryContainer = document.getElementById(`secondaryGroupsContainer_${tabIdx}`);
-    
-    if (!primaryContainer || !secondaryContainer) return;
-    
-    primaryContainer.innerHTML = '';
-    secondaryContainer.innerHTML = '';
-    
-    primaryGroups.forEach(group => {
-        const checked = userPerms.hiddenprimarygroups?.includes(group) ? 'checked' : '';
-        primaryContainer.innerHTML += `
-            <div class="form-check">
-                <input class="form-check-input" type="checkbox" value="${group}" id="primary_${tabIdx}_${group}" ${checked}>
-                <label class="form-check-label" for="primary_${tabIdx}_${group}">${group}</label>
-            </div>
-        `;
-    });
-    
-    secondaryGroups.forEach(group => {
-        const checked = userPerms.hiddensecondarygroups?.includes(group) ? 'checked' : '';
-        secondaryContainer.innerHTML += `
-            <div class="form-check">
-                <input class="form-check-input" type="checkbox" value="${group}" id="secondary_${tabIdx}_${group}" ${checked}>
-                <label class="form-check-label" for="secondary_${tabIdx}_${group}">${group}</label>
-            </div>
-        `;
-    });
+  if (!reportConfig[reportName]) reportConfig[reportName] = {};
+  const config = reportConfig[reportName] || {};
+
+  // Normalize legacy report config keys expected by getGroups()
+  config.group_by = config.group_by ?? config.groupby ?? config.group_by ?? [];
+  config.group_sort = config.group_sort ?? config.groupsort ?? config.group_sort ?? {};
+  config.user_permissions = config.user_permissions ?? config.userpermissions ?? {};
+  delete config.groupby;
+  delete config.groupsort;
+  delete config.userpermissions;
+
+  const userPermsRaw = config.user_permissions?.[userEmail] || {};
+  const userPerms = {
+    hidden_primary_groups: userPermsRaw.hidden_primary_groups ?? userPermsRaw.hiddenprimarygroups ?? [],
+    hidden_secondary_groups: userPermsRaw.hidden_secondary_groups ?? userPermsRaw.hiddensecondarygroups ?? []
+  };
+
+  // These rely on your existing getGroups(config,'primary'/'secondary') implementation.
+  const primaryGroups = getGroups(config, "primary");
+  const secondaryGroups = getGroups(config, "secondary");
+
+  const primaryContainer = document.getElementById(`primaryGroupsContainer_${tabIdx}`);
+  const secondaryContainer = document.getElementById(`secondaryGroupsContainer_${tabIdx}`);
+
+  if (!primaryContainer || !secondaryContainer) return;
+
+  primaryContainer.innerHTML = "";
+  secondaryContainer.innerHTML = "";
+
+  primaryGroups.forEach((group) => {
+    const checked = userPerms.hidden_primary_groups.includes(group) ? "checked" : "";
+    const safeId = String(group).replace(/\s+/g, "_");
+    primaryContainer.innerHTML += `
+      <div class="form-check">
+        <input class="form-check-input" type="checkbox" value="${group}" id="primary_${tabIdx}_${safeId}" ${checked}>
+        <label class="form-check-label" for="primary_${tabIdx}_${safeId}">${group}</label>
+      </div>
+    `;
+  });
+
+  secondaryGroups.forEach((group) => {
+    const checked = userPerms.hidden_secondary_groups.includes(group) ? "checked" : "";
+    const safeId = String(group).replace(/\s+/g, "_");
+    secondaryContainer.innerHTML += `
+      <div class="form-check">
+        <input class="form-check-input" type="checkbox" value="${group}" id="secondary_${tabIdx}_${safeId}" ${checked}>
+        <label class="form-check-label" for="secondary_${tabIdx}_${safeId}">${group}</label>
+      </div>
+    `;
+  });
 }
+
 
 
 
