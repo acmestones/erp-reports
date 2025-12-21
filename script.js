@@ -5285,15 +5285,19 @@ function renderOperationsTable(operations, permissions, work_order_id) {
     const row_class = is_completed ? "table-success" : "";
 
 table_html += `
-  <tr data-operation-id="${op.name}" data-idx="${op.idx}" class="${row_class}" draggable="true">
+  <tr data-operation-id="${op.name}" data-idx="${op.idx}" class="${row_class}">
     ${
       permissions.can_reorder
-        ? `<td class="text-center drag-handle" style="cursor: move; vertical-align: middle; font-weight: bold;">
-             ${op.idx}
+        ? `<td class="text-center" style="vertical-align: middle;">
+             <span class="drag-handle" style="cursor: move; font-size: 1.2rem; color: #6c757d;">
+               <i class="bi bi-grip-vertical"></i>
+             </span>
+             <div style="font-size: 0.75rem; color: #6c757d;">${op.idx}</div>
            </td>`
         : ""
     }
     <td>${op.operation || ""}</td>
+
 
 
         ${
