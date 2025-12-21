@@ -538,61 +538,6 @@ body {
 
 
 
-/* =========================================================
-   Admin modal: smaller drag handles for reorder lists
-   Affects: Field order, Group sort, Subgroup sort in Configure Report
-   ========================================================= */
-
-/* Target only the admin modal lists (not the main card drag handle) */
-#adminModal #fieldOrderList .drag-handle,
-#adminModal #group1SortList .drag-handle,
-#adminModal #group2SortList .drag-handle {
-  position: static !important;          /* override absolute positioning */
-  top: auto !important;
-  right: auto !important;
-
-  font-size: 14px !important;           /* smaller icon */
-  line-height: 1 !important;
-  padding: 2px 6px !important;          /* smaller click area */
-  margin-right: 8px;
-
-  width: 18px;
-  min-width: 18px;
-  height: 18px;
-
-  border: 1px solid rgba(102, 126, 234, 0.35) !important;
-  border-radius: 4px !important;
-  background: rgba(102, 126, 234, 0.08) !important;
-
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-
-  cursor: grab !important;
-  user-select: none;
-  transform: none !important;           /* stop the 'scale' effect */
-}
-
-#adminModal #fieldOrderList .drag-handle:hover,
-#adminModal #group1SortList .drag-handle:hover,
-#adminModal #group2SortList .drag-handle:hover {
-  background: rgba(102, 126, 234, 0.14) !important;
-  transform: none !important;
-}
-
-#adminModal #fieldOrderList .drag-handle:active,
-#adminModal #group1SortList .drag-handle:active,
-#adminModal #group2SortList .drag-handle:active {
-  cursor: grabbing !important;
-}
-
-
-
-
-
-
-
-
 
 /* ========== MOBILE REORDER MODAL ========== */
 
@@ -720,4 +665,66 @@ body {
 
 
 /* ========== END MOBILE REORDER MODAL ========== */
+
+
+
+
+
+
+
+
+
+
+
+/* =========================================================
+   Admin modal: smaller drag handles for reorder lists
+   Affects: Field order, Group sort, Subgroup sort in Configure Report
+   ========================================================= */
+
+/* Target only the admin modal lists (not the main card drag handle) */
+#adminModal #fieldOrderList .drag-handle,
+#adminModal #group1SortList .drag-handle,
+#adminModal #group2SortList .drag-handle {
+  position: static !important;          /* override absolute positioning */
+  top: auto !important;
+  right: auto !important;
+
+  font-size: 14px !important;           /* smaller icon */
+  line-height: 1 !important;
+  padding: 2px 6px !important;          /* smaller click area */
+  margin-right: 8px;
+
+  width: 18px;
+  min-width: 18px;
+  height: 18px;
+
+  border: 1px solid rgba(102, 126, 234, 0.35) !important;
+  border-radius: 4px !important;
+  background: rgba(102, 126, 234, 0.08) !important;
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  cursor: grab !important;
+  user-select: none;
+  transform: none !important;           /* stop the 'scale' effect */
+}
+
+#adminModal #fieldOrderList .drag-handle:hover,
+#adminModal #group1SortList .drag-handle:hover,
+#adminModal #group2SortList .drag-handle:hover {
+  background: rgba(102, 126, 234, 0.14) !important;
+  transform: none !important;
+}
+
+#adminModal #fieldOrderList .drag-handle:active,
+#adminModal #group1SortList .drag-handle:active,
+#adminModal #group2SortList .drag-handle:active {
+  cursor: grabbing !important;
+}
+
+
+
+
 
