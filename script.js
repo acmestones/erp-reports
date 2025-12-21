@@ -1647,13 +1647,14 @@ function renderGroupedCards(grouped, columns, reportName) {
       // IMPORTANT: createCard() below also normalizes title_field/titlefield,
       // but keep a consistent default here too.
 
-      const titleField = config.title_field || "work_order_id";
-
-      // ✅ FIXED: Helper function to get UNIQUE card ID (NOT display title)
-      // Always use row.name first (ERPNext primary key - always unique)
+       const titleField = config.titlefield || "name";
+      const idField = config.idfield || "name";
+      
+      // ✅ Helper function using admin-configured id_field
       const getCardId = (row) => {
-        return row.name || row[titleField];
+        return row[idField];
       };
+
 
 
       if (cardPriority && Array.isArray(cardPriority)) {
@@ -1752,15 +1753,21 @@ function createCard(row, columns, reportName, config) {
   config.operation_planning_permissions =
     config.operation_planning_permissions ?? config.operationplanningpermissions ?? {};
 
-// ✅ SMART DOCNAME DETECTION - 100% GENERIC
-const titleField = config.titlefield || 'name';
+// ✅ SMART DOCNAME DETECTION - Admin-configured fields
+const titleField = config.titlefield || "name";
+const idField = config.idfield || "name";
 
-// For UNIQUE ID: Always use row.name (ERPNext primary key)
-const uniqueDocId = row.name;
+// For UNIQUE ID: Use admin-configured id_field
+const uniqueDocId = row[idField];
 card.dataset.docname = uniqueDocId;
 
-// For DISPLAY: Use configured titleField, fallback to name
-const displayTitle = row[titleField] || row.name;
+// For DISPLAY: Use configured titleField
+const displayTitle = row[titleField] || uniqueDocId;
+
+if (!uniqueDocId) {
+  console.warn("⚠️ No unique ID found. Configure 'Unique ID Field' in Admin Settings → Report Management → Configure.", row);
+}
+
 
 if (!uniqueDocId) {
   console.warn("No unique ID (row.name) found for row:", row);
@@ -3204,6 +3211,23 @@ async function openGlobalReportConfigModal(reportName) {
                 .join("")}
             </select>
           </div>
+
+
+
+<div class="col-md-4 mb-3">
+  <label class="form-label fw-bold">Unique ID Field (for sorting) <span class="text-danger">*</span></label>
+  <select class="form-select" id="config_id_field" required>
+    ${columns.map(c => `
+      <option value="${c.fieldname}" ${config.idfield === c.fieldname ? 'selected' : ''}>
+        ${c.label || c.fieldname}
+      </option>
+    `).join('')}
+  </select>
+  <small class="text-muted">Field that uniquely identifies each record (e.g., work_order_id, name)</small>
+</div>
+
+
+          
           <div class="col-md-4 mb-3">
             <label class="form-label fw-bold">Primary Grouping Field <span class="text-danger">*</span></label>
             <select class="form-select" id="configgroup1" required>
@@ -3621,7 +3645,9 @@ async function openGlobalReportConfigModal(reportName) {
 
     // Basic settings
     reportConfig[reportName].doctype = doctype;
-    reportConfig[reportName].title_field = titleField;
+    reportConfig[reportName].title_field = document.getElementById('config_title_field')?.value;
+    reportConfig[reportName].idfield = document.getElementById('config_id_field')?.value;
+
 
     // Card fields
     const cardFieldChecks = document.querySelectorAll(".card-field-check:checked");
@@ -6090,25 +6116,20 @@ function openMobileReorderModal(reportName, primaryGroup, secondaryGroup) {
   let cards = grouped[primaryGroup][secondaryGroup];
 
   // Normalize config keys (read legacy too)
-  const title_field = config.title_field ?? config.titleField ?? "work_order_id";
+ const title_field = config.title_field || config.titleField || 'name';
+const id_field = config.id_field || config.idField || config.idfield || 'name';
+
   const card_fields = config.card_fields ?? config.cardFields ?? [];
   const card_priority_root = config.card_priority ?? config.cardPriority ?? {};
 
   // Apply existing sort order if it exists
   const card_priority = card_priority_root?.[primaryGroup]?.[secondaryGroup];
   if (card_priority && Array.isArray(card_priority)) {
-    const get_card_id = (row) => {
-      const possible_ids = [
-        row.name,
-        row[title_field],
-        row.work_order_id,
-        row.sales_order_id,
-        row.job_card,
-        row.item_code,
-        row.customer
-      ];
-      return possible_ids.find((id) => id && id !== "") || "";
-    };
+const get_card_id = (row) => {
+  // Use admin-configured id_field
+  return row[id_field] || row.name || row[title_field];
+};
+
 
     cards = [...cards].sort((a, b) => {
       const id_a = get_card_id(a);
