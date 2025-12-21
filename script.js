@@ -5676,39 +5676,82 @@ function enableOperationReordering(work_order_id) {
   const tbody = document.getElementById("operationsTableBody");
   if (!tbody) return;
 
-  let dragged_row = null;
-
-  tbody.querySelectorAll("tr").forEach((row) => {
-    row.setAttribute("draggable", true);
-
-    row.addEventListener("dragstart", () => {
-      dragged_row = row;
-      row.style.opacity = "0.5";
-    });
-
-    row.addEventListener("dragend", () => {
-      row.style.opacity = "";
-    });
-
-    row.addEventListener("dragover", (e) => {
-      e.preventDefault(); // required so drop fires [web:66]
-    });
-
-    row.addEventListener("drop", async (e) => {
-      e.preventDefault();
-      if (!dragged_row || dragged_row === row) return;
-
-      const all_rows = Array.from(tbody.querySelectorAll("tr"));
-      const dragged_index = all_rows.indexOf(dragged_row);
-      const target_index = all_rows.indexOf(row);
-
-      if (dragged_index < target_index) row.after(dragged_row);
-      else row.before(dragged_row);
-
-      await saveOperationOrder(work_order_id);
-    });
+  // Use SortableJS for better handle-based dragging
+  new Sortable(tbody, {
+    animation: 150,
+    handle: ".bi-grip-vertical",  // 🔑 Only drag by the grip icon
+    ghostClass: "sortable-ghost",
+    dragClass: "dragging",
+    forceFallback: true,  // Better mobile support
+    fallbackClass: "dragging",
+    
+    // Visual feedback during drag
+    onStart: function(evt) {
+      evt.item.classList.add('dragging');
+    },
+    
+    onEnd: async function(evt) {
+      evt.item.classList.remove('dragging');
+      
+      // Only save if position actually changed
+      if (evt.oldIndex !== evt.newIndex) {
+        await saveOperationOrder(work_order_id);
+        
+        // Update the order numbers in the Order column
+        const rows = tbody.querySelectorAll("tr");
+        rows.forEach((row, index) => {
+          const orderCell = row.querySelector("td small");
+          if (orderCell) {
+            orderCell.textContent = `#${index + 1}`;
+          }
+          row.setAttribute("data-idx", index + 1);
+        });
+      }
+    }
   });
 }
+
+async function saveOperationOrder(work_order_id) {
+  const tbody = document.getElementById("operationsTableBody");
+  const rows = tbody.querySelectorAll("tr");
+  const new_order = [];
+
+  rows.forEach((row, index) => {
+    const op_id = row.getAttribute("data-operation-id");
+    if (op_id) {
+      new_order.push({
+        name: op_id,
+        idx: index + 1
+      });
+    }
+  });
+
+  console.log("Saving new operation order:", new_order);
+
+  try {
+    const response = await fetch(`${API_BASE}?action=reorder_work_order_operations`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        work_order: work_order_id,
+        operations: new_order
+      })
+    });
+
+    const data = await response.json();
+
+    if (data.success) {
+      console.log("Operation order saved successfully");
+    } else {
+      console.error("Failed to save order:", data);
+      alert("Failed to save operation order: " + (data.message || "Unknown error"));
+    }
+  } catch (error) {
+    console.error("Error saving operation order:", error);
+    alert("Error saving operation order: " + error.message);
+  }
+}
+
 
 async function saveOperationOrder(work_order_id) {
   const tbody = document.getElementById("operationsTableBody");
