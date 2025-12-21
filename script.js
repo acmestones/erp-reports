@@ -4476,7 +4476,7 @@ function renderTimeLogs(timeLogs, jobCard, jobCardInfo, timeLogsPerms, reportNam
                     </div>
                     <div class="col-md-3">
                             <strong>Time Required (mins):</strong>
-                            ${permissions.can_edit_time_required ? `
+                            ${permissions.canedittimerequired ? `
 
                             <input type="number" class="form-control form-control-sm" id="jobCardTimeRequired" 
                                 value="${jobCardInfo.time_required || 0}" style="display: inline-block; width: 80px;">
@@ -4489,7 +4489,7 @@ function renderTimeLogs(timeLogs, jobCard, jobCardInfo, timeLogsPerms, reportNam
                     </div>
                     <div class="col-md-3">
                         <strong>Workstation:</strong>
-                        ${permissions.can_edit_workstation ? `
+                        ${permissions.caneditworkstation ? `
                             <select class="form-select form-select-sm" id="jobCardWorkstation" style="display: inline-block; width: auto;">
                                 <option value="">-- Select --</option>
                             </select>
@@ -4621,14 +4621,14 @@ console.log('🎯 About to call loadWorkstationDropdown, permissions check:', {
     permissions,
     caneditworkstation: permissions?.caneditworkstation,
     canedittimerequired: permissions?.canedittimerequired,
-    conditionPasses: permissions && (permissions.can_edit_workstation || permissions.can_edit_time_required)
+    conditionPasses: permissions && (permissions.caneditworkstation || permissions.canedittimerequired)
 });
 
 
     
            
             // Load workstation and time required handlers if user has permission
-                if (permissions && (permissions.can_edit_workstation || permissions.can_edit_time_required)) {
+                if (permissions && (permissions.caneditworkstation || permissions.canedittimerequired)) {
                     loadWorkstationDropdown(jobCardInfo.workstation, jobCard, jobCardInfo, permissions);
                 }
 
@@ -4728,8 +4728,8 @@ async function showTimeLogForm(existingLog, jobCard, jobCardInfo, reportName, co
                         </div>
                         
                         <div class="col-md-6 mb-3">
-                            <label class="form-label">Workstation ${timeLogsPerms.can_edit_workstation ? '' : '(Read-only)'}</label>
-                            <select class="form-select" name="workstation" ${timeLogsPerms.can_edit_workstation ? '' : 'disabled'}>
+                            <label class="form-label">Workstation ${timeLogsPerms.caneditworkstation ? '' : '(Read-only)'}</label>
+                            <select class="form-select" name="workstation" ${timeLogsPerms.caneditworkstation ? '' : 'disabled'}>
                                 <option value="">-- Select Workstation --</option>
                                 ${workstations.map(ws => `
                                     <option value="${ws.name}" ${(existingLog?.workstation || jobCardInfo.workstation) === ws.name ? 'selected' : ''}>
@@ -4737,7 +4737,7 @@ async function showTimeLogForm(existingLog, jobCard, jobCardInfo, reportName, co
                                     </option>
                                 `).join('')}
                             </select>
-                            ${!timeLogsPerms.can_edit_workstation ? '<small class="text-muted">You don\'t have permission to edit workstation</small>' : ''}
+                            ${!timeLogsPerms.caneditworkstation ? '<small class="text-muted">You don\'t have permission to edit workstation</small>' : ''}
                         </div>
                     </div>
                     
@@ -4842,7 +4842,7 @@ async function showTimeLogForm(existingLog, jobCard, jobCardInfo, reportName, co
         };
         
         // Handle workstation if user has permission
-        if (timeLogsPerms.can_edit_workstation) {
+        if (timeLogsPerms.caneditworkstation) {
             data.workstation = formData.get('workstation') || null;
         }
         
@@ -4919,7 +4919,7 @@ async function loadWorkstationDropdown(currentWorkstation, jobCard, jobCardInfo,
     try {
         // Handle WORKSTATION dropdown
         const dropdown = document.getElementById('jobCardWorkstation');
-        if (dropdown && permissions && permissions.can_edit_workstation) {
+        if (dropdown && permissions && permissions.caneditworkstation) {
             const wsData = await getWorkstations();
             const workstations = wsData.data || [];
             
@@ -4959,7 +4959,7 @@ async function loadWorkstationDropdown(currentWorkstation, jobCard, jobCardInfo,
         
         // Handle TIME REQUIRED field (separate from workstation)
         const timeReqBtn = document.getElementById('saveTimeRequiredBtn');
-        if (timeReqBtn && permissions && permissions.can_edit_time_required) {
+        if (timeReqBtn && permissions && permissions.canedittimerequired) {
             timeReqBtn.addEventListener('click', async () => {
                 const newTimeRequired = document.getElementById('jobCardTimeRequired').value;
                 timeReqBtn.disabled = true;
