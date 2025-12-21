@@ -5288,15 +5288,11 @@ table_html += `
   <tr data-operation-id="${op.name}" data-idx="${op.idx}" class="${row_class}">
     ${
       permissions.can_reorder
-        ? `<td class="text-center" style="vertical-align: middle;">
-             <span class="drag-handle" style="cursor: move; font-size: 1.2rem; color: #6c757d;">
-               <i class="bi bi-grip-vertical"></i>
-             </span>
-             <div style="font-size: 0.75rem; color: #6c757d;">${op.idx}</div>
-           </td>`
+        ? `<td class="text-center"><i class="bi bi-grip-vertical drag-handle" style="cursor: move;"></i></td>`
         : ""
     }
     <td>${op.operation || ""}</td>
+
 
 
 
