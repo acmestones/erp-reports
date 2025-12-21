@@ -3382,7 +3382,6 @@ async function openGlobalReportConfigModal(reportName) {
                 console.log("Is array?", Array.isArray(config.field_order));
                 console.log("Length:", config.field_order?.length);
                 console.log("Columns count:", columns.length);
-                console.log("First few columns:", columns.slice(0, 3).map(c => c.fieldname));
                 
                 // Get saved field order from config (using field_order with underscore)
                 const savedFieldOrder = config.field_order && Array.isArray(config.field_order) && config.field_order.length > 0 
@@ -3415,12 +3414,11 @@ async function openGlobalReportConfigModal(reportName) {
                   // Generate the HTML from ordered columns
                   return orderedColumns
                     .map(
-                      (col) => \`
-                      <li class="list-group-item draggable-field d-flex align-items-center" draggable="true" data-fieldname="\${col.fieldname}">
-                        <span class="drag-handle admin-drag-handle me-2"></span>
-                        <span>\${col.label || col.fieldname}</span>
-                      </li>
-                    \`
+                      (col) => 
+                      '<li class="list-group-item draggable-field d-flex align-items-center" draggable="true" data-fieldname="' + col.fieldname + '">' +
+                        '<span class="drag-handle admin-drag-handle me-2"></span>' +
+                        '<span>' + (col.label || col.fieldname) + '</span>' +
+                      '</li>'
                     )
                     .join("");
                 } else {
@@ -3429,17 +3427,17 @@ async function openGlobalReportConfigModal(reportName) {
                   // No saved order, use default column order
                   return columns
                     .map(
-                      (col) => \`
-                      <li class="list-group-item draggable-field d-flex align-items-center" draggable="true" data-fieldname="\${col.fieldname}">
-                        <span class="drag-handle admin-drag-handle me-2"></span>
-                        <span>\${col.label || col.fieldname}</span>
-                      </li>
-                    \`
+                      (col) => 
+                      '<li class="list-group-item draggable-field d-flex align-items-center" draggable="true" data-fieldname="' + col.fieldname + '">' +
+                        '<span class="drag-handle admin-drag-handle me-2"></span>' +
+                        '<span>' + (col.label || col.fieldname) + '</span>' +
+                      '</li>'
                     )
                     .join("");
                 }
               })()}
             </ul>
+
 
 
           </div>
