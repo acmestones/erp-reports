@@ -3315,45 +3315,46 @@ async function openGlobalReportConfigModal(reportName) {
     const columns = reportData.message.columns;
     const rows = reportData.message.result;
     
-    const group1Field = config.group_by?.[0];
-    const group2Field = config.group_by?.[1];
-    
-    let group1Values = [];
-    let group2Values = [];
-    
-    if (group1Field) {
-        group1Values = [...new Set(rows.map(r => r[group1Field]).filter(v => v))];
-        if (config.group_sort?.[group1Field]) {
-            const sortOrder = config.group_sort[group1Field];
-            group1Values.sort((a, b) => {
-                const indexA = sortOrder.indexOf(a);
-                const indexB = sortOrder.indexOf(b);
-                if (indexA === -1 && indexB === -1) return a.localeCompare(b);
-                if (indexA === -1) return 1;
-                if (indexB === -1) return -1;
-                return indexA - indexB;
-            });
-        } else {
-            group1Values.sort();
-        }
+const group1Field = config.groupby?.[0];
+const group2Field = config.groupby?.[1];
+
+let group1Values = [];
+let group2Values = [];
+
+if (group1Field) {
+    group1Values = [...new Set(rows.map(r => r[group1Field]).filter(v => v))];
+    if (config.groupsort?.[group1Field]) {
+        const sortOrder = config.groupsort[group1Field];
+        group1Values.sort((a, b) => {
+            const indexA = sortOrder.indexOf(a);
+            const indexB = sortOrder.indexOf(b);
+            if (indexA === -1 && indexB === -1) return a.localeCompare(b);
+            if (indexA === -1) return 1;
+            if (indexB === -1) return -1;
+            return indexA - indexB;
+        });
+    } else {
+        group1Values.sort();
     }
-    
-    if (group2Field) {
-        group2Values = [...new Set(rows.map(r => r[group2Field]).filter(v => v))];
-        if (config.group_sort?.[group2Field]) {
-            const sortOrder = config.group_sort[group2Field];
-            group2Values.sort((a, b) => {
-                const indexA = sortOrder.indexOf(a);
-                const indexB = sortOrder.indexOf(b);
-                if (indexA === -1 && indexB === -1) return a.localeCompare(b);
-                if (indexA === -1) return 1;
-                if (indexB === -1) return -1;
-                return indexA - indexB;
-            });
-        } else {
-            group2Values.sort();
-        }
+}
+
+if (group2Field) {
+    group2Values = [...new Set(rows.map(r => r[group2Field]).filter(v => v))];
+    if (config.groupsort?.[group2Field]) {
+        const sortOrder = config.groupsort[group2Field];
+        group2Values.sort((a, b) => {
+            const indexA = sortOrder.indexOf(a);
+            const indexB = sortOrder.indexOf(b);
+            if (indexA === -1 && indexB === -1) return a.localeCompare(b);
+            if (indexA === -1) return 1;
+            if (indexB === -1) return -1;
+            return indexA - indexB;
+        });
+    } else {
+        group2Values.sort();
     }
+}
+
     
     // Get list of users for permissions table
     const users = await getUsers();
