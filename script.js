@@ -4229,691 +4229,702 @@ function applyCurrentCollapseState(level1Content, level2Contents) {
 
 // API Functions for Job Card Time Logs
 async function getTimeLogs(jobCard) {
-    const res = await fetch(`${API_BASE}?action=get_time_logs&job_card=${encodeURIComponent(jobCard)}`);
-    if (!res.ok) throw new Error("Failed to fetch time logs");
-    return res.json();
+  const res = await fetch(
+    `${API_BASE}?action=get_time_logs&job_card=${encodeURIComponent(jobCard)}`
+  );
+  if (!res.ok) throw new Error("Failed to fetch time logs");
+  return res.json();
 }
 
 async function addTimeLog(jobCard, data) {
-    const res = await fetch(`${API_BASE}?action=add_time_log`, {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({...data, job_card: jobCard})
-    });
-    if (!res.ok) throw new Error("Failed to add time log");
-    return res.json();
+  const res = await fetch(`${API_BASE}?action=add_time_log`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ...data, job_card: jobCard })
+  });
+  if (!res.ok) throw new Error("Failed to add time log");
+  return res.json();
 }
 
 async function updateTimeLog(jobCard, logIndex, data) {
-    const res = await fetch(`${API_BASE}?action=update_time_log`, {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({...data, job_card: jobCard, log_index: logIndex})
-    });
-    if (!res.ok) throw new Error("Failed to update time log");
-    return res.json();
+  const res = await fetch(`${API_BASE}?action=update_time_log`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ...data, job_card: jobCard, log_index: logIndex })
+  });
+  if (!res.ok) throw new Error("Failed to update time log");
+  return res.json();
 }
 
 async function deleteTimeLog(jobCard, logIndex) {
-    const res = await fetch(`${API_BASE}?action=delete_time_log&job_card=${encodeURIComponent(jobCard)}&log_index=${logIndex}`, {
-        method: 'DELETE'
-    });
-    if (!res.ok) throw new Error("Failed to delete time log");
-    return res.json();
+  const res = await fetch(
+    `${API_BASE}?action=delete_time_log&job_card=${encodeURIComponent(jobCard)}&log_index=${logIndex}`,
+    { method: "DELETE" }
+  );
+  if (!res.ok) throw new Error("Failed to delete time log");
+  return res.json();
 }
-
 
 // Get Employee list
 async function getEmployees() {
-    const res = await fetch(`${API_BASE}?action=get_employees`);
-    if (!res.ok) throw new Error("Failed to fetch employees");
-    return res.json();
+  const res = await fetch(`${API_BASE}?action=get_employees`);
+  if (!res.ok) throw new Error("Failed to fetch employees");
+  return res.json();
 }
 
 // Get Workstation list
 async function getWorkstations() {
-    const res = await fetch(`${API_BASE}?action=get_workstations`);
-    if (!res.ok) throw new Error("Failed to fetch workstations");
-    return res.json();
+  const res = await fetch(`${API_BASE}?action=get_workstations`);
+  if (!res.ok) throw new Error("Failed to fetch workstations");
+  return res.json();
 }
 
-// New API function to update Job Card workstation
+// Update Job Card workstation
 async function updateJobCardWorkstation(jobCard, workstation) {
-    const res = await fetch(`${API_BASE}?action=update_job_card_workstation`, {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({
-            job_card: jobCard,
-            workstation: workstation
-        })
-    });
-    if (!res.ok) throw new Error("Failed to update workstation");
-    return res.json();
+  const res = await fetch(`${API_BASE}?action=update_job_card_workstation`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      job_card: jobCard,
+      workstation: workstation
+    })
+  });
+  if (!res.ok) throw new Error("Failed to update workstation");
+  return res.json();
 }
-
 
 // Update Job Card Time Required
 async function updateJobCardTimeRequired(jobCard, timeRequired) {
-    const res = await fetch(`${API_BASE}?action=update_time_required`, {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({
-            job_card: jobCard,
-            time_required: timeRequired
-        })
-    });
-    if (!res.ok) throw new Error("Failed to update time required");
-    return res.json();
+  const res = await fetch(`${API_BASE}?action=update_time_required`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      job_card: jobCard,
+      time_required: timeRequired
+    })
+  });
+  if (!res.ok) throw new Error("Failed to update time required");
+  return res.json();
 }
-
-
-
-
-
-
-
-
-
-
-
-
 
 // Time Logs Modal Function
 async function showTimeLogsModal(jobCard, reportName, config) {
-    const userEmail = localStorage.getItem("userEmail");
-    const timeLogsPerms = config.timelogspermissions?.[userEmail] || {};
+  const userEmail = localStorage.getItem("userEmail");
 
-    
-    // Create modal if it doesn't exist
-    let modalEl = document.getElementById('timeLogsModal');
-    if (!modalEl) {
-        const modalHtml = `
-            <div class="modal fade" id="timeLogsModal" tabindex="-1">
-                <div class="modal-dialog modal-xl">
-                    <div class="modal-content">
-                        <div class="modal-header">
-                            <h5 class="modal-title" id="timeLogsModalTitle">Time Logs</h5>
-                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                        </div>
-                        <div class="modal-body" id="timeLogsBody">
-                            <div class="text-center">
-                                <div class="spinner-border" role="status">
-                                    <span class="visually-hidden">Loading...</span>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="modal-footer">
-                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                        </div>
-                    </div>
-                </div>
+  // Normalize legacy config keys
+  config.show_time_logs_button = config.show_time_logs_button ?? config.showtimelogsbutton ?? false;
+  delete config.showtimelogsbutton;
+
+  config.time_logs_permissions = config.time_logs_permissions ?? config.timelogspermissions ?? {};
+  delete config.timelogspermissions;
+
+  // Normalize current user's perms (support old canview/canadd...)
+  const rawPerms = config.time_logs_permissions?.[userEmail] || {};
+  const timeLogsPerms = {
+    can_view: rawPerms.can_view ?? rawPerms.canview ?? false,
+    can_add: rawPerms.can_add ?? rawPerms.canadd ?? false,
+    can_edit: rawPerms.can_edit ?? rawPerms.canedit ?? false,
+    can_delete: rawPerms.can_delete ?? rawPerms.candelete ?? false,
+    can_edit_workstation: rawPerms.can_edit_workstation ?? rawPerms.caneditworkstation ?? false,
+    can_edit_time_required: rawPerms.can_edit_time_required ?? rawPerms.canedittimerequired ?? false
+  };
+
+  // Create modal if it doesn't exist
+  let modalEl = document.getElementById("timeLogsModal");
+  if (!modalEl) {
+    const modalHtml = `
+      <div class="modal fade" id="timeLogsModal" tabindex="-1">
+        <div class="modal-dialog modal-xl">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title" id="timeLogsModalTitle">Time Logs</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
-        `;
-        document.body.insertAdjacentHTML('beforeend', modalHtml);
-        modalEl = document.getElementById('timeLogsModal');
-    }
-    
-    const modal = new bootstrap.Modal(modalEl);
-    
-    // Fix the title to show just the job card name without HTML
-    document.getElementById('timeLogsModalTitle').textContent = `Time Logs - ${jobCard}`;
+            <div class="modal-body" id="timeLogsBody">
+              <div class="text-center">
+                <div class="spinner-border" role="status">
+                  <span class="visually-hidden">Loading...</span>
+                </div>
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+    document.body.insertAdjacentHTML("beforeend", modalHtml);
+    modalEl = document.getElementById("timeLogsModal");
+  }
 
-    // Add proper cleanup on modal close
-    modalEl.addEventListener('hidden.bs.modal', function () {
-    // Remove backdrop manually if it's stuck
-    const backdrops = document.querySelectorAll('.modal-backdrop');
-    backdrops.forEach(backdrop => backdrop.remove());
-    document.body.classList.remove('modal-open');
-    document.body.style.overflow = '';
-    document.body.style.paddingRight = '';
-    }, { once: true });
+  const modal = new bootstrap.Modal(modalEl);
 
+  // Show just the job card name without HTML
+  document.getElementById("timeLogsModalTitle").textContent = `Time Logs - ${jobCard}`;
 
-    
-    modal.show();
-    
-    try {
-        console.log('Fetching time logs for:', jobCard); // DEBUG
-        const response = await getTimeLogs(jobCard);
-        console.log('API Response:', response); // DEBUG
-        
-        const timeLogs = response.data || [];
-        const jobCardInfo = response.job_card_info || {};
-        
-        console.log('Calling renderTimeLogs with:', {timeLogs, jobCardInfo, timeLogsPerms}); // DEBUG
-        
-        renderTimeLogs(timeLogs, jobCard, jobCardInfo, timeLogsPerms, reportName, config);
-    } catch (err) {
-        console.error("Error loading time logs:", err);
-        document.getElementById('timeLogsBody').innerHTML = 
-            `<div class="alert alert-danger">Error loading time logs: ${err.message}</div>`;
-    }
+  // Cleanup on modal close (prevents stuck backdrop)
+  modalEl.addEventListener(
+    "hidden.bs.modal",
+    function () {
+      const backdrops = document.querySelectorAll(".modal-backdrop");
+      backdrops.forEach((backdrop) => backdrop.remove());
+      document.body.classList.remove("modal-open");
+      document.body.style.overflow = "";
+      document.body.style.paddingRight = "";
+    },
+    { once: true }
+  );
+
+  modal.show();
+
+  try {
+    console.log("Fetching time logs for:", jobCard);
+    const response = await getTimeLogs(jobCard);
+    console.log("API Response:", response);
+
+    const timeLogs = response.data || [];
+    const jobCardInfo = response.job_card_info || {};
+
+    console.log("Calling renderTimeLogs with:", { timeLogs, jobCardInfo, timeLogsPerms });
+
+    renderTimeLogs(timeLogs, jobCard, jobCardInfo, timeLogsPerms, reportName, config);
+  } catch (err) {
+    console.error("Error loading time logs:", err);
+    document.getElementById("timeLogsBody").innerHTML = `<div class="alert alert-danger">Error loading time logs: ${err.message}</div>`;
+  }
 }
-
 
 function renderTimeLogs(timeLogs, jobCard, jobCardInfo, timeLogsPerms, reportName, config) {
-    const permissions = timeLogsPerms || {};
+  const permissions = timeLogsPerms || {};
+  const bodyEl = document.getElementById("timeLogsBody");
 
-    
-    const bodyEl = document.getElementById('timeLogsBody');
-    
-    let html = '';
-    
-    // Show Job Card Info with editable workstation
-        html += `
-            <div class="alert alert-info mb-3">
-                <div class="row align-items-center mb-2">
-                    <div class="col-md-3">
-                        <strong>Required Qty:</strong> ${jobCardInfo.for_quantity || 0}
-                    </div>
-                    <div class="col-md-3">
-                        <strong>Completed Qty:</strong> ${jobCardInfo.total_completed_qty || 0}
-                    </div>
-                    <div class="col-md-3">
-                            <strong>Time Required (mins):</strong>
-                            ${permissions.canedittimerequired ? `
+  let html = "";
 
-                            <input type="number" class="form-control form-control-sm" id="jobCardTimeRequired" 
-                                value="${jobCardInfo.time_required || 0}" style="display: inline-block; width: 80px;">
-                            <button class="btn btn-sm btn-success" id="saveTimeRequiredBtn" style="padding: 2px 8px;">
-                                <i class="bi bi-check"></i>
-                            </button>
-                        ` : `
-                            <span>${jobCardInfo.time_required || 0}</span>
-                        `}
-                    </div>
-                    <div class="col-md-3">
-                        <strong>Workstation:</strong>
-                        ${permissions.caneditworkstation ? `
-                            <select class="form-select form-select-sm" id="jobCardWorkstation" style="display: inline-block; width: auto;">
-                                <option value="">-- Select --</option>
-                            </select>
-                            <button class="btn btn-sm btn-success" id="saveWorkstationBtn" style="padding: 2px 8px;">
-                                <i class="bi bi-check"></i>
-                            </button>
-                        ` : `
-                            <span>${jobCardInfo.workstation || '-'}</span>
-                        `}
-                    </div>
-                </div>
-            </div>
-        `;
-
-
-    
-    
-    // Add button if user has permission
-    if (permissions.can_add) {
-        html += `
-            <div class="mb-3">
-                <button class="btn btn-primary btn-sm" id="addTimeLogBtn">
-                    <i class="bi bi-plus-circle"></i> Add Time Log
+  // Show Job Card Info with editable workstation/time required (if permitted)
+  html += `
+    <div class="alert alert-info mb-3">
+      <div class="row align-items-center mb-2">
+        <div class="col-md-3">
+          <strong>Required Qty:</strong> ${jobCardInfo.for_quantity || 0}
+        </div>
+        <div class="col-md-3">
+          <strong>Completed Qty:</strong> ${jobCardInfo.total_completed_qty || 0}
+        </div>
+        <div class="col-md-3">
+          <strong>Time Required (mins):</strong>
+          ${
+            permissions.can_edit_time_required
+              ? `
+                <input type="number" class="form-control form-control-sm" id="jobCardTimeRequired"
+                       value="${jobCardInfo.time_required || 0}" style="display: inline-block; width: 80px;">
+                <button class="btn btn-sm btn-success" id="saveTimeRequiredBtn" style="padding: 2px 8px;">
+                  <i class="bi bi-check"></i>
                 </button>
-            </div>
-        `;
-    }
-    
-    if (timeLogs.length === 0) {
-        html += '<div class="alert alert-info">No time logs found for this job card.</div>';
-        html += `
-            <div class="table-responsive">
-                <table class="table table-sm table-hover table-bordered">
-                    <thead class="table-light">
-                        <tr>
-                            <th>Employee</th>
-                            <th>From Time</th>
-                            <th>To Time</th>
-                            <th>Time (mins)</th>
-                            <th>Completed Qty</th>
-                            ${permissions.can_edit || permissions.can_delete ? '<th>Actions</th>' : ''}
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td colspan="${permissions.can_edit || permissions.can_delete ? 6 : 5}" class="text-center text-muted">
-                                No entries
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-        `;
-    } else {
-html += `
-    <div class="table-responsive">
-        <table class="table table-sm table-hover table-bordered">
-            <thead class="table-light">
-                <tr>
-                    <th>Employee</th>
-                    <th>From Time</th>
-                    <th>To Time</th>
-                    <th>Time (mins)</th>
-                    <th>Completed Qty</th>
-                    <th>Job Detail</th>
-                    <th>Job Image</th>
-                    ${permissions.can_edit || permissions.can_delete ? '<th>Actions</th>' : ''}
-                </tr>
-            </thead>
-            <tbody>
-`;
+              `
+              : `<span>${jobCardInfo.time_required || 0}</span>`
+          }
+        </div>
+        <div class="col-md-3">
+          <strong>Workstation:</strong>
+          ${
+            permissions.can_edit_workstation
+              ? `
+                <select class="form-select form-select-sm" id="jobCardWorkstation" style="display: inline-block; width: auto;">
+                  <option value="">-- Select --</option>
+                </select>
+                <button class="btn btn-sm btn-success" id="saveWorkstationBtn" style="padding: 2px 8px;">
+                  <i class="bi bi-check"></i>
+                </button>
+              `
+              : `<span>${jobCardInfo.workstation || "-"}</span>`
+          }
+        </div>
+      </div>
+    </div>
+  `;
 
-timeLogs.forEach((log, index) => {
-    const fromTime = log.from_time ? new Date(log.from_time).toLocaleString() : '-';
-    const toTime = log.to_time ? new Date(log.to_time).toLocaleString() : '-';
-    const timeInMins = log.time_in_mins || 0;
-    const completedQty = log.completed_qty || 0;
-    const employee = log.employee || '-';
-    const jobDetail = log.custom_job_detail || '-';
-    const jobImage = log.custom_job_image_view || log.custom_job_image;
-
-        html += `
-            <tr data-log-index="${index}">
-                <td>${employee}</td>
-                <td>${fromTime}</td>
-                <td>${toTime}</td>
-                <td>${timeInMins}</td>
-                <td>${completedQty}</td>
-                <td>${jobDetail}</td>
-                <td>
-                    ${jobImage ? `<img src="${fixImageUrl(jobImage)}" style="max-width: 100px; max-height: 60px; cursor: pointer;" 
-                        onclick="window.open('${fixImageUrl(jobImage)}', '_blank')">` : '-'}
-                </td>
-
+  // Add button if user has permission
+  if (permissions.can_add) {
+    html += `
+      <div class="mb-3">
+        <button class="btn btn-primary btn-sm" id="addTimeLogBtn">
+          <i class="bi bi-plus-circle"></i> Add Time Log
+        </button>
+      </div>
     `;
-    
-    if (permissions.can_edit || permissions.can_delete) {
-        html += '<td>';
+  }
+
+  if (timeLogs.length === 0) {
+    html += '<div class="alert alert-info">No time logs found for this job card.</div>';
+    html += `
+      <div class="table-responsive">
+        <table class="table table-sm table-hover table-bordered">
+          <thead class="table-light">
+            <tr>
+              <th>Employee</th>
+              <th>From Time</th>
+              <th>To Time</th>
+              <th>Time (mins)</th>
+              <th>Completed Qty</th>
+              ${permissions.can_edit || permissions.can_delete ? "<th>Actions</th>" : ""}
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td colspan="${permissions.can_edit || permissions.can_delete ? 6 : 5}" class="text-center text-muted">
+                No entries
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    `;
+  } else {
+    html += `
+      <div class="table-responsive">
+        <table class="table table-sm table-hover table-bordered">
+          <thead class="table-light">
+            <tr>
+              <th>Employee</th>
+              <th>From Time</th>
+              <th>To Time</th>
+              <th>Time (mins)</th>
+              <th>Completed Qty</th>
+              <th>Job Detail</th>
+              <th>Job Image</th>
+              ${permissions.can_edit || permissions.can_delete ? "<th>Actions</th>" : ""}
+            </tr>
+          </thead>
+          <tbody>
+    `;
+
+    timeLogs.forEach((log, index) => {
+      const fromTime = log.from_time ? new Date(log.from_time).toLocaleString() : "-";
+      const toTime = log.to_time ? new Date(log.to_time).toLocaleString() : "-";
+      const timeInMins = log.time_in_mins || 0;
+      const completedQty = log.completed_qty || 0;
+      const employee = log.employee || "-";
+      const jobDetail = log.custom_job_detail || "-";
+      const jobImage = log.custom_job_image_view || log.custom_job_image;
+
+      html += `
+        <tr data-log-index="${index}">
+          <td>${employee}</td>
+          <td>${fromTime}</td>
+          <td>${toTime}</td>
+          <td>${timeInMins}</td>
+          <td>${completedQty}</td>
+          <td>${jobDetail}</td>
+          <td>
+            ${
+              jobImage
+                ? `<img src="${fixImageUrl(jobImage)}" style="max-width: 100px; max-height: 60px; cursor: pointer;"
+                     onclick="window.open('${fixImageUrl(jobImage)}', '_blank')">`
+                : "-"
+            }
+          </td>
+      `;
+
+      if (permissions.can_edit || permissions.can_delete) {
+        html += "<td>";
         if (permissions.can_edit) {
-            html += `<button class="btn btn-sm btn-outline-primary me-1 edit-time-log" data-log-index="${index}" data-log='${JSON.stringify(log).replace(/'/g, "&apos;")}'>
-                <i class="bi bi-pencil"></i>
-            </button>`;
+          html += `
+            <button class="btn btn-sm btn-outline-primary me-1 edit-time-log"
+                    data-log-index="${index}"
+                    data-log='${JSON.stringify(log).replace(/'/g, "&apos;")}'>
+              <i class="bi bi-pencil"></i>
+            </button>
+          `;
         }
         if (permissions.can_delete) {
-            html += `<button class="btn btn-sm btn-outline-danger delete-time-log" data-log-index="${index}">
-                <i class="bi bi-trash"></i>
-            </button>`;
+          html += `
+            <button class="btn btn-sm btn-outline-danger delete-time-log" data-log-index="${index}">
+              <i class="bi bi-trash"></i>
+            </button>
+          `;
         }
-        html += '</td>';
-    }
-    
-    html += '</tr>';
-});
+        html += "</td>";
+      }
 
-        
-        html += `
-                    </tbody>
-                </table>
-            </div>
-        `;
-    }
-    
-    bodyEl.innerHTML = html;
-    
-    // Attach event listeners
+      html += "</tr>";
+    });
 
+    html += `
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
 
-console.log('🎯 About to call loadWorkstationDropdown, permissions check:', {
+  bodyEl.innerHTML = html;
+
+  console.log("🎯 About to call loadWorkstationDropdown, permissions check:", {
     permissions,
-    caneditworkstation: permissions?.caneditworkstation,
-    canedittimerequired: permissions?.canedittimerequired,
-    conditionPasses: permissions && (permissions.caneditworkstation || permissions.canedittimerequired)
-});
+    can_edit_workstation: permissions?.can_edit_workstation,
+    can_edit_time_required: permissions?.can_edit_time_required,
+    conditionPasses: permissions && (permissions.can_edit_workstation || permissions.can_edit_time_required)
+  });
 
+  // Load workstation/time required handlers if user has permission
+  if (permissions && (permissions.can_edit_workstation || permissions.can_edit_time_required)) {
+    loadWorkstationDropdown(jobCardInfo.workstation, jobCard, jobCardInfo, permissions);
+  }
 
-    
-           
-            // Load workstation and time required handlers if user has permission
-                if (permissions && (permissions.caneditworkstation || permissions.canedittimerequired)) {
-                    loadWorkstationDropdown(jobCardInfo.workstation, jobCard, jobCardInfo, permissions);
-                }
+  if (permissions.can_add) {
+    document.getElementById("addTimeLogBtn")?.addEventListener("click", () => {
+      showTimeLogForm(null, jobCard, jobCardInfo, reportName, config);
+    });
+  }
 
+  if (permissions.can_edit) {
+    bodyEl.querySelectorAll(".edit-time-log").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        const logIndex = parseInt(e.currentTarget.dataset.logIndex);
+        const logData = JSON.parse(e.currentTarget.dataset.log);
+        showTimeLogForm({ ...logData, logIndex }, jobCard, jobCardInfo, reportName, config);
+      });
+    });
+  }
 
-
-
-    
-    if (permissions.can_add) {
-        document.getElementById('addTimeLogBtn')?.addEventListener('click', () => {
-            showTimeLogForm(null, jobCard, jobCardInfo, reportName, config);
-        });
-    }
-    
-    if (permissions.can_edit) {
-        bodyEl.querySelectorAll('.edit-time-log').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                const logIndex = parseInt(e.currentTarget.dataset.logIndex);
-                const logData = JSON.parse(e.currentTarget.dataset.log);
-                showTimeLogForm({...logData, logIndex}, jobCard, jobCardInfo, reportName, config);
-            });
-        });
-    }
-    
-    if (permissions.can_delete) {
-        bodyEl.querySelectorAll('.delete-time-log').forEach(btn => {
-            btn.addEventListener('click', async (e) => {
-                const logIndex = parseInt(e.currentTarget.dataset.logIndex);
-                if (confirm('Are you sure you want to delete this time log?')) {
-                    try {
-                        await deleteTimeLog(jobCard, logIndex);
-                        alert('Time log deleted successfully');
-                        showTimeLogsModal(jobCard, reportName, config);
-                    } catch (err) {
-                        alert('Error deleting time log: ' + err.message);
-                    }
-                }
-            });
-        });
-    }
+  if (permissions.can_delete) {
+    bodyEl.querySelectorAll(".delete-time-log").forEach((btn) => {
+      btn.addEventListener("click", async (e) => {
+        const logIndex = parseInt(e.currentTarget.dataset.logIndex);
+        if (confirm("Are you sure you want to delete this time log?")) {
+          try {
+            await deleteTimeLog(jobCard, logIndex);
+            alert("Time log deleted successfully");
+            showTimeLogsModal(jobCard, reportName, config);
+          } catch (err) {
+            alert("Error deleting time log: " + err.message);
+          }
+        }
+      });
+    });
+  }
 }
-
-
-
 
 async function showTimeLogForm(existingLog, jobCard, jobCardInfo, reportName, config) {
-    const isEdit = !!existingLog;
-    const bodyEl = document.getElementById('timeLogsBody');
-    const userEmail = localStorage.getItem("userEmail");
-    const timeLogsPerms = config.timelogspermissions?.[userEmail] || {};
+  const isEdit = !!existingLog;
+  const bodyEl = document.getElementById("timeLogsBody");
+  const userEmail = localStorage.getItem("userEmail");
 
-    
-    // Fetch employees and workstations
-    let employees = [];
-    let workstations = [];
-    
-    try {
-        const empData = await getEmployees();
-        employees = empData.data || [];
-        
-        const wsData = await getWorkstations();
-        workstations = wsData.data || [];
-    } catch (err) {
-        console.error('Error loading dropdowns:', err);
-    }
-    
-    const formHtml = `
-        <div class="card">
-            <div class="card-header">
-                <h6 class="mb-0">${isEdit ? 'Edit' : 'Add'} Time Log</h6>
-            </div>
-            <div class="card-body">
-                <div class="alert alert-info mb-3">
-                    <div class="row">
-                        <div class="col-md-4">
-                            <strong>Required Qty:</strong> ${jobCardInfo.for_quantity || 0}
-                        </div>
-                        <div class="col-md-4">
-                            <strong>Completed Qty:</strong> ${jobCardInfo.total_completed_qty || 0}
-                        </div>
-                        <div class="col-md-4">
-                            <strong>Time Required:</strong> ${jobCardInfo.time_required || 0} mins
-                        </div>
-                    </div>
-                </div>
-                <form id="timeLogForm">
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Employee</label>
-                            <select class="form-select" name="employee">
-                                <option value="">-- Select Employee --</option>
-                                ${employees.map(emp => `
-                                    <option value="${emp.name}" ${existingLog?.employee === emp.name ? 'selected' : ''}>
-                                        ${emp.employee_name || emp.name}
-                                    </option>
-                                `).join('')}
-                            </select>
-                        </div>
-                        
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Workstation ${timeLogsPerms.caneditworkstation ? '' : '(Read-only)'}</label>
-                            <select class="form-select" name="workstation" ${timeLogsPerms.caneditworkstation ? '' : 'disabled'}>
-                                <option value="">-- Select Workstation --</option>
-                                ${workstations.map(ws => `
-                                    <option value="${ws.name}" ${(existingLog?.workstation || jobCardInfo.workstation) === ws.name ? 'selected' : ''}>
-                                        ${ws.name}
-                                    </option>
-                                `).join('')}
-                            </select>
-                            ${!timeLogsPerms.caneditworkstation ? '<small class="text-muted">You don\'t have permission to edit workstation</small>' : ''}
-                        </div>
-                    </div>
-                    
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">From Time *</label>
-                            <input type="datetime-local" class="form-control" name="from_time" id="fromTime"
-                                value="${existingLog?.from_time ? new Date(existingLog.from_time).toISOString().slice(0, 16) : ''}" required>
-                        </div>
-                        
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">To Time</label>
-                            <input type="datetime-local" class="form-control" name="to_time" id="toTime"
-                                value="${existingLog?.to_time ? new Date(existingLog.to_time).toISOString().slice(0, 16) : ''}">
-                            <small class="text-muted">Leave empty if work is ongoing</small>
-                        </div>
-                    </div>
-                    
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Time (in minutes) *</label>
-                            <input type="number" step="1" class="form-control" name="time_in_mins" id="timeInMins"
-                                value="${existingLog?.time_in_mins || ''}" required>
-                            <small class="text-muted">Auto-calculated from From/To times</small>
-                        </div>
-                        
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Completed Qty</label>
-                            <input type="number" step="0.01" class="form-control" name="completed_qty" 
-                                value="${existingLog?.completed_qty || 0}">
-                        </div>
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label class="form-label">Job Detail</label>
-                        <textarea class="form-control" name="custom_job_detail" rows="3" 
-                            placeholder="Enter job details...">${existingLog?.custom_job_detail || ''}</textarea>
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label class="form-label">Job Image</label>
-                        <input type="file" class="form-control" id="jobImageFile" accept="image/*">
-                        <small class="text-muted">Upload an image for this time log entry</small>
-                        ${existingLog?.custom_job_image_view ? `
-                            <div class="mt-2">
-                                <img src="${fixImageUrl(existingLog.custom_job_image_view)}" 
-                                    style="max-width: 200px; max-height: 150px; cursor: pointer;"
-                                    onclick="window.open('${fixImageUrl(existingLog.custom_job_image_view)}', '_blank')">
-                            </div>
-                        ` : ''}
+  // Normalize legacy config keys + per-user permissions
+  config.time_logs_permissions = config.time_logs_permissions ?? config.timelogspermissions ?? {};
+  delete config.timelogspermissions;
 
-                    </div>
-                    
-                    <div class="d-flex gap-2">
-                        <button type="submit" class="btn btn-success">
-                            <i class="bi bi-check-circle"></i> ${isEdit ? 'Update' : 'Save'}
-                        </button>
-                        <button type="button" class="btn btn-secondary" id="cancelTimeLogForm">Cancel</button>
-                    </div>
-                </form>
+  const rawPerms = config.time_logs_permissions?.[userEmail] || {};
+  const timeLogsPerms = {
+    can_view: rawPerms.can_view ?? rawPerms.canview ?? false,
+    can_add: rawPerms.can_add ?? rawPerms.canadd ?? false,
+    can_edit: rawPerms.can_edit ?? rawPerms.canedit ?? false,
+    can_delete: rawPerms.can_delete ?? rawPerms.candelete ?? false,
+    can_edit_workstation: rawPerms.can_edit_workstation ?? rawPerms.caneditworkstation ?? false,
+    can_edit_time_required: rawPerms.can_edit_time_required ?? rawPerms.canedittimerequired ?? false
+  };
+
+  // Fetch employees and workstations
+  let employees = [];
+  let workstations = [];
+
+  try {
+    const empData = await getEmployees();
+    employees = empData.data || [];
+
+    const wsData = await getWorkstations();
+    workstations = wsData.data || [];
+  } catch (err) {
+    console.error("Error loading dropdowns:", err);
+  }
+
+  const formHtml = `
+    <div class="card">
+      <div class="card-header">
+        <h6 class="mb-0">${isEdit ? "Edit" : "Add"} Time Log</h6>
+      </div>
+      <div class="card-body">
+        <div class="alert alert-info mb-3">
+          <div class="row">
+            <div class="col-md-4">
+              <strong>Required Qty:</strong> ${jobCardInfo.for_quantity || 0}
             </div>
+            <div class="col-md-4">
+              <strong>Completed Qty:</strong> ${jobCardInfo.total_completed_qty || 0}
+            </div>
+            <div class="col-md-4">
+              <strong>Time Required:</strong> ${jobCardInfo.time_required || 0} mins
+            </div>
+          </div>
         </div>
-    `;
-    
-    bodyEl.innerHTML = formHtml;
-    
-    // Auto-calculate time in minutes
-    const fromTimeInput = document.getElementById('fromTime');
-    const toTimeInput = document.getElementById('toTime');
-    const timeInMinsInput = document.getElementById('timeInMins');
-    
-    function calculateMinutes() {
-        const fromTime = fromTimeInput.value;
-        const toTime = toTimeInput.value;
-        
-        if (fromTime && toTime) {
-            const from = new Date(fromTime);
-            const to = new Date(toTime);
-            const diffMs = to - from;
-            const diffMins = Math.round(diffMs / 60000);
-            
-            if (diffMins >= 0) {
-                timeInMinsInput.value = diffMins;
-            }
-        }
-    }
-    
-    fromTimeInput.addEventListener('change', calculateMinutes);
-    toTimeInput.addEventListener('change', calculateMinutes);
-    
-    document.getElementById('timeLogForm').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const formData = new FormData(e.target);
-        
-        const data = {
-            from_time: formData.get('from_time'),
-            to_time: formData.get('to_time') || null,
-            time_in_mins: parseInt(formData.get('time_in_mins')),
-            completed_qty: parseFloat(formData.get('completed_qty')) || 0,
-            employee: formData.get('employee') || null,
-            custom_job_detail: formData.get('custom_job_detail') || null
-        };
-        
-        // Handle workstation if user has permission
-        if (timeLogsPerms.caneditworkstation) {
-            data.workstation = formData.get('workstation') || null;
-        }
-        
-        // Handle image upload
-        const imageFile = document.getElementById('jobImageFile').files[0];
-        if (imageFile) {
-            try {
-                // Upload via our proxy instead of directly to ERPNext
-                const uploadFormData = new FormData();
-                uploadFormData.append('file', imageFile);
-                uploadFormData.append('job_card', jobCard);
-                
-                const uploadRes = await fetch(`${API_BASE}?action=upload_time_log_image`, {
-                    method: 'POST',
-                    body: uploadFormData
-                });
-                
-                const uploadData = await uploadRes.json();
-                if (uploadData.file_url) {
-                    data.custom_job_image = uploadData.file_url;
-                } else {
-                    throw new Error(uploadData.error || 'Upload failed');
-                }
-            } catch (err) {
-                console.error('Error uploading image:', err);
-                alert('Failed to upload image: ' + err.message);
-                return; // Don't save time log if image upload fails
-            }
-        }
 
-        
-        try {
-            if (isEdit) {
-                await updateTimeLog(jobCard, existingLog.logIndex, data);
-                alert('Time log updated successfully');
-            } else {
-                await addTimeLog(jobCard, data);
-                alert('Time log added successfully');
+        <form id="timeLogForm">
+          <div class="row">
+            <div class="col-md-6 mb-3">
+              <label class="form-label">Employee</label>
+              <select class="form-select" name="employee">
+                <option value="">-- Select Employee --</option>
+                ${employees
+                  .map(
+                    (emp) => `
+                      <option value="${emp.name}" ${existingLog?.employee === emp.name ? "selected" : ""}>
+                        ${emp.employee_name || emp.name}
+                      </option>
+                    `
+                  )
+                  .join("")}
+              </select>
+            </div>
+
+            <div class="col-md-6 mb-3">
+              <label class="form-label">Workstation ${timeLogsPerms.can_edit_workstation ? "" : "(Read-only)"}</label>
+              <select class="form-select" name="workstation" ${timeLogsPerms.can_edit_workstation ? "" : "disabled"}>
+                <option value="">-- Select Workstation --</option>
+                ${workstations
+                  .map(
+                    (ws) => `
+                      <option value="${ws.name}" ${
+                        (existingLog?.workstation || jobCardInfo.workstation) === ws.name ? "selected" : ""
+                      }>
+                        ${ws.name}
+                      </option>
+                    `
+                  )
+                  .join("")}
+              </select>
+              ${
+                !timeLogsPerms.can_edit_workstation
+                  ? "<small class=\"text-muted\">You don't have permission to edit workstation</small>"
+                  : ""
+              }
+            </div>
+          </div>
+
+          <div class="row">
+            <div class="col-md-6 mb-3">
+              <label class="form-label">From Time *</label>
+              <input type="datetime-local" class="form-control" name="from_time" id="fromTime"
+                     value="${existingLog?.from_time ? new Date(existingLog.from_time).toISOString().slice(0, 16) : ""}" required>
+            </div>
+
+            <div class="col-md-6 mb-3">
+              <label class="form-label">To Time</label>
+              <input type="datetime-local" class="form-control" name="to_time" id="toTime"
+                     value="${existingLog?.to_time ? new Date(existingLog.to_time).toISOString().slice(0, 16) : ""}">
+              <small class="text-muted">Leave empty if work is ongoing</small>
+            </div>
+          </div>
+
+          <div class="row">
+            <div class="col-md-6 mb-3">
+              <label class="form-label">Time (in minutes) *</label>
+              <input type="number" step="1" class="form-control" name="time_in_mins" id="timeInMins"
+                     value="${existingLog?.time_in_mins || ""}" required>
+              <small class="text-muted">Auto-calculated from From/To times</small>
+            </div>
+
+            <div class="col-md-6 mb-3">
+              <label class="form-label">Completed Qty</label>
+              <input type="number" step="0.01" class="form-control" name="completed_qty"
+                     value="${existingLog?.completed_qty || 0}">
+            </div>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label">Job Detail</label>
+            <textarea class="form-control" name="custom_job_detail" rows="3"
+                      placeholder="Enter job details...">${existingLog?.custom_job_detail || ""}</textarea>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label">Job Image</label>
+            <input type="file" class="form-control" id="jobImageFile" accept="image/*">
+            <small class="text-muted">Upload an image for this time log entry</small>
+            ${
+              existingLog?.custom_job_image_view
+                ? `
+                  <div class="mt-2">
+                    <img src="${fixImageUrl(existingLog.custom_job_image_view)}"
+                         style="max-width: 200px; max-height: 150px; cursor: pointer;"
+                         onclick="window.open('${fixImageUrl(existingLog.custom_job_image_view)}', '_blank')">
+                  </div>
+                `
+                : ""
             }
-            showTimeLogsModal(jobCard, reportName, config);
-        } catch (err) {
-            alert('Error saving time log: ' + err.message);
+          </div>
+
+          <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-success">
+              <i class="bi bi-check-circle"></i> ${isEdit ? "Update" : "Save"}
+            </button>
+            <button type="button" class="btn btn-secondary" id="cancelTimeLogForm">Cancel</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  `;
+
+  bodyEl.innerHTML = formHtml;
+
+  // Auto-calculate time in minutes
+  const fromTimeInput = document.getElementById("fromTime");
+  const toTimeInput = document.getElementById("toTime");
+  const timeInMinsInput = document.getElementById("timeInMins");
+
+  function calculateMinutes() {
+    const fromTime = fromTimeInput.value;
+    const toTime = toTimeInput.value;
+
+    if (fromTime && toTime) {
+      const from = new Date(fromTime);
+      const to = new Date(toTime);
+      const diffMs = to - from;
+      const diffMins = Math.round(diffMs / 60000);
+
+      if (diffMins >= 0) {
+        timeInMinsInput.value = diffMins;
+      }
+    }
+  }
+
+  fromTimeInput.addEventListener("change", calculateMinutes);
+  toTimeInput.addEventListener("change", calculateMinutes);
+
+  document.getElementById("timeLogForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const formData = new FormData(e.target);
+
+    const data = {
+      from_time: formData.get("from_time"),
+      to_time: formData.get("to_time") || null,
+      time_in_mins: parseInt(formData.get("time_in_mins")),
+      completed_qty: parseFloat(formData.get("completed_qty")) || 0,
+      employee: formData.get("employee") || null,
+      custom_job_detail: formData.get("custom_job_detail") || null
+    };
+
+    // Handle workstation if user has permission
+    if (timeLogsPerms.can_edit_workstation) {
+      data.workstation = formData.get("workstation") || null;
+    }
+
+    // Handle image upload
+    const imageFile = document.getElementById("jobImageFile").files[0];
+    if (imageFile) {
+      try {
+        const uploadFormData = new FormData();
+        uploadFormData.append("file", imageFile);
+        uploadFormData.append("job_card", jobCard);
+
+        const uploadRes = await fetch(`${API_BASE}?action=upload_time_log_image`, {
+          method: "POST",
+          body: uploadFormData
+        });
+
+        const uploadData = await uploadRes.json();
+        if (uploadData.file_url) {
+          data.custom_job_image = uploadData.file_url;
+        } else {
+          throw new Error(uploadData.error || "Upload failed");
         }
-    });
-    
-    document.getElementById('cancelTimeLogForm').addEventListener('click', () => {
-        showTimeLogsModal(jobCard, reportName, config);
-    });
+      } catch (err) {
+        console.error("Error uploading image:", err);
+        alert("Failed to upload image: " + err.message);
+        return;
+      }
+    }
+
+    try {
+      if (isEdit) {
+        await updateTimeLog(jobCard, existingLog.logIndex, data);
+        alert("Time log updated successfully");
+      } else {
+        await addTimeLog(jobCard, data);
+        alert("Time log added successfully");
+      }
+      showTimeLogsModal(jobCard, reportName, config);
+    } catch (err) {
+      alert("Error saving time log: " + err.message);
+    }
+  });
+
+  document.getElementById("cancelTimeLogForm").addEventListener("click", () => {
+    showTimeLogsModal(jobCard, reportName, config);
+  });
 }
 
-
-
-
-
-
-
-// New function to load and handle workstation
-
+// Load and handle workstation/time required controls in the header
 async function loadWorkstationDropdown(currentWorkstation, jobCard, jobCardInfo, permissions) {
-    
-    
-    
-        console.log('🔧 loadWorkstationDropdown called with:', {
-        currentWorkstation,
-        jobCard,
-        jobCardInfo,
-        permissions,
-        dropdownExists: !!document.getElementById('jobCardWorkstation'),
-        buttonExists: !!document.getElementById('saveWorkstationBtn')
-    });
-    
-    
-    
-    try {
-        // Handle WORKSTATION dropdown
-        const dropdown = document.getElementById('jobCardWorkstation');
-        if (dropdown && permissions && permissions.caneditworkstation) {
-            const wsData = await getWorkstations();
-            const workstations = wsData.data || [];
-            
-            // Clear and populate dropdown
-            dropdown.innerHTML = '<option value="">-- Select --</option>';
-            workstations.forEach(ws => {
-                const option = document.createElement('option');
-                option.value = ws.name;
-                option.textContent = ws.name;
-                if (ws.name === currentWorkstation) {
-                    option.selected = true;
-                }
-                dropdown.appendChild(option);
-            });
-            
-            // Attach workstation save handler
-            const saveBtn = document.getElementById('saveWorkstationBtn');
-            if (saveBtn) {
-                saveBtn.addEventListener('click', async () => {
-                    const newWorkstation = dropdown.value;
-                    saveBtn.disabled = true;
-                    saveBtn.innerHTML = '<i class="bi bi-hourglass-split"></i>';
-                    
-                    try {
-                        await updateJobCardWorkstation(jobCard, newWorkstation);
-                        alert('Workstation updated successfully!');
-                        if (confirm('Refresh report?')) location.reload();
-                    } catch (err) {
-                        alert('Failed: ' + err.message);
-                    } finally {
-                        saveBtn.disabled = false;
-                        saveBtn.innerHTML = '<i class="bi bi-check"></i>';
-                    }
-                });
-            }
+  console.log("🔧 loadWorkstationDropdown called with:", {
+    currentWorkstation,
+    jobCard,
+    jobCardInfo,
+    permissions,
+    dropdownExists: !!document.getElementById("jobCardWorkstation"),
+    buttonExists: !!document.getElementById("saveWorkstationBtn")
+  });
+
+  try {
+    // WORKSTATION dropdown
+    const dropdown = document.getElementById("jobCardWorkstation");
+    if (dropdown && permissions && permissions.can_edit_workstation) {
+      const wsData = await getWorkstations();
+      const workstations = wsData.data || [];
+
+      dropdown.innerHTML = '<option value="">-- Select --</option>';
+      workstations.forEach((ws) => {
+        const option = document.createElement("option");
+        option.value = ws.name;
+        option.textContent = ws.name;
+        if (ws.name === currentWorkstation) {
+          option.selected = true;
         }
-        
-        // Handle TIME REQUIRED field (separate from workstation)
-        const timeReqBtn = document.getElementById('saveTimeRequiredBtn');
-        if (timeReqBtn && permissions && permissions.canedittimerequired) {
-            timeReqBtn.addEventListener('click', async () => {
-                const newTimeRequired = document.getElementById('jobCardTimeRequired').value;
-                timeReqBtn.disabled = true;
-                timeReqBtn.innerHTML = '<i class="bi bi-hourglass-split"></i>';
-                
-                try {
-                    await updateJobCardTimeRequired(jobCard, parseFloat(newTimeRequired));
-                    alert('Time required updated successfully!');
-                } catch (err) {
-                    alert('Failed: ' + err.message);
-                } finally {
-                    timeReqBtn.disabled = false;
-                    timeReqBtn.innerHTML = '<i class="bi bi-check"></i>';
-                }
-            });
-        }
-    } catch (err) {
-        console.error('Error in loadWorkstationDropdown:', err);
+        dropdown.appendChild(option);
+      });
+
+      const saveBtn = document.getElementById("saveWorkstationBtn");
+      if (saveBtn) {
+        saveBtn.addEventListener("click", async () => {
+          const newWorkstation = dropdown.value;
+          saveBtn.disabled = true;
+          saveBtn.innerHTML = '<i class="bi bi-hourglass-split"></i>';
+
+          try {
+            await updateJobCardWorkstation(jobCard, newWorkstation);
+            alert("Workstation updated successfully!");
+            if (confirm("Refresh report?")) location.reload();
+          } catch (err) {
+            alert("Failed: " + err.message);
+          } finally {
+            saveBtn.disabled = false;
+            saveBtn.innerHTML = '<i class="bi bi-check"></i>';
+          }
+        });
+      }
     }
+
+    // TIME REQUIRED field
+    const timeReqBtn = document.getElementById("saveTimeRequiredBtn");
+    if (timeReqBtn && permissions && permissions.can_edit_time_required) {
+      timeReqBtn.addEventListener("click", async () => {
+        const newTimeRequired = document.getElementById("jobCardTimeRequired").value;
+        timeReqBtn.disabled = true;
+        timeReqBtn.innerHTML = '<i class="bi bi-hourglass-split"></i>';
+
+        try {
+          await updateJobCardTimeRequired(jobCard, parseFloat(newTimeRequired));
+          alert("Time required updated successfully!");
+        } catch (err) {
+          alert("Failed: " + err.message);
+        } finally {
+          timeReqBtn.disabled = false;
+          timeReqBtn.innerHTML = '<i class="bi bi-check"></i>';
+        }
+      });
+    }
+  } catch (err) {
+    console.error("Error in loadWorkstationDropdown:", err);
+  }
 }
 
 
