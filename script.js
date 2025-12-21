@@ -3649,7 +3649,7 @@ async function openGlobalReportConfigModal(reportName) {
     // Basic settings
     reportConfig[reportName].doctype = doctype;
     reportConfig[reportName].title_field = document.getElementById('config_title_field')?.value;
-    reportConfig[reportName].idfield = document.getElementById('config_id_field')?.value;
+    reportConfig[reportName].id_field = document.getElementById('config_id_field')?.value;
 
 
     // Card fields
