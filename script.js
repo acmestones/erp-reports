@@ -3124,6 +3124,8 @@ async function openGlobalReportConfigModal(reportName) {
   document.body.insertAdjacentHTML("beforeend", configModalHtml);
 
   const configModal = new bootstrap.Modal(document.getElementById("globalReportConfigModal"));
+  // IMPORTANT: pull latest config from report_config.json before rendering modal UI
+  reportConfig = (await getReportConfig()) || {};
 
   if (!reportConfig[reportName]) reportConfig[reportName] = {};
   const config = reportConfig[reportName] || {};
@@ -3170,6 +3172,14 @@ async function openGlobalReportConfigModal(reportName) {
   const reportData = await getReport(reportName);
   const columns = reportData.message.columns || [];
   const rows = reportData.message.result || [];
+
+
+// Use saved field order (from report_config.json) to render the modal list
+const ordered_columns_for_modal =
+  Array.isArray(config.field_order) && config.field_order.length
+    ? sortColumnsByOrder(columns, config.field_order)
+    : columns;
+  
 
   const group1Field = config.group_by?.[0];
   const group2Field = config.group_by?.[1];
@@ -3374,7 +3384,7 @@ async function openGlobalReportConfigModal(reportName) {
         <div class="row">
           <div class="col-12">
             <ul class="list-group" id="fieldOrderList">
-              ${columns
+              ${ordered_columns_for_modal.map
                 .map(
                   (col) => `
                   <li class="list-group-item draggable-field d-flex align-items-center" draggable="true" data-fieldname="${col.fieldname}">
