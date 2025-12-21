@@ -5284,18 +5284,19 @@ function renderOperationsTable(operations, permissions, work_order_id) {
     const is_completed = completed_qty >= for_qty && for_qty > 0;
     const row_class = is_completed ? "table-success" : "";
 
-table_html += `
-  <tr data-operation-id="${op.name}" data-idx="${op.idx}" class="${row_class}">
-    ${
-      permissions.can_reorder
-        ? `<td class="text-center"><i class="bi bi-grip-vertical drag-handle" style="cursor: move;"></i></td>`
-        : ""
-    }
-    <td>${op.operation || ""}</td>
-
-
-
-
+    table_html += `
+      <tr data-operation-id="${op.name}" data-idx="${op.idx}" class="${row_class}">
+        ${
+          permissions.can_reorder
+            ? `<td class="text-center"><i class="bi bi-grip-vertical drag-handle" style="cursor: move;"></i></td>`
+            : ""
+        }
+        <td>${op.operation || ""}</td>
+        <td>${op.workstation || ""}</td>
+        <td>${op.time_in_mins || ""}</td>
+        <td>${op.custom_plant || ""}</td>
+        <td class="text-center"><strong>${for_qty}</strong></td>
+        <td class="text-center"><strong>${completed_qty}</strong></td>
         ${
           permissions.can_edit || permissions.can_delete
             ? `
