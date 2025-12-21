@@ -280,94 +280,87 @@ function forceResetScroll() {
 
 function initializeSortable(container, reportName, primaryGroup, secondaryGroup) {
   // Only enable for admins
-  if (!currentUser || currentUser.role !== "admin") {
-    return;
-  }
+  if (!currentUser || currentUser.role !== 'admin') return;
 
-  // ========== CRITICAL: DISABLE ON MOBILE ==========
-  // Check if mobile - if yes, skip desktop drag entirely
+  // CRITICAL: Disable on mobile - use modal instead
   const isMobile = window.innerWidth <= 768;
   if (isMobile) {
-    console.log("Mobile detected - using modal reorder instead of desktop drag");
-    return; // Exit early - no desktop drag on mobile
+    console.log('Mobile detected - using modal reorder instead of desktop drag');
+    return; // Exit early
   }
-  // ========== END MOBILE CHECK ==========
 
   // Desktop-only drag and drop
   new Sortable(container, {
     animation: 150,
     delay: 500,
     delayOnTouchOnly: true,
-    handle: ".drag-handle",
+    handle: '.drag-handle',
+    ghostClass: 'sortable-ghost',
+    chosenClass: 'sortable-chosen',
+    dragClass: 'sortable-drag',
 
-    ghostClass: "sortable-ghost",
-    chosenClass: "sortable-chosen",
-    dragClass: "sortable-drag",
-
-    onChoose: function (evt) {
-      console.log("Card selected");
-      evt.item.classList.add("is-dragging");
+    onChoose: function(evt) {
+      console.log('Card selected');
+      evt.item.classList.add('is-dragging');
     },
 
-    onStart: function (evt) {
-      console.log("Drag started");
+    onStart: function(evt) {
+      console.log('Drag started');
     },
 
-    onEnd: async function (evt) {
-      evt.item.classList.remove("is-dragging");
+    onEnd: async function(evt) {
+      evt.item.classList.remove('is-dragging');
 
       // Get the new order of cards
-      const cards = Array.from(container.querySelectorAll(".card-report"));
-      const cardOrder = cards.map((card) => card.dataset.docname).filter((name) => name);
+      const cards = Array.from(container.querySelectorAll('.card-report'));
+      const cardOrder = cards.map(card => card.dataset.docname).filter(name => name);
 
-      console.log("=== DRAG DROP DEBUG ===");
-      console.log("Report Name:", reportName);
-      console.log("Primary Group:", primaryGroup);
-      console.log("Secondary Group:", secondaryGroup);
-      console.log("New card order:", cardOrder);
-      console.log("Card count:", cardOrder.length);
+      console.log('DRAG & DROP - Saving order:');
+      console.log('Report Name:', reportName);
+      console.log('Primary Group:', primaryGroup);
+      console.log('Secondary Group:', secondaryGroup);
+      console.log('New card order:', cardOrder);
 
       // Save to backend
       try {
         const result = await saveCardPriority(reportName, primaryGroup, secondaryGroup, cardOrder);
-
-        console.log("Save result:", result);
+        console.log('Save result:', result);
 
         if (result.success) {
-          console.log("✅ Card priority saved successfully");
-          if (!reportConfig[reportName]) {
-            reportConfig[reportName] = {};
-          }
-          if (!reportConfig[reportName].card_priority) {
-            reportConfig[reportName].card_priority = {};
-          }
+          console.log('✅ Card priority saved successfully');
+
+          // 🔑 KEY FIX: Update local reportConfig using snake_case
+          if (!reportConfig[reportName]) reportConfig[reportName] = {};
+          if (!reportConfig[reportName].card_priority) reportConfig[reportName].card_priority = {};
           if (!reportConfig[reportName].card_priority[primaryGroup]) {
             reportConfig[reportName].card_priority[primaryGroup] = {};
           }
           reportConfig[reportName].card_priority[primaryGroup][secondaryGroup] = cardOrder;
-          console.log("Updated local reportConfig");
+
+          console.log('✅ Updated local reportConfig');
         } else {
-          console.error("❌ Failed to save card priority:", result.error);
-          alert("Failed to save card order. Please try again.");
+          console.error('❌ Failed to save card priority:', result.error);
+          alert('Failed to save card order. Please try again.');
+          await loadReport(reportName);
         }
       } catch (error) {
-        console.error("❌ Error saving card priority:", error);
-        alert("Error saving card order. Please try again.");
+        console.error('❌ Error saving card priority:', error);
+        alert('Error saving card order. Please try again.');
+        await loadReport(reportName);
       }
     },
 
-    onUnchoose: function (evt) {
-      console.log("Drag cancelled");
-      evt.item.classList.remove("is-dragging");
+    onUnchoose: function(evt) {
+      console.log('Drag cancelled');
+      evt.item.classList.remove('is-dragging');
     }
   });
 
-  // Add visual indicator that cards are draggable
-  const cards = container.querySelectorAll(".card-report");
-  cards.forEach((card) => {
-    card.classList.add("sortable-enabled");
-  });
+  // Add visual indicator
+  const cards = container.querySelectorAll('.card-report');
+  cards.forEach(card => card.classList.add('sortable-enabled'));
 }
+
 
 async function getLinkOptions(doctype) {
   if (linkFieldOptions[doctype]) {
