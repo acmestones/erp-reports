@@ -2043,6 +2043,7 @@ function createCard(row, columns, reportName, config) {
 
     // Time Logs button
     if (config.showtimelogsbutton && row.job_card) {
+        const userEmail = localStorage.getItem("userEmail");
         const timeLogsPerms = config.timelogspermissions?.[userEmail] || {};
         if (timeLogsPerms.canview) {
             const timeLogsBtn = document.createElement("button");
@@ -2063,7 +2064,9 @@ function createCard(row, columns, reportName, config) {
 
     // Operation Planning button
     if (config.showoperationplanningbutton !== false) {
+        const userEmail = localStorage.getItem("userEmail");
         const opPerms = config.operationplanningpermissions?.[userEmail] || {};
+
         if (opPerms.canview) {
             const opPlanningBtn = document.createElement("button");
             opPlanningBtn.className = "btn btn-sm btn-outline-success";
