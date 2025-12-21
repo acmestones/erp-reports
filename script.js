@@ -5993,279 +5993,294 @@ async function saveMappingsForReport(report_name) {
 
 
 
-// ========== MOBILE REORDER MODAL FUNCTIONS ==========
+// ========== MOBILE REORDER MODAL FUNCTIONS (COMPLETE REPLACEMENT - snake_case) ==========
+//
+// Replaces EVERYTHING you pasted in this message.
+// Notes:
+// - Keeps public API signature openMobileReorderModal(reportName, primaryGroup, secondaryGroup)
+//   so existing callers won't break.
+// - Internals are snake_case.
+// - Normalizes config keys:
+//   title_field, card_fields, card_priority (snake_case) while reading legacy titleField/cardFields/cardPriority too.
+// - Keeps SortableJS usage same.
+//
 
-let currentMobileReorder = null;
-let mobileSortableInstance = null; // Track the sortable instance
+let current_mobile_reorder = null;
+let mobile_sortable_instance = null; // Track the sortable instance
 
 function openMobileReorderModal(reportName, primaryGroup, secondaryGroup) {
-    console.log('Opening mobile reorder for:', reportName, primaryGroup, secondaryGroup);
-    
-    // Store current context
-    currentMobileReorder = {
-        reportName,
-        primaryGroup,
-        secondaryGroup
+  console.log("Opening mobile reorder for:", reportName, primaryGroup, secondaryGroup);
+
+  // Store current context (snake_case inside object)
+  current_mobile_reorder = {
+    report_name: reportName,
+    primary_group: primaryGroup,
+    secondary_group: secondaryGroup
+  };
+
+  // Get cards in this group
+  const config = reportConfig[reportName] || {};
+  const grouped = currentReportData?.grouped;
+
+  if (!grouped || !grouped[primaryGroup] || !grouped[primaryGroup][secondaryGroup]) {
+    alert("No cards found in this group");
+    return;
+  }
+
+  let cards = grouped[primaryGroup][secondaryGroup];
+
+  // Normalize config keys (read legacy too)
+  const title_field = config.title_field ?? config.titleField ?? "work_order_id";
+  const card_fields = config.card_fields ?? config.cardFields ?? [];
+  const card_priority_root = config.card_priority ?? config.cardPriority ?? {};
+
+  // Apply existing sort order if it exists
+  const card_priority = card_priority_root?.[primaryGroup]?.[secondaryGroup];
+  if (card_priority && Array.isArray(card_priority)) {
+    const get_card_id = (row) => {
+      const possible_ids = [
+        row.name,
+        row[title_field],
+        row.work_order_id,
+        row.sales_order_id,
+        row.job_card,
+        row.item_code,
+        row.customer
+      ];
+      return possible_ids.find((id) => id && id !== "") || "";
     };
-    
-    // Get cards in this group
-    const config = reportConfig[reportName] || {};
-    const grouped = currentReportData.grouped;
-    
-    if (!grouped || !grouped[primaryGroup] || !grouped[primaryGroup][secondaryGroup]) {
-        alert('No cards found in this group');
-        return;
-    }
-    
-    let cards = grouped[primaryGroup][secondaryGroup];
-    
-    // Apply existing sort order if it exists
-    const cardPriority = config.card_priority?.[primaryGroup]?.[secondaryGroup];
-    if (cardPriority && Array.isArray(cardPriority)) {
-        const titleField = config.title_field || "work_order_id";
-        
-        const getCardId = (row) => {
-            const possibleIds = [
-                row.name,
-                row[titleField],
-                row.work_order_id,
-                row.sales_order_id,
-                row.job_card,
-                row.item_code,
-                row.customer
-            ];
-            return possibleIds.find(id => id && id !== '') || '';
-        };
-        
-        cards = [...cards].sort((a, b) => {
-            const idA = getCardId(a);
-            const idB = getCardId(b);
-            
-            const indexA = cardPriority.indexOf(idA);
-            const indexB = cardPriority.indexOf(idB);
-            
-            if (indexA !== -1 && indexB !== -1) return indexA - indexB;
-            if (indexA !== -1) return -1;
-            if (indexB !== -1) return 1;
-            return 0;
-        });
-    }
-    
-    // Destroy previous Sortable instance
-    if (mobileSortableInstance) {
-        console.log('Destroying previous Sortable instance');
-        mobileSortableInstance.destroy();
-        mobileSortableInstance = null;
-    }
-    
-    // Populate modal
-    const listContainer = document.getElementById('mobileReorderList');
-    listContainer.innerHTML = '';
-    
-    const titleField = config.title_field || "work_order_id";
-    const cardFields = config.card_fields || [];
-    
-    cards.forEach(row => {
-        const item = document.createElement('div');
-        item.className = 'reorder-item';
-        
-        // Get card ID
-        const possibleIds = [
-            row.name,
-            row[titleField],
-            row.work_order_id,
-            row.sales_order_id,
-            row.job_card,
-            row.item_code,
-            row.customer
-        ];
-        const cardId = possibleIds.find(id => id && id !== '') || '';
-        item.dataset.cardId = cardId;
-        
-        // Get title
-        const title = row[titleField] || row.name || 'Card';
-        
-        // Get subtitle (first available card field)
-        let subtitle = '';
-        for (const field of cardFields) {
-            if (row[field]) {
-                subtitle = String(row[field]).substring(0, 50);
-                break;
-            }
-        }
-        
-        item.innerHTML = `
-            <div class="reorder-item-handle">☰</div>
-            <div class="reorder-item-content">
-                <div class="reorder-item-title">${title}</div>
-                ${subtitle ? `<div class="reorder-item-subtitle">${subtitle}</div>` : ''}
-            </div>
-        `;
-        
-        listContainer.appendChild(item);
+
+    cards = [...cards].sort((a, b) => {
+      const id_a = get_card_id(a);
+      const id_b = get_card_id(b);
+
+      const index_a = card_priority.indexOf(id_a);
+      const index_b = card_priority.indexOf(id_b);
+
+      if (index_a !== -1 && index_b !== -1) return index_a - index_b;
+      if (index_a !== -1) return -1;
+      if (index_b !== -1) return 1;
+      return 0;
     });
-    
-    // Create NEW Sortable instance and store it
-    mobileSortableInstance = new Sortable(listContainer, {
-        animation: 150,
-        delay: 200,
-        delayOnTouchOnly: true,
-        
-        // Better mobile scroll settings
-        scroll: true,
-        forceAutoScrollFallback: true,
-        scrollSensitivity: 60,
-        scrollSpeed: 15,
-        bubbleScroll: true,
-        
-        ghostClass: 'sortable-ghost',
-        chosenClass: 'sortable-chosen',
-        dragClass: 'sortable-drag',
-        handle: '.reorder-item-handle',
-        
-        swapThreshold: 0.65,
-        
-        onStart: function() {
-            if (navigator.vibrate) navigator.vibrate(10);
-        },
-        
-        onEnd: function() {
-            if (navigator.vibrate) navigator.vibrate(10);
-        }
-    });
-    
-    // Get or create modal properly
-    const modalElement = document.getElementById('mobileReorderModal');
-    let modal = bootstrap.Modal.getInstance(modalElement);
-    
-    // If modal instance exists, dispose it first
-    if (modal) {
-        modal.dispose();
+  }
+
+  // Destroy previous Sortable instance
+  if (mobile_sortable_instance) {
+    console.log("Destroying previous Sortable instance");
+    mobile_sortable_instance.destroy();
+    mobile_sortable_instance = null;
+  }
+
+  // Populate modal list
+  const list_container = document.getElementById("mobileReorderList");
+  if (!list_container) return;
+
+  list_container.innerHTML = "";
+
+  cards.forEach((row) => {
+    const item = document.createElement("div");
+    item.className = "reorder-item";
+
+    const possible_ids = [
+      row.name,
+      row[title_field],
+      row.work_order_id,
+      row.sales_order_id,
+      row.job_card,
+      row.item_code,
+      row.customer
+    ];
+    const card_id = possible_ids.find((id) => id && id !== "") || "";
+    item.dataset.cardId = card_id;
+
+    const title = row[title_field] || row.name || "Card";
+
+    // subtitle: first available card field
+    let subtitle = "";
+    for (const field of card_fields) {
+      if (row[field]) {
+        subtitle = String(row[field]).substring(0, 50);
+        break;
+      }
     }
-    
-    // Create fresh modal instance
-    modal = new bootstrap.Modal(modalElement);
-    
-    // Show modal
-    modal.show();
-    
-    // Reset and clone save button
-    const saveBtn = document.getElementById('saveMobileReorder');
-    const newSaveBtn = saveBtn.cloneNode(true);
-    
-    // Reset button state
-    newSaveBtn.disabled = false;
-    newSaveBtn.textContent = 'Save Order';
-    newSaveBtn.className = 'btn btn-primary'; // Reset to original classes
-    
-    saveBtn.parentNode.replaceChild(newSaveBtn, saveBtn);
-    
-    // Add the save handler
-    newSaveBtn.addEventListener('click', async function() {
-        console.log('💾 Save button clicked!');
-        
-        if (!currentMobileReorder) {
-            console.error('No currentMobileReorder data');
-            return;
+
+    item.innerHTML = `
+      <div class="reorder-item-handle">☰</div>
+      <div class="reorder-item-content">
+        <div class="reorder-item-title">${title}</div>
+        ${subtitle ? `<div class="reorder-item-subtitle">${subtitle}</div>` : ""}
+      </div>
+    `;
+
+    list_container.appendChild(item);
+  });
+
+  // Create NEW Sortable instance and store it
+  mobile_sortable_instance = new Sortable(list_container, {
+    animation: 150,
+    delay: 200,
+    delayOnTouchOnly: true,
+
+    // Better mobile scroll settings
+    scroll: true,
+    forceAutoScrollFallback: true,
+    scrollSensitivity: 60,
+    scrollSpeed: 15,
+    bubbleScroll: true,
+
+    ghostClass: "sortable-ghost",
+    chosenClass: "sortable-chosen",
+    dragClass: "sortable-drag",
+    handle: ".reorder-item-handle",
+
+    swapThreshold: 0.65,
+
+    onStart: function () {
+      if (navigator.vibrate) navigator.vibrate(10);
+    },
+
+    onEnd: function () {
+      if (navigator.vibrate) navigator.vibrate(10);
+    }
+  });
+
+  // Get or create modal properly
+  const modal_element = document.getElementById("mobileReorderModal");
+  if (!modal_element) return;
+
+  let modal = bootstrap.Modal.getInstance(modal_element);
+
+  // If modal instance exists, dispose it first
+  if (modal) {
+    modal.dispose();
+  }
+
+  // Create fresh modal instance
+  modal = new bootstrap.Modal(modal_element);
+
+  // Show modal
+  modal.show();
+
+  // Reset + clone save button (clears old listeners)
+  const save_btn = document.getElementById("saveMobileReorder");
+  if (!save_btn) return;
+
+  const new_save_btn = save_btn.cloneNode(true);
+
+  new_save_btn.disabled = false;
+  new_save_btn.textContent = "Save Order";
+  new_save_btn.className = "btn btn-primary";
+
+  save_btn.parentNode.replaceChild(new_save_btn, save_btn);
+
+  // Add the save handler
+  new_save_btn.addEventListener("click", async function () {
+    console.log("💾 Save button clicked!");
+
+    if (!current_mobile_reorder) {
+      console.error("No current_mobile_reorder data");
+      return;
+    }
+
+    const list_container = document.getElementById("mobileReorderList");
+    const items = Array.from(list_container.querySelectorAll(".reorder-item"));
+    const new_order = items.map((item) => item.dataset.cardId).filter((id) => id);
+
+    console.log("Saving mobile reorder:", new_order);
+
+    new_save_btn.disabled = true;
+    new_save_btn.textContent = "Saving...";
+
+    try {
+      const result = await saveCardPriority(
+        current_mobile_reorder.report_name,
+        current_mobile_reorder.primary_group,
+        current_mobile_reorder.secondary_group,
+        new_order
+      );
+
+      console.log("Save result:", result);
+
+      if (result.success) {
+        // Update local config (snake_case)
+        if (!reportConfig[current_mobile_reorder.report_name]) {
+          reportConfig[current_mobile_reorder.report_name] = {};
         }
-        
-        const listContainer = document.getElementById('mobileReorderList');
-        const items = Array.from(listContainer.querySelectorAll('.reorder-item'));
-        const newOrder = items.map(item => item.dataset.cardId).filter(id => id);
-        
-        console.log('Saving mobile reorder:', newOrder);
-        
-        // Disable button while saving
-        newSaveBtn.disabled = true;
-        newSaveBtn.textContent = 'Saving...';
-        
-        try {
-            const result = await saveCardPriority(
-                currentMobileReorder.reportName,
-                currentMobileReorder.primaryGroup,
-                currentMobileReorder.secondaryGroup,
-                newOrder
-            );
-            
-            console.log('Save result:', result);
-            
-            if (result.success) {
-                // Update local config
-                if (!reportConfig[currentMobileReorder.reportName]) {
-                    reportConfig[currentMobileReorder.reportName] = {};
-                }
-                if (!reportConfig[currentMobileReorder.reportName].card_priority) {
-                    reportConfig[currentMobileReorder.reportName].card_priority = {};
-                }
-                if (!reportConfig[currentMobileReorder.reportName].card_priority[currentMobileReorder.primaryGroup]) {
-                    reportConfig[currentMobileReorder.reportName].card_priority[currentMobileReorder.primaryGroup] = {};
-                }
-                reportConfig[currentMobileReorder.reportName].card_priority[currentMobileReorder.primaryGroup][currentMobileReorder.secondaryGroup] = newOrder;
-                
-                // Reset button
-                newSaveBtn.textContent = '✅ Saved!';
-                newSaveBtn.classList.remove('btn-primary');
-                newSaveBtn.classList.add('btn-success');
-                
-                // Success feedback
-                if (navigator.vibrate) navigator.vibrate([30, 50, 30]);
-                
-                // ========== COMPLETE CLEANUP AND RELOAD ==========
-                // 1. Destroy Sortable first
-                if (mobileSortableInstance) {
-                    mobileSortableInstance.destroy();
-                    mobileSortableInstance = null;
-                }
-                
-                // 2. Hide and dispose modal
-                modal.hide();
-                
-                // 3. Wait for modal to close, then do full cleanup
-                setTimeout(async () => {
-                    modal.dispose();
-                    
-                    // 4. Force reset all scrolling
-                    forceResetScroll();
-                    
-                    // 5. Reload the report
-                    console.log('Reloading report...');
-                    await loadReport(currentMobileReorder.reportName);
-                    console.log('✅ Report reloaded - new order applied');
-                    
-                    // 6. Final scroll check after a short delay
-                    setTimeout(() => {
-                        forceResetScroll();
-                        console.log('✅ Final scroll check complete');
-                    }, 100);
-                    
-                }, 400);
-                // ========== END CLEANUP ==========
-                
-            } else {
-                alert('❌ Failed to save order: ' + (result.error || 'Unknown error'));
-                newSaveBtn.disabled = false;
-                newSaveBtn.textContent = 'Save Order';
-            }
-        } catch (error) {
-            console.error('Error saving mobile reorder:', error);
-            alert('❌ Error saving order: ' + error.message);
-            newSaveBtn.disabled = false;
-            newSaveBtn.textContent = 'Save Order';
+        const cfg = reportConfig[current_mobile_reorder.report_name];
+
+        cfg.card_priority = cfg.card_priority ?? cfg.cardPriority ?? {};
+        delete cfg.cardPriority;
+
+        cfg.card_priority[current_mobile_reorder.primary_group] =
+          cfg.card_priority[current_mobile_reorder.primary_group] ?? {};
+        cfg.card_priority[current_mobile_reorder.primary_group][current_mobile_reorder.secondary_group] =
+          new_order;
+
+        // Button feedback
+        new_save_btn.textContent = "✅ Saved!";
+        new_save_btn.classList.remove("btn-primary");
+        new_save_btn.classList.add("btn-success");
+
+        if (navigator.vibrate) navigator.vibrate([30, 50, 30]);
+
+        // ========== COMPLETE CLEANUP AND RELOAD ==========
+        // 1) Destroy Sortable first
+        if (mobile_sortable_instance) {
+          mobile_sortable_instance.destroy();
+          mobile_sortable_instance = null;
         }
-    });
-    
-    // Clean up when modal is closed with X or Cancel
-    modalElement.addEventListener('hidden.bs.modal', function cleanup() {
-        console.log('Modal closed - cleaning up');
-        if (mobileSortableInstance) {
-            mobileSortableInstance.destroy();
-            mobileSortableInstance = null;
-        }
-        // Force scroll reset
-        forceResetScroll();
-        // Remove this listener to prevent memory leaks
-        modalElement.removeEventListener('hidden.bs.modal', cleanup);
-    });
+
+        // 2) Hide modal
+        modal.hide();
+
+        // 3) After close animation, dispose + reset scroll + reload report
+        setTimeout(async () => {
+          modal.dispose();
+
+          forceResetScroll();
+
+          console.log("Reloading report...");
+          await loadReport(current_mobile_reorder.report_name);
+          console.log("✅ Report reloaded - new order applied");
+
+          setTimeout(() => {
+            forceResetScroll();
+            console.log("✅ Final scroll check complete");
+          }, 100);
+        }, 400);
+        // ========== END CLEANUP ==========
+
+      } else {
+        alert("❌ Failed to save order: " + (result.error || "Unknown error"));
+        new_save_btn.disabled = false;
+        new_save_btn.textContent = "Save Order";
+      }
+    } catch (error) {
+      console.error("Error saving mobile reorder:", error);
+      alert("❌ Error saving order: " + error.message);
+      new_save_btn.disabled = false;
+      new_save_btn.textContent = "Save Order";
+    }
+  });
+
+  // Clean up when modal is closed with X or Cancel
+  modal_element.addEventListener(
+    "hidden.bs.modal",
+    function cleanup() {
+      console.log("Modal closed - cleaning up");
+
+      if (mobile_sortable_instance) {
+        mobile_sortable_instance.destroy();
+        mobile_sortable_instance = null;
+      }
+
+      forceResetScroll();
+
+      modal_element.removeEventListener("hidden.bs.modal", cleanup);
+    },
+    { once: true }
+  );
 }
 
 // ========== END MOBILE REORDER MODAL FUNCTIONS ==========
+
