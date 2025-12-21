@@ -3098,485 +3098,621 @@ function renderGroupVisibilityCheckboxesForReport(userEmail, reportName, tabIdx)
 
 
 async function openGlobalReportConfigModal(reportName) {
-    const configModalHtml = `
-        <div class="modal fade" id="globalReportConfigModal" tabindex="-1">
-            <div class="modal-dialog modal-xl">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title">Configure: ${reportName}</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                    </div>
-                    <div class="modal-body" style="max-height: 70vh; overflow-y: auto;">
-                        <div id="globalConfigContent"></div>
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                        <button type="button" class="btn btn-primary" id="saveGlobalConfigBtn">Save Configuration</button>
-                    </div>
-                </div>
-            </div>
+  const configModalHtml = `
+    <div class="modal fade" id="globalReportConfigModal" tabindex="-1">
+      <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Configure: ${reportName}</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body" style="max-height: 70vh; overflow-y: auto;">
+            <div id="globalConfigContent"></div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            <button type="button" class="btn btn-primary" id="saveGlobalConfigBtn">Save Configuration</button>
+          </div>
         </div>
-    `;
-    
-    const existingModal = document.getElementById('globalReportConfigModal');
-    if (existingModal) existingModal.remove();
-    
-    document.body.insertAdjacentHTML('beforeend', configModalHtml);
-    
-    const configModal = new bootstrap.Modal(document.getElementById('globalReportConfigModal'));
-    
-    const config = reportConfig[reportName] || {};
-    
-    const reportData = await getReport(reportName);
-    const columns = reportData.message.columns;
-    const rows = reportData.message.result;
-    
-const group1Field = config.groupby?.[0];
-const group2Field = config.groupby?.[1];
+      </div>
+    </div>
+  `;
 
-let group1Values = [];
-let group2Values = [];
+  const existingModal = document.getElementById("globalReportConfigModal");
+  if (existingModal) existingModal.remove();
 
-if (group1Field) {
-    group1Values = [...new Set(rows.map(r => r[group1Field]).filter(v => v))];
-    if (config.groupsort?.[group1Field]) {
-        const sortOrder = config.groupsort[group1Field];
-        group1Values.sort((a, b) => {
-            const indexA = sortOrder.indexOf(a);
-            const indexB = sortOrder.indexOf(b);
-            if (indexA === -1 && indexB === -1) return a.localeCompare(b);
-            if (indexA === -1) return 1;
-            if (indexB === -1) return -1;
-            return indexA - indexB;
-        });
+  document.body.insertAdjacentHTML("beforeend", configModalHtml);
+
+  const configModal = new bootstrap.Modal(document.getElementById("globalReportConfigModal"));
+
+  if (!reportConfig[reportName]) reportConfig[reportName] = {};
+  const config = reportConfig[reportName] || {};
+
+  // Normalize legacy config keys (support both; use underscore snake_case everywhere)
+  config.title_field = config.title_field ?? config.titlefield ?? "";
+  delete config.titlefield;
+
+  config.group_by = config.group_by ?? config.groupby ?? [];
+  delete config.groupby;
+
+  config.group_sort = config.group_sort ?? config.groupsort ?? {};
+  delete config.groupsort;
+
+  config.sort_by = config.sort_by ?? config.sortby ?? "";
+  delete config.sortby;
+
+  config.sort_order = config.sort_order ?? config.sortorder ?? "asc";
+  delete config.sortorder;
+
+  config.field_order = config.field_order ?? config.fieldorder ?? [];
+  delete config.fieldorder;
+
+  config.card_fields = config.card_fields ?? config.cardfields ?? [];
+  delete config.cardfields;
+
+  config.image_fields = config.image_fields ?? config.imagefields ?? [];
+  delete config.imagefields;
+
+  config.show_time_logs_button = config.show_time_logs_button ?? config.showtimelogsbutton ?? false;
+  delete config.showtimelogsbutton;
+
+  config.time_logs_permissions = config.time_logs_permissions ?? config.timelogspermissions ?? {};
+  delete config.timelogspermissions;
+
+  config.show_operation_planning_button =
+    config.show_operation_planning_button ?? config.showoperationplanningbutton ?? true;
+  delete config.showoperationplanningbutton;
+
+  config.operation_planning_permissions =
+    config.operation_planning_permissions ?? config.operationplanningpermissions ?? {};
+  delete config.operationplanningpermissions;
+
+  const reportData = await getReport(reportName);
+  const columns = reportData.message.columns || [];
+  const rows = reportData.message.result || [];
+
+  const group1Field = config.group_by?.[0];
+  const group2Field = config.group_by?.[1];
+
+  let group1Values = [];
+  let group2Values = [];
+
+  if (group1Field) {
+    group1Values = [...new Set(rows.map((r) => r[group1Field]).filter((v) => v))];
+
+    if (config.group_sort?.[group1Field]) {
+      const sortOrder = config.group_sort[group1Field];
+      group1Values.sort((a, b) => {
+        const indexA = sortOrder.indexOf(a);
+        const indexB = sortOrder.indexOf(b);
+        if (indexA === -1 && indexB === -1) return a.localeCompare(b);
+        if (indexA === -1) return 1;
+        if (indexB === -1) return -1;
+        return indexA - indexB;
+      });
     } else {
-        group1Values.sort();
+      group1Values.sort();
     }
-}
+  }
 
-if (group2Field) {
-    group2Values = [...new Set(rows.map(r => r[group2Field]).filter(v => v))];
-    if (config.groupsort?.[group2Field]) {
-        const sortOrder = config.groupsort[group2Field];
-        group2Values.sort((a, b) => {
-            const indexA = sortOrder.indexOf(a);
-            const indexB = sortOrder.indexOf(b);
-            if (indexA === -1 && indexB === -1) return a.localeCompare(b);
-            if (indexA === -1) return 1;
-            if (indexB === -1) return -1;
-            return indexA - indexB;
-        });
+  if (group2Field) {
+    group2Values = [...new Set(rows.map((r) => r[group2Field]).filter((v) => v))];
+
+    if (config.group_sort?.[group2Field]) {
+      const sortOrder = config.group_sort[group2Field];
+      group2Values.sort((a, b) => {
+        const indexA = sortOrder.indexOf(a);
+        const indexB = sortOrder.indexOf(b);
+        if (indexA === -1 && indexB === -1) return a.localeCompare(b);
+        if (indexA === -1) return 1;
+        if (indexB === -1) return -1;
+        return indexA - indexB;
+      });
     } else {
-        group2Values.sort();
+      group2Values.sort();
     }
-}
+  }
 
-    
-    // Get list of users for permissions table
-    const users = await getUsers();
-    
-const contentHtml = `
+  // Get list of users for permissions table
+  const users = await getUsers();
+
+  const contentHtml = `
     <!-- MANDATORY FIELDS SECTION -->
     <div class="alert alert-warning mb-3">
-        <strong>⚠️ Required Fields:</strong> DocType, Title Field, and Primary Grouping Field are mandatory to run the report.
+      <strong>⚠️ Required Fields:</strong> DocType, Title Field, and Primary Grouping Field are mandatory to run the report.
     </div>
 
     <!-- BASIC SETTINGS -->
     <div class="card mb-3">
-        <div class="card-header bg-primary text-white">
-            <h6 class="mb-0">Basic Settings</h6>
+      <div class="card-header bg-primary text-white">
+        <h6 class="mb-0">Basic Settings</h6>
+      </div>
+      <div class="card-body">
+        <div class="row">
+          <div class="col-md-4 mb-3">
+            <label class="form-label fw-bold">DocType <span class="text-danger">*</span></label>
+            <input type="text" class="form-control" id="configdoctype" value="${config.doctype || ""}" placeholder="e.g., Work Order" required>
+            <small class="text-muted">ERPNext DocType name</small>
+          </div>
+          <div class="col-md-4 mb-3">
+            <label class="form-label fw-bold">Title Field (for cards) <span class="text-danger">*</span></label>
+            <select class="form-select" id="configtitlefield" required>
+              ${columns
+                .map(
+                  (c) =>
+                    `<option value="${c.fieldname}" ${
+                      config.title_field === c.fieldname ? "selected" : ""
+                    }>${c.label || c.fieldname}</option>`
+                )
+                .join("")}
+            </select>
+          </div>
+          <div class="col-md-4 mb-3">
+            <label class="form-label fw-bold">Primary Grouping Field <span class="text-danger">*</span></label>
+            <select class="form-select" id="configgroup1" required>
+              <option value="">-- None --</option>
+              ${columns
+                .map(
+                  (c) =>
+                    `<option value="${c.fieldname}" ${
+                      config.group_by?.[0] === c.fieldname ? "selected" : ""
+                    }>${c.label || c.fieldname}</option>`
+                )
+                .join("")}
+            </select>
+          </div>
         </div>
-        <div class="card-body">
-            <div class="row">
-                <div class="col-md-4 mb-3">
-                    <label class="form-label fw-bold">DocType <span class="text-danger">*</span></label>
-                    <input type="text" class="form-control" id="configdoctype" value="${config.doctype || ''}" placeholder="e.g., Work Order" required>
-                    <small class="text-muted">ERPNext DocType name</small>
-                </div>
-                <div class="col-md-4 mb-3">
-                    <label class="form-label fw-bold">Title Field (for cards) <span class="text-danger">*</span></label>
-                    <select class="form-select" id="configtitlefield" required>
-                        ${columns.map(c => `<option value="${c.fieldname}" ${config.titlefield === c.fieldname ? 'selected' : ''}>${c.label || c.fieldname}</option>`).join('')}
-                    </select>
-                </div>
-                <div class="col-md-4 mb-3">
-                    <label class="form-label fw-bold">Primary Grouping Field <span class="text-danger">*</span></label>
-                    <select class="form-select" id="configgroup1" required>
-                        <option value="">-- None --</option>
-                        ${columns.map(c => `<option value="${c.fieldname}" ${config.groupby?.[0] === c.fieldname ? 'selected' : ''}>${c.label || c.fieldname}</option>`).join('')}
-                    </select>
-                </div>
-            </div>
-            
-            <div class="row">
-                <div class="col-md-6 mb-3">
-                    <label class="form-label fw-bold">Secondary Grouping Field</label>
-                    <select class="form-select" id="configgroup2">
-                        <option value="">-- None --</option>
-                        ${columns.map(c => `<option value="${c.fieldname}" ${config.groupby?.[1] === c.fieldname ? 'selected' : ''}>${c.label || c.fieldname}</option>`).join('')}
-                    </select>
-                </div>
-                <div class="col-md-3 mb-3">
-                    <label class="form-label fw-bold">Sort Records By</label>
-                    <select class="form-select" id="configsortby">
-                        <option value="">-- None --</option>
-                        ${columns.map(c => `<option value="${c.fieldname}" ${config.sortby === c.fieldname ? 'selected' : ''}>${c.label || c.fieldname}</option>`).join('')}
-                    </select>
-                </div>
-                <div class="col-md-3 mb-3">
-                    <label class="form-label fw-bold">Sort Order</label>
-                    <select class="form-select" id="configsortorder">
-                        <option value="asc" ${config.sortorder === 'asc' ? 'selected' : ''}>Ascending</option>
-                        <option value="desc" ${config.sortorder === 'desc' ? 'selected' : ''}>Descending</option>
-                    </select>
-                </div>
-            </div>
-            
-            <div class="form-check mb-2">
-                <input class="form-check-input" type="checkbox" id="configcollapsed" ${config.collapsed !== false ? 'checked' : ''}>
-                <label class="form-check-label" for="configcollapsed">
-                    Start with groups collapsed
-                </label>
-            </div>
+
+        <div class="row">
+          <div class="col-md-6 mb-3">
+            <label class="form-label fw-bold">Secondary Grouping Field</label>
+            <select class="form-select" id="configgroup2">
+              <option value="">-- None --</option>
+              ${columns
+                .map(
+                  (c) =>
+                    `<option value="${c.fieldname}" ${
+                      config.group_by?.[1] === c.fieldname ? "selected" : ""
+                    }>${c.label || c.fieldname}</option>`
+                )
+                .join("")}
+            </select>
+          </div>
+          <div class="col-md-3 mb-3">
+            <label class="form-label fw-bold">Sort Records By</label>
+            <select class="form-select" id="configsortby">
+              <option value="">-- None --</option>
+              ${columns
+                .map(
+                  (c) =>
+                    `<option value="${c.fieldname}" ${
+                      config.sort_by === c.fieldname ? "selected" : ""
+                    }>${c.label || c.fieldname}</option>`
+                )
+                .join("")}
+            </select>
+          </div>
+          <div class="col-md-3 mb-3">
+            <label class="form-label fw-bold">Sort Order</label>
+            <select class="form-select" id="configsortorder">
+              <option value="asc" ${config.sort_order === "asc" ? "selected" : ""}>Ascending</option>
+              <option value="desc" ${config.sort_order === "desc" ? "selected" : ""}>Descending</option>
+            </select>
+          </div>
         </div>
+
+        <div class="form-check mb-2">
+          <input class="form-check-input" type="checkbox" id="configcollapsed" ${config.collapsed !== false ? "checked" : ""}>
+          <label class="form-check-label" for="configcollapsed">
+            Start with groups collapsed
+          </label>
+        </div>
+      </div>
     </div>
 
     <!-- CARD FIELDS -->
     <div class="card mb-3">
-        <div class="card-header bg-info text-white">
-            <h6 class="mb-0">Card Display Fields (select up to 5)</h6>
+      <div class="card-header bg-info text-white">
+        <h6 class="mb-0">Card Display Fields (select up to 5)</h6>
+      </div>
+      <div class="card-body">
+        <div class="row">
+          ${columns
+            .map(
+              (c) => `
+              <div class="col-md-3 col-sm-4 col-6 mb-2">
+                <div class="form-check">
+                  <input class="form-check-input card-field-check" type="checkbox" value="${c.fieldname}" id="card-${c.fieldname}" ${
+                config.card_fields?.includes(c.fieldname) ? "checked" : ""
+              }>
+                  <label class="form-check-label small" for="card-${c.fieldname}">
+                    ${c.label || c.fieldname}
+                  </label>
+                </div>
+              </div>
+            `
+            )
+            .join("")}
         </div>
-        <div class="card-body">
-            <div class="row">
-                ${columns.map(c => `
-                    <div class="col-md-3 col-sm-4 col-6 mb-2">
-                        <div class="form-check">
-                            <input class="form-check-input card-field-check" type="checkbox" value="${c.fieldname}" id="card-${c.fieldname}" ${config.cardfields?.includes(c.fieldname) ? 'checked' : ''}>
-                            <label class="form-check-label small" for="card-${c.fieldname}">
-                                ${c.label || c.fieldname}
-                            </label>
-                        </div>
-                    </div>
-                `).join('')}
-            </div>
-        </div>
+      </div>
     </div>
 
     <!-- IMAGE FIELDS -->
     <div class="card mb-3">
-        <div class="card-header bg-secondary text-white">
-            <h6 class="mb-0">Image Fields (description fields)</h6>
+      <div class="card-header bg-secondary text-white">
+        <h6 class="mb-0">Image Fields (description fields)</h6>
+      </div>
+      <div class="card-body">
+        <div class="row">
+          ${columns
+            .filter((c) => c.fieldname.toLowerCase().includes("description"))
+            .map(
+              (c) => `
+              <div class="col-md-3 col-sm-4 col-6 mb-2">
+                <div class="form-check">
+                  <input class="form-check-input image-field-check" type="checkbox" value="${c.fieldname}" id="img-${c.fieldname}" ${
+                config.image_fields?.includes(c.fieldname) ? "checked" : ""
+              }>
+                  <label class="form-check-label small" for="img-${c.fieldname}">
+                    ${c.label || c.fieldname}
+                  </label>
+                </div>
+              </div>
+            `
+            )
+            .join("")}
         </div>
-        <div class="card-body">
-            <div class="row">
-                ${columns.filter(c => c.fieldname.toLowerCase().includes('description')).map(c => `
-                    <div class="col-md-3 col-sm-4 col-6 mb-2">
-                        <div class="form-check">
-                            <input class="form-check-input image-field-check" type="checkbox" value="${c.fieldname}" id="img-${c.fieldname}" ${config.imagefields?.includes(c.fieldname) ? 'checked' : ''}>
-                            <label class="form-check-label small" for="img-${c.fieldname}">
-                                ${c.label || c.fieldname}
-                            </label>
-                        </div>
-                    </div>
-                `).join('')}
-            </div>
-        </div>
+      </div>
     </div>
 
     <!-- FIELD SORTING ORDER -->
     <div class="card mb-3">
-        <div class="card-header bg-success text-white">
-            <h6 class="mb-0">Field Display Order (drag to reorder)</h6>
+      <div class="card-header bg-success text-white">
+        <h6 class="mb-0">Field Display Order (drag to reorder)</h6>
+      </div>
+      <div class="card-body" style="max-height: 400px; overflow-y: auto;">
+        <div class="row">
+          <div class="col-12">
+            <ul class="list-group" id="fieldOrderList">
+              ${columns
+                .map(
+                  (col) => `
+                  <li class="list-group-item draggable-field d-flex align-items-center" draggable="true" data-fieldname="${col.fieldname}">
+                    <span class="drag-handle me-2">☰</span>
+                    <span>${col.label || col.fieldname}</span>
+                  </li>
+                `
+                )
+                .join("")}
+            </ul>
+          </div>
         </div>
-        <div class="card-body" style="max-height: 400px; overflow-y: auto;">
-            <div class="row">
-                <div class="col-12">
-                    <ul class="list-group" id="fieldOrderList">
-                        ${columns.map(col => `
-                            <li class="list-group-item draggable-field d-flex align-items-center" draggable="true" data-fieldname="${col.fieldname}">
-                                <span class="drag-handle me-2">☰</span>
-                                <span>${col.label || col.fieldname}</span>
-                            </li>
-                        `).join('')}
-                    </ul>
-                </div>
-            </div>
-        </div>
+      </div>
     </div>
 
     <!-- GROUP SORTING -->
-    ${group1Field ? `
-    <div class="card mb-3">
+    ${
+      group1Field
+        ? `
+      <div class="card mb-3">
         <div class="card-header bg-warning">
-            <h6 class="mb-0">Primary Group Sort Order (drag to reorder)</h6>
+          <h6 class="mb-0">Primary Group Sort Order (drag to reorder)</h6>
         </div>
         <div class="card-body">
-            <ul class="list-group" id="group1SortList">
-                ${group1Values.map(v => `
-                    <li class="list-group-item draggable-group d-flex align-items-center" draggable="true" data-value="${v}">
-                        <span class="drag-handle me-2">☰</span>
-                        <span>${v}</span>
-                    </li>
-                `).join('')}
-            </ul>
+          <ul class="list-group" id="group1SortList">
+            ${group1Values
+              .map(
+                (v) => `
+                <li class="list-group-item draggable-group d-flex align-items-center" draggable="true" data-value="${v}">
+                  <span class="drag-handle me-2">☰</span>
+                  <span>${v}</span>
+                </li>
+              `
+              )
+              .join("")}
+          </ul>
         </div>
-    </div>
-    ` : ''}
+      </div>
+    `
+        : ""
+    }
 
-    ${group2Field ? `
-    <div class="card mb-3">
+    ${
+      group2Field
+        ? `
+      <div class="card mb-3">
         <div class="card-header bg-warning">
-            <h6 class="mb-0">Secondary Group Sort Order (drag to reorder)</h6>
+          <h6 class="mb-0">Secondary Group Sort Order (drag to reorder)</h6>
         </div>
         <div class="card-body">
-            <ul class="list-group" id="group2SortList">
-                ${group2Values.map(v => `
-                    <li class="list-group-item draggable-group d-flex align-items-center" draggable="true" data-value="${v}">
-                        <span class="drag-handle me-2">☰</span>
-                        <span>${v}</span>
-                    </li>
-                `).join('')}
-            </ul>
+          <ul class="list-group" id="group2SortList">
+            ${group2Values
+              .map(
+                (v) => `
+                <li class="list-group-item draggable-group d-flex align-items-center" draggable="true" data-value="${v}">
+                  <span class="drag-handle me-2">☰</span>
+                  <span>${v}</span>
+                </li>
+              `
+              )
+              .join("")}
+          </ul>
         </div>
-    </div>
-    ` : ''}
+      </div>
+    `
+        : ""
+    }
 
     <!-- TIME LOGS SETTINGS -->
     <div class="card mb-3">
-        <div class="card-header bg-primary text-white">
-            <h6 class="mb-0">Time Logs Settings</h6>
+      <div class="card-header bg-primary text-white">
+        <h6 class="mb-0">Time Logs Settings</h6>
+      </div>
+      <div class="card-body">
+        <div class="form-check mb-3">
+          <input class="form-check-input" type="checkbox" id="configShowTimeLogs" ${config.show_time_logs_button ? "checked" : ""}>
+          <label class="form-check-label fw-bold" for="configShowTimeLogs">
+            Show Time Logs Button
+          </label>
         </div>
-        <div class="card-body">
-            <div class="form-check mb-3">
-                <input class="form-check-input" type="checkbox" id="configShowTimeLogs" ${config.showtimelogsbutton ? 'checked' : ''}>
-                <label class="form-check-label fw-bold" for="configShowTimeLogs">
-                    Show Time Logs Button
-                </label>
-            </div>
-            
-            <div id="timeLogsPermissionsSection" style="display: ${config.showtimelogsbutton ? 'block' : 'none'}">
-                <label class="form-label fw-bold">User Permissions for Time Logs</label>
-                <div class="table-responsive">
-                    <table class="table table-sm table-bordered">
-                        <thead class="table-light">
-                            <tr>
-                                <th style="min-width: 180px;">User</th>
-                                <th class="text-center" style="width: 80px;">View</th>
-                                <th class="text-center" style="width: 80px;">Add</th>
-                                <th class="text-center" style="width: 80px;">Edit</th>
-                                <th class="text-center" style="width: 80px;">Delete</th>
-                                <th class="text-center" style="width: 120px;">Edit WS</th>
-                                <th class="text-center" style="width: 120px;">Edit Time</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${users.users.map(user => {
-                                const perms = config.timelogspermissions?.[user.email] || { canview: false, canadd: false, canedit: false, candelete: false, caneditworkstation: false, canedittimerequired: false };
-                                return `
-                                    <tr>
-                                        <td>${user.email}</td>
-                                        <td class="text-center"><input type="checkbox" class="time-log-perm" data-user="${user.email}" data-perm="canview" ${perms.canview ? 'checked' : ''}></td>
-                                        <td class="text-center"><input type="checkbox" class="time-log-perm" data-user="${user.email}" data-perm="canadd" ${perms.canadd ? 'checked' : ''}></td>
-                                        <td class="text-center"><input type="checkbox" class="time-log-perm" data-user="${user.email}" data-perm="canedit" ${perms.canedit ? 'checked' : ''}></td>
-                                        <td class="text-center"><input type="checkbox" class="time-log-perm" data-user="${user.email}" data-perm="candelete" ${perms.candelete ? 'checked' : ''}></td>
-                                        <td class="text-center"><input type="checkbox" class="time-log-perm" data-user="${user.email}" data-perm="caneditworkstation" ${perms.caneditworkstation ? 'checked' : ''}></td>
-                                        <td class="text-center"><input type="checkbox" class="time-log-perm" data-user="${user.email}" data-perm="canedittimerequired" ${perms.canedittimerequired ? 'checked' : ''}></td>
-                                    </tr>
-                                `;
-                            }).join('')}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
+
+        <div id="timeLogsPermissionsSection" style="display: ${config.show_time_logs_button ? "block" : "none"}">
+          <label class="form-label fw-bold">User Permissions for Time Logs</label>
+          <div class="table-responsive">
+            <table class="table table-sm table-bordered">
+              <thead class="table-light">
+                <tr>
+                  <th style="min-width: 180px;">User</th>
+                  <th class="text-center" style="width: 80px;">View</th>
+                  <th class="text-center" style="width: 80px;">Add</th>
+                  <th class="text-center" style="width: 80px;">Edit</th>
+                  <th class="text-center" style="width: 80px;">Delete</th>
+                  <th class="text-center" style="width: 120px;">Edit WS</th>
+                  <th class="text-center" style="width: 120px;">Edit Time</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${users.users
+                  .map((user) => {
+                    const perms = config.time_logs_permissions?.[user.email] || {
+                      can_view: false,
+                      can_add: false,
+                      can_edit: false,
+                      can_delete: false,
+                      can_edit_workstation: false,
+                      can_edit_time_required: false
+                    };
+
+                    // Backward support: allow old canview/canadd/canedit... in existing config
+                    const merged = {
+                      can_view: perms.can_view ?? perms.canview ?? false,
+                      can_add: perms.can_add ?? perms.canadd ?? false,
+                      can_edit: perms.can_edit ?? perms.canedit ?? false,
+                      can_delete: perms.can_delete ?? perms.candelete ?? false,
+                      can_edit_workstation: perms.can_edit_workstation ?? perms.caneditworkstation ?? false,
+                      can_edit_time_required: perms.can_edit_time_required ?? perms.canedittimerequired ?? false
+                    };
+
+                    return `
+                      <tr>
+                        <td>${user.email}</td>
+                        <td class="text-center"><input type="checkbox" class="time-log-perm" data-user="${user.email}" data-perm="can_view" ${merged.can_view ? "checked" : ""}></td>
+                        <td class="text-center"><input type="checkbox" class="time-log-perm" data-user="${user.email}" data-perm="can_add" ${merged.can_add ? "checked" : ""}></td>
+                        <td class="text-center"><input type="checkbox" class="time-log-perm" data-user="${user.email}" data-perm="can_edit" ${merged.can_edit ? "checked" : ""}></td>
+                        <td class="text-center"><input type="checkbox" class="time-log-perm" data-user="${user.email}" data-perm="can_delete" ${merged.can_delete ? "checked" : ""}></td>
+                        <td class="text-center"><input type="checkbox" class="time-log-perm" data-user="${user.email}" data-perm="can_edit_workstation" ${merged.can_edit_workstation ? "checked" : ""}></td>
+                        <td class="text-center"><input type="checkbox" class="time-log-perm" data-user="${user.email}" data-perm="can_edit_time_required" ${merged.can_edit_time_required ? "checked" : ""}></td>
+                      </tr>
+                    `;
+                  })
+                  .join("")}
+              </tbody>
+            </table>
+          </div>
         </div>
+      </div>
     </div>
 
     <!-- OPERATION PLANNING SETTINGS -->
     <div class="card mb-3">
-        <div class="card-header bg-success text-white">
-            <h6 class="mb-0">Operation Planning Settings</h6>
+      <div class="card-header bg-success text-white">
+        <h6 class="mb-0">Operation Planning Settings</h6>
+      </div>
+      <div class="card-body">
+        <div class="form-check mb-3">
+          <input class="form-check-input" type="checkbox" id="configShowOperationPlanning" ${
+            config.show_operation_planning_button !== false ? "checked" : ""
+          }>
+          <label class="form-check-label fw-bold" for="configShowOperationPlanning">
+            Show Operation Planning Button
+          </label>
         </div>
-        <div class="card-body">
-            <div class="form-check mb-3">
-                <input class="form-check-input" type="checkbox" id="configShowOperationPlanning" ${config.showoperationplanningbutton !== false ? 'checked' : ''}>
-                <label class="form-check-label fw-bold" for="configShowOperationPlanning">
-                    Show Operation Planning Button
-                </label>
-            </div>
-            
-            <div id="operationPlanningPermissionsSection" style="display: ${config.showoperationplanningbutton !== false ? 'block' : 'none'}">
-                <label class="form-label fw-bold">User Permissions for Operation Planning</label>
-                <div class="table-responsive">
-                    <table class="table table-sm table-bordered">
-                        <thead class="table-light">
-                            <tr>
-                                <th style="min-width: 180px;">User</th>
-                                <th class="text-center" style="width: 100px;">View</th>
-                                <th class="text-center" style="width: 100px;">Add</th>
-                                <th class="text-center" style="width: 100px;">Edit</th>
-                                <th class="text-center" style="width: 100px;">Delete</th>
-                                <th class="text-center" style="width: 100px;">Reorder</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${users.users.map(user => {
-                                const perms = config.operationplanningpermissions?.[user.email] || { canview: false, canadd: false, canedit: false, candelete: false, canreorder: false };
-                                return `
-                                    <tr>
-                                        <td>${user.email}</td>
-                                        <td class="text-center"><input type="checkbox" class="op-planning-perm" data-user="${user.email}" data-perm="canview" ${perms.canview ? 'checked' : ''}></td>
-                                        <td class="text-center"><input type="checkbox" class="op-planning-perm" data-user="${user.email}" data-perm="canadd" ${perms.canadd ? 'checked' : ''}></td>
-                                        <td class="text-center"><input type="checkbox" class="op-planning-perm" data-user="${user.email}" data-perm="canedit" ${perms.canedit ? 'checked' : ''}></td>
-                                        <td class="text-center"><input type="checkbox" class="op-planning-perm" data-user="${user.email}" data-perm="candelete" ${perms.candelete ? 'checked' : ''}></td>
-                                        <td class="text-center"><input type="checkbox" class="op-planning-perm" data-user="${user.email}" data-perm="canreorder" ${perms.canreorder ? 'checked' : ''}></td>
-                                    </tr>
-                                `;
-                            }).join('')}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
+
+        <div id="operationPlanningPermissionsSection" style="display: ${
+          config.show_operation_planning_button !== false ? "block" : "none"
+        }">
+          <label class="form-label fw-bold">User Permissions for Operation Planning</label>
+          <div class="table-responsive">
+            <table class="table table-sm table-bordered">
+              <thead class="table-light">
+                <tr>
+                  <th style="min-width: 180px;">User</th>
+                  <th class="text-center" style="width: 100px;">View</th>
+                  <th class="text-center" style="width: 100px;">Add</th>
+                  <th class="text-center" style="width: 100px;">Edit</th>
+                  <th class="text-center" style="width: 100px;">Delete</th>
+                  <th class="text-center" style="width: 100px;">Reorder</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${users.users
+                  .map((user) => {
+                    const perms = config.operation_planning_permissions?.[user.email] || {
+                      can_view: false,
+                      can_add: false,
+                      can_edit: false,
+                      can_delete: false,
+                      can_reorder: false
+                    };
+
+                    const merged = {
+                      can_view: perms.can_view ?? perms.canview ?? false,
+                      can_add: perms.can_add ?? perms.canadd ?? false,
+                      can_edit: perms.can_edit ?? perms.canedit ?? false,
+                      can_delete: perms.can_delete ?? perms.candelete ?? false,
+                      can_reorder: perms.can_reorder ?? perms.canreorder ?? false
+                    };
+
+                    return `
+                      <tr>
+                        <td>${user.email}</td>
+                        <td class="text-center"><input type="checkbox" class="op-planning-perm" data-user="${user.email}" data-perm="can_view" ${merged.can_view ? "checked" : ""}></td>
+                        <td class="text-center"><input type="checkbox" class="op-planning-perm" data-user="${user.email}" data-perm="can_add" ${merged.can_add ? "checked" : ""}></td>
+                        <td class="text-center"><input type="checkbox" class="op-planning-perm" data-user="${user.email}" data-perm="can_edit" ${merged.can_edit ? "checked" : ""}></td>
+                        <td class="text-center"><input type="checkbox" class="op-planning-perm" data-user="${user.email}" data-perm="can_delete" ${merged.can_delete ? "checked" : ""}></td>
+                        <td class="text-center"><input type="checkbox" class="op-planning-perm" data-user="${user.email}" data-perm="can_reorder" ${merged.can_reorder ? "checked" : ""}></td>
+                      </tr>
+                    `;
+                  })
+                  .join("")}
+              </tbody>
+            </table>
+          </div>
         </div>
+      </div>
     </div>
-`;
+  `;
 
-    
-    document.getElementById('globalConfigContent').innerHTML = contentHtml;
-    
-    setupDragDrop('fieldOrderList');
-    setupDragDrop('group1SortList');
-    setupDragDrop('group2SortList');
-    
-    // Add event listener for show time logs checkbox
-    document.getElementById('configShowTimeLogs').addEventListener('change', (e) => {
-        document.getElementById('timeLogsPermissionsSection').style.display = 
-            e.target.checked ? 'block' : 'none';
-    });
-    
-    // Add event listener for show operation planning checkbox
-    document.getElementById('configShowOperationPlanning').addEventListener('change', (e) => {
-        document.getElementById('operationPlanningPermissionsSection').style.display = 
-            e.target.checked ? 'block' : 'none';
-    });
+  document.getElementById("globalConfigContent").innerHTML = contentHtml;
 
+  setupDragDrop("fieldOrderList");
+  setupDragDrop("group1SortList");
+  setupDragDrop("group2SortList");
 
+  // Toggle Time Logs permissions section
+  document.getElementById("configShowTimeLogs").addEventListener("change", (e) => {
+    document.getElementById("timeLogsPermissionsSection").style.display = e.target.checked ? "block" : "none";
+  });
 
-    
-document.getElementById('saveGlobalConfigBtn').onclick = () => {
-    // Validate mandatory fields ...
-    const doctype   = document.getElementById('configdoctype')?.value.trim();
-    const titlefield = document.getElementById('configtitlefield')?.value;
-    const group1    = document.getElementById('configgroup1')?.value;
-    const group2    = document.getElementById('configgroup2')?.value;
+  // Toggle Operation Planning permissions section
+  document.getElementById("configShowOperationPlanning").addEventListener("change", (e) => {
+    document.getElementById("operationPlanningPermissionsSection").style.display = e.target.checked ? "block" : "none";
+  });
+
+  document.getElementById("saveGlobalConfigBtn").onclick = () => {
+    const doctype = document.getElementById("configdoctype")?.value.trim();
+    const titleField = document.getElementById("configtitlefield")?.value;
+    const group1 = document.getElementById("configgroup1")?.value;
+    const group2 = document.getElementById("configgroup2")?.value;
 
     if (!reportConfig[reportName]) reportConfig[reportName] = {};
 
     // Basic settings
-    reportConfig[reportName].doctype   = doctype;
-    reportConfig[reportName].titlefield = titlefield;
+    reportConfig[reportName].doctype = doctype;
+    reportConfig[reportName].title_field = titleField;
 
     // Card fields
-    const cardFieldChecks = document.querySelectorAll('.card-field-check:checked');
-    reportConfig[reportName].cardfields = Array.from(cardFieldChecks).map(cb => cb.value);
+    const cardFieldChecks = document.querySelectorAll(".card-field-check:checked");
+    reportConfig[reportName].card_fields = Array.from(cardFieldChecks).map((cb) => cb.value);
 
     // Image fields
-    const imageFieldChecks = document.querySelectorAll('.image-field-check:checked');
-    reportConfig[reportName].imagefields = Array.from(imageFieldChecks).map(cb => cb.value);
+    const imageFieldChecks = document.querySelectorAll(".image-field-check:checked");
+    reportConfig[reportName].image_fields = Array.from(imageFieldChecks).map((cb) => cb.value);
 
     // Grouping
-    const groupby = [group1, group2].filter(g => g && g !== '-- None --');
-    reportConfig[reportName].groupby = groupby;
+    reportConfig[reportName].group_by = [group1, group2].filter((g) => g && g !== "-- None --");
 
     // Sorting
-    reportConfig[reportName].sortby    = document.getElementById('configsortby')?.value || '';
-    reportConfig[reportName].sortorder = document.getElementById('configsortorder')?.value || 'asc';
-    reportConfig[reportName].collapsed = document.getElementById('configcollapsed')?.checked ?? false;
+    reportConfig[reportName].sort_by = document.getElementById("configsortby")?.value || "";
+    reportConfig[reportName].sort_order = document.getElementById("configsortorder")?.value || "asc";
+    reportConfig[reportName].collapsed = document.getElementById("configcollapsed")?.checked ?? false;
 
     // Field order
-    const fieldOrder = Array.from(
-        document.querySelectorAll('#fieldOrderList .draggable-field')
-    ).map(li => li.dataset.fieldname);
-    reportConfig[reportName].fieldorder = fieldOrder;
+    reportConfig[reportName].field_order = Array.from(
+      document.querySelectorAll("#fieldOrderList .draggable-field")
+    ).map((li) => li.dataset.fieldname);
 
     // Group sort
-    reportConfig[reportName].groupsort = {};
-    const group1List = document.getElementById('group1SortList');
+    reportConfig[reportName].group_sort = {};
+    const group1List = document.getElementById("group1SortList");
     if (group1List && group1) {
-        const order1 = Array.from(group1List.querySelectorAll('.draggable-group'))
-            .map(li => li.dataset.value);
-        reportConfig[reportName].groupsort[group1] = order1;
+      reportConfig[reportName].group_sort[group1] = Array.from(group1List.querySelectorAll(".draggable-group")).map(
+        (li) => li.dataset.value
+      );
     }
-    const group2List = document.getElementById('group2SortList');
+    const group2List = document.getElementById("group2SortList");
     if (group2List && group2) {
-        const order2 = Array.from(group2List.querySelectorAll('.draggable-group'))
-            .map(li => li.dataset.value);
-        reportConfig[reportName].groupsort[group2] = order2;
+      reportConfig[reportName].group_sort[group2] = Array.from(group2List.querySelectorAll(".draggable-group")).map(
+        (li) => li.dataset.value
+      );
     }
 
     // Time Logs
-    reportConfig[reportName].showtimelogsbutton =
-        document.getElementById('configShowTimeLogs')?.checked || false;
-    if (reportConfig[reportName].showtimelogsbutton) {
-        const permissions = {};
-        document.querySelectorAll('.time-log-perm').forEach(checkbox => {
-            const user = checkbox.dataset.user;
-            const perm = checkbox.dataset.perm;
-            if (!permissions[user]) {
-                permissions[user] = {
-                    canview: false, canadd: false, canedit: false,
-                    candelete: false, caneditworkstation: false,
-                    canedittimerequired: false
-                };
-            }
-            permissions[user][perm] = checkbox.checked;
-        });
-        reportConfig[reportName].timelogspermissions = permissions;
+    reportConfig[reportName].show_time_logs_button = document.getElementById("configShowTimeLogs")?.checked || false;
+    if (reportConfig[reportName].show_time_logs_button) {
+      const permissions = {};
+      document.querySelectorAll(".time-log-perm").forEach((checkbox) => {
+        const user = checkbox.dataset.user;
+        const perm = checkbox.dataset.perm;
+
+        if (!permissions[user]) {
+          permissions[user] = {
+            can_view: false,
+            can_add: false,
+            can_edit: false,
+            can_delete: false,
+            can_edit_workstation: false,
+            can_edit_time_required: false
+          };
+        }
+        permissions[user][perm] = checkbox.checked;
+      });
+      reportConfig[reportName].time_logs_permissions = permissions;
     } else {
-        delete reportConfig[reportName].timelogspermissions;
+      delete reportConfig[reportName].time_logs_permissions;
     }
 
-    // Operation planning
-    reportConfig[reportName].showoperationplanningbutton =
-        document.getElementById('configShowOperationPlanning')?.checked || false;
-    if (reportConfig[reportName].showoperationplanningbutton) {
-        const opPerms = {};
-        document.querySelectorAll('.op-planning-perm').forEach(checkbox => {
-            const user = checkbox.dataset.user;
-            const perm = checkbox.dataset.perm;
-            if (!opPerms[user]) {
-                opPerms[user] = {
-                    canview: false, canadd: false, canedit: false,
-                    candelete: false, canreorder: false
-                };
-            }
-            opPerms[user][perm] = checkbox.checked;
-        });
-        reportConfig[reportName].operationplanningpermissions = opPerms;
+    // Operation Planning
+    reportConfig[reportName].show_operation_planning_button =
+      document.getElementById("configShowOperationPlanning")?.checked || false;
+
+    if (reportConfig[reportName].show_operation_planning_button) {
+      const opPerms = {};
+      document.querySelectorAll(".op-planning-perm").forEach((checkbox) => {
+        const user = checkbox.dataset.user;
+        const perm = checkbox.dataset.perm;
+
+        if (!opPerms[user]) {
+          opPerms[user] = {
+            can_view: false,
+            can_add: false,
+            can_edit: false,
+            can_delete: false,
+            can_reorder: false
+          };
+        }
+        opPerms[user][perm] = checkbox.checked;
+      });
+      reportConfig[reportName].operation_planning_permissions = opPerms;
     } else {
-        delete reportConfig[reportName].operationplanningpermissions;
+      delete reportConfig[reportName].operation_planning_permissions;
     }
 
-    alert('Configuration saved! Click Save Changes in main settings to persist.');
+    alert("Configuration saved! Click Save Changes in main settings to persist.");
     configModal.hide();
-};
+  };
 
+  // Blur any focused element to prevent aria-hidden focus conflict
+  if (document.activeElement && document.activeElement.blur) {
+    document.activeElement.blur();
+  }
 
-
-
-
-
-
-
-    // Blur any focused element to prevent aria-hidden focus conflict
-    if (document.activeElement && document.activeElement.blur) {
-        document.activeElement.blur();
-    }
-
-    // Show modal after a small delay to ensure focus is cleared
-    setTimeout(() => {
-        configModal.show();
-    }, 50);
+  // Show modal after a small delay to ensure focus is cleared
+  setTimeout(() => {
+    configModal.show();
+  }, 50);
 }
+
 
 
 
