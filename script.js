@@ -3646,79 +3646,70 @@ const contentHtml = `
 
     
 document.getElementById('saveGlobalConfigBtn').onclick = () => {
-    // Validate mandatory fields
-    const doctype = document.getElementById('configdoctype')?.value.trim();
+    // Validate mandatory fields ...
+    const doctype   = document.getElementById('configdoctype')?.value.trim();
     const titlefield = document.getElementById('configtitlefield')?.value;
-    const group1 = document.getElementById('configgroup1')?.value;
-    
-    if (!doctype) {
-        alert('⚠️ DocType is required!');
-        document.getElementById('configdoctype').focus();
-        return;
-    }
-    
-    if (!titlefield) {
-        alert('⚠️ Title Field is required!');
-        document.getElementById('configtitlefield').focus();
-        return;
-    }
-    
-    if (!group1) {
-        alert('⚠️ Primary Grouping Field is required!');
-        document.getElementById('configgroup1').focus();
-        return;
-    }
-    
-    // Initialize config if needed
+    const group1    = document.getElementById('configgroup1')?.value;
+    const group2    = document.getElementById('configgroup2')?.value;
+
     if (!reportConfig[reportName]) reportConfig[reportName] = {};
-    
-    // Save basic settings
-    const group2 = document.getElementById('configgroup2')?.value || '';
-    reportConfig[reportName].doctype = doctype;
+
+    // Basic settings
+    reportConfig[reportName].doctype   = doctype;
     reportConfig[reportName].titlefield = titlefield;
-    
-    // Save card fields
+
+    // Card fields
     const cardFieldChecks = document.querySelectorAll('.card-field-check:checked');
     reportConfig[reportName].cardfields = Array.from(cardFieldChecks).map(cb => cb.value);
-    
-    // Save image fields
+
+    // Image fields
     const imageFieldChecks = document.querySelectorAll('.image-field-check:checked');
     reportConfig[reportName].imagefields = Array.from(imageFieldChecks).map(cb => cb.value);
-    
-    // Save grouping
-    reportConfig[reportName].groupby = [group1, group2].filter(g => g);
-    
-    // Save sorting
-    reportConfig[reportName].sortby = document.getElementById('configsortby')?.value || '';
+
+    // Grouping
+    const groupby = [group1, group2].filter(g => g && g !== '-- None --');
+    reportConfig[reportName].groupby = groupby;
+
+    // Sorting
+    reportConfig[reportName].sortby    = document.getElementById('configsortby')?.value || '';
     reportConfig[reportName].sortorder = document.getElementById('configsortorder')?.value || 'asc';
-    reportConfig[reportName].collapsed = document.getElementById('configcollapsed')?.checked || false;
-    
-    // Save field order
-    const fieldOrder = [...document.querySelectorAll('#fieldOrderList .draggable-field')].map(li => li.dataset.fieldname);
+    reportConfig[reportName].collapsed = document.getElementById('configcollapsed')?.checked ?? false;
+
+    // Field order
+    const fieldOrder = Array.from(
+        document.querySelectorAll('#fieldOrderList .draggable-field')
+    ).map(li => li.dataset.fieldname);
     reportConfig[reportName].fieldorder = fieldOrder;
-    
-    // Save group sorting
+
+    // Group sort
     reportConfig[reportName].groupsort = {};
     const group1List = document.getElementById('group1SortList');
     if (group1List && group1) {
-        const group1Order = [...group1List.querySelectorAll('.draggable-group')].map(li => li.dataset.value);
-        reportConfig[reportName].groupsort[group1] = group1Order;
+        const order1 = Array.from(group1List.querySelectorAll('.draggable-group'))
+            .map(li => li.dataset.value);
+        reportConfig[reportName].groupsort[group1] = order1;
     }
     const group2List = document.getElementById('group2SortList');
     if (group2List && group2) {
-        const group2Order = [...group2List.querySelectorAll('.draggable-group')].map(li => li.dataset.value);
-        reportConfig[reportName].groupsort[group2] = group2Order;
+        const order2 = Array.from(group2List.querySelectorAll('.draggable-group'))
+            .map(li => li.dataset.value);
+        reportConfig[reportName].groupsort[group2] = order2;
     }
-    
-    // Save Time Logs configuration
-    reportConfig[reportName].showtimelogsbutton = document.getElementById('configShowTimeLogs')?.checked || false;
+
+    // Time Logs
+    reportConfig[reportName].showtimelogsbutton =
+        document.getElementById('configShowTimeLogs')?.checked || false;
     if (reportConfig[reportName].showtimelogsbutton) {
         const permissions = {};
         document.querySelectorAll('.time-log-perm').forEach(checkbox => {
             const user = checkbox.dataset.user;
             const perm = checkbox.dataset.perm;
             if (!permissions[user]) {
-                permissions[user] = { canview: false, canadd: false, canedit: false, candelete: false, caneditworkstation: false, canedittimerequired: false };
+                permissions[user] = {
+                    canview: false, canadd: false, canedit: false,
+                    candelete: false, caneditworkstation: false,
+                    canedittimerequired: false
+                };
             }
             permissions[user][perm] = checkbox.checked;
         });
@@ -3726,30 +3717,32 @@ document.getElementById('saveGlobalConfigBtn').onclick = () => {
     } else {
         delete reportConfig[reportName].timelogspermissions;
     }
-    
-    // Save Operation Planning configuration
-    reportConfig[reportName].showoperationplanningbutton = document.getElementById('configShowOperationPlanning')?.checked !== false;
+
+    // Operation planning
+    reportConfig[reportName].showoperationplanningbutton =
+        document.getElementById('configShowOperationPlanning')?.checked || false;
     if (reportConfig[reportName].showoperationplanningbutton) {
-        const opPlanningPermissions = {};
+        const opPerms = {};
         document.querySelectorAll('.op-planning-perm').forEach(checkbox => {
             const user = checkbox.dataset.user;
             const perm = checkbox.dataset.perm;
-            if (!opPlanningPermissions[user]) {
-                opPlanningPermissions[user] = { canview: false, canadd: false, canedit: false, candelete: false, canreorder: false };
+            if (!opPerms[user]) {
+                opPerms[user] = {
+                    canview: false, canadd: false, canedit: false,
+                    candelete: false, canreorder: false
+                };
             }
-            opPlanningPermissions[user][perm] = checkbox.checked;
+            opPerms[user][perm] = checkbox.checked;
         });
-        reportConfig[reportName].operationplanningpermissions = opPlanningPermissions;
+        reportConfig[reportName].operationplanningpermissions = opPerms;
     } else {
         delete reportConfig[reportName].operationplanningpermissions;
     }
-    
-    alert('✅ Configuration saved! Click "Save Changes" in main settings to persist.');
+
+    alert('Configuration saved! Click Save Changes in main settings to persist.');
     configModal.hide();
-    
-    // Blur any focused element to prevent aria-hidden focus conflict
-    if (document.activeElement) document.activeElement.blur();
 };
+
 
 
 
