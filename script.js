@@ -5288,7 +5288,14 @@ function renderOperationsTable(operations, permissions, work_order_id) {
       <tr data-operation-id="${op.name}" data-idx="${op.idx}" class="${row_class}">
         ${
           permissions.can_reorder
-            ? `<td class="text-center"><i class="bi bi-grip-vertical drag-handle" style="cursor: move;"></i></td>`
+            ? `<td class="text-center" style="vertical-align: middle; padding: 8px;">
+                 <div style="display: flex; flex-direction: column; align-items: center; gap: 2px;">
+                   <span class="drag-handle" style="cursor: move; font-size: 1rem; color: #6c757d;">
+                     <i class="bi bi-grip-vertical"></i>
+                   </span>
+                   <span style="font-size: 0.7rem; color: #6c757d; font-weight: 600;">#${op.idx}</span>
+                 </div>
+               </td>`
             : ""
         }
         <td>${op.operation || ""}</td>
@@ -5318,6 +5325,8 @@ function renderOperationsTable(operations, permissions, work_order_id) {
       </tr>
     `;
   });
+
+  
 
   table_html += `
         </tbody>
