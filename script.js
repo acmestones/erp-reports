@@ -3373,15 +3373,27 @@ async function openGlobalReportConfigModal(reportName) {
       <div class="card-body" style="max-height: 400px; overflow-y: auto;">
         <div class="row">
           <div class="col-12">
-                    <ul class="list-group" id="fieldOrderList">
+            <ul class="list-group" id="fieldOrderList">
               ${(() => {
+                // DEBUGGING: Log what we have
+                console.log("=== FIELD ORDER DEBUG ===");
+                console.log("Report Name:", reportName);
+                console.log("config.field_order:", config.field_order);
+                console.log("Is array?", Array.isArray(config.field_order));
+                console.log("Length:", config.field_order?.length);
+                console.log("Columns count:", columns.length);
+                console.log("First few columns:", columns.slice(0, 3).map(c => c.fieldname));
+                
                 // Get saved field order from config (using field_order with underscore)
                 const savedFieldOrder = config.field_order && Array.isArray(config.field_order) && config.field_order.length > 0 
                   ? config.field_order 
                   : [];
                 
+                console.log("Saved field order:", savedFieldOrder);
+                
                 // If we have saved order, use it to arrange fields
                 if (savedFieldOrder.length > 0) {
+                  console.log("Using SAVED order");
                   const orderedColumns = [];
                   const remainingColumns = [...columns];
                   
@@ -3397,33 +3409,38 @@ async function openGlobalReportConfigModal(reportName) {
                   // Then add any remaining fields (new fields not in saved order)
                   orderedColumns.push(...remainingColumns);
                   
+                  console.log("Ordered columns:", orderedColumns.map(c => c.fieldname));
+                  console.log("========================");
+                  
                   // Generate the HTML from ordered columns
                   return orderedColumns
                     .map(
-                      (col) => `
-                      <li class="list-group-item draggable-field d-flex align-items-center" draggable="true" data-fieldname="${col.fieldname}">
+                      (col) => \`
+                      <li class="list-group-item draggable-field d-flex align-items-center" draggable="true" data-fieldname="\${col.fieldname}">
                         <span class="drag-handle admin-drag-handle me-2"></span>
-                        <span>${col.label || col.fieldname}</span>
+                        <span>\${col.label || col.fieldname}</span>
                       </li>
-                    `
+                    \`
                     )
                     .join("");
                 } else {
+                  console.log("NO saved order - using DEFAULT column order");
+                  console.log("========================");
                   // No saved order, use default column order
                   return columns
                     .map(
-                      (col) => `
-                      <li class="list-group-item draggable-field d-flex align-items-center" draggable="true" data-fieldname="${col.fieldname}">
+                      (col) => \`
+                      <li class="list-group-item draggable-field d-flex align-items-center" draggable="true" data-fieldname="\${col.fieldname}">
                         <span class="drag-handle admin-drag-handle me-2"></span>
-                        <span>${col.label || col.fieldname}</span>
+                        <span>\${col.label || col.fieldname}</span>
                       </li>
-                    `
+                    \`
                     )
                     .join("");
                 }
               })()}
+            </ul>
 
-                    </ul>
 
           </div>
         </div>
