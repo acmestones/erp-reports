@@ -100,6 +100,11 @@ document.getElementById("userEmail").textContent = userEmail;
 
         
         reportConfig = await getReportConfig();
+
+        // Normalize: if backend returned an array or null, use an empty object
+if (!reportConfig || Array.isArray(reportConfig)) {
+    reportConfig = {};
+}
         
             if (currentUser.allowed_reports && currentUser.allowed_reports.length > 0) {
                 // Render report selector buttons for the user
