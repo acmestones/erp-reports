@@ -5285,19 +5285,18 @@ function renderOperationsTable(operations, permissions, work_order_id) {
     const row_class = is_completed ? "table-success" : "";
 
     table_html += `
-      <tr data-operation-id="${op.name}" data-idx="${op.idx}" class="${row_class}">
+      <tr data-operation-id="${op.name}" data-idx="${op.idx}" class="${row_class}" style="${permissions.can_reorder ? 'cursor: move;' : ''}">
         ${
           permissions.can_reorder
             ? `<td class="text-center" style="vertical-align: middle; padding: 8px;">
-                 <div style="display: flex; flex-direction: column; align-items: center; gap: 2px;">
-                   <span class="drag-handle" style="cursor: move; font-size: 1rem; color: #6c757d;">
-                     <i class="bi bi-grip-vertical"></i>
-                   </span>
-                   <span style="font-size: 0.7rem; color: #6c757d; font-weight: 600;">#${op.idx}</span>
+                 <div style="display: flex; flex-direction: column; align-items: center; gap: 4px;">
+                   <i class="bi bi-grip-vertical" style="font-size: 1.2rem; color: #6c757d; cursor: move;"></i>
+                   <small style="font-size: 0.7rem; color: #6c757d; font-weight: 600;">#${op.idx}</small>
                  </div>
                </td>`
             : ""
         }
+
         <td>${op.operation || ""}</td>
         <td>${op.workstation || ""}</td>
         <td>${op.time_in_mins || ""}</td>
