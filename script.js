@@ -5495,18 +5495,19 @@ function cancelNewOperation() {
 
 // -------------------- EDIT OPERATION --------------------
 async function editOperation(operation_name, work_order_id) {
-  console.log("Editing operation:", operation_name, "for WO:", work_order_id);
-
+  console.log('Editing operation:', operation_name, 'for WO:', work_order_id);
+  
   const row = document.querySelector(`tr[data-operation-id="${operation_name}"]`);
   if (!row) {
-    alert("Operation row not found");
+    alert('Operation row not found');
     return;
   }
 
-  const cells = row.querySelectorAll("td");
-
+  const cells = row.querySelectorAll('td');
+  
   // Determine cell indices based on whether reorder column exists
-  const has_reorder_col = cells[0].querySelector(".drag-handle") !== null;
+  const has_reorder_col = cells[0].querySelector('.drag-handle') !== null || 
+                          cells[0].querySelector('.bi-grip-vertical') !== null;
   const offset = has_reorder_col ? 1 : 0;
 
   const current_operation = cells[offset].textContent.trim();
@@ -5521,43 +5522,44 @@ async function editOperation(operation_name, work_order_id) {
   const plant_options = await getPlantOptions();
 
   // Operation dropdown
-  let operation_select = `<select class="form-select form-select-sm" id="edit_operation">`;
+  let operation_select = `<select class="form-select form-select-sm" id="editOperation">`;
   operation_options.forEach((opt) => {
-    const selected = opt === current_operation ? "selected" : "";
+    const selected = opt === current_operation ? 'selected' : '';
     operation_select += `<option value="${opt}" ${selected}>${opt}</option>`;
   });
   operation_select += `</select>`;
 
   // Workstation dropdown
-  let workstation_select = `<select class="form-select form-select-sm" id="edit_workstation">`;
+  let workstation_select = `<select class="form-select form-select-sm" id="editWorkstation">`;
   workstation_options.forEach((opt) => {
-    const selected = opt === current_workstation ? "selected" : "";
+    const selected = opt === current_workstation ? 'selected' : '';
     workstation_select += `<option value="${opt}" ${selected}>${opt}</option>`;
   });
   workstation_select += `</select>`;
 
-  // Plant dropdown (or fallback)
+  // Plant dropdown or fallback
   let plant_input;
   if (plant_options.length > 0) {
-    plant_input = `<select class="form-select form-select-sm" id="edit_plant">
+    plant_input = `<select class="form-select form-select-sm" id="editPlant">
       <option value="">-- Select Plant Floor --</option>`;
     plant_options.forEach((opt) => {
-      const selected = opt === current_plant ? "selected" : "";
+      const selected = opt === current_plant ? 'selected' : '';
       plant_input += `<option value="${opt}" ${selected}>${opt}</option>`;
     });
     plant_input += `</select>`;
   } else {
-    plant_input = `<input type="text" class="form-control form-control-sm" id="edit_plant"
-                    value="${current_plant}" placeholder="Enter plant floor">`;
+    plant_input = `<input type="text" class="form-control form-control-sm" id="editPlant" value="${current_plant}" placeholder="Enter plant floor">`;
   }
 
-  // Replace editable cells with inputs
+  // ✅ KEY FIX: Keep the Order column (cells[0]) untouched!
+  // Only replace editable cells
   cells[offset].innerHTML = operation_select;
   cells[offset + 1].innerHTML = workstation_select;
-  cells[offset + 2].innerHTML = `<input type="number" class="form-control form-control-sm" id="edit_time_in_mins" value="${current_time}">`;
+  cells[offset + 2].innerHTML = `<input type="number" class="form-control form-control-sm" id="editTimeInMins" value="${current_time}">`;
   cells[offset + 3].innerHTML = plant_input;
-
-  // Replace action buttons (actions cell index: offset + 6 remains correct)
+  // Qty columns (offset + 4, offset + 5) remain unchanged
+  
+  // Replace action buttons (actions cell index = offset + 6)
   cells[offset + 6].innerHTML = `
     <button class="btn btn-sm btn-success me-1" onclick="saveEditOperation('${operation_name}', '${work_order_id}')">
       <i class="bi bi-check"></i> Save
@@ -5567,6 +5569,7 @@ async function editOperation(operation_name, work_order_id) {
     </button>
   `;
 }
+
 
 // -------------------- SAVE EDIT --------------------
 async function saveEditOperation(operation_name, work_order_id) {
