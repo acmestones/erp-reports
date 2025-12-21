@@ -3728,524 +3728,493 @@ async function openGlobalReportConfigModal(reportName) {
 
 
 function setupDragDrop(listId) {
-    const list = document.getElementById(listId);
-    if (!list) return;
-    
-    let draggedItem = null;
-    
-    list.addEventListener('dragstart', (e) => {
-        if (e.target.classList.contains('draggable-field') || e.target.classList.contains('draggable-group')) {
-            draggedItem = e.target;
-            e.target.style.opacity = '0.5';
-        }
-    });
-    
-    list.addEventListener('dragend', (e) => {
-        e.target.style.opacity = '';
-    });
-    
-    list.addEventListener('dragover', (e) => {
-        e.preventDefault();
-    });
-    
-    list.addEventListener('drop', (e) => {
-        e.preventDefault();
-        if ((e.target.classList.contains('draggable-field') || e.target.classList.contains('draggable-group')) && draggedItem) {
-            const allItems = [...list.querySelectorAll('.draggable-field, .draggable-group')];
-            const draggedIdx = allItems.indexOf(draggedItem);
-            const targetIdx = allItems.indexOf(e.target);
-            
-            if (draggedIdx < targetIdx) {
-                e.target.after(draggedItem);
-            } else {
-                e.target.before(draggedItem);
-            }
-        }
-    });
+  const list = document.getElementById(listId);
+  if (!list) return;
+
+  let draggedItem = null;
+
+  list.addEventListener("dragstart", (e) => {
+    if (
+      e.target.classList.contains("draggable-field") ||
+      e.target.classList.contains("draggable-group")
+    ) {
+      draggedItem = e.target;
+      e.target.style.opacity = "0.5";
+    }
+  });
+
+  list.addEventListener("dragend", (e) => {
+    e.target.style.opacity = "";
+  });
+
+  list.addEventListener("dragover", (e) => {
+    e.preventDefault();
+  });
+
+  list.addEventListener("drop", (e) => {
+    e.preventDefault();
+    if (
+      (e.target.classList.contains("draggable-field") ||
+        e.target.classList.contains("draggable-group")) &&
+      draggedItem
+    ) {
+      const allItems = [...list.querySelectorAll(".draggable-field, .draggable-group")];
+      const draggedIdx = allItems.indexOf(draggedItem);
+      const targetIdx = allItems.indexOf(e.target);
+
+      if (draggedIdx < targetIdx) {
+        e.target.after(draggedItem);
+      } else {
+        e.target.before(draggedItem);
+      }
+    }
+  });
 }
 
 async function saveUserSettings() {
-    const users = await getUsers(); 
-    const updatedUsers = [];
-    
-    // Collect all user cards currently visible
-    const userCards = document.querySelectorAll('#usersList .card:not(.border-success)'); // exclude new unsaved cards if needed
-    userCards.forEach(cardEl => {
-        const cardBody = cardEl.querySelector('.card-body');
-        if (!cardBody) return;
-        const emailEl = cardBody.querySelector('h6'); // or input for new users
-        if (!emailEl) return;
-        const email = emailEl.textContent.trim();
+  const users = await getUsers();
+  const updatedUsers = [];
 
-        const idxElement = cardBody.querySelector('[data-idx]');
-        const idx = idxElement ? idxElement.dataset.idx : null;
-
-        const roleSelect = cardBody.querySelector(`.user-role[data-idx="${idx}"]`);
-        const editCheck = cardBody.querySelector(`.user-edit[data-idx="${idx}"]`);
-        const reportChecks = cardBody.querySelectorAll(`.user-report-check[data-idx="${idx}"]:checked`);
-        const allowedReports = Array.from(reportChecks).map(cb => cb.value);
-
-        updatedUsers.push({
-            email,
-            role: roleSelect ? roleSelect.value : "user",
-            can_edit: editCheck ? editCheck.checked : false,
-            allowed_reports: allowedReports
-        });
-    });
-
-    // Also add new user cards (border-success class)
-    const newUserCards = document.querySelectorAll('#usersList .card.border-success');
-newUserCards.forEach(cardEl => {
-    const cardBody = cardEl.querySelector('.card-body');
+  // Collect all user cards currently visible
+  const userCards = document.querySelectorAll("#usersList .card:not(.border-success)");
+  userCards.forEach((cardEl) => {
+    const cardBody = cardEl.querySelector(".card-body");
     if (!cardBody) return;
 
-    const emailInput = cardBody.querySelector('.new-user-email');
+    const emailEl = cardBody.querySelector("h6");
+    if (!emailEl) return;
+
+    const email = emailEl.textContent.trim().split(/\s+/)[0];
+
+    const idxElement = cardBody.querySelector("[data-idx]");
+    const idx = idxElement ? idxElement.dataset.idx : null;
+
+    const roleSelect = cardBody.querySelector(`.user-role[data-idx="${idx}"]`);
+    const editCheck = cardBody.querySelector(`.user-edit[data-idx="${idx}"]`);
+    const reportChecks = cardBody.querySelectorAll(`.user-report-check[data-idx="${idx}"]:checked`);
+    const allowedReports = Array.from(reportChecks).map((cb) => cb.value);
+
+    updatedUsers.push({
+      email,
+      role: roleSelect ? roleSelect.value : "user",
+      can_edit: editCheck ? editCheck.checked : false,
+      allowed_reports: allowedReports
+    });
+  });
+
+  // Also add new user cards (border-success class)
+  const newUserCards = document.querySelectorAll("#usersList .card.border-success");
+  newUserCards.forEach((cardEl) => {
+    const cardBody = cardEl.querySelector(".card-body");
+    if (!cardBody) return;
+
+    const emailInput = cardBody.querySelector(".new-user-email");
     if (!emailInput) return;
 
     const email = emailInput.value.trim();
     if (!email) {
-        alert("Please provide a valid email for all new users before saving.");
-        emailInput.focus();
-        throw new Error("User email is required");
+      alert("Please provide a valid email for all new users before saving.");
+      emailInput.focus();
+      throw new Error("User email is required");
     }
 
-    const roleSelect = cardBody.querySelector('.user-role');
-    const editCheck = cardBody.querySelector('.user-edit');
-    const reportChecks = cardBody.querySelectorAll('.user-report-check:checked');
-    const allowedReports = Array.from(reportChecks).map(cb => cb.value);
+    const roleSelect = cardBody.querySelector(".user-role");
+    const editCheck = cardBody.querySelector(".user-edit");
+    const reportChecks = cardBody.querySelectorAll(".user-report-check:checked");
+    const allowedReports = Array.from(reportChecks).map((cb) => cb.value);
 
     updatedUsers.push({
-        email,
-        role: roleSelect ? roleSelect.value : "user",
-        can_edit: editCheck ? editCheck.checked : false,
-        allowed_reports: allowedReports
+      email,
+      role: roleSelect ? roleSelect.value : "user",
+      can_edit: editCheck ? editCheck.checked : false,
+      allowed_reports: allowedReports
     });
-});
+  });
 
+  if (updatedUsers.length === 0) {
+    alert("No users to save!");
+    return;
+  }
 
-    if (updatedUsers.length === 0) {
-        alert("No users to save!");
-        return;
-    }
+  console.log("Final users to save:", updatedUsers);
 
-    console.log("Final users to save:", updatedUsers);
+  const res = await fetch(`${API_BASE}?action=save_users`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      admin_email: userEmail,
+      data: updatedUsers
+    })
+  });
+  if (!res.ok) throw new Error("Failed to save users");
 
-    const res = await fetch(`${API_BASE}?action=save_users`, {
-        method: "POST",
-        headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({
-            admin_email: userEmail,
-            data: updatedUsers
-        })
-    });
-    if (!res.ok) throw new Error("Failed to save users");
-
-    const result = await res.json();
-    return result;
+  const result = await res.json();
+  return result;
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 // === Search Functionality ===
 let searchTimeout = null;
 let allCardsData = [];
 
 // Initialize search after DOM is ready
-document.addEventListener('DOMContentLoaded', function() {
-    const searchInput = document.getElementById('searchInput');
-    const clearSearchBtn = document.getElementById('clearSearchBtn');
-    
-    if (searchInput) {
-        searchInput.addEventListener('input', function() {
-            clearTimeout(searchTimeout);
-            const query = this.value.trim();
-            
-            if (query.length > 0) {
-                clearSearchBtn.style.display = 'block';
-                searchTimeout = setTimeout(() => {
-                    performSearch(query);
-                }, 300); // Debounce for 300ms
-            } else {
-                clearSearchBtn.style.display = 'none';
-                clearSearch();
-            }
-        });
-        
-        searchInput.addEventListener('keydown', function(e) {
-            if (e.key === 'Escape') {
-                clearSearch();
-            }
-        });
-    }
-    
-    if (clearSearchBtn) {
-        clearSearchBtn.addEventListener('click', clearSearch);
-    }
+document.addEventListener("DOMContentLoaded", function () {
+  const searchInput = document.getElementById("searchInput");
+  const clearSearchBtn = document.getElementById("clearSearchBtn");
+
+  if (searchInput) {
+    searchInput.addEventListener("input", function () {
+      clearTimeout(searchTimeout);
+      const query = this.value.trim();
+
+      if (query.length > 0) {
+        clearSearchBtn.style.display = "block";
+        searchTimeout = setTimeout(() => {
+          performSearch(query);
+        }, 300); // Debounce for 300ms
+      } else {
+        clearSearchBtn.style.display = "none";
+        clearSearch();
+      }
+    });
+
+    searchInput.addEventListener("keydown", function (e) {
+      if (e.key === "Escape") {
+        clearSearch();
+      }
+    });
+  }
+
+  if (clearSearchBtn) {
+    clearSearchBtn.addEventListener("click", clearSearch);
+  }
 });
 
 function performSearch(query) {
-    if (!currentReportData) return;
-    
-    query = query.toLowerCase();
-    let matchCount = 0;
-    let totalCards = 0;
-    
-    // Get all cards
-    const allCards = document.querySelectorAll('.card-report');
-    
-    allCards.forEach(card => {
-        totalCards++;
-        const cardText = card.textContent.toLowerCase();
-        const cardHTML = card.innerHTML.toLowerCase();
-        
-        // Check if query matches any text in the card
-        if (cardText.includes(query) || cardHTML.includes(query)) {
-            card.classList.remove('card-hidden');
-            matchCount++;
-            
-            // Highlight the search term
-            highlightSearchTerm(card, query);
-        } else {
-            card.classList.add('card-hidden');
-        }
-    });
-    
-    // Update groups visibility
-    updateGroupVisibility();
-    
-    // Update search count
-    updateSearchCount(matchCount, totalCards);
-    
-    // Show "no results" message if needed
-    if (matchCount === 0) {
-        showNoResultsMessage(query);
+  if (!currentReportData) return;
+
+  query = query.toLowerCase();
+  let matchCount = 0;
+  let totalCards = 0;
+
+  // Get all cards
+  const allCards = document.querySelectorAll(".card-report");
+
+  allCards.forEach((card) => {
+    totalCards++;
+    const cardText = card.textContent.toLowerCase();
+    const cardHTML = card.innerHTML.toLowerCase();
+
+    // Check if query matches any text in the card
+    if (cardText.includes(query) || cardHTML.includes(query)) {
+      card.classList.remove("card-hidden");
+      matchCount++;
+
+      // Highlight the search term
+      highlightSearchTerm(card, query);
     } else {
-        removeNoResultsMessage();
+      card.classList.add("card-hidden");
     }
+  });
+
+  // Update groups visibility
+  updateGroupVisibility();
+
+  // Update search count
+  updateSearchCount(matchCount, totalCards);
+
+  // Show "no results" message if needed
+  if (matchCount === 0) {
+    showNoResultsMessage(query);
+  } else {
+    removeNoResultsMessage();
+  }
 }
 
 function highlightSearchTerm(card, query) {
-    // Remove existing highlights
-    const highlighted = card.querySelectorAll('.search-highlight');
-    highlighted.forEach(el => {
-        const parent = el.parentNode;
-        parent.replaceChild(document.createTextNode(el.textContent), el);
-        parent.normalize();
-    });
-    
-    // Add new highlights to card body text (not images or buttons)
-    const cardBody = card.querySelector('.card-body');
-    if (!cardBody) return;
-    
-    const textNodes = getTextNodes(cardBody);
-    
-    textNodes.forEach(node => {
-        const text = node.textContent;
-        const lowerText = text.toLowerCase();
-        const index = lowerText.indexOf(query);
-        
-        if (index !== -1) {
-            const span = document.createElement('span');
-            span.className = 'search-highlight';
-            
-            const before = text.substring(0, index);
-            const match = text.substring(index, index + query.length);
-            const after = text.substring(index + query.length);
-            
-            const fragment = document.createDocumentFragment();
-            if (before) fragment.appendChild(document.createTextNode(before));
-            
-            span.textContent = match;
-            fragment.appendChild(span);
-            
-            if (after) fragment.appendChild(document.createTextNode(after));
-            
-            node.parentNode.replaceChild(fragment, node);
-        }
-    });
+  // Remove existing highlights
+  const highlighted = card.querySelectorAll(".search-highlight");
+  highlighted.forEach((el) => {
+    const parent = el.parentNode;
+    parent.replaceChild(document.createTextNode(el.textContent), el);
+    parent.normalize();
+  });
+
+  // Add new highlights to card body text (not images or buttons)
+  const cardBody = card.querySelector(".card-body");
+  if (!cardBody) return;
+
+  const textNodes = getTextNodes(cardBody);
+
+  textNodes.forEach((node) => {
+    const text = node.textContent;
+    const lowerText = text.toLowerCase();
+    const index = lowerText.indexOf(query);
+
+    if (index !== -1) {
+      const span = document.createElement("span");
+      span.className = "search-highlight";
+
+      const before = text.substring(0, index);
+      const match = text.substring(index, index + query.length);
+      const after = text.substring(index + query.length);
+
+      const fragment = document.createDocumentFragment();
+      if (before) fragment.appendChild(document.createTextNode(before));
+
+      span.textContent = match;
+      fragment.appendChild(span);
+
+      if (after) fragment.appendChild(document.createTextNode(after));
+
+      node.parentNode.replaceChild(fragment, node);
+    }
+  });
 }
 
 function getTextNodes(element) {
-    const textNodes = [];
-    const walk = document.createTreeWalker(element, NodeFilter.SHOW_TEXT, {
-        acceptNode: function(node) {
-            // Skip buttons and script/style tags
-            if (node.parentElement.tagName === 'BUTTON' || 
-                node.parentElement.tagName === 'SCRIPT' || 
-                node.parentElement.tagName === 'STYLE') {
-                return NodeFilter.FILTER_REJECT;
-            }
-            return node.textContent.trim().length > 0 ? 
-                   NodeFilter.FILTER_ACCEPT : 
-                   NodeFilter.FILTER_REJECT;
-        }
-    });
-    
-    let node;
-    while (node = walk.nextNode()) {
-        textNodes.push(node);
+  const textNodes = [];
+  const walk = document.createTreeWalker(element, NodeFilter.SHOW_TEXT, {
+    acceptNode: function (node) {
+      // Skip buttons and script/style tags
+      if (
+        node.parentElement.tagName === "BUTTON" ||
+        node.parentElement.tagName === "SCRIPT" ||
+        node.parentElement.tagName === "STYLE"
+      ) {
+        return NodeFilter.FILTER_REJECT;
+      }
+      return node.textContent.trim().length > 0 ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
     }
-    
-    return textNodes;
+  });
+
+  let node;
+  while ((node = walk.nextNode())) {
+    textNodes.push(node);
+  }
+
+  return textNodes;
 }
 
 function updateGroupVisibility() {
-    // Hide empty groups and show groups with visible cards
-    document.querySelectorAll('.level1-content').forEach(level1 => {
-        level1.querySelectorAll('.level2-content').forEach(level2 => {
-            const visibleCards = level2.querySelectorAll('.card-report:not(.card-hidden)');
-            const level2Div = level2.closest('.mb-3');
-            
-            if (visibleCards.length === 0) {
-                level2Div.style.display = 'none';
-            } else {
-                level2Div.style.display = 'block';
-                level2.style.display = 'block';
-                
-                // Update count badge
-                const badge = level2Div.querySelector('.workstation-header .badge');
-                if (badge) {
-                    badge.textContent = visibleCards.length;
-                }
-            }
-        });
-        
-        // Check if level1 has any visible level2 groups
-        const visibleLevel2 = level1.querySelectorAll('.mb-3:not([style*="display: none"])');
-        const level1Div = level1.closest('.mb-4');
-        
-        if (visibleLevel2.length === 0) {
-            level1Div.style.display = 'none';
-        } else {
-            level1Div.style.display = 'block';
-            level1.style.display = 'block';
-            
-            // Update level1 count
-            const visibleCardsInLevel1 = level1.querySelectorAll('.card-report:not(.card-hidden)');
-            const badge = level1Div.querySelector('.operation-header .badge');
-            if (badge) {
-                badge.textContent = visibleCardsInLevel1.length;
-            }
+  // Hide empty groups and show groups with visible cards
+  document.querySelectorAll(".level1-content").forEach((level1) => {
+    level1.querySelectorAll(".level2-content").forEach((level2) => {
+      const visibleCards = level2.querySelectorAll(".card-report:not(.card-hidden)");
+      const level2Div = level2.closest(".mb-3");
+
+      if (visibleCards.length === 0) {
+        level2Div.style.display = "none";
+      } else {
+        level2Div.style.display = "block";
+        level2.style.display = "block";
+
+        // Update count badge
+        const badge = level2Div.querySelector(".workstation-header .badge");
+        if (badge) {
+          badge.textContent = visibleCards.length;
         }
+      }
     });
+
+    // Check if level1 has any visible level2 groups
+    const visibleLevel2 = level1.querySelectorAll('.mb-3:not([style*="display: none"])');
+    const level1Div = level1.closest(".mb-4");
+
+    if (visibleLevel2.length === 0) {
+      level1Div.style.display = "none";
+    } else {
+      level1Div.style.display = "block";
+      level1.style.display = "block";
+
+      // Update level1 count
+      const visibleCardsInLevel1 = level1.querySelectorAll(".card-report:not(.card-hidden)");
+      const badge = level1Div.querySelector(".operation-header .badge");
+      if (badge) {
+        badge.textContent = visibleCardsInLevel1.length;
+      }
+    }
+  });
 }
 
 function updateSearchCount(matchCount, totalCards) {
-    const countElement = document.getElementById('searchCount');
-    const resultCountElement = document.getElementById('searchResultCount');
-    
-    if (countElement && resultCountElement) {
-        countElement.textContent = matchCount;
-        resultCountElement.style.display = 'flex';
-    }
+  const countElement = document.getElementById("searchCount");
+  const resultCountElement = document.getElementById("searchResultCount");
+
+  if (countElement && resultCountElement) {
+    countElement.textContent = matchCount;
+    resultCountElement.style.display = "flex";
+  }
 }
 
 function showNoResultsMessage(query) {
-    removeNoResultsMessage();
-    
-    const reportArea = document.getElementById('reportArea');
-    const noResultsDiv = document.createElement('div');
-    noResultsDiv.id = 'noResultsMessage';
-    noResultsDiv.className = 'no-results-message';
-    noResultsDiv.innerHTML = `
-        <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 16 16">
-            <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z"/>
-        </svg>
-        <h5>No results found</h5>
-        <p class="text-muted">No records match "<strong>${query}</strong>"</p>
-        <p class="small">Try a different search term or clear the search to see all records.</p>
-    `;
-    
-    reportArea.insertBefore(noResultsDiv, reportArea.firstChild);
+  removeNoResultsMessage();
+
+  const reportArea = document.getElementById("reportArea");
+  const noResultsDiv = document.createElement("div");
+  noResultsDiv.id = "noResultsMessage";
+  noResultsDiv.className = "no-results-message";
+  noResultsDiv.innerHTML = `
+    <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 16 16">
+      <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z"/>
+    </svg>
+    <h5>No results found</h5>
+    <p class="text-muted">No records match "<strong>${query}</strong>"</p>
+    <p class="small">Try a different search term or clear the search to see all records.</p>
+  `;
+
+  reportArea.insertBefore(noResultsDiv, reportArea.firstChild);
 }
 
 function removeNoResultsMessage() {
-    const existing = document.getElementById('noResultsMessage');
-    if (existing) {
-        existing.remove();
-    }
+  const existing = document.getElementById("noResultsMessage");
+  if (existing) {
+    existing.remove();
+  }
 }
 
 function clearSearch() {
-    const searchInput = document.getElementById('searchInput');
-    const clearSearchBtn = document.getElementById('clearSearchBtn');
-    const resultCountElement = document.getElementById('searchResultCount');
-    
-    if (searchInput) {
-        searchInput.value = '';
-    }
-    
-    if (clearSearchBtn) {
-        clearSearchBtn.style.display = 'none';
-    }
-    
-    if (resultCountElement) {
-        resultCountElement.style.display = 'none';
-    }
-    
-    // Show all cards
-    document.querySelectorAll('.card-report').forEach(card => {
-        card.classList.remove('card-hidden');
-        
-        // Remove highlights
-        const highlighted = card.querySelectorAll('.search-highlight');
-        highlighted.forEach(el => {
-            const parent = el.parentNode;
-            parent.replaceChild(document.createTextNode(el.textContent), el);
-            parent.normalize();
-        });
+  const searchInput = document.getElementById("searchInput");
+  const clearSearchBtn = document.getElementById("clearSearchBtn");
+  const resultCountElement = document.getElementById("searchResultCount");
+
+  if (searchInput) {
+    searchInput.value = "";
+  }
+
+  if (clearSearchBtn) {
+    clearSearchBtn.style.display = "none";
+  }
+
+  if (resultCountElement) {
+    resultCountElement.style.display = "none";
+  }
+
+  // Show all cards
+  document.querySelectorAll(".card-report").forEach((card) => {
+    card.classList.remove("card-hidden");
+
+    // Remove highlights
+    const highlighted = card.querySelectorAll(".search-highlight");
+    highlighted.forEach((el) => {
+      const parent = el.parentNode;
+      parent.replaceChild(document.createTextNode(el.textContent), el);
+      parent.normalize();
     });
-    
-    // Restore original group visibility and counts
-    updateGroupVisibility();
-    
-    // Restore original counts if we have the data
-    if (currentReportData && currentReportData.grouped) {
-        const grouped = currentReportData.grouped;
-        
-        Object.keys(grouped).forEach(level1 => {
-            const level1Count = Object.values(grouped[level1]).reduce((sum, arr) => sum + arr.length, 0);
-            const level1Div = Array.from(document.querySelectorAll('.operation-header')).find(
-                el => el.textContent.includes(level1)
-            );
-            if (level1Div) {
-                const badge = level1Div.querySelector('.badge');
-                if (badge) badge.textContent = level1Count;
-            }
-            
-            Object.keys(grouped[level1]).forEach(level2 => {
-                const level2Count = grouped[level1][level2].length;
-                const level2Div = Array.from(document.querySelectorAll('.workstation-header')).find(
-                    el => el.textContent.includes(level2)
-                );
-                if (level2Div) {
-                    const badge = level2Div.querySelector('.badge');
-                    if (badge) badge.textContent = level2Count;
-                }
-            });
-        });
-    }
-    
-    removeNoResultsMessage();
+  });
+
+  // Restore original group visibility and counts
+  updateGroupVisibility();
+
+  // Restore original counts if we have the data
+  if (currentReportData && currentReportData.grouped) {
+    const grouped = currentReportData.grouped;
+
+    Object.keys(grouped).forEach((level1) => {
+      const level1Count = Object.values(grouped[level1]).reduce((sum, arr) => sum + arr.length, 0);
+      const level1Div = Array.from(document.querySelectorAll(".operation-header")).find((el) =>
+        el.textContent.includes(level1)
+      );
+      if (level1Div) {
+        const badge = level1Div.querySelector(".badge");
+        if (badge) badge.textContent = level1Count;
+      }
+
+      Object.keys(grouped[level1]).forEach((level2) => {
+        const level2Count = grouped[level1][level2].length;
+        const level2Div = Array.from(document.querySelectorAll(".workstation-header")).find((el) =>
+          el.textContent.includes(level2)
+        );
+        if (level2Div) {
+          const badge = level2Div.querySelector(".badge");
+          if (badge) badge.textContent = level2Count;
+        }
+      });
+    });
+  }
+
+  removeNoResultsMessage();
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 // === Collapse/Expand All Functionality ===
 let allGroupsCollapsed = false;
 
-document.addEventListener('DOMContentLoaded', function() {
-    const toggleBtn = document.getElementById('toggleAllGroupsBtn');
-    
-    if (toggleBtn) {
-        toggleBtn.addEventListener('click', toggleAllGroups);
-    }
+document.addEventListener("DOMContentLoaded", function () {
+  const toggleBtn = document.getElementById("toggleAllGroupsBtn");
+
+  if (toggleBtn) {
+    toggleBtn.addEventListener("click", toggleAllGroups);
+  }
 });
 
 function toggleAllGroups() {
-    const toggleBtn = document.getElementById('toggleAllGroupsBtn');
-    const collapseIcon = document.getElementById('collapseIcon');
-    const expandIcon = document.getElementById('expandIcon');
-    const toggleText = document.getElementById('toggleAllText');
-    
-    // Toggle state
-    allGroupsCollapsed = !allGroupsCollapsed;
-    
-    // Get all level 1 and level 2 content divs
-    const level1Contents = document.querySelectorAll('.level1-content');
-    const level2Contents = document.querySelectorAll('.level2-content');
-    
-    if (allGroupsCollapsed) {
-        // Collapse all
-        level1Contents.forEach(content => {
-            content.style.display = 'none';
-            const icon = content.previousElementSibling?.querySelector('.toggle-icon');
-            if (icon) icon.textContent = '▶';
-        });
-        
-        level2Contents.forEach(content => {
-            content.style.display = 'none';
-            const icon = content.previousElementSibling?.querySelector('.toggle-icon');
-            if (icon) icon.textContent = '▶';
-        });
-        
-        // Update button
-        collapseIcon.style.display = 'none';
-        expandIcon.style.display = 'inline';
-        if (toggleText) toggleText.textContent = 'Expand All';
-        toggleBtn.title = 'Expand All';
-        
-    } else {
-        // Expand all
-        level1Contents.forEach(content => {
-            content.style.display = 'block';
-            const icon = content.previousElementSibling?.querySelector('.toggle-icon');
-            if (icon) icon.textContent = '▼';
-        });
-        
-        level2Contents.forEach(content => {
-            content.style.display = 'block';
-            const icon = content.previousElementSibling?.querySelector('.toggle-icon');
-            if (icon) icon.textContent = '▼';
-        });
-        
-        // Update button
-        collapseIcon.style.display = 'inline';
-        expandIcon.style.display = 'none';
-        if (toggleText) toggleText.textContent = 'Collapse All';
-        toggleBtn.title = 'Collapse All';
-    }
-}
+  const toggleBtn = document.getElementById("toggleAllGroupsBtn");
+  const collapseIcon = document.getElementById("collapseIcon");
+  const expandIcon = document.getElementById("expandIcon");
+  const toggleText = document.getElementById("toggleAllText");
 
-// Update the renderGroupedCards function to respect the toggle state
-// Add this at the end of the existing renderGroupedCards function
-// Just before: reportArea.appendChild(level1Div);
+  // Toggle state
+  allGroupsCollapsed = !allGroupsCollapsed;
+
+  // Get all level 1 and level 2 content divs
+  const level1Contents = document.querySelectorAll(".level1-content");
+  const level2Contents = document.querySelectorAll(".level2-content");
+
+  if (allGroupsCollapsed) {
+    // Collapse all
+    level1Contents.forEach((content) => {
+      content.style.display = "none";
+      const icon = content.previousElementSibling?.querySelector(".toggle-icon");
+      if (icon) icon.textContent = "▶";
+    });
+
+    level2Contents.forEach((content) => {
+      content.style.display = "none";
+      const icon = content.previousElementSibling?.querySelector(".toggle-icon");
+      if (icon) icon.textContent = "▶";
+    });
+
+    // Update button
+    collapseIcon.style.display = "none";
+    expandIcon.style.display = "inline";
+    if (toggleText) toggleText.textContent = "Expand All";
+    toggleBtn.title = "Expand All";
+  } else {
+    // Expand all
+    level1Contents.forEach((content) => {
+      content.style.display = "block";
+      const icon = content.previousElementSibling?.querySelector(".toggle-icon");
+      if (icon) icon.textContent = "▼";
+    });
+
+    level2Contents.forEach((content) => {
+      content.style.display = "block";
+      const icon = content.previousElementSibling?.querySelector(".toggle-icon");
+      if (icon) icon.textContent = "▼";
+    });
+
+    // Update button
+    collapseIcon.style.display = "inline";
+    expandIcon.style.display = "none";
+    if (toggleText) toggleText.textContent = "Collapse All";
+    toggleBtn.title = "Collapse All";
+  }
+}
 
 // Add this code to make new groups respect the current collapse state:
 function applyCurrentCollapseState(level1Content, level2Contents) {
-    if (allGroupsCollapsed) {
-        level1Content.style.display = 'none';
-        const icon = level1Content.previousElementSibling?.querySelector('.toggle-icon');
-        if (icon) icon.textContent = '▶';
-        
-        level2Contents.forEach(content => {
-            content.style.display = 'none';
-            const icon = content.previousElementSibling?.querySelector('.toggle-icon');
-            if (icon) icon.textContent = '▶';
-        });
-    }
+  if (allGroupsCollapsed) {
+    level1Content.style.display = "none";
+    const icon = level1Content.previousElementSibling?.querySelector(".toggle-icon");
+    if (icon) icon.textContent = "▶";
+
+    level2Contents.forEach((content) => {
+      content.style.display = "none";
+      const icon = content.previousElementSibling?.querySelector(".toggle-icon");
+      if (icon) icon.textContent = "▶";
+    });
+  }
 }
+
 
 
 
