@@ -647,17 +647,8 @@ exit;
 
 
 
-
-
-// ACTION: Get attribute definition
-if ($action === 'get_attribute_definition') {
-    $attrName = $_GET['attribute'] ?? null;
-
-    if (!$attrName) {
-        echo json_encode(['success' => false, 'error' => 'Missing attribute name']);
-        exit;
-    }
-
+// ACTION: Get all product attributes
+if ($action === 'get_all_attributes') {
     // Get access token
     $accessToken = getAuthToken($apiKey, $apiPassword);
     if (!$accessToken) {
@@ -666,16 +657,15 @@ if ($action === 'get_attribute_definition') {
         exit;
     }
 
-    // Fetch attribute definition from Plytix
+    // Fetch all product attributes from Plytix
     $url = "https://pim.plytix.com/api/v1/attributes/product/search";
-
     $postData = [
-        "filters" => [[["field" => "label", "operator" => "like", "value" => $attrName]]],
+        "filters" => [],
         "attributes" => ["name", "label", "type_class", "options"],
         "pagination" => [
-            "page_size" => 1,
-            "page"      => 1,
-            "order"     => ""
+            "page_size" => 500,
+            "page" => 1,
+            "order" => ""
         ]
     ];
 
@@ -696,24 +686,61 @@ if ($action === 'get_attribute_definition') {
     if ($httpCode === 200) {
         $data = json_decode($response, true);
         if (!empty($data['data'])) {
-            $attribute = $data['data'][0];
-            echo json_encode([
-                'success'   => true,
-                'attribute' => [
-                    'name'    => $attribute['name'],
-                    'label'   => $attribute['label'],
-                    'type'    => $attribute['type_class'],
-                    'options' => $attribute['options'] ?? []
-                ]
-            ]);
+            // Build name -> attribute map
+            $attributeMap = [];
+            foreach ($data['data'] as $attr) {
+                $attributeMap[$attr['name']] = [
+                    'name' => $attr['name'],
+                    'label' => $attr['label'],
+                    'type' => $attr['type_class'],
+                    'options' => $attr['options'] ?? []
+                ];
+            }
+            echo json_encode(['success' => true, 'attributes' => $attributeMap]);
         } else {
-            echo json_encode(['success' => false, 'error' => 'Attribute not found']);
+            echo json_encode(['success' => false, 'error' => 'No attributes found']);
         }
     } else {
-        echo json_encode(['success' => false, 'error' => 'Failed to fetch attribute definition']);
+        echo json_encode(['success' => false, 'error' => 'Failed to fetch attributes']);
     }
     exit;
 }
+
+
+
+
+
+
+
+
+// ACTION: Get attribute definition
+if ($action === 'get_attribute_definition') {
+    $attrName = $_GET['attribute'] ?? null;
+    if (!$attrName) {
+        echo json_encode(['success' => false, 'error' => 'Missing attribute name']);
+        exit;
+    }
+
+    // Get access token
+    $accessToken = getAuthToken($apiKey, $apiPassword);
+    if (!$accessToken) {
+        http_response_code(500);
+        echo json_encode(['success' => false, 'error' => 'Authentication failed']);
+        exit;
+    }
+
+    // Fetch attribute definition from Plytix
+    $url = "https://pim.plytix.com/api/v1/attributes/product/search";
+    $postData = [
+        "filters" => [[["field" => "name", "operator" => "=", "value" => $attrName]]], // CHANGED: name + =
+        "attributes" => ["name", "label", "type_class", "options"],
+        "pagination" => [
+            "page_size" => 1,
+            "page" => 1,
+            "order" => ""
+        ]
+    ];
+
 
 
 
@@ -823,6 +850,14 @@ if ($action === 'update_categories') {
     echo json_encode(['success' => true, 'categories' => $categories]);
     exit;
 }
+
+
+
+
+
+
+
+
 
 
 
