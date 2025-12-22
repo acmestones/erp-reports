@@ -2004,6 +2004,21 @@ async function showDetailModal(row, columns, reportName, config) {
     docName = row[nameCol.fieldname];
   }
 
+
+
+// ✅ ADD THESE DEBUG LOGS:
+console.log("🔍 DEBUG docName:");
+console.log("  config.title_field:", config.title_field);
+console.log("  titleField:", titleField);
+console.log("  row[titleField]:", row[titleField]);
+console.log("  row.name:", row.name);
+console.log("  row.id:", row.id);
+console.log("  FINAL docName:", docName);
+console.log("  docName type:", typeof docName);
+
+
+
+  
   document.getElementById("modalTitle").textContent = `${docName} Details`;
 
   const modalBody = document.getElementById("modalBody");
