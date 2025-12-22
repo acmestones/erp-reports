@@ -741,6 +741,42 @@ if ($action === 'get_attribute_definition') {
         ]
     ];
 
+        // ADD THIS MISSING CODE:
+    $ch = curl_init($url);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_POST, true);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($postData));
+    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+        'Authorization: Bearer ' . $accessToken,
+        'Content-Type: application/json'
+    ]);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    if ($httpCode === 200) {
+        $data = json_decode($response, true);
+        if (!empty($data['data'])) {
+            $attribute = $data['data'][0];
+            echo json_encode([
+                'success' => true,
+                'attribute' => [
+                    'name' => $attribute['name'],
+                    'label' => $attribute['label'],
+                    'type' => $attribute['type_class'],
+                    'options' => $attribute['options'] ?? []
+                ]
+            ]);
+        } else {
+            echo json_encode(['success' => false, 'error' => 'Attribute not found']);
+        }
+    } else {
+        echo json_encode(['success' => false, 'error' => 'Failed to fetch attribute definition']);
+    }
+    exit;
+}
 
 
 
