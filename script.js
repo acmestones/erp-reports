@@ -1065,212 +1065,207 @@ function makeFieldEditable(tdElement, product, fieldKey, currentValue) {
         return;
     }
 
-    console.log('=== makeFieldEditable DEBUG ===');
+    console.log('makeFieldEditable DEBUG');
     console.log('fieldKey:', fieldKey);
     console.log('currentValue:', currentValue);
     console.log('typeof currentValue:', typeof currentValue);
     console.log('product.attributes[fieldKey]:', product.attributes ? product.attributes[fieldKey] : 'N/A');
-  
-    
+
     const originalContent = tdElement.innerHTML;
     tdElement.innerHTML = '<span class="text-muted"><span class="spinner-border spinner-border-sm"></span> Loading...</span>';
-    
+
     // NORMALIZE currentValue for multiselect fields
-    // If it's a comma-separated string, convert to array for proper handling
     let normalizedValue = currentValue;
     if (typeof currentValue === 'string' && currentValue.includes(',') && !currentValue.includes('<')) {
-        // Split comma-separated string (but not if it contains HTML)
         normalizedValue = currentValue.split(',').map(v => v.trim());
     }
 
+    // Check if we have cached attribute definition
+    const cachedAttr = ATTRIBUTE_MAP[fieldKey];
 
-  
-// Check if we have cached attribute definition
-const cachedAttr = ATTRIBUTE_MAP[fieldKey];
+    if (cachedAttr) {
+        // Use cached definition
+        const attrData = {
+            success: true,
+            attribute: cachedAttr
+        };
+        renderFieldEditor(tdElement, product, fieldKey, normalizedValue, originalContent, attrData);
+    } else {
+        // Fallback: fetch individual attribute
+        fetch(`fetch_plytix_data.php?action=get_attribute_definition&attribute=${encodeURIComponent(fieldKey)}`)
+            .then(function(res) {
+                return res.json();
+            })
+            .then(function(attrData) {
+                renderFieldEditor(tdElement, product, fieldKey, normalizedValue, originalContent, attrData);
+            })
+            .catch(function(err) {
+                console.error('Failed to load attribute definition:', err);
+                renderFallbackEditor(tdElement, product, fieldKey, normalizedValue, originalContent);
+            });
+    }
+}
 
-if (cachedAttr) {
-    // Use cached definition
-    const attrData = {
-        success: true,
-        attribute: cachedAttr
+// NEW FUNCTION: Render the field editor with proper attribute data
+function renderFieldEditor(tdElement, product, fieldKey, normalizedValue, originalContent, attrData) {
+    tdElement.innerHTML = '';
+    let inputElement;
+
+    // Check if it's a dropdown/multiselect (has options)
+    if (attrData.success && attrData.attribute.options && attrData.attribute.options.length > 0) {
+        const type = attrData.attribute.type;
+        inputElement = document.createElement('select');
+        inputElement.className = 'form-select form-select-sm';
+
+        if (type === 'MultiSelectAttribute') {
+            inputElement.multiple = true;
+            inputElement.size = Math.min(6, attrData.attribute.options.length + 1);
+        } else {
+            // Single select - add empty option
+            const emptyOption = document.createElement('option');
+            emptyOption.value = '';
+            emptyOption.textContent = '-- Select --';
+            inputElement.appendChild(emptyOption);
+        }
+
+        // Parse current value for multiselect - use normalizedValue
+        let currentValues = [];
+        if (Array.isArray(normalizedValue)) {
+            currentValues = normalizedValue;
+        } else if (typeof normalizedValue === 'string' && normalizedValue.trim()) {
+            currentValues = normalizedValue.split(',').map(val => val.trim()).filter(val => val);
+        }
+
+        // Add options
+        attrData.attribute.options.forEach(function(opt) {
+            const option = document.createElement('option');
+            option.value = opt;
+            option.textContent = opt;
+            if (currentValues.includes(opt)) {
+                option.selected = true;
+            }
+            inputElement.appendChild(option);
+        });
+
+        inputElement.dataset.attrType = type;
+
+    // Boolean fields
+    } else if (typeof normalizedValue === 'boolean' || normalizedValue === 'TRUE' || normalizedValue === 'FALSE') {
+        inputElement = document.createElement('select');
+        inputElement.className = 'form-select form-select-sm';
+        inputElement.innerHTML = 
+            `<option value="true" ${normalizedValue === true || normalizedValue === 'TRUE' ? 'selected' : ''}>TRUE</option>` +
+            `<option value="false" ${normalizedValue === false || normalizedValue === 'FALSE' ? 'selected' : ''}>FALSE</option>`;
+
+    // Text fields (short)
+    } else if (typeof normalizedValue === 'string' && normalizedValue.length <= 100) {
+        inputElement = document.createElement('input');
+        inputElement.type = 'text';
+        inputElement.className = 'form-control form-control-sm';
+        inputElement.value = normalizedValue;
+
+    // Long text fields
+    } else if (typeof normalizedValue === 'string') {
+        inputElement = document.createElement('textarea');
+        inputElement.className = 'form-control form-control-sm';
+        inputElement.rows = 3;
+        inputElement.value = normalizedValue;
+
+    // Numbers
+    } else if (typeof normalizedValue === 'number') {
+        inputElement = document.createElement('input');
+        inputElement.type = 'number';
+        inputElement.className = 'form-control form-control-sm';
+        inputElement.value = normalizedValue;
+
+    // Arrays (shouldn't reach here if multiselect, but fallback)
+    } else if (Array.isArray(normalizedValue)) {
+        inputElement = document.createElement('input');
+        inputElement.type = 'text';
+        inputElement.className = 'form-control form-control-sm';
+        inputElement.value = normalizedValue.join(', ');
+
+    // Default to text
+    } else {
+        inputElement = document.createElement('input');
+        inputElement.type = 'text';
+        inputElement.className = 'form-control form-control-sm';
+        inputElement.value = normalizedValue ? String(normalizedValue) : '';
+    }
+
+    // Action buttons
+    const btnGroup = document.createElement('div');
+    btnGroup.className = 'btn-group btn-group-sm mt-2';
+
+    const saveBtn = document.createElement('button');
+    saveBtn.className = 'btn btn-success btn-sm';
+    saveBtn.innerHTML = '✓ Save';
+    saveBtn.onclick = function(e) {
+        e.stopPropagation();
+        saveFieldValue(product, fieldKey, inputElement.value, tdElement, originalContent);
     };
-    renderFieldEditor(attrData);
-} else {
-    // Fallback: fetch individual attribute
-    fetch(`fetch_plytix_data.php?action=get_attribute_definition&attribute=${encodeURIComponent(fieldKey)}`)
-        .then(function(res) {
-            return res.json();
-        })
-        .then(function(attrData) {
-            renderFieldEditor(attrData);
-        })
-        .catch(function(err) {
-            console.error('Failed to load attribute definition:', err);
-            renderFallbackEditor();
-        });
+
+    const cancelBtn = document.createElement('button');
+    cancelBtn.className = 'btn btn-secondary btn-sm';
+    cancelBtn.innerHTML = '✕ Cancel';
+    cancelBtn.onclick = function(e) {
+        e.stopPropagation();
+        tdElement.innerHTML = originalContent;
+        tdElement.style.cursor = 'pointer';
+        tdElement.onclick = function() {
+            makeFieldEditable(tdElement, product, fieldKey, normalizedValue);
+        };
+    };
+
+    btnGroup.appendChild(saveBtn);
+    btnGroup.appendChild(cancelBtn);
+
+    tdElement.appendChild(inputElement);
+    tdElement.appendChild(btnGroup);
+    tdElement.onclick = null;
+    inputElement.focus();
 }
 
-// Extract the rendering logic into a function
-function renderFieldEditor(attrData) {
+// NEW FUNCTION: Fallback editor when attribute fetch fails
+function renderFallbackEditor(tdElement, product, fieldKey, normalizedValue, originalContent) {
+    tdElement.innerHTML = '';
 
-            tdElement.innerHTML = '';
-            let inputElement;
-            
-            // Check if it's a dropdown / multiselect (has options)
-            if (attrData.success && attrData.attribute.options && attrData.attribute.options.length > 0) {
-                const type = attrData.attribute.type;
-                inputElement = document.createElement('select');
-                inputElement.className = 'form-select form-select-sm';
-            
-                if (type === 'MultiSelectAttribute') {
-                    inputElement.multiple = true;
-                    inputElement.size = Math.min(6, attrData.attribute.options.length + 1);
-                } else {
-                    const emptyOption = document.createElement('option');
-                    emptyOption.value = '';
-                    emptyOption.textContent = '-- Select --';
-                    inputElement.appendChild(emptyOption);
-                }
-            
-                // Parse current value for multiselect - use normalizedValue
-                let currentValues = [];
-                if (Array.isArray(normalizedValue)) {
-                    currentValues = normalizedValue;
-                } else if (typeof normalizedValue === 'string' && normalizedValue.trim()) {
-                    // Split comma-separated string and trim each value
-                    currentValues = normalizedValue.split(',').map(val => val.trim()).filter(val => val);
-                }
-            
-                attrData.attribute.options.forEach(function(opt) {
-                    const option = document.createElement('option');
-                    option.value = opt;
-                    option.textContent = opt;
-                    if (currentValues.includes(opt)) {
-                        option.selected = true;
-                    }
-                    inputElement.appendChild(option);
-                });
-            
-                inputElement.dataset.attrType = type;
-            }
-            // Boolean fields
-            else if (typeof normalizedValue === 'boolean' || normalizedValue === 'TRUE' || normalizedValue === 'FALSE') {
-                inputElement = document.createElement('select');
-                inputElement.className = 'form-select form-select-sm';
-                inputElement.innerHTML = `
-                    <option value="true" ${normalizedValue === true || normalizedValue === 'TRUE' ? 'selected' : ''}>TRUE</option>
-                    <option value="false" ${normalizedValue === false || normalizedValue === 'FALSE' ? 'selected' : ''}>FALSE</option>
-                `;
-            }
-            // Text fields (short)
-            else if (typeof normalizedValue === 'string' && normalizedValue.length < 100) {
-                inputElement = document.createElement('input');
-                inputElement.type = 'text';
-                inputElement.className = 'form-control form-control-sm';
-                inputElement.value = normalizedValue || '';
-            }
-            // Long text fields
-            else if (typeof normalizedValue === 'string') {
-                inputElement = document.createElement('textarea');
-                inputElement.className = 'form-control form-control-sm';
-                inputElement.rows = 3;
-                inputElement.value = normalizedValue || '';
-            }
-            // Numbers
-            else if (typeof normalizedValue === 'number') {
-                inputElement = document.createElement('input');
-                inputElement.type = 'number';
-                inputElement.className = 'form-control form-control-sm';
-                inputElement.value = normalizedValue;
-            }
-            // Arrays (shouldn't reach here if multiselect, but fallback)
-            else if (Array.isArray(normalizedValue)) {
-                inputElement = document.createElement('input');
-                inputElement.type = 'text';
-                inputElement.className = 'form-control form-control-sm';
-                inputElement.value = normalizedValue.join(', ');
-            }
-            // Default to text
-            else {
-                inputElement = document.createElement('input');
-                inputElement.type = 'text';
-                inputElement.className = 'form-control form-control-sm';
-                inputElement.value = normalizedValue ? String(normalizedValue) : '';
-            }
-            
-            // Action buttons
-            const btnGroup = document.createElement('div');
-            btnGroup.className = 'btn-group btn-group-sm mt-2';
-            
-            const saveBtn = document.createElement('button');
-            saveBtn.className = 'btn btn-success btn-sm';
-            saveBtn.innerHTML = '✓ Save';
-            saveBtn.onclick = function(e) {
-                e.stopPropagation();
-                saveFieldValue(product, fieldKey, inputElement.value, tdElement, originalContent);
-            };
-            
-            const cancelBtn = document.createElement('button');
-            cancelBtn.className = 'btn btn-secondary btn-sm';
-            cancelBtn.innerHTML = '✕ Cancel';
-            cancelBtn.onclick = function(e) {
-                e.stopPropagation();
-                tdElement.innerHTML = originalContent;
-                tdElement.style.cursor = 'pointer';
-                tdElement.onclick = function() {
-                    makeFieldEditable(tdElement, product, fieldKey, currentValue);
-                };
-            };
-            
-            btnGroup.appendChild(saveBtn);
-            btnGroup.appendChild(cancelBtn);
-            
-            tdElement.appendChild(inputElement);
-            tdElement.appendChild(btnGroup);
-            tdElement.onclick = null;
-            
-            inputElement.focus();
-        })
-        .catch(function(err) {
-            console.error('Failed to load attribute definition:', err);
-            // Fall back to text input
-            tdElement.innerHTML = '';
-            const inputElement = document.createElement('input');
-            inputElement.type = 'text';
-            inputElement.className = 'form-control form-control-sm';
-            inputElement.value = normalizedValue ? String(normalizedValue) : '';
-            tdElement.appendChild(inputElement);
-            
-            const btnGroup = document.createElement('div');
-            btnGroup.className = 'btn-group btn-group-sm mt-2';
-            
-            const saveBtn = document.createElement('button');
-            saveBtn.className = 'btn btn-success btn-sm';
-            saveBtn.innerHTML = '✓ Save';
-            saveBtn.onclick = function(e) {
-                e.stopPropagation();
-                saveFieldValue(product, fieldKey, inputElement.value, tdElement, originalContent);
-            };
-            
-            const cancelBtn = document.createElement('button');
-            cancelBtn.className = 'btn btn-secondary btn-sm';
-            cancelBtn.innerHTML = '✕ Cancel';
-            cancelBtn.onclick = function(e) {
-                e.stopPropagation();
-                tdElement.innerHTML = originalContent;
-                tdElement.style.cursor = 'pointer';
-                tdElement.onclick = function() {
-                    makeFieldEditable(tdElement, product, fieldKey, currentValue);
-                };
-            };
-            
-            btnGroup.appendChild(saveBtn);
-            btnGroup.appendChild(cancelBtn);
-            
-            tdElement.appendChild(btnGroup);
-            inputElement.focus();
-        });
+    const inputElement = document.createElement('input');
+    inputElement.type = 'text';
+    inputElement.className = 'form-control form-control-sm';
+    inputElement.value = normalizedValue ? String(normalizedValue) : '';
+
+    const btnGroup = document.createElement('div');
+    btnGroup.className = 'btn-group btn-group-sm mt-2';
+
+    const saveBtn = document.createElement('button');
+    saveBtn.className = 'btn btn-success btn-sm';
+    saveBtn.innerHTML = '✓ Save';
+    saveBtn.onclick = function(e) {
+        e.stopPropagation();
+        saveFieldValue(product, fieldKey, inputElement.value, tdElement, originalContent);
+    };
+
+    const cancelBtn = document.createElement('button');
+    cancelBtn.className = 'btn btn-secondary btn-sm';
+    cancelBtn.innerHTML = '✕ Cancel';
+    cancelBtn.onclick = function(e) {
+        e.stopPropagation();
+        tdElement.innerHTML = originalContent;
+        tdElement.style.cursor = 'pointer';
+        tdElement.onclick = function() {
+            makeFieldEditable(tdElement, product, fieldKey, normalizedValue);
+        };
+    };
+
+    btnGroup.appendChild(saveBtn);
+    btnGroup.appendChild(cancelBtn);
+
+    tdElement.appendChild(inputElement);
+    tdElement.appendChild(btnGroup);
+    inputElement.focus();
 }
+
 
 
   
