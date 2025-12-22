@@ -3752,8 +3752,8 @@ async function openGlobalReportConfigModal(reportName) {
     document.getElementById("operationPlanningPermissionsSection").style.display = e.target.checked ? "block" : "none";
   });
 
- document.getElementById("saveGlobalConfigBtn").onclick = async () => {
-  try {
+document.getElementById("saveGlobalConfigBtn").onclick = async () => {
+  try {  // ✅ ADDED!
     const doctype = document.getElementById("configdoctype")?.value.trim();
     const titleField = document.getElementById("configtitlefield")?.value;
     const group1 = document.getElementById("configgroup1")?.value;
@@ -3765,7 +3765,6 @@ async function openGlobalReportConfigModal(reportName) {
     reportConfig[reportName].doctype = doctype;
     reportConfig[reportName].title_field = document.getElementById('config_title_field')?.value;
     reportConfig[reportName].id_field = document.getElementById('config_id_field')?.value;
-
 
     // Card fields
     const cardFieldChecks = document.querySelectorAll(".card-field-check:checked");
@@ -3864,11 +3863,12 @@ async function openGlobalReportConfigModal(reportName) {
     // Reload the report to apply changes
     await loadReport(reportName);
     
-  } catch (err) {
+  } catch (err) {  // ✅ Now properly paired with try
     console.error("❌ Error saving config:", err);
     alert("Error saving configuration: " + err.message);
   }
 };
+
 
   // Blur any focused element to prevent aria-hidden focus conflict
   if (document.activeElement && document.activeElement.blur) {
