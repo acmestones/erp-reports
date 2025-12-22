@@ -2070,9 +2070,14 @@ async function showDetailModal(row, columns, reportName, config) {
     ============================== */
 
       if (isEditable) {
-        const isRichText = ['Text', 'Small Text', 'Long Text', 'Text Editor', 'HTML', 'HTML Editor'].includes(col.fieldtype);
-        const isURL = col.fieldtype === 'Data' && col.options === 'URL';
-
+        // ✅ FIX: Get fieldtype and options from mapping (has full metadata)
+        const fieldInfo = window.reportFieldMapping?.[reportFieldname];
+        const fieldType = fieldInfo?.fieldtype || col.fieldtype;
+        const fieldOptions = fieldInfo?.options || col.options;
+        
+        const isRichText = ['Text', 'Small Text', 'Long Text', 'Text Editor', 'HTML', 'HTML Editor'].includes(fieldType);
+        const isURL = fieldType === 'Data' && fieldOptions === 'URL';
+        
       if (isRichText) {
         // ----- DISPLAY MODE -----
         const displayDiv = document.createElement("div");
@@ -2286,7 +2291,14 @@ async function showDetailModal(row, columns, reportName, config) {
     /* =============================
        READ-ONLY FIELDS
     ============================== */
-    else if (hasValue || reportFieldname === ATTACHMENTS_REPORT_FIELD) {
+   else {
+  // ✅ Get metadata for read-only fields too
+  const fieldInfo = window.reportFieldMapping?.[reportFieldname];
+  const fieldType = fieldInfo?.fieldtype || col.fieldtype;
+  const fieldOptions = fieldInfo?.options || col.options;
+  
+  if (hasValue || reportFieldname === ATTACHMENTS_REPORT_FIELD) {
+    
       // ATTACHMENTS
       if (reportFieldname === ATTACHMENTS_REPORT_FIELD) {
         valueDiv.innerHTML = '<div class="text-muted small">Loading attachments…</div>';
@@ -2301,7 +2313,7 @@ async function showDetailModal(row, columns, reportName, config) {
         constrainRichTextImages(valueDiv);
       }
       // Link field
-      else if (col.fieldtype === "Link" && col.options) {
+      else if (fieldtype === "Link" && fieldOptions) {
         const link = document.createElement("a");
         link.href = `${ERP_BASE}/app/${col.options.toLowerCase().replace(/\s+/g, "-")}/${encodeURIComponent(value)}`;
         link.target = "_blank";
@@ -2312,7 +2324,7 @@ async function showDetailModal(row, columns, reportName, config) {
 
 
       // ✅ NEW: URL field (Data field with "URL" option)
-      else if (col.fieldtype === 'Data' && col.options === 'URL') {
+      else if (fieldtype === 'Data' && fieldOptions === 'URL') {
         const link = document.createElement('a');
         link.href = value.startsWith('http') ? value : `https://${value}`;
         link.target = '_blank';
