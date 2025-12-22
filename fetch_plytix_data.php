@@ -663,7 +663,7 @@ if ($action === 'get_all_attributes') {
         "filters" => [],
         "attributes" => ["name", "label", "type_class", "options"],
         "pagination" => [
-            "page_size" => 500,
+            "page_size" => 100,
             "page" => 1,
             "order" => ""
         ]
@@ -792,13 +792,14 @@ function fetchAllCategories($accessToken) {
         "filters" => [],
         "attributes" => ["id", "name", "path"],
         "pagination" => [
-            "page_size" => 500,
+            "page_size" => 100,
             "page" => 1,
             "order" => ""
         ]
     ];
 
-    $ch = curl_init("https://pim.plytix.com/api/v1/categories/search");
+    $ch = curl_init("https://pim.plytix.com/api/v1/category/search");
+
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_POST, true);
     curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($postData));
