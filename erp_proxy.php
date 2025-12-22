@@ -487,6 +487,13 @@ if (isset($_GET['action']) && $_GET['action'] === 'save_users') {
 // Save report configuration
 if (isset($_GET['action']) && $_GET['action'] === 'save_report_config') {
     $input = json_decode(file_get_contents("php://input"), true);
+
+
+       // ✅ DEBUG: Log what we received
+    error_log("=== SAVE REPORT CONFIG ===");
+    error_log("Raw input: " . file_get_contents("php://input"));
+    error_log("Decoded config: " . print_r($input, true));
+   
     
     if (json_last_error() !== JSON_ERROR_NONE) {
         echo json_encode(["error" => "Invalid JSON"]);
@@ -494,6 +501,11 @@ if (isset($_GET['action']) && $_GET['action'] === 'save_report_config') {
     }
     
     $config = $input['config'] ?? [];
+
+    // ✅ DEBUG: Log what we're saving
+    error_log("Final config to save: " . print_r($config, true));
+
+   
     file_put_contents("report_config.json", json_encode($config, JSON_PRETTY_PRINT));
     echo json_encode(["message" => "Report config saved"]);
     exit;
