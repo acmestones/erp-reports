@@ -1993,28 +1993,26 @@ async function showDetailModal(row, columns, reportName, config) {
     config
   };
 
-  // Normalize legacy config keys (support both; use underscore everywhere in code)
 
-
+const titleField = config.title_field || "name";
 const idField = config.id_field || "name";
+
+// For saving: Use unique ID
 let docName = row[idField] || row.name || row.work_order_id;
 
+// For display: Use title field
+let displayTitle = row[titleField] || docName;
 
-
-// ✅ ADD THESE DEBUG LOGS:
-console.log("🔍 DEBUG docName:");
+console.log("🔍 DEBUG:");
+console.log("  config.id_field:", config.id_field);
 console.log("  config.title_field:", config.title_field);
-console.log("  titleField:", titleField);
-console.log("  row[titleField]:", row[titleField]);
-console.log("  row.name:", row.name);
-console.log("  row.id:", row.id);
-console.log("  FINAL docName:", docName);
-console.log("  docName type:", typeof docName);
+console.log("  docName (for saving):", docName);
+console.log("  displayTitle (for modal):", displayTitle);
 
 
 
   
-  document.getElementById("modalTitle").textContent = `${docName} Details`;
+  document.getElementById("modalTitle").textContent = `${displayTitle} Details`;
 
   const modalBody = document.getElementById("modalBody");
   modalBody.innerHTML = "";
