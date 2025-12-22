@@ -21,7 +21,6 @@
 
 
   let ATTRIBUTE_MAP = {}; // Cache for attribute definitions from Plytix
-  let ATTRIBUTE_MAP = {}; // Cache for attribute definitions from Plytix
   window.DEBUG_ATTR_MAP = ATTRIBUTE_MAP; // Expose for debugging
 
 
