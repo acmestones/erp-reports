@@ -2069,10 +2069,9 @@ async function showDetailModal(row, columns, reportName, config) {
        EDITABLE FIELDS
     ============================== */
 
-    if (isEditable) {
-      const isRichText = ["Text", "Small Text", "Long Text", "Text Editor", "HTML", "HTML Editor"].includes(
-        col.fieldtype
-      );
+      if (isEditable) {
+        const isRichText = ['Text', 'Small Text', 'Long Text', 'Text Editor', 'HTML', 'HTML Editor'].includes(col.fieldtype);
+        const isURL = col.fieldtype === 'Data' && col.options === 'URL';
 
       if (isRichText) {
         // ----- DISPLAY MODE -----
@@ -2205,11 +2204,76 @@ async function showDetailModal(row, columns, reportName, config) {
         };
 
         valueDiv.append(displayDiv, editorWrapper, editBtn, cancelBtn, saveBtn);
-      } else {
-        // ----- SIMPLE INPUT -----
-        const input = document.createElement("input");
-        input.className = "form-control form-control-sm";
-        input.value = value || "";
+          } 
+          // ✅ NEW: URL field with Edit button
+          else if (isURL) {
+            // Display mode
+            const displayDiv = document.createElement('div');
+            displayDiv.className = 'p-2 bg-light rounded';
+            if (value) {
+              const link = document.createElement('a');
+              link.href = value.startsWith('http') ? value : `https://${value}`;
+              link.target = '_blank';
+              link.rel = 'noopener noreferrer';
+              link.textContent = value;
+              link.style.color = '#0d6efd';
+              displayDiv.appendChild(link);
+            } else {
+              displayDiv.innerHTML = '<span class="text-muted">No URL set</span>';
+            }
+            
+            // Edit mode
+            const editorWrapper = document.createElement('div');
+            editorWrapper.style.display = 'none';
+            const input = document.createElement('input');
+            input.type = 'url';
+            input.className = 'form-control';
+            input.value = value || '';
+            input.placeholder = 'https://example.com';
+            input.dataset.fieldname = actualFieldname;
+            input.dataset.docname = docName;
+            input.dataset.doctype = doctype;
+            editorWrapper.appendChild(input);
+            
+            // Buttons
+            const editBtn = document.createElement('button');
+            editBtn.className = 'btn btn-sm btn-primary me-2 mt-2';
+            editBtn.textContent = 'Edit';
+            
+            const cancelBtn = document.createElement('button');
+            cancelBtn.className = 'btn btn-sm btn-secondary me-2 mt-2';
+            cancelBtn.textContent = 'Cancel';
+            cancelBtn.style.display = 'none';
+            
+            const saveBtn = createSaveButton(input, reportName, modal);
+            saveBtn.className = 'btn btn-sm btn-success mt-2';
+            saveBtn.style.display = 'none';
+            
+            editBtn.onclick = () => {
+              editorWrapper.style.display = 'block';
+              displayDiv.style.display = 'none';
+              editBtn.style.display = 'none';
+              cancelBtn.style.display = 'inline-block';
+              saveBtn.style.display = 'inline-block';
+            };
+            
+            cancelBtn.onclick = () => {
+              editorWrapper.style.display = 'none';
+              displayDiv.style.display = 'block';
+              editBtn.style.display = 'inline-block';
+              cancelBtn.style.display = 'none';
+              saveBtn.style.display = 'none';
+              input.value = value || '';
+            };
+            
+            valueDiv.append(displayDiv, editorWrapper, editBtn, cancelBtn, saveBtn);
+          }
+          // Other fields
+          else {
+            const input = document.createElement('input');
+            input.className = 'form-control form-control-sm';
+            input.value = value || '';
+
 
         input.dataset.fieldname = actualFieldname;
         input.dataset.docname = docName;
@@ -2245,6 +2309,23 @@ async function showDetailModal(row, columns, reportName, config) {
         link.textContent = value;
         valueDiv.appendChild(link);
       }
+
+
+      // ✅ NEW: URL field (Data field with "URL" option)
+      else if (col.fieldtype === 'Data' && col.options === 'URL') {
+        const link = document.createElement('a');
+        link.href = value.startsWith('http') ? value : `https://${value}`;
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        link.textContent = value;
+        link.style.color = '#0d6efd';
+        link.style.textDecoration = 'underline';
+        valueDiv.appendChild(link);
+      }
+
+
+
+        
       // Plain text
       else {
         valueDiv.textContent = value;
