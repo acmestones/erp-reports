@@ -3752,7 +3752,7 @@ async function openGlobalReportConfigModal(reportName) {
     document.getElementById("operationPlanningPermissionsSection").style.display = e.target.checked ? "block" : "none";
   });
 
-  document.getElementById("saveGlobalConfigBtn").onclick = () => {
+  document.getElementById("saveGlobalConfigBtn").onclick = async () => {
     const doctype = document.getElementById("configdoctype")?.value.trim();
     const titleField = document.getElementById("configtitlefield")?.value;
     const group1 = document.getElementById("configgroup1")?.value;
