@@ -686,11 +686,11 @@ function applyFilters() {
 
 function getAttributeLabel(attributeName) {
     if (ATTRIBUTE_MAP[attributeName]) {
-        return ATTRIBUTE_MAP[attributeName].label;
+        return ATTRIBUTE_MAP[attributeName].name;  // Changed: use 'name' for display
     }
-    // Fallback to capitalizeWords if not in map
     return capitalizeWords(attributeName.replace(/_/g, ' '));
 }
+
 
 
 
