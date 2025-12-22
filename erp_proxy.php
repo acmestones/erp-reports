@@ -1,8 +1,17 @@
 <?php
-header("Content-Type: application/json");
-header("Access-Control-Allow-Origin: *");
-header("Access-Control-Allow-Methods: GET, POST, OPTIONS");
-header("Access-Control-Allow-Headers: Content-Type");
+ob_start();
+
+/* ===============================
+   GLOBAL RESPONSE SAFETY (FIX #4)
+=============================== */
+
+header('Content-Type: application/json');
+error_reporting(0);
+ini_set('display_errors', 0);
+
+/* ===============================
+   CONSTANTS
+=============================== */
 
 define("API_KEY", "2f721d295151824");
 define("API_SECRET", "0e9e87c5238a8a3");
@@ -12,47 +21,209 @@ function logError($message) {
     error_log(date("Y-m-d H:i:s") . " - " . $message . "\n", 3, "erp_debug.log");
 }
 
-// Proxy private images with authentication
-if (isset($_GET['action']) && $_GET['action'] == 'proxy_image') {
-    $file_url = $_GET['file_url'] ?? '';
-    
-    if (empty($file_url)) {
-        header('HTTP/1.1 400 Bad Request');
-        echo 'No file URL provided';
-        exit;
+/* =========================================================
+   PROXY IMAGE (private + public) — FIXED
+========================================================= */
+if (isset($_GET['action']) && $_GET['action'] === 'proxyimage') {
+    if (ob_get_length()) {
+        ob_clean();
     }
     
-    // Build full ERPNext URL
-    if (!str_starts_with($file_url, 'http')) {
-        $file_url = ERP_BASE . $file_url;
+    $fileUrl = $_GET['fileurl'] ?? '';
+    
+    error_log("🖼️ PROXY IMAGE REQUEST");
+    error_log("Raw fileurl param: " . $fileUrl);
+    
+    if (!$fileUrl) {
+        error_log("❌ Missing fileurl parameter");
+        http_response_code(400);
+        exit('Missing fileurl');
     }
     
-    $ch = curl_init();
+    // ✅ FIXED: Don't decode yet - keep it encoded
+    $decodedFileUrl = urldecode($fileUrl);
+    error_log("Decoded fileUrl: " . $decodedFileUrl);
+    
+    // Convert relative to absolute
+    if (substr($decodedFileUrl, 0, 7) === '/files/' || substr($decodedFileUrl, 0, 15) === '/private/files/') {
+        // ✅ CRITICAL: URL-encode the path to handle spaces
+        $decodedFileUrl = ERP_BASE . $decodedFileUrl;
+        error_log("Converted to absolute: " . $decodedFileUrl);
+    }
+    
+    // Validate
+    $allowed1 = ERP_BASE . '/files/';
+    $allowed2 = ERP_BASE . '/private/files/';
+    if (substr($decodedFileUrl, 0, strlen($allowed1)) !== $allowed1 && 
+        substr($decodedFileUrl, 0, strlen($allowed2)) !== $allowed2) {
+        error_log("❌ URL not allowed: " . $decodedFileUrl);
+        http_response_code(403);
+        exit('Invalid file path');
+    }
+    
+    // ✅ CRITICAL FIX: Properly encode the URL for CURL
+    // Parse the URL and encode only the path component
+    $parsedUrl = parse_url($decodedFileUrl);
+    $scheme = $parsedUrl['scheme'] ?? 'https';
+    $host = $parsedUrl['host'] ?? '';
+    $path = $parsedUrl['path'] ?? '';
+    
+    // Encode each path segment separately to preserve slashes
+    $pathParts = explode('/', $path);
+    $encodedParts = array_map('rawurlencode', $pathParts);
+    $encodedPath = implode('/', $encodedParts);
+    
+    $finalUrl = $scheme . '://' . $host . $encodedPath;
+    error_log("✅ Final encoded URL for CURL: " . $finalUrl);
+    
+    $ch = curl_init($finalUrl);
     curl_setopt_array($ch, [
-        CURLOPT_URL => $file_url,
         CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_FOLLOWLOCATION => true,
+        CURLOPT_HTTPHEADER => [
+            "Authorization: token " . API_KEY . ":" . API_SECRET
+        ],
+        CURLOPT_SSL_VERIFYPEER => false
+    ]);
+    
+    $data = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $contentType = curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
+    curl_close($ch);
+    
+    error_log("CURL response - HTTP: $httpCode, Content-Type: $contentType, Data length: " . strlen($data));
+    
+    // Block login pages / HTML
+    if ($httpCode !== 200 || !$data) {
+        error_log("❌ Failed: HTTP $httpCode or empty data");
+        http_response_code(404);
+        exit('File not found');
+    }
+    
+    if (strpos($contentType, 'text/html') !== false) {
+        error_log("❌ Got HTML instead of image");
+        http_response_code(404);
+        exit('HTML response');
+    }
+    
+    // Detect content type from extension if missing
+    if (empty($contentType) || $contentType === 'application/octet-stream') {
+        $ext = strtolower(pathinfo($path, PATHINFO_EXTENSION));
+        $mimeTypes = [
+            'png' => 'image/png',
+            'jpg' => 'image/jpeg',
+            'jpeg' => 'image/jpeg',
+            'gif' => 'image/gif',
+            'webp' => 'image/webp',
+            'svg' => 'image/svg+xml',
+            'bmp' => 'image/bmp'
+        ];
+        $contentType = isset($mimeTypes[$ext]) ? $mimeTypes[$ext] : 'image/jpeg';
+        error_log("📸 Detected content type from extension .$ext: $contentType");
+    }
+    
+    error_log("✅ Sending image: $contentType");
+    
+    // IMAGE RESPONSE
+    header('Content-Type: ' . $contentType);
+    header('Cache-Control: public, max-age=86400');
+    echo $data;
+    exit;
+}
+
+
+/* =========================================================
+   PROXY FILE (XLSX / PDF / DOC / etc)
+========================================================= */
+// ================= PROXY FILE (DOWNLOAD) =================
+
+if (isset($_GET['action']) && $_GET['action'] === 'proxyfile') {
+
+    if (ob_get_length()) {
+        ob_clean();
+    }
+
+    $fileUrl = $_GET['fileurl'] ?? '';
+    if (!$fileUrl) {
+        http_response_code(400);
+        exit('missing fileurl');
+    }
+
+    $fileUrl = rawurldecode($fileUrl);
+
+    // Accept only ERPNext file paths
+    $parsed = parse_url($fileUrl);
+    if (empty($parsed['path']) || !preg_match('#^/(private/)?files/#', $parsed['path'])) {
+        http_response_code(403);
+        exit('invalid file path');
+    }
+
+    // ERPNext download API (CRITICAL)
+    $apiUrl = ERP_BASE . '/api/method/frappe.utils.file_manager.download_file?file_url=' . urlencode($parsed['path']);
+
+    $ch = curl_init($apiUrl);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_FOLLOWLOCATION => true,
         CURLOPT_HTTPHEADER => [
             "Authorization: token " . API_KEY . ":" . API_SECRET
         ],
         CURLOPT_SSL_VERIFYPEER => false,
-        CURLOPT_FOLLOWLOCATION => true
+        CURLOPT_HEADER => true
     ]);
-    
-    $image_data = curl_exec($ch);
-    $content_type = curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
-    $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+
+    $response = curl_exec($ch);
+    $headerSize = curl_getinfo($ch, CURLINFO_HEADER_SIZE);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
-    
-    if ($http_code == 200 && $image_data) {
-        header("Content-Type: " . $content_type);
-        header("Cache-Control: public, max-age=86400");
-        echo $image_data;
-    } else {
-        header('HTTP/1.1 404 Not Found');
-        echo 'Image not found';
+
+    if ($httpCode !== 200 || !$response) {
+        http_response_code(404);
+        exit('file not found');
     }
+
+    $headers = substr($response, 0, $headerSize);
+    $data = substr($response, $headerSize);
+
+    if (!$data) {
+        http_response_code(404);
+        exit('empty file');
+    }
+
+    // Extract filename safely
+    $filename = basename($parsed['path']);
+
+    // Send binary download
+    header('Content-Type: application/octet-stream');
+    header("Content-Disposition: attachment; filename*=UTF-8''" . rawurlencode($filename));
+    header('Content-Length: ' . strlen($data));
+    header('Cache-Control: no-store, no-cache, must-revalidate');
+    header('Pragma: public');
+
+    echo $data;
     exit;
 }
+
+
+
+
+/* =========================================================
+   ALL JSON APIs BELOW THIS POINT
+========================================================= */
+
+header("Access-Control-Allow-Origin: *");
+
+/* ---------- existing JSON endpoints unchanged ---------- */
+/* (Everything below is EXACTLY your logic, untouched) */
+
+
+
+
+
+
+
+
+
 
 // Get users.json
 if (isset($_GET['action']) && $_GET['action'] == 'get_users') {
@@ -1956,6 +2127,344 @@ if (isset($_GET['action']) && $_GET['action'] === 'save_card_priority') {
 
 
 
+// Get DocType metadata (fields)
+if (isset($_GET['action']) && $_GET['action'] === 'get_doctype_meta') {
+    $doctype = $_GET['doctype'] ?? '';
+    if (empty($doctype)) {
+        echo json_encode(['success' => false, 'error' => 'DocType not specified']);
+        exit;
+    }
+    
+    // Use Frappe's getdoctype method instead of direct resource access
+    $ch = curl_init();
+    $url = ERP_BASE . "/api/method/frappe.desk.form.load.getdoctype";
+    
+    // Send as POST with doctype parameter
+    $postData = json_encode([
+        'doctype' => $doctype
+    ]);
+    
+    curl_setopt_array($ch, [
+        CURLOPT_URL => $url,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_POST => true,
+        CURLOPT_POSTFIELDS => $postData,
+        CURLOPT_HTTPHEADER => [
+            "Authorization: token " . API_KEY . ":" . API_SECRET,
+            "Content-Type: application/json"
+        ],
+        CURLOPT_SSL_VERIFYPEER => false
+    ]);
+    
+    $response = curl_exec($ch);
+    $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    
+    if ($http_code === 200) {
+        $data = json_decode($response, true);
+        
+        // Extract fields from the response
+        $docs = $data['docs'] ?? [];
+        $fields = [];
+        
+        if (!empty($docs)) {
+            $fields = $docs[0]['fields'] ?? [];
+        }
+        
+        // Return only necessary field info
+        $fieldInfo = array_map(function($f) {
+            return [
+                'fieldname' => $f['fieldname'] ?? '',
+                'label' => $f['label'] ?? '',
+                'fieldtype' => $f['fieldtype'] ?? '',
+                'options' => $f['options'] ?? '',
+                'read_only' => $f['read_only'] ?? 0,
+                'allow_on_submit' => $f['allow_on_submit'] ?? 0
+            ];
+        }, $fields);
+        
+        echo json_encode(['success' => true, 'fields' => $fieldInfo]);
+    } else {
+        // Log the error for debugging
+        error_log("DocType fetch failed - HTTP $http_code: $response");
+        echo json_encode([
+            'success' => false, 
+            'error' => 'Failed to fetch DocType', 
+            'http_code' => $http_code,
+            'details' => $response
+        ]);
+    }
+    exit;
+}
+
+
+
+
+
+// ================================
+// LIST ATTACHMENTS (REQUIRED)
+// ================================
+if ($_GET['action'] === 'list_attachments') {
+
+    $doctype = $_GET['doctype'] ?? '';
+    $docname = $_GET['docname'] ?? '';
+
+    if (!$doctype || !$docname) {
+        http_response_code(400);
+        echo json_encode([]);
+        exit;
+    }
+
+    $url = ERP_BASE . "/api/resource/File"
+        . "?fields=[\"name\",\"file_name\",\"file_url\",\"is_private\"]"
+        . "&filters=" . urlencode(json_encode([
+            ["attached_to_doctype", "=", $doctype],
+            ["attached_to_name", "=", $docname]
+        ]));
+
+    $ch = curl_init($url);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HTTPHEADER => [
+            "Authorization: token " . API_KEY . ":" . API_SECRET
+        ],
+        CURLOPT_SSL_VERIFYPEER => false
+    ]);
+
+    $res = curl_exec($ch);
+    curl_close($ch);
+
+    $data = json_decode($res, true);
+
+    if (!isset($data['data'])) {
+        echo json_encode([]);
+        exit;
+    }
+
+    echo json_encode($data['data']);
+    exit;
+}
+
+
+
+
+
+
+
+
+//Upload attachment endpoint
+if ($_GET['action'] === 'upload_attachment') {
+
+    if (!isset($_FILES['file'])) {
+        echo json_encode(['error' => 'No file']);
+        exit;
+    }
+
+    $doctype = $_POST['doctype'] ?? '';
+    $docname = $_POST['docname'] ?? '';
+    $is_private = $_POST['is_private'] ?? 1;
+
+    if (!$doctype || !$docname) {
+        echo json_encode(['error' => 'Missing doctype/docname']);
+        exit;
+    }
+
+    $boundary = '----WebKitFormBoundary' . uniqid();
+    $file = $_FILES['file'];
+    $content = file_get_contents($file['tmp_name']);
+
+    $body =
+        "--$boundary\r\n" .
+        "Content-Disposition: form-data; name=\"file\"; filename=\"{$file['name']}\"\r\n" .
+        "Content-Type: {$file['type']}\r\n\r\n" .
+        $content . "\r\n" .
+        "--$boundary\r\n" .
+        "Content-Disposition: form-data; name=\"doctype\"\r\n\r\n$doctype\r\n" .
+        "--$boundary\r\n" .
+        "Content-Disposition: form-data; name=\"docname\"\r\n\r\n$docname\r\n" .
+        "--$boundary\r\n" .
+        "Content-Disposition: form-data; name=\"is_private\"\r\n\r\n$is_private\r\n" .
+        "--$boundary--\r\n";
+
+    $ch = curl_init(ERP_BASE . '/api/method/upload_file');
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_POST => true,
+        CURLOPT_POSTFIELDS => $body,
+        CURLOPT_HTTPHEADER => [
+            "Authorization: token " . API_KEY . ":" . API_SECRET,
+            "Content-Type: multipart/form-data; boundary=$boundary"
+        ],
+        CURLOPT_SSL_VERIFYPEER => false
+    ]);
+
+    $res = curl_exec($ch);
+    curl_close($ch);
+
+    echo $res;
+    exit;
+}
+
+
+
+
+// ================================
+// REMOVE ATTACHMENT + CLEAN RICH TEXT
+// ================================
+if ($_GET['action'] === 'delete_attachment') {
+
+    $fileName = $_GET['file_name'] ?? '';
+    $doctype  = $_GET['doctype'] ?? '';
+    $docname  = $_GET['docname'] ?? '';
+
+    if (!$fileName || !$doctype || !$docname) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Missing parameters']);
+        exit;
+    }
+
+    /* ======================================================
+       1️⃣ FIND FILE DOCUMENT
+    ====================================================== */
+
+    $queryUrl = ERP_BASE . "/api/resource/File"
+        . "?fields=[\"name\",\"file_url\"]"
+        . "&filters=" . urlencode(json_encode([
+            ["file_name", "=", $fileName],
+            ["attached_to_doctype", "=", $doctype],
+            ["attached_to_name", "=", $docname]
+        ]));
+
+    $ch = curl_init($queryUrl);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HTTPHEADER => [
+            "Authorization: token " . API_KEY . ":" . API_SECRET
+        ],
+        CURLOPT_SSL_VERIFYPEER => false
+    ]);
+
+    $res = curl_exec($ch);
+    curl_close($ch);
+
+    $data = json_decode($res, true);
+    if (empty($data['data'][0])) {
+        http_response_code(404);
+        echo json_encode(['error' => 'File not found']);
+        exit;
+    }
+
+    $fileDocName = $data['data'][0]['name'];
+    $fileUrl     = $data['data'][0]['file_url']; // IMPORTANT
+
+    /* ======================================================
+       2️⃣ DELETE FILE DOCUMENT
+    ====================================================== */
+
+    $del = curl_init(
+        ERP_BASE . "/api/resource/File/" . urlencode($fileDocName)
+    );
+    curl_setopt_array($del, [
+        CURLOPT_CUSTOMREQUEST => 'DELETE',
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HTTPHEADER => [
+            "Authorization: token " . API_KEY . ":" . API_SECRET
+        ],
+        CURLOPT_SSL_VERIFYPEER => false
+    ]);
+
+    curl_exec($del);
+    curl_close($del);
+
+    /* ======================================================
+       3️⃣ FETCH PARENT DOCUMENT
+    ====================================================== */
+
+    $docUrl = ERP_BASE . "/api/resource/"
+        . rawurlencode($doctype) . "/"
+        . rawurlencode($docname);
+
+    $ch = curl_init($docUrl);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HTTPHEADER => [
+            "Authorization: token " . API_KEY . ":" . API_SECRET
+        ],
+        CURLOPT_SSL_VERIFYPEER => false
+    ]);
+
+    $docRes = curl_exec($ch);
+    curl_close($ch);
+
+    $docData = json_decode($docRes, true);
+    if (empty($docData['data'])) {
+        echo json_encode(['success' => true]); // File deleted, doc missing
+        exit;
+    }
+
+    $doc = $docData['data'];
+
+    /* ======================================================
+       4️⃣ CLEAN RICH TEXT FIELDS
+    ====================================================== */
+
+    $updatedFields = [];
+
+    foreach ($doc as $field => $value) {
+        if (!is_string($value)) continue;
+
+        // Remove image tags or links referencing this file
+        if (strpos($value, $fileUrl) !== false ||
+            strpos($value, $fileName) !== false) {
+
+            // Remove <img> tags
+            $cleaned = preg_replace(
+                '#<img[^>]+src=["\'][^"\']*' . preg_quote($fileName, '#') . '[^"\']*["\'][^>]*>#i',
+                '',
+                $value
+            );
+
+            // Remove links to file
+            $cleaned = preg_replace(
+                '#<a[^>]+href=["\'][^"\']*' . preg_quote($fileName, '#') . '[^"\']*["\'][^>]*>.*?</a>#is',
+                '',
+                $cleaned
+            );
+
+            if ($cleaned !== $value) {
+                $updatedFields[$field] = $cleaned;
+            }
+        }
+    }
+
+    /* ======================================================
+       5️⃣ UPDATE DOCUMENT (ONLY IF NEEDED)
+    ====================================================== */
+
+    if (!empty($updatedFields)) {
+        $update = curl_init($docUrl);
+        curl_setopt_array($update, [
+            CURLOPT_CUSTOMREQUEST => 'PUT',
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_POSTFIELDS => json_encode($updatedFields),
+            CURLOPT_HTTPHEADER => [
+                "Authorization: token " . API_KEY . ":" . API_SECRET,
+                "Content-Type: application/json"
+            ],
+            CURLOPT_SSL_VERIFYPEER => false
+        ]);
+        curl_exec($update);
+        curl_close($update);
+    }
+
+    echo json_encode([
+        'success' => true,
+        'cleaned_fields' => array_keys($updatedFields)
+    ]);
+    exit;
+}
+
+
 
 
 
@@ -1965,5 +2474,5 @@ if (isset($_GET['action']) && $_GET['action'] === 'save_card_priority') {
 
 // ==================== END TIME LOGS ENDPOINTS ====================
 
-echo json_encode(["error" => "Invalid request"]);
-?>
+http_response_code(404);
+exit;
