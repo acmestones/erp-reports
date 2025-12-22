@@ -21,6 +21,9 @@
 
 
   let ATTRIBUTE_MAP = {}; // Cache for attribute definitions from Plytix
+  let ATTRIBUTE_MAP = {}; // Cache for attribute definitions from Plytix
+  window.DEBUG_ATTR_MAP = ATTRIBUTE_MAP; // Expose for debugging
+
 
 
 
@@ -1083,6 +1086,11 @@ function makeFieldEditable(tdElement, product, fieldKey, currentValue) {
     // Check if we have cached attribute definition
     const cachedAttr = ATTRIBUTE_MAP[fieldKey];
 
+      // DEBUG LOGGING
+    console.log('DEBUG - fieldKey:', fieldKey);
+    console.log('DEBUG - cachedAttr:', cachedAttr);
+    console.log('DEBUG - has options?:', cachedAttr && cachedAttr.options && cachedAttr.options.length);
+  
     if (cachedAttr) {
         // Use cached definition
         const attrData = {
