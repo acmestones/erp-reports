@@ -620,10 +620,20 @@ function fixImageUrl(url) {
       console.log("Private file detected, proxying");
       // Extract just the path part
       let fileUrl = url;
-      // If it's on staging domain, replace with ERP domain
-      if (url.includes("stagingreports.acmestones.com")) {
-        fileUrl = url.replace("stagingreports.acmestones.com", "acmestones.erpnext.com");
+      
+      // ✅ GENERIC: Replace any non-production domain with ERP_BASE domain
+      try {
+        const urlObj = new URL(url);
+        const erpObj = new URL(ERP_BASE);
+        // If domains don't match, replace with ERP domain
+        if (urlObj.hostname !== erpObj.hostname) {
+          fileUrl = `${erpObj.origin}${urlObj.pathname}${urlObj.search}`;
+        }
+      } catch (e) {
+        // If URL parsing fails, use as-is
+        console.warn("URL parsing failed:", e);
       }
+      
       return `${API_BASE}?action=proxyimage&fileurl=${encodeURIComponent(fileUrl)}`;
     }
     return url;
@@ -636,19 +646,20 @@ function fixImageUrl(url) {
 
   // Handle private files by proxying through PHP
   if (url.includes("/private/files/")) {
-    const fullUrl = `https://acmestones.erpnext.com${url}`;
+    const fullUrl = `${ERP_BASE}${url}`;
     console.log("Proxying private file:", fullUrl);
     return `${API_BASE}?action=proxyimage&fileurl=${encodeURIComponent(fullUrl)}`;
   }
 
   // Root-relative URL (including public /files/)
   if (url.startsWith("/")) {
-    return `https://acmestones.erpnext.com${url}`;
+    return `${ERP_BASE}${url}`;
   }
 
   // Relative URL
-  return `https://acmestones.erpnext.com/${url}`;
+  return `${ERP_BASE}/${url}`;
 }
+
 
 // Fix file url
 function fixFileUrl(url) {
