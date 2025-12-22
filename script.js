@@ -1342,7 +1342,9 @@ async function cleanupCardPriority(reportName) {
 
   // Save if anything was cleaned
   if (cleaned) {
-    await saveReportConfig(config);
+    // ✅ FIX: Update the reportConfig object, then save the FULL config
+    reportConfig[reportName] = config;
+    await saveReportConfig(reportConfig); // ✅ Pass FULL config!
     console.log("✅ Cleanup complete and saved");
   }
 }
@@ -3750,7 +3752,8 @@ async function openGlobalReportConfigModal(reportName) {
     document.getElementById("operationPlanningPermissionsSection").style.display = e.target.checked ? "block" : "none";
   });
 
-  document.getElementById("saveGlobalConfigBtn").onclick = () => {
+document.getElementById("saveGlobalConfigBtn").onclick = async () => {
+  try {  // ✅ ADDED!
     const doctype = document.getElementById("configdoctype")?.value.trim();
     const titleField = document.getElementById("configtitlefield")?.value;
     const group1 = document.getElementById("configgroup1")?.value;
@@ -3762,7 +3765,6 @@ async function openGlobalReportConfigModal(reportName) {
     reportConfig[reportName].doctype = doctype;
     reportConfig[reportName].title_field = document.getElementById('config_title_field')?.value;
     reportConfig[reportName].id_field = document.getElementById('config_id_field')?.value;
-
 
     // Card fields
     const cardFieldChecks = document.querySelectorAll(".card-field-check:checked");
@@ -3851,9 +3853,22 @@ async function openGlobalReportConfigModal(reportName) {
       delete reportConfig[reportName].operation_planning_permissions;
     }
 
-    alert("Configuration saved! Click Save Changes in main settings to persist.");
+    // ✅ THE CRITICAL FIX: Actually save to file!
+    console.log("💾 Saving full reportConfig:", reportConfig);
+    await saveReportConfig(reportConfig);
+    
+    alert("✅ Configuration saved successfully!");
     configModal.hide();
-  };
+    
+    // Reload the report to apply changes
+    await loadReport(reportName);
+    
+  } catch (err) {  // ✅ Now properly paired with try
+    console.error("❌ Error saving config:", err);
+    alert("Error saving configuration: " + err.message);
+  }
+};
+
 
   // Blur any focused element to prevent aria-hidden focus conflict
   if (document.activeElement && document.activeElement.blur) {
