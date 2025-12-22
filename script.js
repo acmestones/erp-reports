@@ -20,6 +20,8 @@
   const BATCH_SIZE = 20;
 
 
+  let ATTRIBUTE_MAP = {}; // Cache for attribute definitions from Plytix
+
 
 
 
@@ -116,6 +118,8 @@ function init() {
      // ADD THIS LINE - Initialize Admin Module
     AdminModule.init(currentUser);
     loadDefaultFilters();
+
+    loadAttributeDefinitions();
   
     loadProducts();
 
@@ -139,6 +143,30 @@ function init() {
 
 
 
+
+
+
+function loadAttributeDefinitions() {
+    fetch('fetch_plytix_data.php?action=get_all_attributes')
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                ATTRIBUTE_MAP = data.attributes;
+                console.log('Loaded', Object.keys(ATTRIBUTE_MAP).length, 'attribute definitions');
+            } else {
+                console.error('Failed to load attribute definitions:', data.error);
+            }
+        })
+        .catch(err => {
+            console.error('Error loading attribute definitions:', err);
+        });
+}
+
+
+
+
+
+  
 
 
   
@@ -653,6 +681,21 @@ function applyFilters() {
 
 
 
+function getAttributeLabel(attributeName) {
+    if (ATTRIBUTE_MAP[attributeName]) {
+        return ATTRIBUTE_MAP[attributeName].label;
+    }
+    // Fallback to capitalizeWords if not in map
+    return capitalizeWords(attributeName.replace(/_/g, ' '));
+}
+
+
+
+
+  
+
+
+
   
 function renderProducts() {
     const grid = document.getElementById("productGrid");
@@ -1039,11 +1082,37 @@ function makeFieldEditable(tdElement, product, fieldKey, currentValue) {
         // Split comma-separated string (but not if it contains HTML)
         normalizedValue = currentValue.split(',').map(v => v.trim());
     }
-    
-    // Fetch attribute definition to check if it's a dropdown
-    fetch('fetch_plytix_data.php?action=get_attribute_definition&attribute=' + encodeURIComponent(fieldKey))
-        .then(function(res) { return res.json(); })
+
+
+  
+// Check if we have cached attribute definition
+const cachedAttr = ATTRIBUTE_MAP[fieldKey];
+
+if (cachedAttr) {
+    // Use cached definition
+    const attrData = {
+        success: true,
+        attribute: cachedAttr
+    };
+    renderFieldEditor(attrData);
+} else {
+    // Fallback: fetch individual attribute
+    fetch(`fetch_plytix_data.php?action=get_attribute_definition&attribute=${encodeURIComponent(fieldKey)}`)
+        .then(function(res) {
+            return res.json();
+        })
         .then(function(attrData) {
+            renderFieldEditor(attrData);
+        })
+        .catch(function(err) {
+            console.error('Failed to load attribute definition:', err);
+            renderFallbackEditor();
+        });
+}
+
+// Extract the rendering logic into a function
+function renderFieldEditor(attrData) {
+
             tdElement.innerHTML = '';
             let inputElement;
             
@@ -1329,9 +1398,9 @@ function showProductDetail(product) {
       if (key === 'attributes' || key === 'thumbnail' || key === 'assets' || key === 'relationships') return;
       
       displayFields.push({
-        label: capitalizeWords(key.replace(/_/g, ' ')),
-        value: product[key],
-        key: key
+          label: getAttributeLabel(key),
+          value: product[key],
+          key: key
       });
     });
     
@@ -1345,9 +1414,9 @@ function showProductDetail(product) {
         }
         
         displayFields.push({
-          label: capitalizeWords(attrKey.replace(/_/g, ' ')),
-          value: attrValue,
-          key: attrKey
+            label: getAttributeLabel(attrKey),
+            value: attrValue,
+            key: attrKey
         });
       });
     }
