@@ -1996,13 +1996,8 @@ async function showDetailModal(row, columns, reportName, config) {
   // Normalize legacy config keys (support both; use underscore everywhere in code)
 
 
-  const titleField = config.title_field || "name";
-  let docName = row[titleField] || row.name || row.id;
-
-  const nameCol = columns.find((c) => c.fieldname === "name" || c.fieldname === titleField);
-  if (nameCol && row[nameCol.fieldname]) {
-    docName = row[nameCol.fieldname];
-  }
+const idField = config.id_field || "name";
+let docName = row[idField] || row.name || row.work_order_id;
 
 
 
