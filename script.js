@@ -155,6 +155,7 @@ function loadAttributeDefinitions() {
             if (data.success) {
                 ATTRIBUTE_MAP = data.attributes;
                 console.log('Loaded', Object.keys(ATTRIBUTE_MAP).length, 'attribute definitions');
+              console.log('Attribute names:', Object.keys(ATTRIBUTE_MAP).sort());
             } else {
                 console.error('Failed to load attribute definitions:', data.error);
             }
@@ -1072,6 +1073,11 @@ function makeFieldEditable(tdElement, product, fieldKey, currentValue) {
     console.log('currentValue:', currentValue);
     console.log('typeof currentValue:', typeof currentValue);
     console.log('product.attributes[fieldKey]:', product.attributes ? product.attributes[fieldKey] : 'N/A');
+
+  console.log('ALL product.attributes keys:', product.attributes ? Object.keys(product.attributes) : 'none');
+  console.log('ALL ATTRIBUTE_MAP keys:', Object.keys(ATTRIBUTE_MAP));
+
+  
 
     const originalContent = tdElement.innerHTML;
     tdElement.innerHTML = '<span class="text-muted"><span class="spinner-border spinner-border-sm"></span> Loading...</span>';
