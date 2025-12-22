@@ -1342,7 +1342,9 @@ async function cleanupCardPriority(reportName) {
 
   // Save if anything was cleaned
   if (cleaned) {
-    await saveReportConfig(config);
+    // ✅ FIX: Update the reportConfig object, then save the FULL config
+    reportConfig[reportName] = config;
+    await saveReportConfig(reportConfig); // ✅ Pass FULL config!
     console.log("✅ Cleanup complete and saved");
   }
 }
