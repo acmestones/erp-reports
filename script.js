@@ -2313,7 +2313,7 @@ async function showDetailModal(row, columns, reportName, config) {
         constrainRichTextImages(valueDiv);
       }
       // Link field
-      else if (fieldtype === "Link" && fieldOptions) {
+      else if (fieldType === "Link" && fieldOptions) {
         const link = document.createElement("a");
         link.href = `${ERP_BASE}/app/${col.options.toLowerCase().replace(/\s+/g, "-")}/${encodeURIComponent(value)}`;
         link.target = "_blank";
@@ -2324,7 +2324,7 @@ async function showDetailModal(row, columns, reportName, config) {
 
 
       // ✅ NEW: URL field (Data field with "URL" option)
-      else if (fieldtype === 'Data' && fieldOptions === 'URL') {
+      else if (fieldType === 'Data' && fieldOptions === 'URL') {
         const link = document.createElement('a');
         link.href = value.startsWith('http') ? value : `https://${value}`;
         link.target = '_blank';
