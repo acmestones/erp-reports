@@ -2291,13 +2291,13 @@ async function showDetailModal(row, columns, reportName, config) {
     /* =============================
        READ-ONLY FIELDS
     ============================== */
-   else {
-  // ✅ Get metadata for read-only fields too
-  const fieldInfo = window.reportFieldMapping?.[reportFieldname];
-  const fieldType = fieldInfo?.fieldtype || col.fieldtype;
-  const fieldOptions = fieldInfo?.options || col.options;
-  
-  if (hasValue || reportFieldname === ATTACHMENTS_REPORT_FIELD) {
+  // READ-ONLY FIELDS
+  else if (hasValue || reportFieldname === ATTACHMENTS_REPORT_FIELD) {
+    // ✅ Get metadata for read-only fields
+    const fieldInfo = window.reportFieldMapping?.[reportFieldname];
+    const fieldType = fieldInfo?.fieldtype || col.fieldtype;
+    const fieldOptions = fieldInfo?.options || col.options;
+
     
       // ATTACHMENTS
       if (reportFieldname === ATTACHMENTS_REPORT_FIELD) {
