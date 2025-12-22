@@ -683,6 +683,7 @@ if ($action === 'get_all_attributes') {
     $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
 
+    // PASTE THIS CODE (with added logging)
     if ($httpCode === 200) {
         $data = json_decode($response, true);
         if (!empty($data['data'])) {
@@ -698,9 +699,12 @@ if ($action === 'get_all_attributes') {
             }
             echo json_encode(['success' => true, 'attributes' => $attributeMap]);
         } else {
+            error_log("GET_ALL_ATTRIBUTES: No data returned from Plytix");
             echo json_encode(['success' => false, 'error' => 'No attributes found']);
         }
     } else {
+        error_log("GET_ALL_ATTRIBUTES: HTTP $httpCode");
+        error_log("GET_ALL_ATTRIBUTES response: " . substr($response, 0, 1000));
         echo json_encode(['success' => false, 'error' => 'Failed to fetch attributes']);
     }
     exit;
