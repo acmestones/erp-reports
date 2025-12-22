@@ -3853,9 +3853,21 @@ async function openGlobalReportConfigModal(reportName) {
       delete reportConfig[reportName].operation_planning_permissions;
     }
 
-    alert("Configuration saved! Click Save Changes in main settings to persist.");
+    // ✅ THE CRITICAL FIX: Actually save to file!
+    console.log("💾 Saving full reportConfig:", reportConfig);
+    await saveReportConfig(reportConfig);
+    
+    alert("✅ Configuration saved successfully!");
     configModal.hide();
-  };
+    
+    // Reload the report to apply changes
+    await loadReport(reportName);
+    
+  } catch (err) {
+    console.error("❌ Error saving config:", err);
+    alert("Error saving configuration: " + err.message);
+  }
+};
 
   // Blur any focused element to prevent aria-hidden focus conflict
   if (document.activeElement && document.activeElement.blur) {
