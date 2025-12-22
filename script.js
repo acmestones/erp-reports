@@ -1089,14 +1089,25 @@ function makeFieldEditable(tdElement, product, fieldKey, currentValue) {
     }
 
     // Check if we have cached attribute definition
-    const cachedAttr = ATTRIBUTE_MAP[fieldKey];
-
-      // DEBUG LOGGING
+    // Try exact match first, then case-insensitive
+    let cachedAttr = ATTRIBUTE_MAP[fieldKey];
+    if (!cachedAttr) {
+        // Try case-insensitive lookup
+        const fieldKeyLower = fieldKey.toLowerCase();
+        const matchingKey = Object.keys(ATTRIBUTE_MAP).find(key => key.toLowerCase() === fieldKeyLower);
+        if (matchingKey) {
+            cachedAttr = ATTRIBUTE_MAP[matchingKey];
+        }
+    }
+    
+    // DEBUG LOGGING
     console.log('DEBUG - fieldKey:', fieldKey);
     console.log('DEBUG - cachedAttr:', cachedAttr);
     console.log('DEBUG - has options?:', cachedAttr && cachedAttr.options && cachedAttr.options.length);
-  
+    
     if (cachedAttr) {
+
+  
         // Use cached definition
         const attrData = {
             success: true,
