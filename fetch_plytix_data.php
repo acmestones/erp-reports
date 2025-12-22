@@ -689,14 +689,15 @@ if ($action === 'get_all_attributes') {
         if (!empty($data['data'])) {
             // Build name -> attribute map
             $attributeMap = [];
-            foreach ($data['data'] as $attr) {
-                $attributeMap[$attr['name']] = [
-                    'name' => $attr['name'],
-                    'label' => $attr['label'],
-                    'type' => $attr['type_class'],
-                    'options' => $attr['options'] ?? []
-                ];
-            }
+                foreach ($data['data'] as $attr) {
+                    // In Plytix: label = unique ID, name = display text
+                    $attributeMap[$attr['label']] = [
+                        'label' => $attr['label'],        // Unique ID (e.g., "application")
+                        'name' => $attr['name'],          // Display name (e.g., "Application")
+                        'type' => $attr['type_class'],
+                        'options' => $attr['options'] ?? []
+                    ];
+                }
             echo json_encode(['success' => true, 'attributes' => $attributeMap]);
         } else {
             error_log("GET_ALL_ATTRIBUTES: No data returned from Plytix");
@@ -736,7 +737,7 @@ if ($action === 'get_attribute_definition') {
     // Fetch attribute definition from Plytix
     $url = "https://pim.plytix.com/api/v1/attributes/product/search";
     $postData = [
-        "filters" => [[["field" => "name", "operator" => "=", "value" => $attrName]]], // CHANGED: name + =
+        "filters" => [[["field" => "label", "operator" => "=", "value" => $attrName]]],
         "attributes" => ["name", "label", "type_class", "options"],
         "pagination" => [
             "page_size" => 1,
@@ -764,15 +765,15 @@ if ($action === 'get_attribute_definition') {
         $data = json_decode($response, true);
         if (!empty($data['data'])) {
             $attribute = $data['data'][0];
-            echo json_encode([
-                'success' => true,
-                'attribute' => [
-                    'name' => $attribute['name'],
-                    'label' => $attribute['label'],
-                    'type' => $attribute['type_class'],
-                    'options' => $attribute['options'] ?? []
-                ]
-            ]);
+                echo json_encode([
+                    'success' => true,
+                    'attribute' => [
+                        'label' => $attribute['label'],    // Unique ID
+                        'name' => $attribute['name'],      // Display name
+                        'type' => $attribute['type_class'],
+                        'options' => $attribute['options'] ?? []
+                    ]
+                ]);
         } else {
             echo json_encode(['success' => false, 'error' => 'Attribute not found']);
         }
