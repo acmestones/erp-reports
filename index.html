@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <!-- Add this base tag to prevent relative URL issues -->
-    <base href="https://reports.acmestones.com/">
+    <base href="https://stagingreports.acmestones.com/">
     
     <title>Acme Stones Reports</title>
     
@@ -100,24 +100,64 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
-                    <ul class="nav nav-tabs mb-3" id="adminTabs">
-                        <li class="nav-item">
-                            <a class="nav-link active" data-bs-toggle="tab" href="#userManagement">User Management</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link" data-bs-toggle="tab" href="#reportManagement">Report Management</a>
-                        </li>
-                    </ul>
-                    <div class="tab-content">
-                        <div class="tab-pane fade show active" id="userManagement">
-                            <button class="btn btn-primary mb-3" id="addUserBtn">+ Add User</button>
-                            <div id="usersList"></div>
-                        </div>
-                        <div class="tab-pane fade" id="reportManagement">
-                            <button class="btn btn-primary mb-3" id="fetchReportsBtn">Fetch All Reports from ERPNext</button>
-                            <div id="reportsList"></div>
-                        </div>
-                    </div>
+                        <ul class="nav nav-tabs mb-3" id="adminTabs">
+                            <li class="nav-item">
+                                <a class="nav-link active" data-bs-toggle="tab" href="#userManagement">User Management</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" data-bs-toggle="tab" href="#reportManagement">Report Management</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" data-bs-toggle="tab" href="#fieldMappings">Field Mappings</a>
+                            </li>
+                        </ul>
+
+
+
+                    
+                            <div class="tab-content">
+                                <div class="tab-pane fade show active" id="userManagement">
+                                    <button class="btn btn-primary mb-3" id="addUserBtn">+ Add User</button>
+                                    <div id="usersList"></div>
+                                </div>
+                                <div class="tab-pane fade" id="reportManagement">
+                                    <button class="btn btn-primary mb-3" id="fetchReportsBtn">Fetch All Reports from ERPNext</button>
+                                    <div id="reportsList"></div>
+                                </div>
+                                <div class="tab-pane fade" id="fieldMappings">
+                                    <h5>Field Mappings Configuration</h5>
+                                    <p class="text-muted small">Map report fields to actual ERPNext DocType fields to enable editing.</p>
+                                    
+                                    <div class="row mb-3">
+                                        <div class="col-md-6">
+                                            <label class="form-label fw-bold">Select Report</label>
+                                            <select class="form-select" id="mappingReportSelect">
+                                                <option value="">-- Select Report --</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label fw-bold">DocType</label>
+                                            <div class="input-group">
+                                                <input type="text" class="form-control" id="mappingDoctype" readonly>
+                                                <button class="btn btn-outline-secondary" type="button" id="changeDoctypeBtn">Change</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div id="fieldMappingContainer" style="display: none;">
+                                        <h6 class="mt-4">Field Mappings</h6>
+                                        <p class="text-muted small">Select which ERPNext field each report field should map to:</p>
+                                        <div id="fieldMappingsList"></div>
+                                    </div>
+                                </div>
+                            </div>
+
+
+
+
+
+
+                    
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
