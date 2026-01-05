@@ -1063,6 +1063,11 @@ function saveCategories(product, newCategoryIds, tdElement, originalContent) {
   
 
 function makeFieldEditable(tdElement, product, fieldKey, currentValue) {
+    // ADD THIS AS THE VERY FIRST LINE:
+    console.log('=== makeFieldEditable CALLED ===');
+    console.log('fieldKey:', fieldKey);
+    console.log('currentValue:', currentValue);
+  
     // Prevent multiple edits
     if (tdElement.querySelector('input, select, textarea')) {
         return;
