@@ -1221,13 +1221,31 @@ function renderFieldEditor(tdElement, product, fieldKey, normalizedValue, origin
     const btnGroup = document.createElement('div');
     btnGroup.className = 'btn-group btn-group-sm mt-2';
 
-    const saveBtn = document.createElement('button');
-    saveBtn.className = 'btn btn-success btn-sm';
-    saveBtn.innerHTML = '✓ Save';
-    saveBtn.onclick = function(e) {
-        e.stopPropagation();
-        saveFieldValue(product, fieldKey, inputElement.value, tdElement, originalContent);
-    };
+const saveBtn = document.createElement('button');
+saveBtn.className = 'btn btn-success btn-sm';
+saveBtn.innerHTML = '✓ Save';
+saveBtn.onclick = function(e) {
+    e.stopPropagation();
+
+    let valueToSave;
+
+    // Decide raw value based on control type
+    if (inputElement.tagName === 'SELECT' && inputElement.multiple) {
+        // Multi-select: array of values
+        valueToSave = Array.from(inputElement.selectedOptions).map(opt => opt.value);
+    } else if (inputElement.tagName === 'SELECT') {
+        // Single select: string (may be '')
+        valueToSave = inputElement.value;
+    } else if (inputElement.tagName === 'TEXTAREA') {
+        valueToSave = inputElement.value;
+    } else {
+        // input type="text"/"number"/etc.
+        valueToSave = inputElement.value;
+    }
+
+    saveFieldValue(product, fieldKey, valueToSave, tdElement, originalContent);
+};
+
 
     const cancelBtn = document.createElement('button');
     cancelBtn.className = 'btn btn-secondary btn-sm';
@@ -1540,25 +1558,36 @@ function saveFieldValue(product, fieldKey, newValue, tdElement, originalContent)
     const updateData = {};
     let finalValue = newValue;
 
-    // Detect editor and attribute type (set earlier in makeFieldEditable)
-    const editor = tdElement.querySelector('select, input, textarea');
-    let attrType = null;
-
-    if (editor && editor.dataset && editor.dataset.attrType) {
-        attrType = editor.dataset.attrType; // "DropdownAttribute", "MultiSelectAttribute", etc.
+    // Find the canonical Plytix key (label) – case-insensitive lookup
+    let attrKey = fieldKey;
+    if (ATTRIBUTE_MAP && !ATTRIBUTE_MAP[fieldKey]) {
+        const fieldKeyLower = fieldKey.toLowerCase();
+        const matchingKey = Object.keys(ATTRIBUTE_MAP).find(k => k.toLowerCase() === fieldKeyLower);
+        if (matchingKey) {
+            attrKey = matchingKey;
+            console.log(`Corrected field key from "${fieldKey}" to "${attrKey}"`);
+        }
     }
 
-    // Normalize by type
+    // Detect attribute type from ATTRIBUTE_MAP (more reliable than editor.dataset)
+    let attrType = null;
+    if (ATTRIBUTE_MAP[attrKey]) {
+        attrType = ATTRIBUTE_MAP[attrKey].type;
+    }
+
+    // Normalize by type (GENERIC)
     if (attrType === 'MultiSelectAttribute') {
-        // Always send an array for multiselect
-        finalValue = Array.from(editor.selectedOptions || []).map(opt => opt.value);
+        // Already an array from the button handler, just ensure it's valid
+        if (!Array.isArray(finalValue)) {
+            finalValue = (finalValue === null || finalValue === '') ? [] : [finalValue];
+        }
     } else if (attrType === 'DropdownAttribute') {
         // Single dropdown: empty string -> null
         if (finalValue === '') {
             finalValue = null;
         }
     } else {
-        // Non-option attributes: leave as-is, but trim strings
+        // Non-option attributes: trim strings, convert empty -> null
         if (typeof finalValue === 'string') {
             finalValue = finalValue.trim();
             if (finalValue === '') {
@@ -1567,9 +1596,9 @@ function saveFieldValue(product, fieldKey, newValue, tdElement, originalContent)
         }
     }
 
-    updateData[fieldKey] = finalValue;
+    updateData[attrKey] = finalValue;
 
-    console.log('Saving field:', fieldKey, 'raw value:', newValue, 'normalized:', finalValue, 'for product:', product.id);
+    console.log('Saving field:', attrKey, '(original:', fieldKey, ') type:', attrType, 'raw value:', newValue, 'normalized:', finalValue, 'for product:', product.id);
     console.log('Update payload:', updateData);
 
     // Send to backend to update in Plytix
@@ -1585,52 +1614,50 @@ function saveFieldValue(product, fieldKey, newValue, tdElement, originalContent)
         if (!res.ok) throw new Error('HTTP ' + res.status);
         return res.json();
     })
-.then(function(data) {
-    console.log('Update response:', data);
-    if (!data.success) {
-        throw new Error(data.error || 'Update failed');
-    }
-
-    // Re-fetch the product to get fresh data from Plytix (bypass cache)
-    return fetch('fetch_plytix_data.php?action=fetch_products&_t=' + Date.now(), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ids: [product.id] })
-    }).then(function(res) { return res.json(); });
-
-})
-.then(function(freshData) {
-    if (freshData.success && freshData.products && freshData.products.length > 0) {
-        const freshProduct = freshData.products[0];
-        
-        // Replace local product object
-        Object.assign(product, freshProduct);
-        
-        // Update in allProducts array
-        const productIndex = allProducts.findIndex(function(p) { return p.id === product.id; });
-        if (productIndex >= 0) {
-            allProducts[productIndex] = freshProduct;
+    .then(function(data) {
+        console.log('Update response:', data);
+        if (!data.success) {
+            throw new Error(data.error || 'Update failed');
         }
-        
-        // Get the fresh value for display
-        const freshValue = (freshProduct.attributes && freshProduct.attributes[fieldKey] !== undefined)
-            ? freshProduct.attributes[fieldKey]
-            : freshProduct[fieldKey];
-        
-        // Update UI with fresh value
-        tdElement.innerHTML = formatValueForDisplay(freshValue) + 
-            ' <span class="badge bg-primary ms-2" style="cursor:pointer">✎ Edit</span>';
-        tdElement.style.cursor = 'pointer';
-        tdElement.onclick = function() {
-            makeFieldEditable(tdElement, product, fieldKey, freshValue);
-        };
-        
-        showToast('✓ Field updated successfully', 'success');
-    } else {
-        throw new Error('Could not reload updated product');
-    }
-})
 
+        // Re-fetch the product to get fresh data from Plytix (bypass cache)
+        return fetch('fetch_plytix_data.php?action=fetch_products&_t=' + Date.now(), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ids: [product.id] })
+        }).then(function(res) { return res.json(); });
+    })
+    .then(function(freshData) {
+        if (freshData.success && freshData.products && freshData.products.length > 0) {
+            const freshProduct = freshData.products[0];
+            
+            // Replace local product object
+            Object.assign(product, freshProduct);
+            
+            // Update in allProducts array
+            const productIndex = allProducts.findIndex(function(p) { return p.id === product.id; });
+            if (productIndex >= 0) {
+                allProducts[productIndex] = freshProduct;
+            }
+            
+            // Get the fresh value for display (using canonical attrKey)
+            const freshValue = (freshProduct.attributes && freshProduct.attributes[attrKey] !== undefined)
+                ? freshProduct.attributes[attrKey]
+                : freshProduct[attrKey];
+            
+            // Update UI with fresh value
+            tdElement.innerHTML = formatValueForDisplay(freshValue) + 
+                ' <span class="badge bg-primary ms-2" style="cursor:pointer">✎ Edit</span>';
+            tdElement.style.cursor = 'pointer';
+            tdElement.onclick = function() {
+                makeFieldEditable(tdElement, product, attrKey, freshValue);
+            };
+            
+            showToast('✓ Field updated successfully', 'success');
+        } else {
+            throw new Error('Could not reload updated product');
+        }
+    })
     .catch(function(err) {
         console.error('Failed to update field:', err);
         tdElement.innerHTML = originalContent;
@@ -1641,6 +1668,7 @@ function saveFieldValue(product, fieldKey, newValue, tdElement, originalContent)
         showToast('✗ Failed to update: ' + err.message, 'danger');
     });
 }
+
 
 
 
