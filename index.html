@@ -34,6 +34,9 @@
                 <button id="refreshCacheBtn" class="btn btn-warning btn-sm me-2" onclick="forceRefreshCache()" title="Check for product updates from Plytix">
                     Refresh Cache
                 </button>
+                <button id="checkCategoriesBtn" class="btn btn-warning btn-sm">
+        📋 Check Category Changes
+                </button>
                 <button id="logoutBtn" class="btn btn-outline-danger btn-sm" onclick="logout()">Logout</button>
             </div>
         </div>
@@ -123,20 +126,27 @@
 
 
     
-    <!-- Product Detail Modal -->
-    <div class="modal fade" id="productModal" tabindex="-1">
-        <div class="modal-dialog modal-xl modal-dialog-scrollable">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 id="modalTitle" class="modal-title"></h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <div id="modalBody" class="row g-3"></div>
-                </div>
+<!-- Product Detail Modal -->
+<div class="modal fade" id="productModal" tabindex="-1">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 id="modalTitle" class="modal-title"></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="modalBody" class="row g-3"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" id="refreshSingleProductBtn" class="btn btn-info btn-sm">
+                    🔄 Refresh This Product
+                </button>
             </div>
         </div>
     </div>
+</div>
+
 
     <!-- Admin Settings Modal -->
     <div class="modal fade" id="settingsModal" tabindex="-1">
