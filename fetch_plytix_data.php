@@ -799,7 +799,7 @@ function fetchAllCategories($accessToken) {
         ]
     ];
 
-    $ch = curl_init("https://pim.plytix.com/api/v1/category/search");
+    $ch = curl_init("https://pim.plytix.com/api/v1/categories/product/search");
 
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_POST, true);
