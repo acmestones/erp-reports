@@ -1582,13 +1582,16 @@ function showProductDetail(product) {
       });
     }
     
-    // Add editable attributes even if they don't exist yet (FIX #1)
-    if (AdminModule.getEditableAttributes) {
-      const editableAttrs = AdminModule.getEditableAttributes();
-      Object.keys(editableAttrs).forEach(function(attrKey) {
-        allAttributeKeys.add(attrKey);
-      });
+// Add editable attributes even if they don't exist yet (FIX #1)
+if (AdminModule.getEditableAttributes) {
+    const editableAttrs = AdminModule.getEditableAttributes();
+    if (editableAttrs && typeof editableAttrs === 'object') {
+        Object.keys(editableAttrs).forEach(function(attrKey) {
+            allAttributeKeys.add(attrKey);
+        });
     }
+}
+
     
     allAttributeKeys.forEach(function(attrKey) {
       const attrValue = product.attributes ? product.attributes[attrKey] : null;
