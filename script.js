@@ -1307,19 +1307,28 @@ if (type === 'MultiSelectAttribute') {
             `<option value="true" ${normalizedValue === true || normalizedValue === 'TRUE' ? 'selected' : ''}>TRUE</option>` +
             `<option value="false" ${normalizedValue === false || normalizedValue === 'FALSE' ? 'selected' : ''}>FALSE</option>`;
 
-    // Text fields (short)
-    } else if (typeof normalizedValue === 'string' && normalizedValue.length <= 100) {
+// Text fields - check attribute type for multiline
+} else if (typeof normalizedValue === 'string') {
+    // Check if it's a multiline attribute (like description)
+    const attrType = attrData && attrData.attribute ? attrData.attribute.type : null;
+    const isMultiline = attrType === 'MultilineAttribute' || 
+                        attrType === 'HtmlAttribute' || 
+                        normalizedValue.length > 100 ||
+                        fieldKey === 'description' || 
+                        fieldKey === 'production_notes';
+    
+    if (isMultiline) {
+        inputElement = document.createElement('textarea');
+        inputElement.className = 'form-control form-control-sm';
+        inputElement.rows = 5; // Increased rows for better visibility
+        inputElement.value = normalizedValue;
+    } else {
         inputElement = document.createElement('input');
         inputElement.type = 'text';
         inputElement.className = 'form-control form-control-sm';
         inputElement.value = normalizedValue;
+    }
 
-    // Long text fields
-    } else if (typeof normalizedValue === 'string') {
-        inputElement = document.createElement('textarea');
-        inputElement.className = 'form-control form-control-sm';
-        inputElement.rows = 3;
-        inputElement.value = normalizedValue;
 
     // Numbers
     } else if (typeof normalizedValue === 'number') {
@@ -1651,44 +1660,58 @@ allAttributeKeys.forEach(function(attrKey) {
         
         const isEditable = isAttributeEditable || isCategoriesField;
         
-        if (isEditable) {
-          td.style.cursor = 'pointer';
-          td.style.position = 'relative';
-          td.innerHTML = formatValueForDisplay(field.value);
-          
-          const editIcon = document.createElement('span');
-          editIcon.className = 'badge bg-primary ms-2';
-          editIcon.innerHTML = '✎ Edit';
-          editIcon.style.cursor = 'pointer';
-          td.appendChild(editIcon);
-          
-          if (isCategoriesField) {
-            // Special editor for categories with checkbox dropdown (FIX #2)
-            td.onclick = function() {
-              openCategoriesEditorWithCheckboxes(td, product);
+if (isEditable) {
+    // Create a container div for value + edit button
+    const container = document.createElement('div');
+    container.style.display = 'flex';
+    container.style.justifyContent = 'space-between';
+    container.style.alignItems = 'start';
+    container.style.gap = '10px';
+    
+    // Value span (not clickable)
+    const valueSpan = document.createElement('span');
+    valueSpan.innerHTML = formatValueForDisplay(field.value);
+    valueSpan.style.flex = '1';
+    
+    // Edit button (only this is clickable)
+    const editBtn = document.createElement('button');
+    editBtn.className = 'btn btn-sm btn-primary';
+    editBtn.innerHTML = '✎ Edit';
+    editBtn.style.flexShrink = '0';
+    
+    // Attach click handler to button only
+    if (isCategoriesField) {
+        // Special editor for categories with checkbox dropdown
+        editBtn.onclick = function(e) {
+            e.stopPropagation();
+            openCategoriesEditorWithCheckboxes(td, product);
+        };
+    } else {
+        // Check if this is a multi-select field
+        const editableConfig = AdminModule.getEditableAttributes ? AdminModule.getEditableAttributes()[field.key] : null;
+        
+        if (editableConfig && (editableConfig.type === 'multi-select' || editableConfig.type === 'MultiSelectAttribute')) {
+            editBtn.onclick = function(e) {
+                e.stopPropagation();
+                makeFieldEditableMultiSelect(td, product, field.key, field.value, editableConfig);
             };
-          } else {
-            // Check if this is a multi-select field
-// Check if this is a multi-select field
-const editableConfig = AdminModule.getEditableAttributes ? AdminModule.getEditableAttributes()[field.key] : null;
-if (editableConfig && (editableConfig.type === 'multi-select' || editableConfig.type === 'MultiSelectAttribute')) {
-    td.onclick = function(e) {
-        e.stopPropagation();
-        makeFieldEditableMultiSelect(td, product, field.key, field.value, editableConfig);
-    };
-} else if (isAttributeEditable) {
-    // Normal attribute editor (handles dropdown / text etc.)
-    td.onclick = function(e) {
-        e.stopPropagation();
-        makeFieldEditable(td, product, field.key, field.value);
-    };
-}
+        } else if (isAttributeEditable) {
+            // Normal attribute editor (handles dropdown / text etc.)
+            editBtn.onclick = function(e) {
+                e.stopPropagation();
+                makeFieldEditable(td, product, field.key, field.value);
+            };
+        }
+    }
+    
+    container.appendChild(valueSpan);
+    container.appendChild(editBtn);
+    td.appendChild(container);
+    
+    // Clean label - no yellow icon
+    th.innerHTML = field.label;
 
-
-
-          }
-          
-          th.innerHTML = field.label + ' <span class="badge bg-warning text-dark ms-1" title="Editable">✎</span>';
+  
         } else {
           td.innerHTML = formatValueForDisplay(field.value);
         }
