@@ -126,30 +126,30 @@ function getEditableAttributes() {
     // FIX: Use editable_attributes (with underscore) not editableattributes
     const editableList = userPermissions.editable_attributes || userPermissions.editableattributes || [];
     
-    // Check if ATTRIBUTEMAP is available
-    if (!window.ATTRIBUTEMAP || Object.keys(window.ATTRIBUTEMAP).length === 0) {
-        console.warn('ATTRIBUTEMAP not loaded yet');
+    // Check if DEBUG_ATTR_MAP is available (instead of ATTRIBUTEMAP)
+    if (!window.DEBUG_ATTR_MAP || Object.keys(window.DEBUG_ATTR_MAP).length === 0) {
+        console.warn('DEBUG_ATTR_MAP not loaded yet');
         return {};
     }
     
     // If "all" is in the list, return all available attributes
     if (editableList.includes('all')) {
-        Object.keys(window.ATTRIBUTEMAP).forEach(attr => {
+        Object.keys(window.DEBUG_ATTR_MAP).forEach(attr => {
             editableAttrs[attr] = {
-                type: window.ATTRIBUTEMAP[attr].type,
-                options: window.ATTRIBUTEMAP[attr].options || []
+                type: window.DEBUG_ATTR_MAP[attr].type,
+                options: window.DEBUG_ATTR_MAP[attr].options || []
             };
         });
     } else {
         // Return only explicitly editable attributes
         editableList.forEach(attr => {
-            if (window.ATTRIBUTEMAP[attr]) {
+            if (window.DEBUG_ATTR_MAP[attr]) {
                 editableAttrs[attr] = {
-                    type: window.ATTRIBUTEMAP[attr].type,
-                    options: window.ATTRIBUTEMAP[attr].options || []
+                    type: window.DEBUG_ATTR_MAP[attr].type,
+                    options: window.DEBUG_ATTR_MAP[attr].options || []
                 };
             } else {
-                // Attribute not in ATTRIBUTEMAP, use default
+                // Attribute not in DEBUG_ATTR_MAP, use default
                 editableAttrs[attr] = { type: 'TextAttribute', options: [] };
             }
         });
