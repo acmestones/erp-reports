@@ -1106,16 +1106,18 @@ function makeFieldEditableMultiSelect(tdElement, product, fieldKey, currentValue
         saveFieldValue(product, fieldKey, selectedValues, tdElement, originalHTML);
     };
     
-    const cancelBtn = document.createElement('button');
-    cancelBtn.className = 'btn btn-sm btn-secondary';
-    cancelBtn.textContent = 'Cancel';
-    cancelBtn.onclick = function() {
-        tdElement.innerHTML = originalHTML;
-        tdElement.style.cursor = 'pointer';
-        tdElement.onclick = function() {
-            makeFieldEditable(tdElement, product, fieldKey, currentValue);
-        };
+const cancelBtn = document.createElement('button');
+cancelBtn.className = 'btn btn-sm btn-secondary';
+cancelBtn.textContent = 'Cancel';
+cancelBtn.onclick = function(e) {
+    e.stopPropagation(); // Add this line
+    tdElement.innerHTML = originalHTML;
+    tdElement.style.cursor = 'pointer';
+    tdElement.onclick = function() {
+        makeFieldEditable(tdElement, product, fieldKey, currentValue);
     };
+};
+
     
     btnContainer.appendChild(saveBtn);
     btnContainer.appendChild(cancelBtn);
@@ -2114,19 +2116,21 @@ function createMultiSelectDropdown(options, selectedValues) {
         
         const checkbox = document.createElement('input');
         checkbox.type = 'checkbox';
-        checkbox.id = `multi-${option.value}`;
+        checkbox.id = `multi-${Math.random()}-${option.value}`; // Make unique IDs
         checkbox.value = option.value;
         checkbox.checked = selectedValues.includes(option.value);
         
         const label = document.createElement('label');
-        label.htmlFor = `multi-${option.value}`;
+        label.htmlFor = checkbox.id;
         label.textContent = option.label;
         label.style.cursor = 'pointer';
         label.style.margin = '0';
         label.style.flex = '1';
         
         // Handle checkbox change
-        checkbox.addEventListener('change', function() {
+        checkbox.addEventListener('change', function(e) {
+            e.stopPropagation(); // Stop event from bubbling
+            
             if (checkbox.checked) {
                 if (!selectedValues.includes(option.value)) {
                     selectedValues.push(option.value);
@@ -2142,10 +2146,16 @@ function createMultiSelectDropdown(options, selectedValues) {
         
         // Make the whole row clickable
         optionDiv.addEventListener('click', function(e) {
-            if (e.target !== checkbox) {
-                checkbox.checked = !checkbox.checked;
-                checkbox.dispatchEvent(new Event('change'));
+            e.stopPropagation(); // Stop event from bubbling
+            
+            if (e.target === checkbox || e.target === label) {
+                // Let the checkbox handle it naturally
+                return;
             }
+            
+            // Clicked on the row itself
+            checkbox.checked = !checkbox.checked;
+            checkbox.dispatchEvent(new Event('change', { bubbles: false }));
         });
         
         optionDiv.appendChild(checkbox);
@@ -2155,22 +2165,39 @@ function createMultiSelectDropdown(options, selectedValues) {
     
     // Toggle dropdown
     button.addEventListener('click', function(e) {
-        e.stopPropagation();
+        e.stopPropagation(); // Stop event from bubbling
         dropdown.classList.toggle('show');
     });
     
-    // Close dropdown when clicking outside
-    document.addEventListener('click', function(e) {
+    // Close dropdown when clicking outside (with better detection)
+    const closeDropdown = function(e) {
         if (!wrapper.contains(e.target)) {
             dropdown.classList.remove('show');
+        }
+    };
+    
+    // Attach close handler when dropdown opens
+    button.addEventListener('click', function() {
+        if (dropdown.classList.contains('show')) {
+            setTimeout(function() {
+                document.addEventListener('click', closeDropdown);
+            }, 0);
+        } else {
+            document.removeEventListener('click', closeDropdown);
         }
     });
     
     wrapper.appendChild(button);
     wrapper.appendChild(dropdown);
     
+    // Prevent all clicks inside wrapper from propagating
+    wrapper.addEventListener('click', function(e) {
+        e.stopPropagation();
+    });
+    
     return wrapper;
 }
+
 
 
 
