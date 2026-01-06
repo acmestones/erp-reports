@@ -950,6 +950,22 @@ if ($action === 'update_categories') {
 if ($action === 'check_category_changes') {
     error_log("CHECK_CATEGORY_CHANGES: Starting...");
     
+    // Check if we have a recent check cached (within last 5 minutes)
+    $categoryCheckCacheFile = $cacheDir . '/category_check_cache.json';
+    
+    if (file_exists($categoryCheckCacheFile)) {
+        $cacheTime = filemtime($categoryCheckCacheFile);
+        $age = time() - $cacheTime;
+        if ($age < 300) { // 5 minutes = 300 seconds
+            error_log("CHECK_CATEGORY_CHANGES: Using cached result from $age seconds ago");
+            $cachedResult = json_decode(file_get_contents($categoryCheckCacheFile), true);
+            echo json_encode($cachedResult);
+            exit;
+        } else {
+            error_log("CHECK_CATEGORY_CHANGES: Cache expired ($age seconds old), will check API");
+        }
+    }
+    
     $accessToken = getAuthToken($apiKey, $apiPassword);
     if (!$accessToken) {
         http_response_code(500);
@@ -957,20 +973,20 @@ if ($action === 'check_category_changes') {
         exit;
     }
     
-    // Fetch all products with ONLY id and categories (lightweight)
+    // Fetch only ID and MODIFIED timestamp (not full categories - much lighter!)
     $postData = [
-        "attributes" => ["id"],  // Minimal fields
+        "attributes" => ["id", "modified"],  // Only these two fields
         "pagination" => [
             "page_size" => 100,
             "page" => 1
         ]
     ];
     
-    $allProductsWithCategories = [];
+    $allProductTimestamps = [];
     $page = 1;
     $maxPages = 15;  // ~1022 products / 100
     
-    error_log("Fetching category data from Plytix...");
+    error_log("Fetching modified timestamps from Plytix...");
     
     while ($page <= $maxPages) {
         $postData['pagination']['page'] = $page;
@@ -1000,12 +1016,8 @@ if ($action === 'check_category_changes') {
         if (count($products) === 0) break;
         
         foreach ($products as $product) {
-            $categoryIds = array_map(function($cat) { 
-                return $cat['id']; 
-            }, $product['categories'] ?? []);
-            sort($categoryIds);
-            
-            $allProductsWithCategories[$product['id']] = $categoryIds;
+            $allProductTimestamps[$product['id']] = 
+                $product['modified'] ?? $product['created'] ?? null;
         }
         
         error_log("Page $page: got " . count($products) . " products");
@@ -1016,50 +1028,39 @@ if ($action === 'check_category_changes') {
         usleep(50000); // 50ms delay
     }
     
-    error_log("Fetched category data for " . count($allProductsWithCategories) . " products");
+    error_log("Fetched timestamps for " . count($allProductTimestamps) . " products");
     
-    // Compare with consolidated cache (faster than individual files)
-    $consolidatedFile = $cacheDir . '/all_products_consolidated.json';
-    $cachedData = [];
-    
-    if (file_exists($consolidatedFile)) {
-        $consolidated = json_decode(file_get_contents($consolidatedFile), true);
-        foreach ($consolidated['products'] ?? [] as $product) {
-            $productId = $product['id'];
-            $cachedCategoryIds = array_map(function($cat) { 
-                return $cat['id']; 
-            }, $product['categories'] ?? []);
-            sort($cachedCategoryIds);
-            $cachedData[$productId] = $cachedCategoryIds;
-        }
-        error_log("Loaded " . count($cachedData) . " products from consolidated cache");
-    } else {
-        error_log("No consolidated cache found");
-        echo json_encode(['success' => false, 'error' => 'No cache found. Please do a full refresh first.']);
-        exit;
-    }
-    
-    // Compare
+    // Compare timestamps with metadata (not category arrays!)
+    $metadata = loadMetadata($metadataFile);
     $changedProducts = [];
-    foreach ($allProductsWithCategories as $productId => $freshCategoryIds) {
-        $cachedCategoryIds = $cachedData[$productId] ?? [];
+    
+    foreach ($allProductTimestamps as $productId => $apiTimestamp) {
+        $cachedTimestamp = $metadata['products'][$productId] ?? null;
         
-        if ($cachedCategoryIds !== $freshCategoryIds) {
+        // If timestamps differ, product has changed (could be categories, attributes, etc.)
+        if ($cachedTimestamp !== $apiTimestamp) {
             $changedProducts[] = $productId;
-            error_log("Product $productId: categories changed (" . 
-                      count($cachedCategoryIds) . " -> " . count($freshCategoryIds) . ")");
+            error_log("Product $productId: changed - cached: $cachedTimestamp, api: $apiTimestamp");
         }
     }
     
-    error_log("Found " . count($changedProducts) . " products with category changes");
+    error_log("Found " . count($changedProducts) . " products with changes");
     
-    echo json_encode([
+    $result = [
         'success' => true,
         'changedProducts' => $changedProducts,
-        'totalChecked' => count($allProductsWithCategories)
-    ]);
+        'totalChecked' => count($allProductTimestamps)
+    ];
+    
+    // Cache this result for 5 minutes
+    file_put_contents($categoryCheckCacheFile, json_encode($result));
+    error_log("CHECK_CATEGORY_CHANGES: Cached result for 5 minutes");
+    
+    echo json_encode($result);
     exit;
 }
+
+
 
 
 
