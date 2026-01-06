@@ -1436,6 +1436,7 @@ function showProductDetail(product) {
     
     const displayFields = [];
     
+    // Collect all keys from product
     Object.keys(product).forEach(function(key) {
       if (key === 'attributes' || key === 'thumbnail' || key === 'assets' || key === 'relationships') return;
       
@@ -1446,22 +1447,38 @@ function showProductDetail(product) {
       });
     });
     
+    // Collect all attribute keys (including editable ones that might be empty)
+    const allAttributeKeys = new Set();
+    
+    // Add existing attributes
     if (product.attributes && typeof product.attributes === 'object') {
       Object.keys(product.attributes).forEach(function(attrKey) {
-        const attrValue = product.attributes[attrKey];
-        
-        // Skip if it's an image array (already shown above)
-        if (Array.isArray(attrValue) && attrValue.length > 0 && attrValue[0] && attrValue[0].url) {
-          return;
-        }
-        
-        displayFields.push({
-            label: getAttributeLabel(attrKey),
-            value: attrValue,
-            key: attrKey
-        });
+        allAttributeKeys.add(attrKey);
       });
     }
+    
+    // Add editable attributes even if they don't exist yet (FIX #1)
+    if (AdminModule.getEditableAttributes) {
+      const editableAttrs = AdminModule.getEditableAttributes();
+      Object.keys(editableAttrs).forEach(function(attrKey) {
+        allAttributeKeys.add(attrKey);
+      });
+    }
+    
+    allAttributeKeys.forEach(function(attrKey) {
+      const attrValue = product.attributes ? product.attributes[attrKey] : null;
+      
+      // Skip if it's an image array (already shown above)
+      if (Array.isArray(attrValue) && attrValue.length > 0 && attrValue[0] && attrValue[0].url) {
+        return;
+      }
+      
+      displayFields.push({
+          label: getAttributeLabel(attrKey),
+          value: attrValue,
+          key: attrKey
+      });
+    });
     
     displayFields.sort(function(a, b) {
       return a.label.localeCompare(b.label);
@@ -1507,15 +1524,23 @@ function showProductDetail(product) {
           td.appendChild(editIcon);
           
           if (isCategoriesField) {
-            // Special editor for categories
+            // Special editor for categories with checkbox dropdown (FIX #2)
             td.onclick = function() {
-              openCategoriesEditor(td, product);
+              openCategoriesEditorWithCheckboxes(td, product);
             };
           } else {
-            // Normal attribute editor (handles dropdown / multiselect etc.)
-            td.onclick = function() {
-              makeFieldEditable(td, product, field.key, field.value);
-            };
+            // Check if this is a multi-select field
+            const editableConfig = AdminModule.getEditableAttributes ? AdminModule.getEditableAttributes()[field.key] : null;
+            if (editableConfig && editableConfig.type === 'multi-select') {
+              td.onclick = function() {
+                makeFieldEditableMultiSelect(td, product, field.key, field.value, editableConfig);
+              };
+            } else {
+              // Normal attribute editor (handles dropdown / text etc.)
+              td.onclick = function() {
+                makeFieldEditable(td, product, field.key, field.value);
+              };
+            }
           }
           
           th.innerHTML = field.label + ' <span class="badge bg-warning text-dark ms-1" title="Editable">✎</span>';
@@ -1527,7 +1552,6 @@ function showProductDetail(product) {
         tr.appendChild(td);
         tbody.appendChild(tr);
     });
-
 
     
     table.appendChild(tbody);
@@ -1543,8 +1567,6 @@ function showProductDetail(product) {
     modalBody.appendChild(leftCol);
     modalBody.appendChild(rightCol);
 
-
-
     // Wire up the refresh button for this specific product
     const refreshBtn = document.getElementById('refreshSingleProductBtn');
     if (refreshBtn) {
@@ -1555,13 +1577,11 @@ function showProductDetail(product) {
             refreshSingleProduct(product.id, product.sku);
         };
     }
-
-
-  
     
     const modal = new bootstrap.Modal(document.getElementById("productModal"));
     modal.show();
 }
+
 
 
 
