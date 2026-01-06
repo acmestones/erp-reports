@@ -1281,34 +1281,36 @@ function renderFieldEditor(tdElement, product, fieldKey, normalizedValue, origin
     // Check if it's a dropdown/multiselect (has options)
     if (attrData.success && attrData.attribute.options && attrData.attribute.options.length > 0) {
         const type = attrData.attribute.type;
+        
+        // REDIRECT MULTI-SELECT TO CHECKBOX DROPDOWN
+        if (type === 'MultiSelectAttribute') {
+            tdElement.innerHTML = originalContent;
+            tdElement.style.cursor = 'pointer';
+            tdElement.onclick = function() {
+                makeFieldEditableMultiSelect(tdElement, product, fieldKey, normalizedValue, {
+                    type: type,
+                    options: attrData.attribute.options
+                });
+            };
+            return; // Exit early - let makeFieldEditableMultiSelect handle it
+        }
+        
+        // Single select dropdown - continue as normal
         inputElement = document.createElement('select');
         inputElement.className = 'form-select form-select-sm';
 
-        if (type === 'MultiSelectAttribute') {
-            inputElement.multiple = true;
-            inputElement.size = Math.min(6, attrData.attribute.options.length + 1);
-        } else {
-            // Single select - add empty option
-            const emptyOption = document.createElement('option');
-            emptyOption.value = '';
-            emptyOption.textContent = '-- Select --';
-            inputElement.appendChild(emptyOption);
-        }
+        // Single select - add empty option
+        const emptyOption = document.createElement('option');
+        emptyOption.value = '';
+        emptyOption.textContent = '-- Select --';
+        inputElement.appendChild(emptyOption);
 
-        // Parse current value for multiselect - use normalizedValue
-        let currentValues = [];
-        if (Array.isArray(normalizedValue)) {
-            currentValues = normalizedValue;
-        } else if (typeof normalizedValue === 'string' && normalizedValue.trim()) {
-            currentValues = normalizedValue.split(',').map(val => val.trim()).filter(val => val);
-        }
-
-        // Add options
+        // Add options (for single select)
         attrData.attribute.options.forEach(function(opt) {
             const option = document.createElement('option');
             option.value = opt;
             option.textContent = opt;
-            if (currentValues.includes(opt)) {
+            if (normalizedValue === opt) {
                 option.selected = true;
             }
             inputElement.appendChild(option);
@@ -1364,31 +1366,30 @@ function renderFieldEditor(tdElement, product, fieldKey, normalizedValue, origin
     const btnGroup = document.createElement('div');
     btnGroup.className = 'btn-group btn-group-sm mt-2';
 
-const saveBtn = document.createElement('button');
-saveBtn.className = 'btn btn-success btn-sm';
-saveBtn.innerHTML = '✓ Save';
-saveBtn.onclick = function(e) {
-    e.stopPropagation();
+    const saveBtn = document.createElement('button');
+    saveBtn.className = 'btn btn-success btn-sm';
+    saveBtn.innerHTML = '✓ Save';
+    saveBtn.onclick = function(e) {
+        e.stopPropagation();
 
-    let valueToSave;
+        let valueToSave;
 
-    // Decide raw value based on control type
-    if (inputElement.tagName === 'SELECT' && inputElement.multiple) {
-        // Multi-select: array of values
-        valueToSave = Array.from(inputElement.selectedOptions).map(opt => opt.value);
-    } else if (inputElement.tagName === 'SELECT') {
-        // Single select: string (may be '')
-        valueToSave = inputElement.value;
-    } else if (inputElement.tagName === 'TEXTAREA') {
-        valueToSave = inputElement.value;
-    } else {
-        // input type="text"/"number"/etc.
-        valueToSave = inputElement.value;
-    }
+        // Decide raw value based on control type
+        if (inputElement.tagName === 'SELECT' && inputElement.multiple) {
+            // Multi-select: array of values (shouldn't happen now, but keep as fallback)
+            valueToSave = Array.from(inputElement.selectedOptions).map(opt => opt.value);
+        } else if (inputElement.tagName === 'SELECT') {
+            // Single select: string (may be '')
+            valueToSave = inputElement.value;
+        } else if (inputElement.tagName === 'TEXTAREA') {
+            valueToSave = inputElement.value;
+        } else {
+            // input type="text"/"number"/etc.
+            valueToSave = inputElement.value;
+        }
 
-    saveFieldValue(product, fieldKey, valueToSave, tdElement, originalContent);
-};
-
+        saveFieldValue(product, fieldKey, valueToSave, tdElement, originalContent);
+    };
 
     const cancelBtn = document.createElement('button');
     cancelBtn.className = 'btn btn-secondary btn-sm';
@@ -1410,6 +1411,7 @@ saveBtn.onclick = function(e) {
     tdElement.onclick = null;
     inputElement.focus();
 }
+
 
 // NEW FUNCTION: Fallback editor when attribute fetch fails
 function renderFallbackEditor(tdElement, product, fieldKey, normalizedValue, originalContent) {
