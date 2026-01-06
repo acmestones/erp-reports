@@ -840,33 +840,61 @@ if ($action === 'get_all_categories') {
 }
 
 
-//Action : Update categories
+//Action: Update categories
 if ($action === 'update_categories') {
     $postData = file_get_contents('php://input');
     $data = json_decode($postData, true);
-
-    $productId   = $data['productId']   ?? null;
+    $productId = $data['productId'] ?? null;
     $categoryIds = $data['categoryIds'] ?? [];
-
+    
     if (!$productId) {
         echo json_encode(['success' => false, 'error' => 'Missing productId']);
         exit;
     }
-
+    
     $accessToken = getAuthToken($apiKey, $apiPassword);
     if (!$accessToken) {
         echo json_encode(['success' => false, 'error' => 'Authentication failed']);
         exit;
     }
-
-    // Simple strategy: clear existing categories (not via API, just by re‑setting all)
-    // First, unlink all current categories if needed (Plytix docs allow linking; for full sync you may need unlink endpoint too.)
-    // Here we'll just link the desired ones; duplicates should be harmless.
-
+    
+    // STEP 1: Get current categories so we can unlink them
+    $currentProduct = fetchProductDetails($productId, $accessToken);
+    $currentCategories = $currentProduct['categories'] ?? [];
+    
+    error_log("Product $productId: Current categories: " . count($currentCategories));
+    error_log("Product $productId: Target categories: " . count($categoryIds));
+    
+    // STEP 2: Unlink all existing categories
+    foreach ($currentCategories as $cat) {
+        $catId = $cat['id'];
+        $url = "https://pim.plytix.com/api/v1/products/{$productId}/categories/{$catId}";
+        
+        $ch = curl_init($url);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'DELETE');
+        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+            'Authorization: Bearer ' . $accessToken,
+            'Content-Type: application/json'
+        ]);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+        
+        if ($httpCode >= 200 && $httpCode < 300) {
+            error_log("Unlinked category $catId from product $productId");
+        } else {
+            error_log("Failed to unlink category $catId: HTTP $httpCode - $response");
+        }
+    }
+    
+    // STEP 3: Link the new selected categories
     foreach ($categoryIds as $catId) {
         $url = "https://pim.plytix.com/api/v1/products/{$productId}/categories";
         $payload = json_encode(['id' => $catId]);
-
+        
         $ch = curl_init($url);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_POST, true);
@@ -876,22 +904,40 @@ if ($action === 'update_categories') {
             'Content-Type: application/json'
         ]);
         curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        
         $response = curl_exec($ch);
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         curl_close($ch);
-
-        if ($httpCode < 200 || $httpCode >= 300) {
-            error_log("Update categories failed for product {$productId} / category {$catId}: HTTP {$httpCode} - {$response}");
+        
+        if ($httpCode >= 200 && $httpCode < 300) {
+            error_log("Linked category $catId to product $productId");
+        } else {
+            error_log("Failed to link category $catId: HTTP $httpCode - $response");
         }
     }
-
-    // Re-fetch product to return updated categories
+    
+    // STEP 4: Re-fetch product to get updated categories
     $updated = fetchProductDetails($productId, $accessToken);
     $categories = $updated['categories'] ?? [];
-
+    
+    // STEP 5: Update cache
+    $productFile = $cacheDir . '/product_' . $productId . '.json';
+    file_put_contents($productFile, json_encode($updated, JSON_PRETTY_PRINT));
+    
+    // Update metadata
+    $metadata = loadMetadata($metadataFile);
+    $metadata['products'][$productId] = $updated['modified'] ?? $updated['created'] ?? date('c');
+    saveMetadata($metadataFile, $metadata);
+    
+    // Rebuild consolidated cache
+    buildConsolidatedCache($cacheDir);
+    
+    error_log("Product $productId: Updated to " . count($categories) . " categories");
+    
     echo json_encode(['success' => true, 'categories' => $categories]);
     exit;
 }
+
 
 
 
