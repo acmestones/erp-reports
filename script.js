@@ -1659,10 +1659,11 @@ if (AdminModule.getEditableAttributes) {
           } else {
             // Check if this is a multi-select field
             const editableConfig = AdminModule.getEditableAttributes ? AdminModule.getEditableAttributes()[field.key] : null;
-            if (editableConfig && editableConfig.type === 'multi-select') {
-              td.onclick = function() {
-                makeFieldEditableMultiSelect(td, product, field.key, field.value, editableConfig);
-              };
+            if (editableConfig && (editableConfig.type === 'multi-select' || editableConfig.type === 'MultiSelectAttribute')) {
+                td.onclick = function() {
+                    makeFieldEditableMultiSelect(td, product, field.key, field.value, editableConfig);
+                };
+
             } else {
               // Normal attribute editor (handles dropdown / text etc.)
               td.onclick = function() {
