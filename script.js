@@ -896,21 +896,19 @@ function renderProducts() {
   
   
   
-function formatValueForDisplay(value) {
+
+function formatValueForDisplay(value, fieldKey) {
     if (value === null || value === undefined || value === '') {
         return '<span class="text-muted">—</span>';
     }
     
     if (Array.isArray(value)) {
-        if (value.length === 0) {
-            return '<span class="text-muted">None</span>';
-        }
-        
-        // Handle array of objects (like categories)
+        if (value.length === 0) return '<span class="text-muted">None</span>';
+        // Handle array of objects like categories
         return value.map(function(v) {
             let displayText;
             if (typeof v === 'object' && v !== null) {
-                // For categories: use path or name
+                // For categories, use path or name
                 if (v.path && Array.isArray(v.path)) {
                     displayText = v.path.join(' > ');
                 } else if (v.name) {
@@ -922,21 +920,29 @@ function formatValueForDisplay(value) {
                 displayText = v; // simple string value
             }
             return '<span class="badge bg-secondary me-1">' + displayText + '</span>';
-        }).join(' ');
+        }).join('');
     }
     
     if (typeof value === 'boolean') {
-        return value 
-            ? '<span class="badge bg-success">TRUE</span>' 
-            : '<span class="badge bg-danger">FALSE</span>';
+        return value ? '<span class="badge bg-success">TRUE</span>' : '<span class="badge bg-danger">FALSE</span>';
     }
     
     if (typeof value === 'number') {
         return value.toLocaleString();
     }
     
-    return String(value).replace(/\n/g, '<br>');
+    // Check if it's a URL field or contains a URL
+    const stringValue = String(value);
+    const isUrlField = fieldKey && (fieldKey.toLowerCase().includes('url') || fieldKey.toLowerCase().includes('link') || fieldKey === 'master_folder' || fieldKey === 'website_url');
+    const looksLikeUrl = stringValue.match(/^https?:\/\//i);
+    
+    if (isUrlField || looksLikeUrl) {
+        return '<a href="' + stringValue + '" target="_blank" rel="noopener noreferrer" style="color: #0d6efd; text-decoration: underline;">' + stringValue + '</a>';
+    }
+    
+    return stringValue.replace(/\n/g, '<br>');
 }
+
 
 
 
@@ -1008,7 +1014,7 @@ function openCategoriesEditorWithCheckboxes(tdElement, product) {
                         product.categories = data.categories || [];
                         
                         // Update display
-                        tdElement.innerHTML = formatValueForDisplay(product.categories);
+                        tdElement.innerHTML = formatValueForDisplay(product.categories, 'categories');
                         const editIcon = document.createElement('span');
                         editIcon.className = 'badge bg-primary ms-2';
                         editIcon.innerHTML = '✎ Edit';
@@ -1670,7 +1676,7 @@ if (isEditable) {
     
     // Value span (not clickable)
     const valueSpan = document.createElement('span');
-    valueSpan.innerHTML = formatValueForDisplay(field.value);
+    valueSpan.innerHTML = formatValueForDisplay(field.value, field.key);
     valueSpan.style.flex = '1';
     
     // Edit button (only this is clickable)
@@ -1713,7 +1719,7 @@ if (isEditable) {
 
   
         } else {
-          td.innerHTML = formatValueForDisplay(field.value);
+          td.innerHTML = formatValueForDisplay(field.value, field.key);
         }
         
         tr.appendChild(th);
