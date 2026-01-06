@@ -1806,6 +1806,128 @@ function resetFiltersToDefault() {
 
 
 
+
+
+
+// Function to check category changes across all products
+function checkCategoryChanges() {
+    const btn = document.getElementById('checkCategoriesBtn');
+    if (!btn) return;
+    
+    const originalText = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '🔄 Checking...';
+    
+    const startTime = Date.now();
+    
+    fetch('fetch_plytix_data.php?action=check_category_changes')
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+                
+                if (data.changedProducts.length === 0) {
+                    alert(`✓ No category changes detected\n\nChecked ${data.totalChecked} products in ${elapsed}s`);
+                    btn.disabled = false;
+                    btn.innerHTML = originalText;
+                } else {
+                    alert(`Found ${data.changedProducts.length} products with category changes.\n\nFetching updates now...`);
+                    
+                    // Fetch only the changed products
+                    return fetch('fetch_plytix_data.php?action=fetch_products', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({ids: data.changedProducts})
+                    }).then(res => res.json());
+                }
+            } else {
+                throw new Error(data.error || 'Failed to check categories');
+            }
+        })
+        .then(updateData => {
+            if (updateData && updateData.success) {
+                alert(`✓ Updated ${updateData.products.length} products!\n\nReloading page...`);
+                location.reload();
+            }
+        })
+        .catch(err => {
+            console.error('Error checking categories:', err);
+            alert('Error: ' + err.message);
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+        });
+}
+
+// Function to refresh a single product
+function refreshSingleProduct(productId, productSku) {
+    const btn = document.getElementById('refreshSingleProductBtn');
+    if (!btn) return;
+    
+    const originalText = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '🔄 Refreshing...';
+    
+    fetch('fetch_plytix_data.php?action=fetch_products', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ids: [productId]})
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.success && data.products.length > 0) {
+            // Update the product in allProducts array
+            const freshProduct = data.products[0];
+            const existingIndex = allProducts.findIndex(p => p.id === productId);
+            
+            if (existingIndex >= 0) {
+                allProducts[existingIndex] = freshProduct;
+            }
+            
+            // Close modal and show the updated product
+            const modal = bootstrap.Modal.getInstance(document.getElementById('productModal'));
+            if (modal) modal.hide();
+            
+            alert(`✓ Product "${productSku}" refreshed successfully!\n\nRe-opening with updated data...`);
+            
+            // Re-open the modal with fresh data
+            setTimeout(() => {
+                showProductDetail(freshProduct);
+            }, 300);
+            
+        } else {
+            throw new Error('Failed to fetch product');
+        }
+    })
+    .catch(err => {
+        console.error('Error refreshing product:', err);
+        alert('Error refreshing product: ' + err.message);
+    })
+    .finally(() => {
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+    });
+}
+
+// Wire up the buttons when page loads
+window.addEventListener('load', function() {
+    // Wire up category check button
+    const checkBtn = document.getElementById('checkCategoriesBtn');
+    if (checkBtn) {
+        checkBtn.addEventListener('click', checkCategoryChanges);
+    }
+    
+    // Wire up single product refresh button (needs product context)
+    // This will be set when the modal opens
+});
+
+
+
+
+
+
+  
+
+
 // Call init after DOM is ready
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', function () {
