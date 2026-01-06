@@ -36,12 +36,11 @@ body { font-family: "Inter", sans-serif; }
   padding: 0.2rem 0.4rem;
 }
 
-
 /* Styles for Progressive Image Loading */
 .image-placeholder {
   position: relative;
   width: 100%;
-  height: 200px; /* Must match final image height */
+  height: 200px;
   background-color: #f0f0f0;
   overflow: hidden;
 }
@@ -69,7 +68,7 @@ body { font-family: "Inter", sans-serif; }
   opacity: 1;
 }
 
-/* NEW: Style for disabled product cards */
+/* Style for disabled product cards */
 .card.disabled-product {
   opacity: 0.65;
   filter: grayscale(60%);
@@ -79,24 +78,6 @@ body { font-family: "Inter", sans-serif; }
   opacity: 1;
   filter: grayscale(0%);
 }
-
-
-
-
-
-select[multiple] {
-    height: 120px !important;
-    min-height: 100px;
-}
-select[multiple] option:checked {
-    background: #007bff !important;
-    color: white !important;
-}
-
-
-
-
-
 
 /* Multi-select dropdown styling */
 .multi-select-wrapper {
@@ -156,9 +137,3 @@ select[multiple] option:checked {
 .multi-select-option input[type="checkbox"] {
     cursor: pointer;
 }
-
-.multi-select-selected-count {
-    color: #6c757d;
-    font-size: 0.9em;
-}
-
