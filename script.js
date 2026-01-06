@@ -950,8 +950,8 @@ function openCategoriesEditorWithCheckboxes(tdElement, product) {
     const originalContent = tdElement.innerHTML;
     tdElement.innerHTML = '';
     
-    // Get current selected category IDs
-    const selectedCategoryIds = (product.categories || []).map(c => c.id);
+    // Store original category IDs for cancel
+    const originalCategoryIds = (product.categories || []).map(c => c.id);
     
     // Fetch all categories first
     tdElement.innerHTML = '<span class="text-muted"><span class="spinner-border spinner-border-sm"></span> Loading categories...</span>';
@@ -964,6 +964,9 @@ function openCategoriesEditorWithCheckboxes(tdElement, product) {
             }
             
             tdElement.innerHTML = '';
+            
+            // Create a working copy that will be modified
+            const selectedCategoryIds = [...originalCategoryIds];
             
             // Get all available categories
             const categoryOptions = data.categories.map(cat => ({
@@ -982,7 +985,8 @@ function openCategoriesEditorWithCheckboxes(tdElement, product) {
             const saveBtn = document.createElement('button');
             saveBtn.className = 'btn btn-sm btn-success me-2';
             saveBtn.textContent = 'Save Categories';
-            saveBtn.onclick = function() {
+            saveBtn.onclick = function(e) {
+                e.stopPropagation();
                 saveBtn.disabled = true;
                 saveBtn.textContent = 'Saving...';
                 
@@ -1009,6 +1013,7 @@ function openCategoriesEditorWithCheckboxes(tdElement, product) {
                         tdElement.appendChild(editIcon);
                         
                         // Re-attach click handler
+                        tdElement.style.cursor = 'pointer';
                         tdElement.onclick = function() {
                             openCategoriesEditorWithCheckboxes(tdElement, product);
                         };
@@ -1022,6 +1027,7 @@ function openCategoriesEditorWithCheckboxes(tdElement, product) {
                     console.error('Error saving categories:', err);
                     showToast('Error: ' + err.message, 'danger');
                     tdElement.innerHTML = originalContent;
+                    tdElement.style.cursor = 'pointer';
                     tdElement.onclick = function() {
                         openCategoriesEditorWithCheckboxes(tdElement, product);
                     };
@@ -1031,8 +1037,10 @@ function openCategoriesEditorWithCheckboxes(tdElement, product) {
             const cancelBtn = document.createElement('button');
             cancelBtn.className = 'btn btn-sm btn-secondary';
             cancelBtn.textContent = 'Cancel';
-            cancelBtn.onclick = function() {
+            cancelBtn.onclick = function(e) {
+                e.stopPropagation();
                 tdElement.innerHTML = originalContent;
+                tdElement.style.cursor = 'pointer';
                 tdElement.onclick = function() {
                     openCategoriesEditorWithCheckboxes(tdElement, product);
                 };
@@ -1041,15 +1049,20 @@ function openCategoriesEditorWithCheckboxes(tdElement, product) {
             btnContainer.appendChild(saveBtn);
             btnContainer.appendChild(cancelBtn);
             tdElement.appendChild(btnContainer);
+            
+            // Prevent clicks inside editor from closing modal
+            tdElement.onclick = null;
         })
         .catch(err => {
             console.error('Failed to load categories:', err);
             tdElement.innerHTML = originalContent;
+            tdElement.style.cursor = 'pointer';
             tdElement.onclick = function() {
                 openCategoriesEditorWithCheckboxes(tdElement, product);
             };
         });
 }
+
 
 
 
