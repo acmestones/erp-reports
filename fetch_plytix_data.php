@@ -900,6 +900,127 @@ if ($action === 'update_categories') {
 
 
 
+// ACTION: Check for category changes only (lightweight comparison)
+if ($action === 'check_category_changes') {
+    error_log("CHECK_CATEGORY_CHANGES: Starting...");
+    
+    $accessToken = getAuthToken($apiKey, $apiPassword);
+    if (!$accessToken) {
+        http_response_code(500);
+        echo json_encode(['success' => false, 'error' => 'Authentication failed']);
+        exit;
+    }
+    
+    // Fetch all products with ONLY id and categories (lightweight)
+    $postData = [
+        "attributes" => ["id"],  // Minimal fields
+        "pagination" => [
+            "page_size" => 100,
+            "page" => 1
+        ]
+    ];
+    
+    $allProductsWithCategories = [];
+    $page = 1;
+    $maxPages = 15;  // ~1022 products / 100
+    
+    error_log("Fetching category data from Plytix...");
+    
+    while ($page <= $maxPages) {
+        $postData['pagination']['page'] = $page;
+        
+        $ch = curl_init("https://pim.plytix.com/api/v1/products/search");
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+        curl_setopt($ch, CURLOPT_POST, 1);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($postData));
+        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+            'Content-Type: application/json',
+            'Authorization: Bearer ' . $accessToken
+        ]);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        
+        $response = curl_exec($ch);
+        $httpcode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+        
+        if ($httpcode != 200) {
+            error_log("Failed to fetch products page $page: HTTP $httpcode");
+            break;
+        }
+        
+        $data = json_decode($response, true);
+        $products = $data['data'] ?? [];
+        
+        if (count($products) === 0) break;
+        
+        foreach ($products as $product) {
+            $categoryIds = array_map(function($cat) { 
+                return $cat['id']; 
+            }, $product['categories'] ?? []);
+            sort($categoryIds);
+            
+            $allProductsWithCategories[$product['id']] = $categoryIds;
+        }
+        
+        error_log("Page $page: got " . count($products) . " products");
+        
+        if (count($products) < 100) break;
+        
+        $page++;
+        usleep(50000); // 50ms delay
+    }
+    
+    error_log("Fetched category data for " . count($allProductsWithCategories) . " products");
+    
+    // Compare with consolidated cache (faster than individual files)
+    $consolidatedFile = $cacheDir . '/all_products_consolidated.json';
+    $cachedData = [];
+    
+    if (file_exists($consolidatedFile)) {
+        $consolidated = json_decode(file_get_contents($consolidatedFile), true);
+        foreach ($consolidated['products'] ?? [] as $product) {
+            $productId = $product['id'];
+            $cachedCategoryIds = array_map(function($cat) { 
+                return $cat['id']; 
+            }, $product['categories'] ?? []);
+            sort($cachedCategoryIds);
+            $cachedData[$productId] = $cachedCategoryIds;
+        }
+        error_log("Loaded " . count($cachedData) . " products from consolidated cache");
+    } else {
+        error_log("No consolidated cache found");
+        echo json_encode(['success' => false, 'error' => 'No cache found. Please do a full refresh first.']);
+        exit;
+    }
+    
+    // Compare
+    $changedProducts = [];
+    foreach ($allProductsWithCategories as $productId => $freshCategoryIds) {
+        $cachedCategoryIds = $cachedData[$productId] ?? [];
+        
+        if ($cachedCategoryIds !== $freshCategoryIds) {
+            $changedProducts[] = $productId;
+            error_log("Product $productId: categories changed (" . 
+                      count($cachedCategoryIds) . " -> " . count($freshCategoryIds) . ")");
+        }
+    }
+    
+    error_log("Found " . count($changedProducts) . " products with category changes");
+    
+    echo json_encode([
+        'success' => true,
+        'changedProducts' => $changedProducts,
+        'totalChecked' => count($allProductsWithCategories)
+    ]);
+    exit;
+}
+
+
+
+
+
+
+
 
 
 
