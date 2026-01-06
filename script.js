@@ -2094,10 +2094,10 @@ function createMultiSelectDropdown(options, selectedValues) {
     button.type = 'button';
     button.className = 'multi-select-button';
     
-    const updateButtonText = () => {
+    const updateButtonText = function() {
         const count = selectedValues.length;
         const text = count === 0 ? 'Select options...' : 
-                     count === 1 ? options.find(o => o.value === selectedValues[0])?.label || '1 selected' :
+                     count === 1 ? (options.find(o => o.value === selectedValues[0])?.label || '1 selected') :
                      `${count} selected`;
         button.innerHTML = `<span>${text}</span><span>▼</span>`;
     };
@@ -2108,7 +2108,7 @@ function createMultiSelectDropdown(options, selectedValues) {
     dropdown.className = 'multi-select-dropdown';
     
     // Add options with checkboxes
-    options.forEach(option => {
+    options.forEach(function(option) {
         const optionDiv = document.createElement('div');
         optionDiv.className = 'multi-select-option';
         
@@ -2126,7 +2126,7 @@ function createMultiSelectDropdown(options, selectedValues) {
         label.style.flex = '1';
         
         // Handle checkbox change
-        checkbox.addEventListener('change', () => {
+        checkbox.addEventListener('change', function() {
             if (checkbox.checked) {
                 if (!selectedValues.includes(option.value)) {
                     selectedValues.push(option.value);
@@ -2141,7 +2141,7 @@ function createMultiSelectDropdown(options, selectedValues) {
         });
         
         // Make the whole row clickable
-        optionDiv.addEventListener('click', (e) => {
+        optionDiv.addEventListener('click', function(e) {
             if (e.target !== checkbox) {
                 checkbox.checked = !checkbox.checked;
                 checkbox.dispatchEvent(new Event('change'));
@@ -2154,13 +2154,13 @@ function createMultiSelectDropdown(options, selectedValues) {
     });
     
     // Toggle dropdown
-    button.addEventListener('click', (e) => {
+    button.addEventListener('click', function(e) {
         e.stopPropagation();
         dropdown.classList.toggle('show');
     });
     
     // Close dropdown when clicking outside
-    document.addEventListener('click', (e) => {
+    document.addEventListener('click', function(e) {
         if (!wrapper.contains(e.target)) {
             dropdown.classList.remove('show');
         }
@@ -2171,6 +2171,7 @@ function createMultiSelectDropdown(options, selectedValues) {
     
     return wrapper;
 }
+
 
 
   
