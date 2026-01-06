@@ -112,45 +112,52 @@
   }
 
 
-  /**
+/**
  * Get all editable attributes configuration
  * @returns {Object} Object with editable attributes and their config
  */
 function getEditableAttributes() {
-    if (!userPermissions) return {};
+    if (!userPermissions) {
+        console.log('No userPermissions loaded yet');
+        return {};
+    }
     
     const editableAttrs = {};
-    const editableList = userPermissions.editableattributes || [];
+    // FIX: Use editable_attributes (with underscore) not editableattributes
+    const editableList = userPermissions.editable_attributes || userPermissions.editableattributes || [];
+    
+    // Check if ATTRIBUTEMAP is available
+    if (!window.ATTRIBUTEMAP || Object.keys(window.ATTRIBUTEMAP).length === 0) {
+        console.warn('ATTRIBUTEMAP not loaded yet');
+        return {};
+    }
     
     // If "all" is in the list, return all available attributes
-    if (editableList.includes('all') && allSettings && allSettings.availableattributes) {
-        allSettings.availableattributes.forEach(attr => {
-            // Check ATTRIBUTEMAP for type info
-            if (window.ATTRIBUTEMAP && window.ATTRIBUTEMAP[attr]) {
-                editableAttrs[attr] = {
-                    type: window.ATTRIBUTEMAP[attr].type,
-                    options: window.ATTRIBUTEMAP[attr].options || []
-                };
-            } else {
-                editableAttrs[attr] = { type: 'TextAttribute' };
-            }
+    if (editableList.includes('all')) {
+        Object.keys(window.ATTRIBUTEMAP).forEach(attr => {
+            editableAttrs[attr] = {
+                type: window.ATTRIBUTEMAP[attr].type,
+                options: window.ATTRIBUTEMAP[attr].options || []
+            };
         });
     } else {
         // Return only explicitly editable attributes
         editableList.forEach(attr => {
-            if (window.ATTRIBUTEMAP && window.ATTRIBUTEMAP[attr]) {
+            if (window.ATTRIBUTEMAP[attr]) {
                 editableAttrs[attr] = {
                     type: window.ATTRIBUTEMAP[attr].type,
                     options: window.ATTRIBUTEMAP[attr].options || []
                 };
             } else {
-                editableAttrs[attr] = { type: 'TextAttribute' };
+                // Attribute not in ATTRIBUTEMAP, use default
+                editableAttrs[attr] = { type: 'TextAttribute', options: [] };
             }
         });
     }
     
     return editableAttrs;
 }
+
 
 
   // ============================================
