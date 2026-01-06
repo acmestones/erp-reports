@@ -1542,6 +1542,22 @@ function showProductDetail(product) {
     
     modalBody.appendChild(leftCol);
     modalBody.appendChild(rightCol);
+
+
+
+    // Wire up the refresh button for this specific product
+    const refreshBtn = document.getElementById('refreshSingleProductBtn');
+    if (refreshBtn) {
+        // Remove any existing listeners
+        refreshBtn.onclick = null;
+        // Add new listener for this product
+        refreshBtn.onclick = function() {
+            refreshSingleProduct(product.id, product.sku);
+        };
+    }
+
+
+  
     
     const modal = new bootstrap.Modal(document.getElementById("productModal"));
     modal.show();
