@@ -1604,20 +1604,20 @@ if (AdminModule.getEditableAttributes && window.DEBUG_ATTR_MAP && Object.keys(wi
 
 
     
-    allAttributeKeys.forEach(function(attrKey) {
-      const attrValue = product.attributes ? product.attributes[attrKey] : null;
-      
-      // Skip if it's an image array (already shown above)
-      if (Array.isArray(attrValue) && attrValue.length > 0 && attrValue[0] && attrValue[0].url) {
+allAttributeKeys.forEach(function(attrKey) {
+    // Skip categories - it's not an attribute, handled separately
+    if (attrKey === 'categories') return;
+    
+    const attrValue = product.attributes ? product.attributes[attrKey] : null;
+    
+    // Skip if it's an image array (already shown above)
+    if (Array.isArray(attrValue) && attrValue.length > 0 && attrValue[0] && attrValue[0].url) {
         return;
-      }
-      
-      displayFields.push({
-          label: getAttributeLabel(attrKey),
-          value: attrValue,
-          key: attrKey
-      });
-    });
+    }
+    
+    displayFields.push({ label: getAttributeLabel(attrKey), value: attrValue, key: attrKey });
+});
+
     
     displayFields.sort(function(a, b) {
       return a.label.localeCompare(b.label);
