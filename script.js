@@ -1103,30 +1103,7 @@ function makeFieldEditableMultiSelect(tdElement, product, fieldKey, currentValue
     saveBtn.className = 'btn btn-sm btn-success me-2';
     saveBtn.textContent = 'Save';
     saveBtn.onclick = function() {
-        saveAttributeChange(product.id, fieldKey, selectedValues, function(success) {
-            if (success) {
-                // Update the product object
-                if (!product.attributes) product.attributes = {};
-                product.attributes[fieldKey] = selectedValues;
-                
-                // Update display
-                tdElement.innerHTML = formatValueForDisplay(selectedValues);
-                const editIcon = document.createElement('span');
-                editIcon.className = 'badge bg-primary ms-2';
-                editIcon.innerHTML = '✎ Edit';
-                editIcon.style.cursor = 'pointer';
-                tdElement.appendChild(editIcon);
-                
-                // Re-attach click handler
-                const editableConfig = AdminModule.getEditableAttributes()[fieldKey];
-                tdElement.onclick = function() {
-                    makeFieldEditableMultiSelect(tdElement, product, fieldKey, selectedValues, editableConfig);
-                };
-            } else {
-                showToast('Failed to save changes', 'danger');
-                tdElement.innerHTML = originalHTML;
-            }
-        });
+        saveFieldValue(product, fieldKey, selectedValues, tdElement, originalHTML);
     };
     
     const cancelBtn = document.createElement('button');
@@ -1134,9 +1111,9 @@ function makeFieldEditableMultiSelect(tdElement, product, fieldKey, currentValue
     cancelBtn.textContent = 'Cancel';
     cancelBtn.onclick = function() {
         tdElement.innerHTML = originalHTML;
-        const editableConfig = AdminModule.getEditableAttributes()[fieldKey];
+        tdElement.style.cursor = 'pointer';
         tdElement.onclick = function() {
-            makeFieldEditableMultiSelect(tdElement, product, fieldKey, currentValue, editableConfig);
+            makeFieldEditable(tdElement, product, fieldKey, currentValue);
         };
     };
     
@@ -1144,6 +1121,7 @@ function makeFieldEditableMultiSelect(tdElement, product, fieldKey, currentValue
     btnContainer.appendChild(cancelBtn);
     tdElement.appendChild(btnContainer);
 }
+
 
 
 
