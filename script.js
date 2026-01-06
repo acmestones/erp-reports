@@ -153,9 +153,9 @@ function loadAttributeDefinitions() {
         .then(res => res.json())
         .then(data => {
             if (data.success) {
-                ATTRIBUTEMAP = data.attributes;
-                window.DEBUG_ATTR_MAP = ATTRIBUTEMAP; // UPDATE: Sync the global reference
-                console.log('✅ Loaded', Object.keys(ATTRIBUTEMAP).length, 'attribute definitions');
+                ATTRIBUTE_MAP = data.attributes; // Use ATTRIBUTE_MAP (with underscore)
+                window.DEBUG_ATTR_MAP = ATTRIBUTE_MAP; // Update global reference
+                console.log('✅ Loaded', Object.keys(ATTRIBUTE_MAP).length, 'attribute definitions');
                 console.log('✅ DEBUG_ATTR_MAP is now available with', Object.keys(window.DEBUG_ATTR_MAP).length, 'attributes');
             } else {
                 console.error('Failed to load attribute definitions:', data.error);
@@ -165,6 +165,7 @@ function loadAttributeDefinitions() {
             console.error('Error loading attribute definitions:', err);
         });
 }
+
 
 
 
