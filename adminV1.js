@@ -111,6 +111,48 @@
     return userPermissions.editable_attributes.includes(attributeName);
   }
 
+
+  /**
+ * Get all editable attributes configuration
+ * @returns {Object} Object with editable attributes and their config
+ */
+function getEditableAttributes() {
+    if (!userPermissions) return {};
+    
+    const editableAttrs = {};
+    const editableList = userPermissions.editableattributes || [];
+    
+    // If "all" is in the list, return all available attributes
+    if (editableList.includes('all') && allSettings && allSettings.availableattributes) {
+        allSettings.availableattributes.forEach(attr => {
+            // Check ATTRIBUTEMAP for type info
+            if (window.ATTRIBUTEMAP && window.ATTRIBUTEMAP[attr]) {
+                editableAttrs[attr] = {
+                    type: window.ATTRIBUTEMAP[attr].type,
+                    options: window.ATTRIBUTEMAP[attr].options || []
+                };
+            } else {
+                editableAttrs[attr] = { type: 'TextAttribute' };
+            }
+        });
+    } else {
+        // Return only explicitly editable attributes
+        editableList.forEach(attr => {
+            if (window.ATTRIBUTEMAP && window.ATTRIBUTEMAP[attr]) {
+                editableAttrs[attr] = {
+                    type: window.ATTRIBUTEMAP[attr].type,
+                    options: window.ATTRIBUTEMAP[attr].options || []
+                };
+            } else {
+                editableAttrs[attr] = { type: 'TextAttribute' };
+            }
+        });
+    }
+    
+    return editableAttrs;
+}
+
+
   // ============================================
   // SETTINGS MODAL MANAGEMENT
   // ============================================
@@ -820,6 +862,7 @@
     isAdmin: isAdmin,
     isAttributeVisible: isAttributeVisible,
     isAttributeEditable: isAttributeEditable,
+    getEditableAttributes: getEditableAttributes,
 
     // Modal management
     openSettingsModal: openSettingsModal,
