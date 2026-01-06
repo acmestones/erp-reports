@@ -1576,14 +1576,29 @@ function showProductDetail(product) {
     }
     
 // Add editable attributes even if they don't exist yet (FIX #1)
-if (AdminModule.getEditableAttributes) {
+if (AdminModule.getEditableAttributes && window.DEBUG_ATTR_MAP && Object.keys(window.DEBUG_ATTR_MAP).length > 0) {
     const editableAttrs = AdminModule.getEditableAttributes();
     if (editableAttrs && typeof editableAttrs === 'object') {
         Object.keys(editableAttrs).forEach(function(attrKey) {
             allAttributeKeys.add(attrKey);
         });
     }
+} else if (AdminModule.getUserPermissions && AdminModule.getUserPermissions()) {
+    // Fallback: Use permissions directly if DEBUG_ATTR_MAP not loaded
+    const perms = AdminModule.getUserPermissions();
+    const editableList = perms.editable_attributes || [];
+    
+    if (editableList.includes('all')) {
+        // Can't show all without DEBUG_ATTR_MAP, so just show what exists
+        console.warn('DEBUG_ATTR_MAP not loaded - showing only existing attributes');
+    } else {
+        // Add the specific editable attributes to the list
+        editableList.forEach(function(attrKey) {
+            allAttributeKeys.add(attrKey);
+        });
+    }
 }
+
 
     
     allAttributeKeys.forEach(function(attrKey) {
