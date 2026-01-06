@@ -1262,18 +1262,16 @@ function renderFieldEditor(tdElement, product, fieldKey, normalizedValue, origin
     if (attrData.success && attrData.attribute.options && attrData.attribute.options.length > 0) {
         const type = attrData.attribute.type;
         
-        // REDIRECT MULTI-SELECT TO CHECKBOX DROPDOWN
-        if (type === 'MultiSelectAttribute') {
-            tdElement.innerHTML = originalContent;
-            tdElement.style.cursor = 'pointer';
-            tdElement.onclick = function() {
-                makeFieldEditableMultiSelect(tdElement, product, fieldKey, normalizedValue, {
-                    type: type,
-                    options: attrData.attribute.options
-                });
-            };
-            return; // Exit early - let makeFieldEditableMultiSelect handle it
-        }
+// REDIRECT MULTI-SELECT TO CHECKBOX DROPDOWN
+if (type === 'MultiSelectAttribute') {
+    // Don't restore content, directly call the multi-select editor
+    makeFieldEditableMultiSelect(tdElement, product, fieldKey, normalizedValue, {
+        type: type,
+        options: attrData.attribute.options
+    });
+    return; // Exit early
+}
+
         
         // Single select dropdown - continue as normal
         inputElement = document.createElement('select');
