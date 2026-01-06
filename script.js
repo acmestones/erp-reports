@@ -1653,18 +1653,23 @@ if (AdminModule.getEditableAttributes) {
             };
           } else {
             // Check if this is a multi-select field
-            const editableConfig = AdminModule.getEditableAttributes ? AdminModule.getEditableAttributes()[field.key] : null;
-            if (editableConfig && (editableConfig.type === 'multi-select' || editableConfig.type === 'MultiSelectAttribute')) {
-                td.onclick = function() {
-                    makeFieldEditableMultiSelect(td, product, field.key, field.value, editableConfig);
-                };
+// Check if this is a multi-select field
+const editableConfig = AdminModule.getEditableAttributes ? AdminModule.getEditableAttributes()[field.key] : null;
+if (editableConfig && (editableConfig.type === 'multi-select' || editableConfig.type === 'MultiSelectAttribute')) {
+    td.onclick = function(e) {
+        e.stopPropagation();
+        makeFieldEditableMultiSelect(td, product, field.key, field.value, editableConfig);
+    };
+} else if (isAttributeEditable) {
+    // Normal attribute editor (handles dropdown / text etc.)
+    td.onclick = function(e) {
+        e.stopPropagation();
+        makeFieldEditable(td, product, field.key, field.value);
+    };
+}
 
-            } else {
-              // Normal attribute editor (handles dropdown / text etc.)
-              td.onclick = function() {
-                makeFieldEditable(td, product, field.key, field.value);
-              };
-            }
+
+
           }
           
           th.innerHTML = field.label + ' <span class="badge bg-warning text-dark ms-1" title="Editable">✎</span>';
