@@ -946,71 +946,196 @@ function formatValueForDisplay(value) {
 
 
 
-function openCategoriesEditor(tdElement, product) {
+function openCategoriesEditorWithCheckboxes(tdElement, product) {
     const originalContent = tdElement.innerHTML;
-    const currentCategories = Array.isArray(product.categories) ? product.categories : [];
-
+    tdElement.innerHTML = '';
+    
+    // Get current selected category IDs
+    const selectedCategoryIds = (product.categories || []).map(c => c.id);
+    
+    // Fetch all categories first
     tdElement.innerHTML = '<span class="text-muted"><span class="spinner-border spinner-border-sm"></span> Loading categories...</span>';
-
-    // Fetch full category list from backend (reuse existing mechanism or add a new action)
+    
     fetch('fetch_plytix_data.php?action=get_all_categories')
         .then(res => res.json())
         .then(data => {
-            if (!data.success) throw new Error(data.error || 'Failed to load categories');
-
+            if (!data.success) {
+                throw new Error(data.error || 'Failed to load categories');
+            }
+            
             tdElement.innerHTML = '';
-
-            const select = document.createElement('select');
-            select.className = 'form-select form-select-sm';
-            select.multiple = true;
-            select.size = 6;
-
-            const selectedIds = currentCategories.map(c => c.id);
-
-            data.categories.forEach(cat => {
-                const opt = document.createElement('option');
-                opt.value = cat.id;
-                opt.textContent = cat.path.join(' / ');
-                if (selectedIds.includes(cat.id)) opt.selected = true;
-                select.appendChild(opt);
-            });
-
-            const btnGroup = document.createElement('div');
-            btnGroup.className = 'btn-group btn-group-sm mt-2';
-
+            
+            // Get all available categories
+            const categoryOptions = data.categories.map(cat => ({
+                value: cat.id,
+                label: cat.path.join(' > ')
+            }));
+            
+            // Create the multi-select dropdown
+            const wrapper = createMultiSelectDropdown(categoryOptions, selectedCategoryIds);
+            tdElement.appendChild(wrapper);
+            
+            // Add save and cancel buttons
+            const btnContainer = document.createElement('div');
+            btnContainer.className = 'mt-2';
+            
             const saveBtn = document.createElement('button');
-            saveBtn.className = 'btn btn-success btn-sm';
-            saveBtn.innerHTML = '✓ Save';
-            saveBtn.onclick = function(e) {
-                e.stopPropagation();
-                const newIds = Array.from(select.selectedOptions).map(o => o.value);
-                saveCategories(product, newIds, tdElement, originalContent);
+            saveBtn.className = 'btn btn-sm btn-success me-2';
+            saveBtn.textContent = 'Save Categories';
+            saveBtn.onclick = function() {
+                saveBtn.disabled = true;
+                saveBtn.textContent = 'Saving...';
+                
+                fetch('fetch_plytix_data.php?action=update_categories', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        productId: product.id,
+                        categoryIds: selectedCategoryIds
+                    })
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        // Update the product object
+                        product.categories = data.categories || [];
+                        
+                        // Update display
+                        tdElement.innerHTML = formatValueForDisplay(product.categories);
+                        const editIcon = document.createElement('span');
+                        editIcon.className = 'badge bg-primary ms-2';
+                        editIcon.innerHTML = '✎ Edit';
+                        editIcon.style.cursor = 'pointer';
+                        tdElement.appendChild(editIcon);
+                        
+                        // Re-attach click handler
+                        tdElement.onclick = function() {
+                            openCategoriesEditorWithCheckboxes(tdElement, product);
+                        };
+                        
+                        showToast('Categories updated successfully!', 'success');
+                    } else {
+                        throw new Error(data.error || 'Failed to update');
+                    }
+                })
+                .catch(err => {
+                    console.error('Error saving categories:', err);
+                    showToast('Error: ' + err.message, 'danger');
+                    tdElement.innerHTML = originalContent;
+                    tdElement.onclick = function() {
+                        openCategoriesEditorWithCheckboxes(tdElement, product);
+                    };
+                });
             };
-
+            
             const cancelBtn = document.createElement('button');
-            cancelBtn.className = 'btn btn-secondary btn-sm';
-            cancelBtn.innerHTML = '✕ Cancel';
-            cancelBtn.onclick = function(e) {
-                e.stopPropagation();
+            cancelBtn.className = 'btn btn-sm btn-secondary';
+            cancelBtn.textContent = 'Cancel';
+            cancelBtn.onclick = function() {
                 tdElement.innerHTML = originalContent;
-                tdElement.style.cursor = 'pointer';
                 tdElement.onclick = function() {
-                    openCategoriesEditor(tdElement, product);
+                    openCategoriesEditorWithCheckboxes(tdElement, product);
                 };
             };
-
-            btnGroup.appendChild(saveBtn);
-            btnGroup.appendChild(cancelBtn);
-
-            tdElement.appendChild(select);
-            tdElement.appendChild(btnGroup);
-            tdElement.onclick = null;
+            
+            btnContainer.appendChild(saveBtn);
+            btnContainer.appendChild(cancelBtn);
+            tdElement.appendChild(btnContainer);
         })
         .catch(err => {
             console.error('Failed to load categories:', err);
             tdElement.innerHTML = originalContent;
+            tdElement.onclick = function() {
+                openCategoriesEditorWithCheckboxes(tdElement, product);
+            };
         });
 }
+
+
+
+
+
+
+
+function makeFieldEditableMultiSelect(tdElement, product, fieldKey, currentValue, config) {
+    const originalHTML = tdElement.innerHTML;
+    tdElement.innerHTML = '';
+    
+    // Get current selected values
+    const selectedValues = Array.isArray(currentValue) ? [...currentValue] : (currentValue ? [currentValue] : []);
+    
+    // Get available options
+    let options = [];
+    if (config.options) {
+        options = config.options.map(opt => ({
+            value: opt,
+            label: opt
+        }));
+    } else if (fieldKey === 'application' && product.attribute_labels && product.attribute_labels.application) {
+        options = product.attribute_labels.application.map(app => ({
+            value: app,
+            label: app
+        }));
+    }
+    
+    // Create the multi-select dropdown
+    const wrapper = createMultiSelectDropdown(options, selectedValues);
+    tdElement.appendChild(wrapper);
+    
+    // Add save and cancel buttons
+    const btnContainer = document.createElement('div');
+    btnContainer.className = 'mt-2';
+    
+    const saveBtn = document.createElement('button');
+    saveBtn.className = 'btn btn-sm btn-success me-2';
+    saveBtn.textContent = 'Save';
+    saveBtn.onclick = function() {
+        saveAttributeChange(product.id, fieldKey, selectedValues, function(success) {
+            if (success) {
+                // Update the product object
+                if (!product.attributes) product.attributes = {};
+                product.attributes[fieldKey] = selectedValues;
+                
+                // Update display
+                tdElement.innerHTML = formatValueForDisplay(selectedValues);
+                const editIcon = document.createElement('span');
+                editIcon.className = 'badge bg-primary ms-2';
+                editIcon.innerHTML = '✎ Edit';
+                editIcon.style.cursor = 'pointer';
+                tdElement.appendChild(editIcon);
+                
+                // Re-attach click handler
+                const editableConfig = AdminModule.getEditableAttributes()[fieldKey];
+                tdElement.onclick = function() {
+                    makeFieldEditableMultiSelect(tdElement, product, fieldKey, selectedValues, editableConfig);
+                };
+            } else {
+                showToast('Failed to save changes', 'danger');
+                tdElement.innerHTML = originalHTML;
+            }
+        });
+    };
+    
+    const cancelBtn = document.createElement('button');
+    cancelBtn.className = 'btn btn-sm btn-secondary';
+    cancelBtn.textContent = 'Cancel';
+    cancelBtn.onclick = function() {
+        tdElement.innerHTML = originalHTML;
+        const editableConfig = AdminModule.getEditableAttributes()[fieldKey];
+        tdElement.onclick = function() {
+            makeFieldEditableMultiSelect(tdElement, product, fieldKey, currentValue, editableConfig);
+        };
+    };
+    
+    btnContainer.appendChild(saveBtn);
+    btnContainer.appendChild(cancelBtn);
+    tdElement.appendChild(btnContainer);
+}
+
+
+
+
+  
 
 function saveCategories(product, newCategoryIds, tdElement, originalContent) {
     tdElement.innerHTML = '<span class="text-muted"><span class="spinner-border spinner-border-sm me-2"></span>Saving...</span>';
@@ -1963,7 +2088,7 @@ window.addEventListener('load', function() {
 
 
 
-function createMultiSelectDropdown(container, options, selectedValues, onChangeCallback) {
+function createMultiSelectDropdown(options, selectedValues) {
     const wrapper = document.createElement('div');
     wrapper.className = 'multi-select-wrapper';
     
@@ -1977,10 +2102,7 @@ function createMultiSelectDropdown(container, options, selectedValues, onChangeC
         const text = count === 0 ? 'Select options...' : 
                      count === 1 ? options.find(o => o.value === selectedValues[0])?.label || '1 selected' :
                      `${count} selected`;
-        button.innerHTML = `
-            <span>${text}</span>
-            <span>▼</span>
-        `;
+        button.innerHTML = `<span>${text}</span><span>▼</span>`;
     };
     updateButtonText();
     
@@ -2019,7 +2141,14 @@ function createMultiSelectDropdown(container, options, selectedValues, onChangeC
                 }
             }
             updateButtonText();
-            if (onChangeCallback) onChangeCallback(selectedValues);
+        });
+        
+        // Make the whole row clickable
+        optionDiv.addEventListener('click', (e) => {
+            if (e.target !== checkbox) {
+                checkbox.checked = !checkbox.checked;
+                checkbox.dispatchEvent(new Event('change'));
+            }
         });
         
         optionDiv.appendChild(checkbox);
@@ -2042,10 +2171,10 @@ function createMultiSelectDropdown(container, options, selectedValues, onChangeC
     
     wrapper.appendChild(button);
     wrapper.appendChild(dropdown);
-    container.appendChild(wrapper);
     
     return wrapper;
 }
+
 
   
 
