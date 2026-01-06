@@ -1467,100 +1467,111 @@ function showProductDetail(product) {
     modalTitle.textContent = getAttributeValue(product, "label") || product.sku || "Product Details";
     modalBody.innerHTML = "";
 
-    const leftCol = document.createElement("div");
-    leftCol.className = "col-md-4";
+const leftCol = document.createElement('div');
+leftCol.className = 'col-md-4';
+
+// 1. COVER THUMBNAIL (large, at top)
+if (product.thumbnail && product.thumbnail.thumbnail && (!AdminModule.isAttributeVisible || AdminModule.isAttributeVisible('thumbnail'))) {
+    const thumbCard = document.createElement('div');
+    thumbCard.className = 'card mb-3';
+    thumbCard.innerHTML = '<div class="card-header"><strong>Cover Image</strong></div>';
     
-    // Check if thumbnail is visible to user
-    if (product.thumbnail && product.thumbnail.thumbnail && 
-        (!AdminModule.isAttributeVisible || AdminModule.isAttributeVisible('thumbnail'))) {
-      const thumbCard = document.createElement("div");
-      thumbCard.className = "card mb-3";
-      thumbCard.innerHTML = '<div class="card-header"><strong>Thumbnail</strong></div>';
-      
-      const thumbBody = document.createElement("div");
-      thumbBody.className = "card-body p-2";
-      
-      const thumbImg = document.createElement("img");
-      thumbImg.src = product.thumbnail.thumbnail;
-      thumbImg.className = "img-fluid rounded";
-      thumbImg.style.cursor = "pointer";
-      thumbImg.loading = "lazy";
-      thumbImg.onclick = function() { window.open(product.thumbnail.url, '_blank'); };
-      
-      thumbBody.appendChild(thumbImg);
-      thumbCard.appendChild(thumbBody);
-      leftCol.appendChild(thumbCard);
-    }
+    const thumbBody = document.createElement('div');
+    thumbBody.className = 'card-body p-2';
     
-    if (product.attributes && typeof product.attributes === 'object') {
-      Object.keys(product.attributes).forEach(function(attrKey) {
+    const thumbImg = document.createElement('img');
+    thumbImg.src = product.thumbnail.thumbnail;
+    thumbImg.className = 'img-fluid rounded';
+    thumbImg.style.cursor = 'pointer';
+    thumbImg.style.maxHeight = '300px';
+    thumbImg.style.objectFit = 'cover';
+    thumbImg.loading = 'lazy';
+    thumbImg.onclick = function() { window.open(product.thumbnail.url, '_blank'); };
+    
+    thumbBody.appendChild(thumbImg);
+    thumbCard.appendChild(thumbBody);
+    leftCol.appendChild(thumbCard);
+}
+
+// 2. IMAGE ATTRIBUTES GROUPED BY FIELD NAME (smaller, inline)
+if (product.attributes && typeof product.attributes === 'object') {
+    Object.keys(product.attributes).forEach(function(attrKey) {
         const attrValue = product.attributes[attrKey];
         
-        // FIRST check if it's an image array (do this BEFORE permission check)
-        // This way image attributes display under their attribute name, not under assets
+        // Check if it's an image array
         if (Array.isArray(attrValue) && attrValue.length > 0 && attrValue[0] && attrValue[0].url) {
-          // NOW check if this attribute is visible to user
-          if (AdminModule.isAttributeVisible && !AdminModule.isAttributeVisible(attrKey)) {
-            return; // Skip if not visible
-          }
-          
-          const imgCard = document.createElement("div");
-          imgCard.className = "card mb-3";
-          
-          const fieldLabel = capitalizeWords(attrKey.replace(/_/g, ' '));
-          imgCard.innerHTML = '<div class="card-header"><strong>' + fieldLabel + '</strong></div>';
-          
-          const imgBody = document.createElement("div");
-          imgBody.className = "card-body p-2";
-          
-          attrValue.forEach(function(img) {
-            if (img.thumbnail && img.url) {
-              const imgElement = document.createElement("img");
-              imgElement.src = img.thumbnail;
-              imgElement.className = "img-fluid rounded mb-2";
-              imgElement.style.cursor = "pointer";
-              imgElement.loading = "lazy";
-              imgElement.onclick = function() { window.open(img.url, '_blank'); };
-              imgBody.appendChild(imgElement);
+            // Check if this attribute is visible to user
+            if (AdminModule.isAttributeVisible && !AdminModule.isAttributeVisible(attrKey)) {
+                return; // Skip if not visible
             }
-          });
-          
-          imgCard.appendChild(imgBody);
-          leftCol.appendChild(imgCard);
+            
+            const imgCard = document.createElement('div');
+            imgCard.className = 'card mb-3';
+            const fieldLabel = capitalizeWords(attrKey.replace(/_/g, ' '));
+            imgCard.innerHTML = '<div class="card-header"><strong>' + fieldLabel + '</strong></div>';
+            
+            const imgBody = document.createElement('div');
+            imgBody.className = 'card-body p-2';
+            imgBody.style.display = 'flex';
+            imgBody.style.flexWrap = 'wrap';
+            imgBody.style.gap = '8px';
+            
+            attrValue.forEach(function(img) {
+                if (img.thumbnail && img.url) {
+                    const imgElement = document.createElement('img');
+                    imgElement.src = img.thumbnail;
+                    imgElement.className = 'rounded';
+                    imgElement.style.cursor = 'pointer';
+                    imgElement.style.width = '80px';
+                    imgElement.style.height = '80px';
+                    imgElement.style.objectFit = 'cover';
+                    imgElement.loading = 'lazy';
+                    imgElement.onclick = function() { window.open(img.url, '_blank'); };
+                    imgBody.appendChild(imgElement);
+                }
+            });
+            
+            imgCard.appendChild(imgBody);
+            leftCol.appendChild(imgCard);
         }
-      });
-    }
+    });
+}
+
+// 3. ASSETS (if not already shown as "images")
+if (Array.isArray(product.assets) && product.assets.length > 0 && (!AdminModule.isAttributeVisible || AdminModule.isAttributeVisible('assets'))) {
+    const alreadyShown = product.attributes && product.attributes.images && Array.isArray(product.attributes.images) && product.attributes.images.length > 0;
     
-    // Check if assets are visible to user
-    if (Array.isArray(product.assets) && product.assets.length > 0 && 
-        (!AdminModule.isAttributeVisible || AdminModule.isAttributeVisible('assets'))) {
-      const alreadyShown = product.attributes && product.attributes.images && 
-        Array.isArray(product.attributes.images) && product.attributes.images.length > 0;
-      
-      if (!alreadyShown) {
-        const assetCard = document.createElement("div");
-        assetCard.className = "card mb-3";
+    if (!alreadyShown) {
+        const assetCard = document.createElement('div');
+        assetCard.className = 'card mb-3';
         assetCard.innerHTML = '<div class="card-header"><strong>Assets</strong></div>';
         
-        const assetBody = document.createElement("div");
-        assetBody.className = "card-body p-2";
+        const assetBody = document.createElement('div');
+        assetBody.className = 'card-body p-2';
+        assetBody.style.display = 'flex';
+        assetBody.style.flexWrap = 'wrap';
+        assetBody.style.gap = '8px';
         
         product.assets.forEach(function(asset) {
-          if (asset.thumbnail && asset.url) {
-            const assetImg = document.createElement("img");
-            assetImg.src = asset.thumbnail;
-            assetImg.className = "img-fluid rounded mb-2";
-            assetImg.style.cursor = "pointer";
-            assetImg.loading = "lazy";
-            assetImg.onclick = function() { window.open(asset.url, '_blank'); };
-            assetBody.appendChild(assetImg);
-          }
+            if (asset.thumbnail && asset.url) {
+                const assetImg = document.createElement('img');
+                assetImg.src = asset.thumbnail;
+                assetImg.className = 'rounded';
+                assetImg.style.cursor = 'pointer';
+                assetImg.style.width = '80px';
+                assetImg.style.height = '80px';
+                assetImg.style.objectFit = 'cover';
+                assetImg.loading = 'lazy';
+                assetImg.onclick = function() { window.open(asset.url, '_blank'); };
+                assetBody.appendChild(assetImg);
+            }
         });
         
         assetCard.appendChild(assetBody);
         leftCol.appendChild(assetCard);
-      }
     }
+}
+
 
     const rightCol = document.createElement("div");
     rightCol.className = "col-md-8";
