@@ -93,3 +93,72 @@ select[multiple] option:checked {
     color: white !important;
 }
 
+
+
+
+
+
+/* Multi-select dropdown styling */
+.multi-select-wrapper {
+    position: relative;
+    width: 100%;
+}
+
+.multi-select-button {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid #ced4da;
+    border-radius: 4px;
+    background: white;
+    text-align: left;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.multi-select-button:hover {
+    border-color: #86b7fe;
+}
+
+.multi-select-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    max-height: 300px;
+    overflow-y: auto;
+    background: white;
+    border: 1px solid #ced4da;
+    border-radius: 4px;
+    margin-top: 4px;
+    z-index: 1000;
+    display: none;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+}
+
+.multi-select-dropdown.show {
+    display: block;
+}
+
+.multi-select-option {
+    padding: 8px 12px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.multi-select-option:hover {
+    background-color: #f8f9fa;
+}
+
+.multi-select-option input[type="checkbox"] {
+    cursor: pointer;
+}
+
+.multi-select-selected-count {
+    color: #6c757d;
+    font-size: 0.9em;
+}
+
