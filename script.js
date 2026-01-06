@@ -1961,6 +1961,100 @@ window.addEventListener('load', function() {
 
 
 
+
+
+function createMultiSelectDropdown(container, options, selectedValues, onChangeCallback) {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'multi-select-wrapper';
+    
+    // Create button
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'multi-select-button';
+    
+    const updateButtonText = () => {
+        const count = selectedValues.length;
+        const text = count === 0 ? 'Select options...' : 
+                     count === 1 ? options.find(o => o.value === selectedValues[0])?.label || '1 selected' :
+                     `${count} selected`;
+        button.innerHTML = `
+            <span>${text}</span>
+            <span>▼</span>
+        `;
+    };
+    updateButtonText();
+    
+    // Create dropdown
+    const dropdown = document.createElement('div');
+    dropdown.className = 'multi-select-dropdown';
+    
+    // Add options with checkboxes
+    options.forEach(option => {
+        const optionDiv = document.createElement('div');
+        optionDiv.className = 'multi-select-option';
+        
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.id = `multi-${option.value}`;
+        checkbox.value = option.value;
+        checkbox.checked = selectedValues.includes(option.value);
+        
+        const label = document.createElement('label');
+        label.htmlFor = `multi-${option.value}`;
+        label.textContent = option.label;
+        label.style.cursor = 'pointer';
+        label.style.margin = '0';
+        label.style.flex = '1';
+        
+        // Handle checkbox change
+        checkbox.addEventListener('change', () => {
+            if (checkbox.checked) {
+                if (!selectedValues.includes(option.value)) {
+                    selectedValues.push(option.value);
+                }
+            } else {
+                const index = selectedValues.indexOf(option.value);
+                if (index > -1) {
+                    selectedValues.splice(index, 1);
+                }
+            }
+            updateButtonText();
+            if (onChangeCallback) onChangeCallback(selectedValues);
+        });
+        
+        optionDiv.appendChild(checkbox);
+        optionDiv.appendChild(label);
+        dropdown.appendChild(optionDiv);
+    });
+    
+    // Toggle dropdown
+    button.addEventListener('click', (e) => {
+        e.stopPropagation();
+        dropdown.classList.toggle('show');
+    });
+    
+    // Close dropdown when clicking outside
+    document.addEventListener('click', (e) => {
+        if (!wrapper.contains(e.target)) {
+            dropdown.classList.remove('show');
+        }
+    });
+    
+    wrapper.appendChild(button);
+    wrapper.appendChild(dropdown);
+    container.appendChild(wrapper);
+    
+    return wrapper;
+}
+
+  
+
+
+
+  
+
+
+
   
 
 
