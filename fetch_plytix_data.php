@@ -288,34 +288,110 @@ if ($action === 'get_status') {
         usleep(100000);
     }
 
-    error_log("Found " . count($allProductIds) . " products from API");
+                            error_log("Found " . count($allProductIds) . " products from API");
     
-    $metadata = loadMetadata($metadataFile);
-    $needUpdate = [];
-    $cached = [];
+                                // Fetch category hashes from Plytix for all products (lightweight check)
+                                error_log("Fetching category data from Plytix for comparison...");
+                                $apiCategoryHashes = [];
+                                $catPage = 1;
+                                $catMaxPages = 15;
+                                
+                                while ($catPage <= $catMaxPages) {
+                                    $catPostData = [
+                                        "attributes" => ["id", "categories"],
+                                        "pagination" => ["page_size" => 100, "page" => $catPage]
+                                    ];
+                                    
+                                    $ch = curl_init("https://pim.plytix.com/api/v1/products/search");
+                                    curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+                                    curl_setopt($ch, CURLOPT_POST, 1);
+                                    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($catPostData));
+                                    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                                        'Content-Type: application/json',
+                                        'Authorization: Bearer ' . $accessToken
+                                    ]);
+                                    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+                                    
+                                    $catResponse = curl_exec($ch);
+                                    $catHttpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                                    curl_close($ch);
+                                    
+                                    if ($catHttpCode != 200) {
+                                        error_log("Failed to fetch categories page $catPage: HTTP $catHttpCode");
+                                        break;
+                                    }
+                                    
+                                    $catData = json_decode($catResponse, true);
+                                    $catProducts = $catData['data'] ?? [];
+                                    
+                                    if (count($catProducts) === 0) break;
+                                    
+                                    foreach ($catProducts as $catProduct) {
+                                        $categoryIds = array_map(function($cat) { 
+                                            return $cat['id']; 
+                                        }, $catProduct['categories'] ?? []);
+                                        sort($categoryIds);
+                                        $apiCategoryHashes[$catProduct['id']] = md5(json_encode($categoryIds));
+                                    }
+                                    
+                                    if (count($catProducts) < 100) break;
+                                    $catPage++;
+                                    usleep(50000);
+                                }
+                                
+                                error_log("Fetched category hashes for " . count($apiCategoryHashes) . " products");
+                                
+                                // Now compare both timestamp AND category hash
+                                $metadata = loadMetadata($metadataFile);
+                                $needUpdate = [];
+                                $cached = [];
+                                
+                                foreach ($allProductIds as $productInfo) {
+                                    $productId = $productInfo['id'];
+                                    $productFile = $cacheDir . '/product_' . $productId . '.json';
+                                    
+                                    if (!file_exists($productFile)) {
+                                        $needUpdate[] = $productId;
+                                        continue;
+                                    }
+                                    
+                                    // Handle both old format (string) and new format (array) for backward compatibility
+                                    $cachedData = $metadata['products'][$productId] ?? null;
+                                    
+                                    if (is_string($cachedData)) {
+                                        // Old format: just timestamp string - needs update to add category hash
+                                        $needUpdate[] = $productId;
+                                        error_log("Product $productId: old metadata format, updating");
+                                    } else if (is_array($cachedData)) {
+                                        // New format: check both timestamp and category hash
+                                        $cachedModified = $cachedData['modified'] ?? null;
+                                        $cachedCategoryHash = $cachedData['category_hash'] ?? null;
+                                        $currentModified = $productInfo['modified'];
+                                        $apiCategoryHash = $apiCategoryHashes[$productId] ?? null;
+                                        
+                                        // Check if timestamp changed (attribute changes)
+                                        $timestampChanged = $currentModified && $cachedModified && $currentModified !== $cachedModified;
+                                        
+                                        // Check if categories changed (even if timestamp didn't)
+                                        $categoriesChanged = $apiCategoryHash && $cachedCategoryHash && $apiCategoryHash !== $cachedCategoryHash;
+                                        
+                                        if ($timestampChanged) {
+                                            $needUpdate[] = $productId;
+                                            error_log("Product $productId needs update: timestamp changed - cached=$cachedModified, current=$currentModified");
+                                        } else if ($categoriesChanged) {
+                                            $needUpdate[] = $productId;
+                                            error_log("Product $productId needs update: categories changed in Plytix");
+                                        } else {
+                                            $cached[] = $productId;
+                                        }
+                                    } else {
+                                        // No metadata or invalid format - needs update
+                                        $needUpdate[] = $productId;
+                                    }
+                                }
+                                
+                                error_log("Cached: " . count($cached) . ", Need update: " . count($needUpdate));
 
-foreach ($allProductIds as $productInfo) {
-    $productId = $productInfo['id'];
-    $productFile = $cacheDir . '/product_' . $productId . '.json';
-    
-    if (!file_exists($productFile)) {
-        $needUpdate[] = $productId;
-    } else {
-        $cachedModified = $metadata['products'][$productId] ?? null;
-        $currentModified = $productInfo['modified'];
-        
-        // Only refetch if timestamps actually differ
-        if ($currentModified && $cachedModified && $currentModified !== $cachedModified) {
-            $needUpdate[] = $productId;
-            error_log("Product $productId needs update: cached=$cachedModified, current=$currentModified");
-        } else {
-            $cached[] = $productId;
-        }
-    }
-}
-
-
-    error_log("Cached: " . count($cached) . ", Need update: " . count($needUpdate));
     
     $hasConsolidated = file_exists($consolidatedFile);
 
@@ -452,20 +528,30 @@ if ($action === 'fetch_products') {
     
     error_log("Fetching " . count($ids) . " products from API...");
     
-    foreach ($ids as $productId) {
-        $product = fetchProductDetails($productId, $accessToken);
-        
-        if ($product) {
-            $productFile = $cacheDir . '/product_' . $productId . '.json';
-            file_put_contents($productFile, json_encode($product, JSON_PRETTY_PRINT));
-            
-            $metadata['products'][$productId] = $product['modified'] ?? $product['created'] ?? date('c');
-            
-            $products[] = $product;
-        }
-        
-        usleep(100000);
-    }
+                        foreach ($ids as $productId) {
+                            $product = fetchProductDetails($productId, $accessToken);
+                            if ($product) {
+                                $productFile = $cacheDir . '/product_' . $productId . '.json';
+                                file_put_contents($productFile, json_encode($product, JSON_PRETTY_PRINT));
+                                
+                                // Calculate category hash for tracking category-only changes
+                                $categoryIds = array_map(function($cat) { 
+                                    return $cat['id']; 
+                                }, $product['categories'] ?? []);
+                                sort($categoryIds);
+                                $categoryHash = md5(json_encode($categoryIds));
+                                
+                                // Store both timestamp and category hash
+                                $metadata['products'][$productId] = [
+                                    'modified' => $product['modified'] ?? $product['created'] ?? date('c'),
+                                    'category_hash' => $categoryHash
+                                ];
+                                
+                                $products[] = $product;
+                                usleep(100000);
+                            }
+                        }
+
     
         $metadata['last_full_sync'] = date('c');
         saveMetadata($metadataFile, $metadata);
@@ -920,14 +1006,26 @@ if ($action === 'update_categories') {
     $updated = fetchProductDetails($productId, $accessToken);
     $categories = $updated['categories'] ?? [];
     
-    // STEP 5: Update cache
-    $productFile = $cacheDir . '/product_' . $productId . '.json';
-    file_put_contents($productFile, json_encode($updated, JSON_PRETTY_PRINT));
-    
-    // Update metadata
-    $metadata = loadMetadata($metadataFile);
-    $metadata['products'][$productId] = $updated['modified'] ?? $updated['created'] ?? date('c');
-    saveMetadata($metadataFile, $metadata);
+                    // STEP 5: Update cache
+                    $productFile = $cacheDir . '/product_' . $productId . '.json';
+                    file_put_contents($productFile, json_encode($updated, JSON_PRETTY_PRINT));
+                    
+                    // Update metadata with new category hash
+                    $metadata = loadMetadata($metadataFile);
+                    
+                    $newCategoryIds = array_map(function($cat) { 
+                        return $cat['id']; 
+                    }, $categories);
+                    sort($newCategoryIds);
+                    $newCategoryHash = md5(json_encode($newCategoryIds));
+                    
+                    $metadata['products'][$productId] = [
+                        'modified' => $updated['modified'] ?? $updated['created'] ?? date('c'),
+                        'category_hash' => $newCategoryHash
+                    ];
+                    
+                    saveMetadata($metadataFile, $metadata);
+
     
     // Rebuild consolidated cache
     buildConsolidatedCache($cacheDir);
