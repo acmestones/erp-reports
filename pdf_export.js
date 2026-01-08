@@ -323,7 +323,7 @@ const PDFExportModule = (function() {
             return;
         }
         
-        const { jsPDF } = window;
+       const jsPDF = window.jsPDF;
         const pageFormat = orientation === 'landscape' ? ['a4', 'l'] : ['a4', 'p'];
         const pdf = new jsPDF(...pageFormat);
         
