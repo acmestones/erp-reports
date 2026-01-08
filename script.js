@@ -139,6 +139,14 @@ function init() {
         }
     }, 0);
 
+
+    // Show export button when products are loaded
+const exportBtn = document.getElementById('exportPdfBtn');
+if (exportBtn) {
+    exportBtn.style.display = 'inline-block';
+}
+
+
   
 }
 
