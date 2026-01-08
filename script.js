@@ -668,6 +668,8 @@ function applyFilters() {
         return true;
     });
 
+  window.filteredProducts = filteredProducts; 
+
     // Sorting
     filteredProducts.sort((a, b) => {
         if (sortFilter === 'sku-asc') {
@@ -686,6 +688,8 @@ function applyFilters() {
         }
         return 0;
     });
+
+  window.filteredProducts = filteredProducts;
 
     renderProducts();
 }
