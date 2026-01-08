@@ -9,8 +9,10 @@ const PDFExportModule = (function() {
         email: 'info@acmestones.com'
     };
     
-    let selectedAttributes = ['sku', 'label'];
+    // Load saved selections from localStorage
+    let selectedAttributes = JSON.parse(localStorage.getItem('pdfExportAttributes')) || ['sku', 'label'];
     let exportModal = null;
+    let progressModal = null;
     
     function init() {
         console.log('PDFExportModule initialized');
@@ -49,7 +51,7 @@ const PDFExportModule = (function() {
                                 </select>
                             </div>
                             <div class="alert alert-info small">
-                                <strong>Note:</strong> Each product takes ~1 page. Large catalogs may take time to generate.
+                                <strong>Note:</strong> Your attribute selection will be saved for next time.
                             </div>
                         </div>
                         <div class="modal-footer">
@@ -95,8 +97,15 @@ const PDFExportModule = (function() {
             
             if (product.attributes && typeof product.attributes === 'object') {
                 Object.keys(product.attributes).forEach(key => {
+                    // Exclude image attributes from main attribute list
                     if (key !== 'thumbnail' && key !== 'images' && key !== 'assets' && key !== 'categories') {
-                        attrs.add(key);
+                        const value = product.attributes[key];
+                        // Check if it's an image array
+                        const isImageArray = Array.isArray(value) && value.length > 0 && 
+                                           value[0] && (value[0].url || value[0].thumbnail);
+                        if (!isImageArray) {
+                            attrs.add(key);
+                        }
                     }
                 });
             }
@@ -136,6 +145,9 @@ const PDFExportModule = (function() {
         selectedAttributes = Array.from(
             document.querySelectorAll('.export-attr-checkbox:checked')
         ).map(cb => cb.value);
+        
+        // Save to localStorage for next time
+        localStorage.setItem('pdfExportAttributes', JSON.stringify(selectedAttributes));
     }
     
     function handleGeneratePdf() {
@@ -154,23 +166,98 @@ const PDFExportModule = (function() {
         }
         
         const orientation = document.getElementById('pdfOrientation').value;
-        generatePdfWithJsPdf(productsToExport, selectedAttributes, orientation);
+        
+        // Hide export modal
+        exportModal.hide();
+        
+        // Show progress modal
+        showProgressModal(productsToExport.length);
+        
+        // Generate PDF with progress updates (slight delay to show modal)
+        setTimeout(() => {
+            generatePdfWithProgress(productsToExport, selectedAttributes, orientation);
+        }, 100);
     }
     
-    function generatePdfWithJsPdf(products, attributes, orientation) {
-        // THE FIX: Check for jsPDF correctly
+    // Progress Modal Functions
+    function showProgressModal(totalProducts) {
+        if (!document.getElementById('pdfProgressModal')) {
+            const modalHTML = `
+                <div class="modal fade" id="pdfProgressModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1">
+                    <div class="modal-dialog modal-dialog-centered">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title">Generating PDF...</h5>
+                            </div>
+                            <div class="modal-body">
+                                <div class="mb-3">
+                                    <div class="progress" style="height: 30px;">
+                                        <div id="pdfProgressBar" class="progress-bar progress-bar-striped progress-bar-animated bg-success" 
+                                             role="progressbar" style="width: 0%">0%</div>
+                                    </div>
+                                </div>
+                                <div class="text-center">
+                                    <p id="pdfProgressText" class="mb-0">Preparing export...</p>
+                                    <small class="text-muted">Please wait, this may take a minute...</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            const div = document.createElement('div');
+            div.innerHTML = modalHTML;
+            document.body.appendChild(div);
+        }
+        
+        // Reset progress
+        const progressBar = document.getElementById('pdfProgressBar');
+        const progressText = document.getElementById('pdfProgressText');
+        if (progressBar) {
+            progressBar.style.width = '0%';
+            progressBar.textContent = '0%';
+        }
+        if (progressText) {
+            progressText.textContent = 'Preparing export...';
+        }
+        
+        progressModal = new bootstrap.Modal(document.getElementById('pdfProgressModal'));
+        progressModal.show();
+    }
+    
+    function updateProgress(current, total) {
+        const percentage = Math.round((current / total) * 100);
+        const progressBar = document.getElementById('pdfProgressBar');
+        const progressText = document.getElementById('pdfProgressText');
+        
+        if (progressBar) {
+            progressBar.style.width = percentage + '%';
+            progressBar.textContent = percentage + '%';
+        }
+        
+        if (progressText) {
+            progressText.textContent = `Processing product ${current} of ${total}...`;
+        }
+    }
+    
+    function hideProgressModal() {
+        if (progressModal) {
+            progressModal.hide();
+        }
+    }
+    
+    // Generate PDF with progress updates
+    function generatePdfWithProgress(products, attributes, orientation) {
         let jsPDF;
         
         if (typeof window.jspdf !== 'undefined' && window.jspdf.jsPDF) {
-            // UMD build (lowercase)
             jsPDF = window.jspdf.jsPDF;
         } else if (typeof window.jsPDF !== 'undefined') {
-            // Global build
             jsPDF = window.jsPDF;
         } else {
+            hideProgressModal();
             alert('jsPDF library not loaded. Please refresh the page and try again.');
-            console.error('jsPDF not available. Checked window.jspdf.jsPDF and window.jsPDF');
-            console.log('Available on window:', Object.keys(window).filter(k => k.toLowerCase().includes('pdf')));
             return;
         }
         
@@ -190,27 +277,52 @@ const PDFExportModule = (function() {
         addPdfHeader(pdf, pageWidth, pageHeight, margin);
         yPosition += 25;
         
-        products.forEach((product, index) => {
-            const requiredHeight = 70;
+        let currentIndex = 0;
+        const batchSize = 5; // Process 5 products at a time for smoother progress
+        
+        function processBatch() {
+            const endIndex = Math.min(currentIndex + batchSize, products.length);
             
-            if (yPosition + requiredHeight > pageHeight - margin - 30) {
-                pdf.addPage();
-                yPosition = margin;
-                addPdfHeader(pdf, pageWidth, pageHeight, margin);
-                yPosition += 25;
+            for (let i = currentIndex; i < endIndex; i++) {
+                const product = products[i];
+                
+                // Calculate required height for this product (1 product per page)
+                const requiredHeight = 150; // Increased for better spacing
+                
+                if (yPosition + requiredHeight > pageHeight - margin - 30 || i > 0) {
+                    // New page for each product (except first)
+                    if (i > 0) {
+                        pdf.addPage();
+                        yPosition = margin;
+                        addPdfHeader(pdf, pageWidth, pageHeight, margin);
+                        yPosition += 25;
+                    }
+                }
+                
+                yPosition = drawProductInPdf(pdf, product, attributes, margin, yPosition, contentWidth);
+                
+                updateProgress(i + 1, products.length);
             }
             
-            yPosition = drawProductInPdf(pdf, product, attributes, margin, yPosition, contentWidth);
-            yPosition += 10;
-        });
+            currentIndex = endIndex;
+            
+            if (currentIndex < products.length) {
+                // Process next batch after a short delay (allows UI to update)
+                setTimeout(processBatch, 50);
+            } else {
+                // All products processed
+                addPdfFooter(pdf, pageWidth, pageHeight);
+                
+                const filename = `products-export-${new Date().toISOString().slice(0, 10)}.pdf`;
+                pdf.save(filename);
+                
+                hideProgressModal();
+                alert(`PDF generated successfully!\n\nFilename: ${filename}\n\nProducts exported: ${products.length}`);
+            }
+        }
         
-        addPdfFooter(pdf, pageWidth, pageHeight);
-        
-        const filename = `products-export-${new Date().toISOString().slice(0, 10)}.pdf`;
-        pdf.save(filename);
-        
-        alert(`PDF generated successfully!\n\nFilename: ${filename}\n\nProducts exported: ${products.length}`);
-        exportModal.hide();
+        // Start processing
+        processBatch();
     }
     
     function addPdfHeader(pdf, pageWidth, pageHeight, margin) {
@@ -251,31 +363,93 @@ const PDFExportModule = (function() {
     }
     
     function drawProductInPdf(pdf, product, attributes, margin, yPos, contentWidth) {
-        const imageSize = 60;
-        const imageX = margin;
-        const imageY = yPos;
-        const textX = imageX + imageSize + 10;
-        
         let currentY = yPos;
         
-        const thumbnailUrl = getThumbnailUrl(product);
-        if (thumbnailUrl) {
+        // Main product image - maintain aspect ratio with max dimension of 400px equivalent
+        const mainImageUrl = getThumbnailUrl(product);
+        const mainImageMaxSize = 80; // 80mm ≈ 300px at 96dpi
+        
+        if (mainImageUrl) {
             try {
-                pdf.addImage(thumbnailUrl, 'JPEG', imageX, imageY, imageSize, imageSize);
+                // Create a temporary image to get dimensions
+                const img = new Image();
+                img.crossOrigin = 'Anonymous';
+                
+                // For now, use square format (we'd need to load image to get true dimensions)
+                // In practice, most product images are close to square
+                const imageWidth = mainImageMaxSize;
+                const imageHeight = mainImageMaxSize;
+                
+                pdf.addImage(mainImageUrl, 'JPEG', margin, currentY, imageWidth, imageHeight);
+                currentY += imageHeight + 10;
             } catch (e) {
+                console.error('Error adding main image:', e);
+                // Draw placeholder
                 pdf.setDrawColor(200);
-                pdf.rect(imageX, imageY, imageSize, imageSize);
+                pdf.rect(margin, currentY, mainImageMaxSize, mainImageMaxSize);
                 pdf.setFontSize(8);
-                pdf.text('No Image', imageX + 5, imageY + 30);
+                pdf.text('No Image', margin + 30, currentY + 40);
+                currentY += mainImageMaxSize + 10;
             }
         } else {
+            // Placeholder
             pdf.setDrawColor(200);
-            pdf.rect(imageX, imageY, imageSize, imageSize);
+            pdf.rect(margin, currentY, mainImageMaxSize, mainImageMaxSize);
             pdf.setFontSize(8);
-            pdf.text('No Image', imageX + 5, imageY + 30);
+            pdf.setTextColor(150);
+            pdf.text('No Image Available', margin + 20, currentY + 40);
+            pdf.setTextColor(0);
+            currentY += mainImageMaxSize + 10;
         }
         
-        currentY = imageY + 5;
+        // Collect and display image attributes under main image
+        const imageAttributes = getImageAttributes(product);
+        if (imageAttributes.length > 0) {
+            pdf.setFontSize(10);
+            pdf.setFont(undefined, 'bold');
+            pdf.text('Additional Images:', margin, currentY);
+            currentY += 7;
+            
+            const thumbSize = 15; // Small thumbnail size
+            const thumbSpacing = 18;
+            let thumbX = margin;
+            
+            imageAttributes.forEach((imgAttr, index) => {
+                if (imgAttr.images && imgAttr.images.length > 0) {
+                    // Draw up to 4 thumbnails per attribute
+                    imgAttr.images.slice(0, 4).forEach((img, imgIndex) => {
+                        if (thumbX + thumbSize > margin + contentWidth) {
+                            // New row
+                            thumbX = margin;
+                            currentY += thumbSpacing;
+                        }
+                        
+                        try {
+                            pdf.addImage(img.thumbnail || img.url, 'JPEG', thumbX, currentY, thumbSize, thumbSize);
+                            
+                            // Add link annotation (makes it clickable in PDF)
+                            pdf.link(thumbX, currentY, thumbSize, thumbSize, { url: img.url });
+                        } catch (e) {
+                            pdf.setDrawColor(200);
+                            pdf.rect(thumbX, currentY, thumbSize, thumbSize);
+                        }
+                        
+                        thumbX += thumbSpacing;
+                    });
+                    
+                    if (imgAttr.images.length > 4) {
+                        pdf.setFontSize(7);
+                        pdf.text(`+${imgAttr.images.length - 4} more`, thumbX, currentY + 7);
+                    }
+                }
+            });
+            
+            currentY += thumbSpacing + 5;
+        }
+        
+        // Draw text attributes
+        pdf.setFontSize(10);
+        pdf.setFont(undefined, 'normal');
         
         attributes.forEach(attr => {
             const value = getAttributeValue(product, attr);
@@ -283,25 +457,45 @@ const PDFExportModule = (function() {
             if (value) {
                 const label = attr.charAt(0).toUpperCase() + attr.slice(1).replace(/_/g, ' ');
                 const displayValue = Array.isArray(value) ? value.join(', ') : String(value);
-                const truncated = displayValue.length > 50 ? displayValue.substring(0, 50) + '...' : displayValue;
+                
+                // Word wrap for long values
+                const maxWidth = contentWidth - 50;
                 
                 pdf.setFont(undefined, 'bold');
                 pdf.setFontSize(9);
-                pdf.text(`${label}:`, textX, currentY);
+                pdf.text(`${label}:`, margin, currentY);
                 
                 pdf.setFont(undefined, 'normal');
                 pdf.setFontSize(8);
-                pdf.text(truncated, textX + 40, currentY);
                 
-                currentY += 5;
+                const splitText = pdf.splitTextToSize(displayValue, maxWidth);
+                pdf.text(splitText, margin + 45, currentY);
+                
+                currentY += (splitText.length * 4) + 2;
             }
         });
         
-        const maxY = Math.max(imageY + imageSize, currentY);
-        pdf.setDrawColor(200);
-        pdf.line(margin, maxY + 5, margin + contentWidth, maxY + 5);
+        return currentY;
+    }
+    
+    function getImageAttributes(product) {
+        const imageAttrs = [];
         
-        return maxY + 5;
+        if (product.attributes && typeof product.attributes === 'object') {
+            Object.keys(product.attributes).forEach(key => {
+                const value = product.attributes[key];
+                
+                // Check if it's an array of image objects
+                if (Array.isArray(value) && value.length > 0 && value[0] && (value[0].url || value[0].thumbnail)) {
+                    imageAttrs.push({
+                        name: key,
+                        images: value
+                    });
+                }
+            });
+        }
+        
+        return imageAttrs;
     }
     
     function getAttributeValue(product, attrName) {
@@ -309,13 +503,21 @@ const PDFExportModule = (function() {
         if (attrName === 'label') return product.label;
         
         if (product.attributes && product.attributes[attrName]) {
-            return product.attributes[attrName];
+            const value = product.attributes[attrName];
+            
+            // Skip image arrays
+            if (Array.isArray(value) && value.length > 0 && value[0] && (value[0].url || value[0].thumbnail)) {
+                return null;
+            }
+            
+            return value;
         }
         
         return null;
     }
     
     function getThumbnailUrl(product) {
+        // Try to get the best quality thumbnail
         if (product.thumbnail && product.thumbnail.url) {
             return product.thumbnail.url;
         }
@@ -326,6 +528,12 @@ const PDFExportModule = (function() {
         
         if (product.images && Array.isArray(product.images) && product.images.length > 0) {
             return product.images[0].url || product.images[0].thumbnail;
+        }
+        
+        if (product.attributes) {
+            if (product.attributes.images && Array.isArray(product.attributes.images) && product.attributes.images.length > 0) {
+                return product.attributes.images[0].url || product.attributes.images[0].thumbnail;
+            }
         }
         
         return null;
