@@ -10,19 +10,6 @@ const PDFExportModule = (function() {
         email: 'info@yourwebsite.com'     // ← EDIT THIS
     };
     
-    // Available attributes for PDF export (user will select from these)
-    let AVAILABLE_EXPORT_ATTRS = [
-        'sku',
-        'label',
-        'description',
-        'price',
-        'color',
-        'size',
-        'material',
-        'weight',
-        'dimensions'
-    ];
-    
     // State
     let selectedAttributes = ['sku', 'label']; // Default selections
     let exportModal = null;
@@ -30,9 +17,9 @@ const PDFExportModule = (function() {
     // Initialize module
     function init() {
         console.log('PDFExportModule initialized');
-        setupExportButton();
         createExportModal();
         setupEventListeners();
+        setupExportButton();
     }
     
     // Setup export button
@@ -98,38 +85,49 @@ const PDFExportModule = (function() {
     
     // Show export modal
     function showExportModal() {
-        // Get available attributes from current products
-        const allAttrs = discoverAttributesFromFilteredProducts();
-        AVAILABLE_EXPORT_ATTRS = allAttrs;
+        console.log('showExportModal called');
+        console.log('window.allProducts:', window.allProducts ? window.allProducts.length + ' products' : 'NOT FOUND');
+        console.log('window.filteredProducts:', window.filteredProducts ? window.filteredProducts.length + ' products' : 'NOT FOUND');
+        
+        // Get available attributes from ALL products (not just filtered)
+        const allAttrs = discoverAttributesFromAllProducts();
+        console.log('Discovered attributes:', allAttrs);
         
         populateAttributeCheckboxes(allAttrs);
         exportModal.show();
     }
     
-    // Discover attributes from filtered products
-    function discoverAttributesFromFilteredProducts() {
+    // Discover attributes from ALL products in the system
+    function discoverAttributesFromAllProducts() {
         const attrs = new Set();
         
-        if (typeof filteredProducts === 'undefined' || !filteredProducts) {
-            console.warn('No filtered products available');
+        // Use window.allProducts which contains ALL products loaded from Plytix
+        const productsToScan = window.allProducts || [];
+        
+        console.log('Scanning ' + productsToScan.length + ' products for attributes...');
+        
+        if (!productsToScan || productsToScan.length === 0) {
+            console.warn('No products available to discover attributes');
             return ['sku', 'label'];
         }
         
-        filteredProducts.forEach(product => {
+        productsToScan.forEach(product => {
             // Add basic attributes
             attrs.add('sku');
             attrs.add('label');
             
-            // Add custom attributes
+            // Add custom attributes from all products
             if (product.attributes && typeof product.attributes === 'object') {
                 Object.keys(product.attributes).forEach(key => {
-                    if (key !== 'thumbnail' && key !== 'images' && key !== 'assets') {
+                    // Skip non-attribute keys
+                    if (key !== 'thumbnail' && key !== 'images' && key !== 'assets' && key !== 'categories') {
                         attrs.add(key);
                     }
                 });
             }
         });
         
+        console.log('Total unique attributes discovered:', attrs.size);
         return Array.from(attrs).sort();
     }
     
@@ -179,29 +177,35 @@ const PDFExportModule = (function() {
             return;
         }
         
-        if (typeof filteredProducts === 'undefined' || !filteredProducts || filteredProducts.length === 0) {
-            alert('No products to export. Apply filters first.');
+        // Use window.filteredProducts which is the current filter result
+        const productsToExport = window.filteredProducts || [];
+        
+        console.log('Filtered products available:', productsToExport.length);
+        
+        if (!productsToExport || productsToExport.length === 0) {
+            alert('No products to export. Apply filters first or wait for products to load.');
             return;
         }
         
         const orientation = document.getElementById('pdfOrientation').value;
         
-        console.log(`Generating PDF with ${filteredProducts.length} products...`);
+        console.log(`Generating PDF with ${productsToExport.length} products...`);
         
-        // Use jsPDF + html2canvas
-        generatePdfWithJsPdf(filteredProducts, selectedAttributes, orientation);
+        // Use jsPDF
+        generatePdfWithJsPdf(productsToExport, selectedAttributes, orientation);
     }
     
     // Generate PDF using jsPDF library
     function generatePdfWithJsPdf(products, attributes, orientation) {
-        if (typeof jsPDF === 'undefined') {
-            alert('jsPDF library not loaded. Please add jsPDF to your HTML.');
+        if (typeof window.jsPDF === 'undefined') {
+            alert('jsPDF library not loaded. Please ensure jsPDF is included in your HTML.');
+            console.error('jsPDF not available at window.jsPDF');
             return;
         }
         
-        const { jsPDF: JsPDF } = window;
+        const { jsPDF } = window;
         const pageFormat = orientation === 'landscape' ? ['A4', 'l'] : ['A4', 'p'];
-        const pdf = new JsPDF(...pageFormat);
+        const pdf = new jsPDF(...pageFormat);
         
         const pageWidth = pdf.internal.pageSize.getWidth();
         const pageHeight = pdf.internal.pageSize.getHeight();
@@ -241,7 +245,7 @@ const PDFExportModule = (function() {
         pdf.save(filename);
         
         console.log(`PDF generated successfully: ${filename}`);
-        alert(`PDF generated successfully!\n\nFilename: ${filename}`);
+        alert(`PDF generated successfully!\n\nFilename: ${filename}\n\nProducts exported: ${products.length}`);
         
         // Close modal
         exportModal.hide();
@@ -284,16 +288,15 @@ const PDFExportModule = (function() {
         pdf.setFont(undefined, 'normal');
         pdf.setTextColor(100, 100, 100);
         
-        const pageCount = pdf.internal.pages.length - 1;
         const pageNum = pdf.internal.getNumberOfPages();
         
         pdf.text(COMPANY_INFO.website, 15, footerY + 5);
-        pdf.text(`Page ${pageNum} of ${pageNum}`, pageWidth - 25, footerY + 5);
+        pdf.text(`Page ${pageNum}`, pageWidth - 25, footerY + 5);
     }
     
     // Draw single product in PDF
     function drawProductInPdf(pdf, product, attributes, margin, yPos, contentWidth) {
-        const imageSize = 60; // 60x60 in PDF (scales down from 400x400)
+        const imageSize = 60; // 60x60 in PDF (scales from 400x400)
         const imageX = margin;
         const imageY = yPos;
         const textX = imageX + imageSize + 10;
@@ -301,7 +304,7 @@ const PDFExportModule = (function() {
         
         let currentY = yPos;
         
-        // Draw image placeholder or actual image
+        // Draw image
         const thumbnailUrl = getThumbnailUrl(product);
         if (thumbnailUrl) {
             try {
@@ -363,7 +366,6 @@ const PDFExportModule = (function() {
     
     // Calculate required height for product
     function getProductHeightRequired(product, attributes, contentWidth) {
-        // Estimate: 60px for image + 5px per attribute line
         return 60 + (attributes.length * 8);
     }
     
@@ -385,8 +387,12 @@ const PDFExportModule = (function() {
             return product.thumbnail.url;
         }
         
+        if (product.thumbnail && product.thumbnail.thumbnail) {
+            return product.thumbnail.thumbnail;
+        }
+        
         if (product.images && Array.isArray(product.images) && product.images.length > 0) {
-            return product.images[0].url;
+            return product.images[0].url || product.images[0].thumbnail;
         }
         
         return null;
