@@ -291,7 +291,7 @@ const PDFExportModule = (function() {
         yPosition += 25;
         
         let currentIndex = 0;
-        const batchSize = 2; // Process 2 products at a time for smoother progress
+        const batchSize = 2; // Process 2 products at a time
         
         function processBatch() {
             const endIndex = Math.min(currentIndex + batchSize, products.length);
@@ -392,42 +392,44 @@ const PDFExportModule = (function() {
         currentY += 7;
         
         // ========== MAIN IMAGE WITH PROPORTIONAL SCALING ==========
+        // KEY FIX: Only specify WIDTH, let jsPDF calculate HEIGHT to maintain aspect ratio
         const mainImageUrl = getThumbnailUrl(product);
-        const maxImageDimension = 60; // 60mm (approximately 400px)
-        let imageWidth = maxImageDimension;
-        let imageHeight = maxImageDimension;
+        const maxImageWidth = 60; // 60mm max width (approximately 400px)
         
         const imageX = margin;
         let imageSectionY = currentY;
         
         if (mainImageUrl) {
             try {
-                pdf.addImage(mainImageUrl, 'JPEG', imageX, imageSectionY, imageWidth, imageHeight);
+                // CRITICAL: Only specify width (60mm), omit height to maintain aspect ratio
+                pdf.addImage(mainImageUrl, 'JPEG', imageX, imageSectionY, maxImageWidth);
                 
                 // Make image clickable with URL
-                pdf.link(imageX, imageSectionY, imageWidth, imageHeight, { url: mainImageUrl });
+                // Note: We use a rough estimate of height, but jsPDF will handle the actual dimensions
+                pdf.link(imageX, imageSectionY, maxImageWidth, maxImageWidth, { url: mainImageUrl });
                 
-                imageSectionY += imageHeight + 8;
+                // Estimate height based on aspect ratio (assume roughly square/portrait)
+                imageSectionY += maxImageWidth + 8;
             } catch (e) {
                 console.error('Error adding main image:', e);
                 // Draw placeholder
                 pdf.setDrawColor(200);
-                pdf.rect(imageX, imageSectionY, imageWidth, imageHeight);
+                pdf.rect(imageX, imageSectionY, maxImageWidth, maxImageWidth);
                 pdf.setFontSize(8);
                 pdf.setTextColor(150);
                 pdf.text('No Image', imageX + 15, imageSectionY + 28);
                 pdf.setTextColor(0);
-                imageSectionY += imageHeight + 8;
+                imageSectionY += maxImageWidth + 8;
             }
         } else {
             // Placeholder
             pdf.setDrawColor(200);
-            pdf.rect(imageX, imageSectionY, imageWidth, imageHeight);
+            pdf.rect(imageX, imageSectionY, maxImageWidth, maxImageWidth);
             pdf.setFontSize(8);
             pdf.setTextColor(150);
             pdf.text('No Image', imageX + 15, imageSectionY + 28);
             pdf.setTextColor(0);
-            imageSectionY += imageHeight + 8;
+            imageSectionY += maxImageWidth + 8;
         }
         
         // ========== LEFT COLUMN: IMAGE ATTRIBUTES BY ATTRIBUTE NAME ==========
@@ -451,27 +453,28 @@ const PDFExportModule = (function() {
             imageSectionY += 6;
             
             // Thumbnails for this specific attribute
-            const thumbSize = 12;
+            const thumbWidth = 12; // 12mm max width for thumbnails
             const thumbSpacing = 14;
             let thumbX = imageX;
             let thumbRowY = imageSectionY;
             
             imgAttr.images.forEach((img, imgIndex) => {
                 // Check if we need to wrap to next row
-                if (thumbX + thumbSize > imageX + 60) {
+                if (thumbX + thumbWidth > imageX + 60) {
                     thumbX = imageX;
                     thumbRowY += thumbSpacing;
                 }
                 
                 try {
                     const imgUrl = img.url || img.thumbnail;
-                    pdf.addImage(imgUrl, 'JPEG', thumbX, thumbRowY, thumbSize, thumbSize);
+                    // KEY FIX: Only specify width, let jsPDF calculate height to maintain aspect ratio
+                    pdf.addImage(imgUrl, 'JPEG', thumbX, thumbRowY, thumbWidth);
                     
                     // Make thumbnail clickable
-                    pdf.link(thumbX, thumbRowY, thumbSize, thumbSize, { url: imgUrl });
+                    pdf.link(thumbX, thumbRowY, thumbWidth, thumbWidth, { url: imgUrl });
                 } catch (e) {
                     pdf.setDrawColor(200);
-                    pdf.rect(thumbX, thumbRowY, thumbSize, thumbSize);
+                    pdf.rect(thumbX, thumbRowY, thumbWidth, thumbWidth);
                 }
                 
                 thumbX += thumbSpacing;
@@ -482,8 +485,8 @@ const PDFExportModule = (function() {
         
         // ========== RIGHT COLUMN: NON-IMAGE ATTRIBUTES ==========
         // Start right column at same Y as main image started
-        const rightColX = margin + imageWidth + 8;
-        const rightColWidth = contentWidth - imageWidth - 8;
+        const rightColX = margin + maxImageWidth + 8;
+        const rightColWidth = contentWidth - maxImageWidth - 8;
         let rightColY = currentY;
         
         pdf.setFont(undefined, 'normal');
