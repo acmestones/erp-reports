@@ -92,9 +92,6 @@ const PDFExportModule = (function() {
         }
         
         productsToScan.forEach(product => {
-            attrs.add('sku');
-            attrs.add('label');
-            
             if (product.attributes && typeof product.attributes === 'object') {
                 Object.keys(product.attributes).forEach(key => {
                     // Exclude image attributes from main attribute list
@@ -278,7 +275,7 @@ const PDFExportModule = (function() {
         yPosition += 25;
         
         let currentIndex = 0;
-        const batchSize = 5; // Process 5 products at a time for smoother progress
+        const batchSize = 3; // Process 3 products at a time
         
         function processBatch() {
             const endIndex = Math.min(currentIndex + batchSize, products.length);
@@ -286,20 +283,15 @@ const PDFExportModule = (function() {
             for (let i = currentIndex; i < endIndex; i++) {
                 const product = products[i];
                 
-                // Calculate required height for this product (1 product per page)
-                const requiredHeight = 150; // Increased for better spacing
-                
-                if (yPosition + requiredHeight > pageHeight - margin - 30 || i > 0) {
-                    // New page for each product (except first)
-                    if (i > 0) {
-                        pdf.addPage();
-                        yPosition = margin;
-                        addPdfHeader(pdf, pageWidth, pageHeight, margin);
-                        yPosition += 25;
-                    }
+                // Each product on new page
+                if (i > 0) {
+                    pdf.addPage();
+                    yPosition = margin;
+                    addPdfHeader(pdf, pageWidth, pageHeight, margin);
+                    yPosition += 25;
                 }
                 
-                yPosition = drawProductInPdf(pdf, product, attributes, margin, yPosition, contentWidth);
+                yPosition = drawProductInPdf(pdf, product, attributes, margin, yPosition, contentWidth, pageWidth, pageHeight);
                 
                 updateProgress(i + 1, products.length);
             }
@@ -362,120 +354,177 @@ const PDFExportModule = (function() {
         }
     }
     
-    function drawProductInPdf(pdf, product, attributes, margin, yPos, contentWidth) {
+    // Calculate image dimensions maintaining aspect ratio
+    function calculateImageDimensions(maxDimension = 80) {
+        // Since we can't load images synchronously, we assume most product images are square/portrait
+        // Width and height will be equal to maxDimension
+        return { width: maxDimension, height: maxDimension };
+    }
+    
+    function drawProductInPdf(pdf, product, attributes, margin, yPos, contentWidth, pageWidth, pageHeight) {
         let currentY = yPos;
+        const footerMargin = 30;
+        const maxPageY = pageHeight - footerMargin;
         
-        // Main product image - maintain aspect ratio with max dimension of 400px equivalent
+        // ========== PRODUCT TITLE (LABEL) - BOLD AT TOP ==========
+        pdf.setFontSize(16);
+        pdf.setFont(undefined, 'bold');
+        pdf.setTextColor(0, 0, 0);
+        
+        const productLabel = product.label || 'Product';
+        const splitLabel = pdf.splitTextToSize(productLabel, contentWidth);
+        pdf.text(splitLabel, margin, currentY);
+        currentY += (splitLabel.length * 6) + 3;
+        
+        // ========== PRODUCT SKU - SMALLER SIZE UNDER LABEL ==========
+        pdf.setFontSize(9);
+        pdf.setFont(undefined, 'normal');
+        pdf.setTextColor(100, 100, 100);
+        pdf.text(`SKU: ${product.sku || 'N/A'}`, margin, currentY);
+        currentY += 7;
+        
+        // ========== MAIN IMAGE AND RIGHT COLUMN ATTRIBUTES ==========
+        // Two-column layout: Left = image + thumbnails, Right = attributes
+        
+        const imageColWidth = 80; // Width for image column
+        const attributeColWidth = contentWidth - imageColWidth - 5; // Width for attribute column
+        const attributeColX = margin + imageColWidth + 5;
+        
+        const imageX = margin;
+        const imageMaxSize = 80; // 80mm ≈ 400px equivalent, proportional scaling
+        let imageSectionY = currentY;
+        let attributeSectionY = currentY;
+        
+        // ========== LEFT COLUMN: MAIN IMAGE ==========
         const mainImageUrl = getThumbnailUrl(product);
-        const mainImageMaxSize = 80; // 80mm ≈ 300px at 96dpi
         
         if (mainImageUrl) {
             try {
-                // Create a temporary image to get dimensions
-                const img = new Image();
-                img.crossOrigin = 'Anonymous';
+                // Assume square image for simplicity
+                const imageWidth = imageMaxSize;
+                const imageHeight = imageMaxSize;
                 
-                // For now, use square format (we'd need to load image to get true dimensions)
-                // In practice, most product images are close to square
-                const imageWidth = mainImageMaxSize;
-                const imageHeight = mainImageMaxSize;
+                pdf.addImage(mainImageUrl, 'JPEG', imageX, imageSectionY, imageWidth, imageHeight);
                 
-                pdf.addImage(mainImageUrl, 'JPEG', margin, currentY, imageWidth, imageHeight);
-                currentY += imageHeight + 10;
+                // Make image clickable with URL
+                pdf.link(imageX, imageSectionY, imageWidth, imageHeight, { url: mainImageUrl });
+                
+                imageSectionY += imageHeight + 5;
             } catch (e) {
                 console.error('Error adding main image:', e);
                 // Draw placeholder
                 pdf.setDrawColor(200);
-                pdf.rect(margin, currentY, mainImageMaxSize, mainImageMaxSize);
+                pdf.rect(imageX, imageSectionY, imageMaxSize, imageMaxSize);
                 pdf.setFontSize(8);
-                pdf.text('No Image', margin + 30, currentY + 40);
-                currentY += mainImageMaxSize + 10;
+                pdf.setTextColor(150);
+                pdf.text('No Image', imageX + 25, imageSectionY + 40);
+                pdf.setTextColor(0);
+                imageSectionY += imageMaxSize + 5;
             }
         } else {
             // Placeholder
             pdf.setDrawColor(200);
-            pdf.rect(margin, currentY, mainImageMaxSize, mainImageMaxSize);
+            pdf.rect(imageX, imageSectionY, imageMaxSize, imageMaxSize);
             pdf.setFontSize(8);
             pdf.setTextColor(150);
-            pdf.text('No Image Available', margin + 20, currentY + 40);
+            pdf.text('No Image', imageX + 25, imageSectionY + 40);
             pdf.setTextColor(0);
-            currentY += mainImageMaxSize + 10;
+            imageSectionY += imageMaxSize + 5;
         }
         
-        // Collect and display image attributes under main image
+        // ========== LEFT COLUMN: IMAGE ATTRIBUTES (THUMBNAILS) ==========
         const imageAttributes = getImageAttributes(product);
+        
         if (imageAttributes.length > 0) {
-            pdf.setFontSize(10);
+            pdf.setFontSize(9);
             pdf.setFont(undefined, 'bold');
-            pdf.text('Additional Images:', margin, currentY);
-            currentY += 7;
+            pdf.setTextColor(0, 0, 0);
+            pdf.text('Additional Images:', imageX, imageSectionY);
+            imageSectionY += 6;
             
-            const thumbSize = 15; // Small thumbnail size
-            const thumbSpacing = 18;
-            let thumbX = margin;
+            const thumbSize = 12;
+            const thumbSpacing = 14;
+            let thumbX = imageX;
+            let thumbRowY = imageSectionY;
             
-            imageAttributes.forEach((imgAttr, index) => {
+            imageAttributes.forEach((imgAttr) => {
                 if (imgAttr.images && imgAttr.images.length > 0) {
-                    // Draw up to 4 thumbnails per attribute
-                    imgAttr.images.slice(0, 4).forEach((img, imgIndex) => {
-                        if (thumbX + thumbSize > margin + contentWidth) {
-                            // New row
-                            thumbX = margin;
-                            currentY += thumbSpacing;
+                    // Draw up to 5 thumbnails per row
+                    imgAttr.images.slice(0, 10).forEach((img, imgIndex) => {
+                        // Check if we need to wrap to next row
+                        if (thumbX + thumbSize > imageX + imageColWidth) {
+                            thumbX = imageX;
+                            thumbRowY += thumbSpacing;
                         }
                         
                         try {
-                            pdf.addImage(img.thumbnail || img.url, 'JPEG', thumbX, currentY, thumbSize, thumbSize);
+                            const imgUrl = img.url || img.thumbnail;
+                            pdf.addImage(imgUrl, 'JPEG', thumbX, thumbRowY, thumbSize, thumbSize);
                             
-                            // Add link annotation (makes it clickable in PDF)
-                            pdf.link(thumbX, currentY, thumbSize, thumbSize, { url: img.url });
+                            // Make thumbnail clickable
+                            pdf.link(thumbX, thumbRowY, thumbSize, thumbSize, { url: imgUrl });
                         } catch (e) {
                             pdf.setDrawColor(200);
-                            pdf.rect(thumbX, currentY, thumbSize, thumbSize);
+                            pdf.rect(thumbX, thumbRowY, thumbSize, thumbSize);
                         }
                         
                         thumbX += thumbSpacing;
                     });
                     
-                    if (imgAttr.images.length > 4) {
+                    if (imgAttr.images.length > 10) {
                         pdf.setFontSize(7);
-                        pdf.text(`+${imgAttr.images.length - 4} more`, thumbX, currentY + 7);
+                        pdf.text(`+${imgAttr.images.length - 10} more`, thumbX, thumbRowY + 5);
                     }
+                    
+                    thumbRowY += thumbSpacing;
                 }
             });
             
-            currentY += thumbSpacing + 5;
+            imageSectionY = thumbRowY + 5;
         }
         
-        // Draw text attributes
-        pdf.setFontSize(10);
-        pdf.setFont(undefined, 'normal');
+        // Update current Y to the maximum of both columns
+        currentY = Math.max(imageSectionY, attributeSectionY);
         
-        attributes.forEach(attr => {
-            const value = getAttributeValue(product, attr);
-            
-            if (value) {
-                const label = attr.charAt(0).toUpperCase() + attr.slice(1).replace(/_/g, ' ');
-                const displayValue = Array.isArray(value) ? value.join(', ') : String(value);
-                
-                // Word wrap for long values
-                const maxWidth = contentWidth - 50;
-                
-                pdf.setFont(undefined, 'bold');
-                pdf.setFontSize(9);
-                pdf.text(`${label}:`, margin, currentY);
-                
-                pdf.setFont(undefined, 'normal');
-                pdf.setFontSize(8);
-                
-                const splitText = pdf.splitTextToSize(displayValue, maxWidth);
-                pdf.text(splitText, margin + 45, currentY);
-                
-                currentY += (splitText.length * 4) + 2;
-            }
+        // ========== RIGHT COLUMN: NON-IMAGE ATTRIBUTES ==========
+        pdf.setFont(undefined, 'normal');
+        pdf.setFontSize(9);
+        pdf.setTextColor(0, 0, 0);
+        
+        const nonImageAttributes = attributes.filter(attr => {
+            return attr !== 'sku' && attr !== 'label';
         });
         
-        return currentY;
+        if (nonImageAttributes.length > 0) {
+            attributeSectionY = currentY;
+            
+            nonImageAttributes.forEach(attr => {
+                const value = getAttributeValue(product, attr);
+                
+                if (value && attributeSectionY + 15 < maxPageY) {
+                    const label = attr.charAt(0).toUpperCase() + attr.slice(1).replace(/_/g, ' ');
+                    const displayValue = Array.isArray(value) ? value.join(', ') : String(value);
+                    
+                    // Label in bold
+                    pdf.setFont(undefined, 'bold');
+                    pdf.setFontSize(8);
+                    pdf.text(`${label}:`, attributeColX, attributeSectionY);
+                    
+                    // Value in normal
+                    pdf.setFont(undefined, 'normal');
+                    pdf.setFontSize(7);
+                    
+                    const splitText = pdf.splitTextToSize(displayValue, attributeColWidth - 5);
+                    pdf.text(splitText, attributeColX, attributeSectionY + 3);
+                    
+                    attributeSectionY += (splitText.length * 3.5) + 3;
+                }
+            });
+            
+            currentY = attributeSectionY;
+        }
+        
+        return currentY + 10;
     }
     
     function getImageAttributes(product) {
@@ -522,12 +571,12 @@ const PDFExportModule = (function() {
             return product.thumbnail.url;
         }
         
-        if (product.thumbnail && product.thumbnail.thumbnail) {
-            return product.thumbnail.thumbnail;
+        if (product.thumbnail && typeof product.thumbnail === 'string') {
+            return product.thumbnail;
         }
         
         if (product.images && Array.isArray(product.images) && product.images.length > 0) {
-            return product.images[0].url || product.images[0].thumbnail;
+            return product.images[0].url || product.images[0].thumbnail || product.images[0];
         }
         
         if (product.attributes) {
