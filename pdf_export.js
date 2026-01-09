@@ -470,7 +470,7 @@ const PDFExportModule = (function() {
         let yPosition = margin;
 
         addPdfHeader(pdf, pageWidth, pageHeight, margin);
-        yPosition += 25;
+        yPosition += PDFLayoutConfig.get('headerHeight') + PDFLayoutConfig.get('spaceAfterHeader'); // LAYOUT CONFIG
 
         let currentIndex = 0;
         const batchSize = 1;
@@ -485,7 +485,8 @@ const PDFExportModule = (function() {
                     pdf.addPage();
                     yPosition = margin;
                     addPdfHeader(pdf, pageWidth, pageHeight, margin);
-                    yPosition += 25;
+                    yPosition += PDFLayoutConfig.get('headerHeight') + PDFLayoutConfig.get('spaceAfterHeader'); // LAYOUT CONFIG
+
                 }
 
                 yPosition = drawProductInPdf(
