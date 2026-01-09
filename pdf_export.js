@@ -649,7 +649,7 @@ const PDFExportModule = (function() {
         pdf.setFont(undefined, 'normal');
         pdf.setTextColor(100, 100, 100);
         pdf.text(`SKU: ${product.sku || 'N/A'}`, margin, currentY);
-        currentY += 12; // More space before main image
+        currentY += 4; // More space before main image
         
         // ========== MAIN IMAGE ==========
         const mainImageUrl = getThumbnailUrl(product);
@@ -664,7 +664,7 @@ const PDFExportModule = (function() {
                 const dims = calculateProportionalDimensions(pdf, mainImageUrl, maxImageWidth, maxImageHeight);
                 pdf.addImage(mainImageUrl, 'JPEG', imageX, imageSectionY, dims.width, dims.height);
                 pdf.link(imageX, imageSectionY, dims.width, dims.height, { url: mainImageUrl });
-                imageSectionY += dims.height + 10; // More space after main image
+                imageSectionY += dims.height + 4; // More space after main image
             } catch (e) {
                 console.error('Error adding main image:', e);
                 pdf.setDrawColor(200);
@@ -704,7 +704,7 @@ const PDFExportModule = (function() {
             pdf.setFontSize(9);
             pdf.setFont(undefined, 'bold');
             pdf.setTextColor(0, 0, 0);
-            imageSectionY += 8; // Add space above attribute name
+            imageSectionY += 6; // Add space above attribute name
             const attrLabel = formatAttrLabel(imgAttrName);
             pdf.text(attrLabel + ':', imageX, imageSectionY);
             imageSectionY += 3;
