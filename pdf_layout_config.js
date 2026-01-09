@@ -100,7 +100,43 @@ const PDFLayoutConfig = (function() {
                             <div class="row">
                                 <!-- LEFT COLUMN: SPACING SETTINGS -->
                                 <div class="col-md-6">
-                                    <h6 class="border-bottom pb-2 mb-3"><i class="bi bi-arrows-expand"></i> <strong>Spacing (mm)</strong></h6>
+                                    <!-- PAGE SETTINGS -->
+                                    <h6 class="border-bottom pb-2 mb-3"><i class="bi bi-layout-text-window"></i> <strong>Page Settings</strong></h6>
+
+                                    <div class="mb-3">
+                                        <label class="form-label">Page Margin (mm)</label>
+                                        <input type="number" class="form-control layout-input" 
+                                               data-key="pageMargin" 
+                                               min="5" max="30" step="1">
+                                        <small class="text-muted">Margin around page edges</small>
+                                    </div>
+
+                                    <div class="mb-3">
+                                        <label class="form-label">Header Height (mm)</label>
+                                        <input type="number" class="form-control layout-input" 
+                                               data-key="headerHeight" 
+                                               min="10" max="50" step="1">
+                                        <small class="text-muted">Height of page header area</small>
+                                    </div>
+
+                                    <div class="mb-3">
+                                        <label class="form-label">Space After Header (mm)</label>
+                                        <input type="number" class="form-control layout-input" 
+                                               data-key="spaceAfterHeader" 
+                                               min="0" max="50" step="0.5">
+                                        <small class="text-muted">Vertical space between page header and product label</small>
+                                    </div>
+
+                                    <div class="mb-3">
+                                        <label class="form-label">Page Footer Margin (mm)</label>
+                                        <input type="number" class="form-control layout-input" 
+                                               data-key="pageFooterMargin" 
+                                               min="10" max="50" step="1">
+                                        <small class="text-muted">Space reserved for footer/page numbers</small>
+                                    </div>
+
+                                    <!-- SPACING SETTINGS -->
+                                    <h6 class="border-bottom pb-2 mb-3 mt-4"><i class="bi bi-arrows-expand"></i> <strong>Spacing (mm)</strong></h6>
                                     
                                     <div class="mb-3">
                                         <label class="form-label">Space after Product Label</label>
