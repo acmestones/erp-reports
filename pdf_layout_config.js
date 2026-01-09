@@ -1,5 +1,4 @@
 'use strict';
-
 /**
  * PDF Layout Configuration Module
  * 
@@ -8,333 +7,449 @@
  * All settings are saved to localStorage automatically.
  */
 const PDFLayoutConfig = (function() {
+
+  // DEFAULT LAYOUT CONFIGURATION
+  const DEFAULT_CONFIG = {
+    // PAGE SETTINGS
+    pageMargin: 15,
+    pageFooterMargin: 30,
+    headerHeight: 20,
+    spaceAfterHeader: 5,                    // NEW: Space between header and product label
     
-    // DEFAULT LAYOUT CONFIGURATION
-    const DEFAULT_CONFIG = {
-        // PAGE SETTINGS
-        pageMargin: 15,
-        pageFooterMargin: 30,
-        headerHeight: 20,
-        
-        // MAIN IMAGE SETTINGS
-        mainImageMaxWidth: 60,
-        mainImageMaxHeight: 60,
-        
-        // THUMBNAIL SETTINGS
-        thumbnailMaxWidth: 16,
-        thumbnailMaxHeight: 16,
-        thumbnailHorizontalSpacing: 18,
-        thumbnailVerticalSpacing: 2,
-        
-        // SPACING SETTINGS (in mm)
-        spaceAfterProductLabel: 3,           // Space after product name/label
-        spaceAfterSKU: 7,                    // Space after SKU, before main image
-        spaceAfterMainImage: 8,              // Space after main image
-        spaceBeforeImageAttrLabel: 10,       // Space BEFORE image attribute label
-        spaceAfterImageAttrLabel: 4,         // Space AFTER image attribute label, before thumbnails
-        spaceAfterThumbnailRow: 2,           // Space after last thumbnail row of attribute
-        spaceBeforeNextProduct: 5,           // Space before next product (if any)
-        spaceBetweenColumns: 8,              // Horizontal space between left and right columns
-        spaceBetweenTextAttrLabelAndValue: 5, // Space between text attribute label and value
-        spaceBetweenTextAttributes: 5,       // Space after text attribute value (before next attribute)
-        
-        // FONT SETTINGS
-        productLabelFontSize: 16,
-        skuFontSize: 9,
-        imageAttrLabelFontSize: 9,
-        textAttrLabelFontSize: 10,
-        textAttrValueFontSize: 9,
-        
-        // COLUMN LAYOUT
-        leftColumnWidthMM: 70,               // Width for image attributes column
-        
-        // ORIENTATION
-        defaultOrientation: 'portrait'
-    };
+    // MAIN IMAGE SETTINGS
+    mainImageMaxWidth: 60,
+    mainImageMaxHeight: 60,
     
-    // Load config from localStorage or use defaults
-    let config = JSON.parse(localStorage.getItem('pdfLayoutConfig')) || JSON.parse(JSON.stringify(DEFAULT_CONFIG));
-    let layoutModal = null;
+    // THUMBNAIL SETTINGS
+    thumbnailMaxWidth: 16,
+    thumbnailMaxHeight: 16,
+    thumbnailHorizontalSpacing: 18,
+    thumbnailVerticalSpacing: 2,
     
-    function init() {
-        console.log('PDFLayoutConfig initialized');
-        createLayoutModal();
-        setupLayoutButton();
+    // SPACING SETTINGS (in mm)
+    spaceAfterProductLabel: 3,              // Space after product name/label
+    spaceAfterSKU: 7,                       // Space after SKU, before main image
+    spaceAfterMainImage: 8,                 // Space after main image
+    spaceBeforeImageAttrLabel: 10,          // Space BEFORE image attribute label
+    spaceAfterImageAttrLabel: 4,            // Space AFTER image attribute label, before thumbnails
+    spaceAfterThumbnailRow: 2,              // Space after last thumbnail row of attribute
+    spaceBeforeNextProduct: 5,              // Space before next product (if any)
+    spaceBetweenColumns: 8,                 // Horizontal space between left and right columns
+    spaceBetweenTextAttrLabelAndValue: 5,   // Space between text attribute label and value
+    spaceBetweenTextAttributes: 5,          // Space after text attribute value (before next attribute)
+    
+    // FONT SETTINGS
+    productLabelFontSize: 16,
+    skuFontSize: 9,
+    imageAttrLabelFontSize: 9,
+    textAttrLabelFontSize: 10,
+    textAttrValueFontSize: 9,
+    
+    // COLUMN LAYOUT
+    leftColumnWidthMM: 70,                  // Width for image attributes column
+    
+    // ORIENTATION
+    defaultOrientation: 'portrait'
+  };
+
+  // Load config from localStorage or use defaults
+  let config = JSON.parse(localStorage.getItem('pdfLayoutConfig')) || JSON.parse(JSON.stringify(DEFAULT_CONFIG));
+
+  let layoutModal = null;
+
+  function init() {
+    console.log('PDFLayoutConfig initialized');
+    createLayoutModal();
+    setupLayoutButton();
+  }
+
+  function setupLayoutButton() {
+    // Check if button exists, if not, create one
+    let btn = document.getElementById('pdfLayoutBtn');
+    if (!btn) {
+      const exportBtn = document.getElementById('exportPdfBtn');
+      if (exportBtn && exportBtn.parentNode) {
+        btn = document.createElement('button');
+        btn.id = 'pdfLayoutBtn';
+        btn.className = 'btn btn-secondary me-2';
+        btn.innerHTML = '⚙️ PDF Layout';
+        btn.style.display = 'none';
+        exportBtn.parentNode.insertBefore(btn, exportBtn);
+      }
     }
-    
-    function setupLayoutButton() {
-        // Check if button exists, if not, create one
-        let btn = document.getElementById('pdfLayoutBtn');
-        if (!btn) {
-            const exportBtn = document.getElementById('exportPdfBtn');
-            if (exportBtn && exportBtn.parentNode) {
-                btn = document.createElement('button');
-                btn.id = 'pdfLayoutBtn';
-                btn.className = 'btn btn-secondary me-2';
-                btn.innerHTML = '<i class="bi bi-sliders"></i> PDF Layout';
-                btn.style.display = 'none';
-                exportBtn.parentNode.insertBefore(btn, exportBtn);
-            }
-        }
-        
-        if (btn) {
-            btn.addEventListener('click', showLayoutModal);
-        }
+
+    if (btn) {
+      btn.addEventListener('click', showLayoutModal);
     }
-    
-    function createLayoutModal() {
-        if (document.getElementById('pdfLayoutModal')) {
-            return; // Already exists
-        }
-        
-        const modalHTML = `
-            <div class="modal fade" id="pdfLayoutModal" tabindex="-1">
-                <div class="modal-dialog modal-lg">
-                    <div class="modal-content">
-                        <div class="modal-header">
-                            <h5 class="modal-title">PDF Layout Configuration</h5>
-                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                        </div>
-                        <div class="modal-body">
-                            <div class="row">
-                                <!-- LEFT COLUMN: SPACING SETTINGS -->
-                                <div class="col-md-6">
-                                    <h6 class="border-bottom pb-2 mb-3"><i class="bi bi-arrows-expand"></i> <strong>Spacing (mm)</strong></h6>
-                                    
-                                    <div class="mb-3">
-                                        <label class="form-label">Space after Product Label</label>
-                                        <input type="number" class="form-control layout-input" data-key="spaceAfterProductLabel" min="0" max="20" step="1">
-                                        <small class="text-muted">Gap between product name and SKU</small>
-                                    </div>
-                                    
-                                    <div class="mb-3">
-                                        <label class="form-label">Space after SKU</label>
-                                        <input type="number" class="form-control layout-input" data-key="spaceAfterSKU" min="0" max="20" step="1">
-                                        <small class="text-muted">Gap between SKU and main image</small>
-                                    </div>
-                                    
-                                    <div class="mb-3">
-                                        <label class="form-label">Space after Main Image</label>
-                                        <input type="number" class="form-control layout-input" data-key="spaceAfterMainImage" min="0" max="20" step="1">
-                                        <small class="text-muted">Gap after main product image</small>
-                                    </div>
-                                    
-                                    <div class="mb-3">
-                                        <label class="form-label">Space before Image Attr Label</label>
-                                        <input type="number" class="form-control layout-input" data-key="spaceBeforeImageAttrLabel" min="0" max="30" step="1">
-                                        <small class="text-muted">Gap before "Application Images:" label</small>
-                                    </div>
-                                    
-                                    <div class="mb-3">
-                                        <label class="form-label">Space after Image Attr Label</label>
-                                        <input type="number" class="form-control layout-input" data-key="spaceAfterImageAttrLabel" min="0" max="15" step="1">
-                                        <small class="text-muted">Gap between label and thumbnails</small>
-                                    </div>
-                                    
-                                    <div class="mb-3">
-                                        <label class="form-label">Space between Thumbnail Rows</label>
-                                        <input type="number" class="form-control layout-input" data-key="thumbnailVerticalSpacing" min="0" max="10" step="1">
-                                        <small class="text-muted">Vertical gap between thumbnail rows</small>
-                                    </div>
-                                </div>
-                                
-                                <!-- RIGHT COLUMN: SIZE SETTINGS -->
-                                <div class="col-md-6">
-                                    <h6 class="border-bottom pb-2 mb-3"><i class="bi bi-aspect-ratio"></i> <strong>Sizes & Spacing</strong></h6>
-                                    
-                                    <div class="mb-3">
-                                        <label class="form-label">Thumbnail Width (mm)</label>
-                                        <input type="number" class="form-control layout-input" data-key="thumbnailMaxWidth" min="5" max="40" step="1">
-                                        <small class="text-muted">Width of thumbnail images</small>
-                                    </div>
-                                    
-                                    <div class="mb-3">
-                                        <label class="form-label">Thumbnail Height (mm)</label>
-                                        <input type="number" class="form-control layout-input" data-key="thumbnailMaxHeight" min="5" max="40" step="1">
-                                        <small class="text-muted">Height of thumbnail images</small>
-                                    </div>
-                                    
-                                    <div class="mb-3">
-                                        <label class="form-label">Space between Thumbnails (H)</label>
-                                        <input type="number" class="form-control layout-input" data-key="thumbnailHorizontalSpacing" min="5" max="30" step="1">
-                                        <small class="text-muted">Horizontal gap between thumbnails</small>
-                                    </div>
-                                    
-                                    <div class="mb-3">
-                                        <label class="form-label">Main Image Width (mm)</label>
-                                        <input type="number" class="form-control layout-input" data-key="mainImageMaxWidth" min="30" max="100" step="5">
-                                        <small class="text-muted">Max width of main product image</small>
-                                    </div>
-                                    
-                                    <div class="mb-3">
-                                        <label class="form-label">Main Image Height (mm)</label>
-                                        <input type="number" class="form-control layout-input" data-key="mainImageMaxHeight" min="30" max="100" step="5">
-                                        <small class="text-muted">Max height of main product image</small>
-                                    </div>
-                                    
-                                    <div class="mb-3">
-                                        <label class="form-label">Space between Columns (H)</label>
-                                        <input type="number" class="form-control layout-input" data-key="spaceBetweenColumns" min="2" max="20" step="1">
-                                        <small class="text-muted">Gap between image and text columns</small>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <div class="row mt-4">
-                                <div class="col-12">
-                                    <h6 class="border-bottom pb-2 mb-3"><i class="bi bi-type"></i> <strong>Font Sizes (pt)</strong></h6>
-                                    <div class="row">
-                                        <div class="col-md-6">
-                                            <div class="mb-3">
-                                                <label class="form-label">Product Label Font Size</label>
-                                                <input type="number" class="form-control layout-input" data-key="productLabelFontSize" min="10" max="32" step="1">
-                                            </div>
-                                            <div class="mb-3">
-                                                <label class="form-label">Image Attr Label Font Size</label>
-                                                <input type="number" class="form-control layout-input" data-key="imageAttrLabelFontSize" min="8" max="16" step="1">
-                                            </div>
-                                        </div>
-                                        <div class="col-md-6">
-                                            <div class="mb-3">
-                                                <label class="form-label">Text Attr Label Font Size</label>
-                                                <input type="number" class="form-control layout-input" data-key="textAttrLabelFontSize" min="8" max="16" step="1">
-                                            </div>
-                                            <div class="mb-3">
-                                                <label class="form-label">Text Attr Value Font Size</label>
-                                                <input type="number" class="form-control layout-input" data-key="textAttrValueFontSize" min="8" max="14" step="1">
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="modal-footer">
-                            <button type="button" class="btn btn-outline-secondary" id="resetLayoutBtn">Reset to Defaults</button>
-                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                            <button type="button" class="btn btn-primary" id="applyLayoutBtn">Apply Changes</button>
-                        </div>
-                    </div>
-                </div>
+  }
+
+  function createLayoutModal() {
+    if (document.getElementById('pdfLayoutModal')) {
+      return; // Already exists
+    }
+
+    const modalHTML = `
+      <div class="modal fade" id="pdfLayoutModal" tabindex="-1" aria-labelledby="pdfLayoutModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title" id="pdfLayoutModalLabel">PDF Layout Configuration</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-        `;
-        
-        const div = document.createElement('div');
-        div.innerHTML = modalHTML;
-        document.body.appendChild(div);
-        
-        layoutModal = new bootstrap.Modal(document.getElementById('pdfLayoutModal'));
-        setupLayoutEventListeners();
-    }
-    
-    function setupLayoutEventListeners() {
-        // Populate inputs with current config
-        document.querySelectorAll('.layout-input').forEach(input => {
-            const key = input.dataset.key;
-            if (config[key] !== undefined) {
-                input.value = config[key];
-            }
-        });
-        
-        // Apply changes button
-        const applyBtn = document.getElementById('applyLayoutBtn');
-        if (applyBtn) {
-            applyBtn.addEventListener('click', applyLayoutChanges);
-        }
-        
-        // Reset button
-        const resetBtn = document.getElementById('resetLayoutBtn');
-        if (resetBtn) {
-            resetBtn.addEventListener('click', resetLayoutToDefaults);
-        }
-        
-        // Real-time update as user types
-        document.querySelectorAll('.layout-input').forEach(input => {
-            input.addEventListener('change', (e) => {
-                const key = e.target.dataset.key;
-                const value = parseFloat(e.target.value);
-                config[key] = value;
-                saveConfig();
-            });
-        });
-    }
-    
-    function showLayoutModal() {
-        // Refresh input values before showing
-        document.querySelectorAll('.layout-input').forEach(input => {
-            const key = input.dataset.key;
-            if (config[key] !== undefined) {
-                input.value = config[key];
-            }
-        });
-        layoutModal.show();
-    }
-    
-    function applyLayoutChanges() {
-        document.querySelectorAll('.layout-input').forEach(input => {
-            const key = input.dataset.key;
-            const value = parseFloat(input.value);
-            if (!isNaN(value)) {
-                config[key] = value;
-            }
-        });
-        
-        saveConfig();
-        
-        // Show success message
-        alert('Layout settings saved! They will apply to the next PDF export.');
-        layoutModal.hide();
-    }
-    
-    function resetLayoutToDefaults() {
-        if (confirm('Reset all layout settings to defaults?')) {
-            config = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
-            saveConfig();
-            setupLayoutEventListeners(); // Refresh inputs
-            alert('Layout settings reset to defaults!');
-        }
-    }
-    
-    function saveConfig() {
-        localStorage.setItem('pdfLayoutConfig', JSON.stringify(config));
-        console.log('Layout config saved:', config);
-    }
-    
-    // PUBLIC API - These are used by pdf_export.js
-    return {
-        init: init,
-        
-        // Get a specific config value
-        get: function(key) {
-            return config[key] !== undefined ? config[key] : DEFAULT_CONFIG[key];
-        },
-        
-        // Get entire config object
-        getAll: function() {
-            return JSON.parse(JSON.stringify(config)); // Return deep copy
-        },
-        
-        // Reset to defaults
-        resetDefaults: function() {
-            config = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
-            saveConfig();
-        },
-        
-        // Set a value (for programmatic use)
-        set: function(key, value) {
-            if (DEFAULT_CONFIG[key] !== undefined) {
-                config[key] = value;
-                saveConfig();
-            }
-        },
-        
-        // Get default config
-        getDefaults: function() {
-            return JSON.parse(JSON.stringify(DEFAULT_CONFIG));
-        }
-    };
+            <div class="modal-body" style="max-height: 70vh; overflow-y: auto;">
+              <div class="config-section">
+                <h6 class="mb-3"><strong>Page Settings</strong></h6>
+                
+                <div class="config-input-group mb-3">
+                  <label for="pageMargin">Page Margin (mm):</label>
+                  <input type="number" id="pageMargin" class="form-control" min="5" max="50" step="1" value="${config.pageMargin}">
+                  <small class="text-muted">Distance from page edge</small>
+                </div>
+
+                <div class="config-input-group mb-3">
+                  <label for="headerHeight">Header Height (mm):</label>
+                  <input type="number" id="headerHeight" class="form-control" min="5" max="100" step="1" value="${config.headerHeight}">
+                  <small class="text-muted">Height of the page header area</small>
+                </div>
+
+                <div class="config-input-group mb-3">
+                  <label for="spaceAfterHeader">Space After Header (mm):</label>
+                  <input type="number" id="spaceAfterHeader" class="form-control" min="0" max="50" step="0.5" value="${config.spaceAfterHeader}">
+                  <small class="text-muted">Vertical space between page header and product label</small>
+                </div>
+
+                <div class="config-input-group mb-3">
+                  <label for="pageFooterMargin">Page Footer Margin (mm):</label>
+                  <input type="number" id="pageFooterMargin" class="form-control" min="5" max="50" step="1" value="${config.pageFooterMargin}">
+                  <small class="text-muted">Bottom margin for footer content</small>
+                </div>
+              </div>
+
+              <hr>
+
+              <div class="config-section">
+                <h6 class="mb-3"><strong>Image Settings</strong></h6>
+                
+                <div class="config-input-group mb-3">
+                  <label for="mainImageMaxWidth">Main Image Max Width (mm):</label>
+                  <input type="number" id="mainImageMaxWidth" class="form-control" min="20" max="200" step="1" value="${config.mainImageMaxWidth}">
+                </div>
+
+                <div class="config-input-group mb-3">
+                  <label for="mainImageMaxHeight">Main Image Max Height (mm):</label>
+                  <input type="number" id="mainImageMaxHeight" class="form-control" min="20" max="200" step="1" value="${config.mainImageMaxHeight}">
+                </div>
+
+                <div class="config-input-group mb-3">
+                  <label for="thumbnailMaxWidth">Thumbnail Max Width (mm):</label>
+                  <input type="number" id="thumbnailMaxWidth" class="form-control" min="5" max="50" step="0.5" value="${config.thumbnailMaxWidth}">
+                </div>
+
+                <div class="config-input-group mb-3">
+                  <label for="thumbnailMaxHeight">Thumbnail Max Height (mm):</label>
+                  <input type="number" id="thumbnailMaxHeight" class="form-control" min="5" max="50" step="0.5" value="${config.thumbnailMaxHeight}">
+                </div>
+
+                <div class="config-input-group mb-3">
+                  <label for="thumbnailHorizontalSpacing">Thumbnail Horizontal Spacing (mm):</label>
+                  <input type="number" id="thumbnailHorizontalSpacing" class="form-control" min="2" max="30" step="0.5" value="${config.thumbnailHorizontalSpacing}">
+                </div>
+
+                <div class="config-input-group mb-3">
+                  <label for="thumbnailVerticalSpacing">Thumbnail Vertical Spacing (mm):</label>
+                  <input type="number" id="thumbnailVerticalSpacing" class="form-control" min="0" max="20" step="0.5" value="${config.thumbnailVerticalSpacing}">
+                </div>
+              </div>
+
+              <hr>
+
+              <div class="config-section">
+                <h6 class="mb-3"><strong>Spacing Settings (mm)</strong></h6>
+                
+                <div class="config-input-group mb-3">
+                  <label for="spaceAfterProductLabel">Space After Product Label:</label>
+                  <input type="number" id="spaceAfterProductLabel" class="form-control" min="0" max="50" step="0.5" value="${config.spaceAfterProductLabel}">
+                </div>
+
+                <div class="config-input-group mb-3">
+                  <label for="spaceAfterSKU">Space After SKU:</label>
+                  <input type="number" id="spaceAfterSKU" class="form-control" min="0" max="50" step="0.5" value="${config.spaceAfterSKU}">
+                </div>
+
+                <div class="config-input-group mb-3">
+                  <label for="spaceAfterMainImage">Space After Main Image:</label>
+                  <input type="number" id="spaceAfterMainImage" class="form-control" min="0" max="50" step="0.5" value="${config.spaceAfterMainImage}">
+                </div>
+
+                <div class="config-input-group mb-3">
+                  <label for="spaceBeforeImageAttrLabel">Space Before Image Attr Label:</label>
+                  <input type="number" id="spaceBeforeImageAttrLabel" class="form-control" min="0" max="50" step="0.5" value="${config.spaceBeforeImageAttrLabel}">
+                </div>
+
+                <div class="config-input-group mb-3">
+                  <label for="spaceAfterImageAttrLabel">Space After Image Attr Label:</label>
+                  <input type="number" id="spaceAfterImageAttrLabel" class="form-control" min="0" max="50" step="0.5" value="${config.spaceAfterImageAttrLabel}">
+                </div>
+
+                <div class="config-input-group mb-3">
+                  <label for="spaceAfterThumbnailRow">Space After Thumbnail Row:</label>
+                  <input type="number" id="spaceAfterThumbnailRow" class="form-control" min="0" max="50" step="0.5" value="${config.spaceAfterThumbnailRow}">
+                </div>
+
+                <div class="config-input-group mb-3">
+                  <label for="spaceBeforeNextProduct">Space Before Next Product:</label>
+                  <input type="number" id="spaceBeforeNextProduct" class="form-control" min="0" max="50" step="0.5" value="${config.spaceBeforeNextProduct}">
+                </div>
+
+                <div class="config-input-group mb-3">
+                  <label for="spaceBetweenColumns">Space Between Columns:</label>
+                  <input type="number" id="spaceBetweenColumns" class="form-control" min="2" max="50" step="0.5" value="${config.spaceBetweenColumns}">
+                </div>
+
+                <div class="config-input-group mb-3">
+                  <label for="spaceBetweenTextAttrLabelAndValue">Space Between Text Attr Label and Value:</label>
+                  <input type="number" id="spaceBetweenTextAttrLabelAndValue" class="form-control" min="0" max="50" step="0.5" value="${config.spaceBetweenTextAttrLabelAndValue}">
+                </div>
+
+                <div class="config-input-group mb-3">
+                  <label for="spaceBetweenTextAttributes">Space Between Text Attributes:</label>
+                  <input type="number" id="spaceBetweenTextAttributes" class="form-control" min="0" max="50" step="0.5" value="${config.spaceBetweenTextAttributes}">
+                </div>
+              </div>
+
+              <hr>
+
+              <div class="config-section">
+                <h6 class="mb-3"><strong>Font Settings</strong></h6>
+                
+                <div class="config-input-group mb-3">
+                  <label for="productLabelFontSize">Product Label Font Size (pt):</label>
+                  <input type="number" id="productLabelFontSize" class="form-control" min="8" max="32" step="1" value="${config.productLabelFontSize}">
+                </div>
+
+                <div class="config-input-group mb-3">
+                  <label for="skuFontSize">SKU Font Size (pt):</label>
+                  <input type="number" id="skuFontSize" class="form-control" min="6" max="24" step="1" value="${config.skuFontSize}">
+                </div>
+
+                <div class="config-input-group mb-3">
+                  <label for="imageAttrLabelFontSize">Image Attr Label Font Size (pt):</label>
+                  <input type="number" id="imageAttrLabelFontSize" class="form-control" min="6" max="24" step="1" value="${config.imageAttrLabelFontSize}">
+                </div>
+
+                <div class="config-input-group mb-3">
+                  <label for="textAttrLabelFontSize">Text Attr Label Font Size (pt):</label>
+                  <input type="number" id="textAttrLabelFontSize" class="form-control" min="6" max="24" step="1" value="${config.textAttrLabelFontSize}">
+                </div>
+
+                <div class="config-input-group mb-3">
+                  <label for="textAttrValueFontSize">Text Attr Value Font Size (pt):</label>
+                  <input type="number" id="textAttrValueFontSize" class="form-control" min="6" max="24" step="1" value="${config.textAttrValueFontSize}">
+                </div>
+              </div>
+
+              <hr>
+
+              <div class="config-section">
+                <h6 class="mb-3"><strong>Column Layout</strong></h6>
+                
+                <div class="config-input-group mb-3">
+                  <label for="leftColumnWidthMM">Left Column Width (mm):</label>
+                  <input type="number" id="leftColumnWidthMM" class="form-control" min="30" max="150" step="1" value="${config.leftColumnWidthMM}">
+                  <small class="text-muted">Width for image attributes column</small>
+                </div>
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" id="resetLayoutBtn">Reset to Defaults</button>
+              <button type="button" class="btn btn-primary" id="saveLayoutBtn">Save Configuration</button>
+              <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    document.body.insertAdjacentHTML('beforeend', modalHTML);
+    setupLayoutModal();
+  }
+
+  function setupLayoutModal() {
+    // Input change listeners
+    document.getElementById('pageMargin').addEventListener('change', function() {
+      config.pageMargin = parseFloat(this.value) || 15;
+      saveConfig();
+    });
+
+    document.getElementById('headerHeight').addEventListener('change', function() {
+      config.headerHeight = parseFloat(this.value) || 20;
+      saveConfig();
+    });
+
+    document.getElementById('spaceAfterHeader').addEventListener('change', function() {
+      config.spaceAfterHeader = parseFloat(this.value) || 5;
+      saveConfig();
+      console.log('Updated spaceAfterHeader to:', config.spaceAfterHeader);
+    });
+
+    document.getElementById('pageFooterMargin').addEventListener('change', function() {
+      config.pageFooterMargin = parseFloat(this.value) || 30;
+      saveConfig();
+    });
+
+    document.getElementById('mainImageMaxWidth').addEventListener('change', function() {
+      config.mainImageMaxWidth = parseFloat(this.value) || 60;
+      saveConfig();
+    });
+
+    document.getElementById('mainImageMaxHeight').addEventListener('change', function() {
+      config.mainImageMaxHeight = parseFloat(this.value) || 60;
+      saveConfig();
+    });
+
+    document.getElementById('thumbnailMaxWidth').addEventListener('change', function() {
+      config.thumbnailMaxWidth = parseFloat(this.value) || 16;
+      saveConfig();
+    });
+
+    document.getElementById('thumbnailMaxHeight').addEventListener('change', function() {
+      config.thumbnailMaxHeight = parseFloat(this.value) || 16;
+      saveConfig();
+    });
+
+    document.getElementById('thumbnailHorizontalSpacing').addEventListener('change', function() {
+      config.thumbnailHorizontalSpacing = parseFloat(this.value) || 18;
+      saveConfig();
+    });
+
+    document.getElementById('thumbnailVerticalSpacing').addEventListener('change', function() {
+      config.thumbnailVerticalSpacing = parseFloat(this.value) || 2;
+      saveConfig();
+    });
+
+    document.getElementById('spaceAfterProductLabel').addEventListener('change', function() {
+      config.spaceAfterProductLabel = parseFloat(this.value) || 3;
+      saveConfig();
+    });
+
+    document.getElementById('spaceAfterSKU').addEventListener('change', function() {
+      config.spaceAfterSKU = parseFloat(this.value) || 7;
+      saveConfig();
+    });
+
+    document.getElementById('spaceAfterMainImage').addEventListener('change', function() {
+      config.spaceAfterMainImage = parseFloat(this.value) || 8;
+      saveConfig();
+    });
+
+    document.getElementById('spaceBeforeImageAttrLabel').addEventListener('change', function() {
+      config.spaceBeforeImageAttrLabel = parseFloat(this.value) || 10;
+      saveConfig();
+    });
+
+    document.getElementById('spaceAfterImageAttrLabel').addEventListener('change', function() {
+      config.spaceAfterImageAttrLabel = parseFloat(this.value) || 4;
+      saveConfig();
+    });
+
+    document.getElementById('spaceAfterThumbnailRow').addEventListener('change', function() {
+      config.spaceAfterThumbnailRow = parseFloat(this.value) || 2;
+      saveConfig();
+    });
+
+    document.getElementById('spaceBeforeNextProduct').addEventListener('change', function() {
+      config.spaceBeforeNextProduct = parseFloat(this.value) || 5;
+      saveConfig();
+    });
+
+    document.getElementById('spaceBetweenColumns').addEventListener('change', function() {
+      config.spaceBetweenColumns = parseFloat(this.value) || 8;
+      saveConfig();
+    });
+
+    document.getElementById('spaceBetweenTextAttrLabelAndValue').addEventListener('change', function() {
+      config.spaceBetweenTextAttrLabelAndValue = parseFloat(this.value) || 5;
+      saveConfig();
+    });
+
+    document.getElementById('spaceBetweenTextAttributes').addEventListener('change', function() {
+      config.spaceBetweenTextAttributes = parseFloat(this.value) || 5;
+      saveConfig();
+    });
+
+    document.getElementById('productLabelFontSize').addEventListener('change', function() {
+      config.productLabelFontSize = parseFloat(this.value) || 16;
+      saveConfig();
+    });
+
+    document.getElementById('skuFontSize').addEventListener('change', function() {
+      config.skuFontSize = parseFloat(this.value) || 9;
+      saveConfig();
+    });
+
+    document.getElementById('imageAttrLabelFontSize').addEventListener('change', function() {
+      config.imageAttrLabelFontSize = parseFloat(this.value) || 9;
+      saveConfig();
+    });
+
+    document.getElementById('textAttrLabelFontSize').addEventListener('change', function() {
+      config.textAttrLabelFontSize = parseFloat(this.value) || 10;
+      saveConfig();
+    });
+
+    document.getElementById('textAttrValueFontSize').addEventListener('change', function() {
+      config.textAttrValueFontSize = parseFloat(this.value) || 9;
+      saveConfig();
+    });
+
+    document.getElementById('leftColumnWidthMM').addEventListener('change', function() {
+      config.leftColumnWidthMM = parseFloat(this.value) || 70;
+      saveConfig();
+    });
+
+    // Button listeners
+    document.getElementById('saveLayoutBtn').addEventListener('click', function() {
+      saveConfig();
+      alert('✓ Layout configuration saved successfully!');
+      const modal = bootstrap.Modal.getInstance(document.getElementById('pdfLayoutModal'));
+      if (modal) modal.hide();
+    });
+
+    document.getElementById('resetLayoutBtn').addEventListener('click', function() {
+      if (confirm('Are you sure you want to reset all layout settings to defaults?')) {
+        config = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
+        localStorage.removeItem('pdfLayoutConfig');
+        location.reload(); // Reload to refresh all inputs
+      }
+    });
+  }
+
+  function showLayoutModal() {
+    const modal = new bootstrap.Modal(document.getElementById('pdfLayoutModal'));
+    modal.show();
+  }
+
+  function saveConfig() {
+    localStorage.setItem('pdfLayoutConfig', JSON.stringify(config));
+    console.log('Layout config saved:', config);
+  }
+
+  function getConfig() {
+    return config;
+  }
+
+  // Public API
+  return {
+    init: init,
+    getConfig: getConfig,
+    saveConfig: saveConfig
+  };
+
 })();
 
-// Initialize on DOM ready
-document.addEventListener('DOMContentLoaded', function() {
-    PDFLayoutConfig.init();
-});
+// Initialize when DOM is ready
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', PDFLayoutConfig.init);
+} else {
+  PDFLayoutConfig.init();
+}
