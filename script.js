@@ -600,13 +600,96 @@ function applyFilters() {
     ).map(cb => cb.value);
 
     filteredProducts = allProducts.filter(product => {
-        // Search filter
-        const sku = (product.sku || '').toLowerCase();
-        const label = (getAttributeValue(product, 'label') || '').toLowerCase();
-        const matchesSearch =
-            !searchTerm || sku.includes(searchTerm) || label.includes(searchTerm);
+        // Enhanced Fuzzy Search - searches through ALL fields
+        let matchesSearch = !searchTerm; // If no search term, match all
+        
+        if (searchTerm) {
+            const searchWords = searchTerm.split(/\s+/); // Split by spaces for multi-word search
+            
+            // Function to check fuzzy match
+            const fuzzyMatch = (text, term) => {
+                if (!text) return false;
+                text = String(text).toLowerCase();
+                term = term.toLowerCase();
+                
+                // Exact substring match
+                if (text.includes(term)) return true;
+                
+                // Fuzzy match - allow for typos (simple version)
+                // Remove spaces and check
+                const textNoSpaces = text.replace(/\s+/g, '');
+                const termNoSpaces = term.replace(/\s+/g, '');
+                if (textNoSpaces.includes(termNoSpaces)) return true;
+                
+                return false;
+            };
+            
+            // Function to extract searchable text from any value
+            const getSearchableText = (value) => {
+                if (!value) return '';
+                if (typeof value === 'string') return value;
+                if (typeof value === 'number') return String(value);
+                if (typeof value === 'boolean') return value ? 'true yes enabled' : 'false no disabled';
+                if (Array.isArray(value)) {
+                    return value.map(v => {
+                        if (typeof v === 'object' && v !== null) {
+                            return Object.values(v).filter(val => 
+                                typeof val === 'string' || typeof val === 'number'
+                            ).join(' ');
+                        }
+                        return String(v);
+                    }).join(' ');
+                }
+                if (typeof value === 'object' && value !== null) {
+                    return Object.values(value).filter(val => 
+                        typeof val === 'string' || typeof val === 'number'
+                    ).join(' ');
+                }
+                return String(value);
+            };
+            
+            // Collect all searchable text from product
+            let searchableContent = '';
+            
+            // Add SKU and label (high priority)
+            searchableContent += ' ' + (product.sku || '');
+            searchableContent += ' ' + getSearchableText(getAttributeValue(product, 'label'));
+            
+            // Add all attributes
+            if (product.attributes && typeof product.attributes === 'object') {
+                Object.keys(product.attributes).forEach(key => {
+                    // Skip image arrays
+                    const value = product.attributes[key];
+                    if (Array.isArray(value) && value.length > 0 && 
+                        value[0] && (value[0].url || value[0].thumbnail)) {
+                        return; // Skip image attributes
+                    }
+                    searchableContent += ' ' + getSearchableText(value);
+                });
+            }
+            
+            // Add categories
+            if (product.categories && Array.isArray(product.categories)) {
+                product.categories.forEach(cat => {
+                    if (cat.name) searchableContent += ' ' + cat.name;
+                    if (cat.path && Array.isArray(cat.path)) {
+                        searchableContent += ' ' + cat.path.join(' ');
+                    }
+                });
+            }
+            
+            searchableContent = searchableContent.toLowerCase();
+            
+            // Check if ALL search words match (supports multi-word search)
+            matchesSearch = searchWords.every(word => fuzzyMatch(searchableContent, word));
+        }
+        
         if (!matchesSearch) return false;
 
+
+
+
+      
         // Status filter
         const enableDisableField = product.enable_disable_product;
         const attrEnableDisable = product.attributes?.enable_disable_product;
