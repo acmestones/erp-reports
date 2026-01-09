@@ -704,10 +704,10 @@ const PDFExportModule = (function() {
             pdf.setFontSize(9);
             pdf.setFont(undefined, 'bold');
             pdf.setTextColor(0, 0, 0);
-            imageSectionY += 3; // Add space above attribute name
+            imageSectionY += 8; // Add space above attribute name
             const attrLabel = formatAttrLabel(imgAttrName);
             pdf.text(attrLabel + ':', imageX, imageSectionY);
-            imageSectionY += 7;
+            imageSectionY += 3;
             
             // Draw thumbnails
             const thumbMaxWidth = 16; // 16mm for larger thumbnails
