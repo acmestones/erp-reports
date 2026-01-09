@@ -27,7 +27,6 @@ const PDFLayoutConfig = (function() {
         thumbnailVerticalSpacing: 2,
         
         // SPACING SETTINGS (in mm)
-        spaceBeforeProductLabel: 5,           // Space BEFORE product label (after header)
         spaceAfterProductLabel: 3,           // Space after product name/label
         spaceAfterSKU: 7,                    // Space after SKU, before main image
         spaceAfterMainImage: 8,              // Space after main image
@@ -108,12 +107,6 @@ const PDFLayoutConfig = (function() {
                                         <small class="text-muted">Gap between product name and SKU</small>
                                     </div>
                                     
-                                    <div class="mb-3">
-                                        <label class="form-label">Space before Product Label</label>
-                                        <input type="number" class="form-control layout-input" data-key="spaceBeforeProductLabel" min="0" max="30" step="1">
-                                        <small class="text-muted">Gap BEFORE product name (after header)</small>
-                                    </div>
-
                                     <div class="mb-3">
                                         <label class="form-label">Space after SKU</label>
                                         <input type="number" class="form-control layout-input" data-key="spaceAfterSKU" min="0" max="20" step="1">
