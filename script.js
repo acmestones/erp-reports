@@ -836,7 +836,18 @@ async function loadAttachments(container, docName, config, row, columns, reportN
   container.innerHTML = "";
 
   // UPLOAD BUTTON
-  if (currentUser?.can_edit === true) {
+const userEmail = localStorage.getItem("userEmail");
+const attachmentPerms = config.attachment_permissions?.[userEmail] || {
+  can_upload: false,
+  can_delete: false,
+};
+
+const canUpload = currentUser?.can_edit === true && attachmentPerms.can_upload;
+const canDelete = currentUser?.can_edit === true && attachmentPerms.can_delete;
+
+if (canUpload) {
+
+  
     const uploadBtn = document.createElement("button");
     uploadBtn.className = "btn btn-sm btn-outline-primary mb-2";
     uploadBtn.textContent = "📎 Upload Attachment";
@@ -955,7 +966,8 @@ async function loadAttachments(container, docName, config, row, columns, reportN
       imageWrapper.appendChild(fileNameLabel);
 
       // Remove button for images
-      if (currentUser?.can_edit === true) {
+      if (canDelete) {
+
         const removeBtn = document.createElement("button");
         removeBtn.textContent = "🗑️";
         removeBtn.className = "btn btn-sm btn-outline-danger mt-1";
@@ -1017,7 +1029,8 @@ async function loadAttachments(container, docName, config, row, columns, reportN
       rowDiv.appendChild(link);
 
       // Remove button for files
-      if (currentUser?.can_edit === true) {
+      if (canDelete) {
+
         const removeBtn = document.createElement("button");
         removeBtn.textContent = "🗑️";
         removeBtn.className = "btn btn-sm btn-outline-danger";
@@ -3776,23 +3789,24 @@ async function openGlobalReportConfigModal(reportName) {
                     can_delete: false,
                   };
 
-                  return `
-                    <tr>
-                      <td>${user.email}</td>
-                      <td class="text-center">
-                        <input type="checkbox" class="attachment-perm" 
-                               data-user="${user.email}" 
-                               data-perm="can_upload" 
-                               ${perms.can_upload ? "checked" : ""}>
-                      </td>
-                      <td class="text-center">
-                        <input type="checkbox" class="attachment-perm" 
-                               data-user="${user.email}" 
-                               data-perm="can_delete" 
-                               ${perms.can_delete ? "checked" : ""}>
-                      </td>
-                    </tr>
-                  `;
+return `
+  <tr>
+    <td>${user.email}</td>
+    <td class="text-center">
+      <input type="checkbox" class="attachment-perm" 
+             data-user="${user.email}" 
+             data-perm="can_upload" 
+             ${perms.can_upload ? "checked" : ""}>
+    </td>
+    <td class="text-center">
+      <input type="checkbox" class="attachment-perm" 
+             data-user="${user.email}" 
+             data-perm="can_delete" 
+             ${perms.can_delete ? "checked" : ""}>
+    </td>
+  </tr>
+`;
+
                 })
                 .join("")}
             </tbody>
@@ -3923,15 +3937,16 @@ document.getElementById("saveGlobalConfigBtn").onclick = async () => {
 
 
 
-        // Attachment Permissions
-        const attachmentPerms = {};
-        document.querySelectorAll(".attachment-perm").forEach((checkbox) => {
-          const user = checkbox.dataset.user;
-          const perm = checkbox.dataset.perm;
-          if (!attachmentPerms[user]) attachmentPerms[user] = { can_upload: false, can_delete: false };
-          attachmentPerms[user][perm] = checkbox.checked;
-        });
-        reportConfig[reportName].attachment_permissions = attachmentPerms;
+// Attachment Permissions
+const attachmentPerms = {};
+document.querySelectorAll(".attachment-perm").forEach((checkbox) => {
+  const user = checkbox.dataset.user;
+  const perm = checkbox.dataset.perm;
+  if (!attachmentPerms[user]) attachmentPerms[user] = { can_upload: false, can_delete: false };
+  attachmentPerms[user][perm] = checkbox.checked;
+});
+reportConfig[reportName].attachment_permissions = attachmentPerms;
+
 
 
   
