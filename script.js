@@ -4651,6 +4651,7 @@ function renderTimeLogs(timeLogs, jobCard, jobCardInfo, timeLogsPerms, reportNam
           <thead class="table-light">
             <tr>
               <th>Employee</th>
+              <th>Machine</th>
               <th>From Time</th>
               <th>To Time</th>
               <th>Time (mins)</th>
@@ -4663,19 +4664,21 @@ function renderTimeLogs(timeLogs, jobCard, jobCardInfo, timeLogsPerms, reportNam
           <tbody>
     `;
 
-    timeLogs.forEach((log, index) => {
-      const fromTime = log.from_time ? new Date(log.from_time).toLocaleString() : "-";
-      const toTime = log.to_time ? new Date(log.to_time).toLocaleString() : "-";
-      const timeInMins = log.time_in_mins || 0;
-      const completedQty = log.completed_qty || 0;
-      const employee = log.employee || "-";
-      const jobDetail = log.custom_job_detail || "-";
-      const jobImage = log.custom_job_image_view || log.custom_job_image;
-
-      html += `
-        <tr data-log-index="${index}">
+      timeLogs.forEach((log, index) => {
+        const fromTime = log.from_time ? new Date(log.from_time).toLocaleString() : "-";
+        const toTime = log.to_time ? new Date(log.to_time).toLocaleString() : "-";
+        const timeInMins = log.time_in_mins || 0;
+        const completedQty = log.completed_qty || 0;
+        const employee = log.employee || "-";
+        const machine = log.custom_machine || "-";
+        const jobDetail = log.custom_job_detail || "-";
+        const jobImage = log.custom_job_image_view || log.custom_job_image;
+    
+        html += `<tr data-log-index="${index}">
           <td>${employee}</td>
+          <td>${machine}</td>
           <td>${fromTime}</td>
+
           <td>${toTime}</td>
           <td>${timeInMins}</td>
           <td>${completedQty}</td>
@@ -4839,14 +4842,15 @@ async function showTimeLogForm(existingLog, jobCard, jobCardInfo, reportName, co
             </div>
 
             <div class="col-md-6 mb-3">
-              <label class="form-label">Workstation ${timeLogsPerms.can_edit_workstation ? "" : "(Read-only)"}</label>
-              <select class="form-select" name="workstation" ${timeLogsPerms.can_edit_workstation ? "" : "disabled"}>
-                <option value="">-- Select Workstation --</option>
+              <label class="form-label">Machine</label>
+              <select class="form-select" name="custom_machine" id="timeLogMachineSelect">
+                <option value="">-- Select Machine --</option>
                 ${workstations
+                  .sort((a, b) => a.name.localeCompare(b.name))
                   .map(
                     (ws) => `
                       <option value="${ws.name}" ${
-                        (existingLog?.workstation || jobCardInfo.workstation) === ws.name ? "selected" : ""
+                        (existingLog?.custom_machine || jobCardInfo.workstation) === ws.name ? "selected" : ""
                       }>
                         ${ws.name}
                       </option>
@@ -4854,12 +4858,8 @@ async function showTimeLogForm(existingLog, jobCard, jobCardInfo, reportName, co
                   )
                   .join("")}
               </select>
-              ${
-                !timeLogsPerms.can_edit_workstation
-                  ? "<small class=\"text-muted\">You don't have permission to edit workstation</small>"
-                  : ""
-              }
             </div>
+
           </div>
 
           <div class="row">
@@ -4962,13 +4962,10 @@ async function showTimeLogForm(existingLog, jobCard, jobCardInfo, reportName, co
       time_in_mins: parseInt(formData.get("time_in_mins")),
       completed_qty: parseFloat(formData.get("completed_qty")) || 0,
       employee: formData.get("employee") || null,
+      custom_machine: formData.get("custom_machine") || null,
       custom_job_detail: formData.get("custom_job_detail") || null
     };
 
-    // Handle workstation if user has permission
-    if (timeLogsPerms.can_edit_workstation) {
-      data.workstation = formData.get("workstation") || null;
-    }
 
     // Handle image upload
     const imageFile = document.getElementById("jobImageFile").files[0];
