@@ -693,12 +693,24 @@ function injectAttachmentControls(container, row, columns, reportName, config, d
   const canEdit = currentUser?.can_edit === true;
 
   /* ===============================
-     UPLOAD BUTTON (ALWAYS VISIBLE)
-  =============================== */
-  if (canEdit && !container.querySelector(".upload-attachment-btn")) {
+     UPLOAD BUTTON
+     =============================== */
+  // Check attachment upload permission
+  const userEmail = localStorage.getItem("userEmail");
+  const attachmentPerms = config.attachment_permissions?.[userEmail] || {
+    can_upload: false,
+    can_delete: false,
+  };
+  
+  const canUpload = canEdit && attachmentPerms.can_upload;
+  const canDelete = canEdit && attachmentPerms.can_delete;
+
+  if (canUpload && !container.querySelector(".upload-attachment-btn")) {
     const uploadBtn = document.createElement("button");
     uploadBtn.className = "btn btn-sm btn-outline-primary mb-2 upload-attachment-btn";
     uploadBtn.textContent = "➕ Upload Attachment";
+
+    
 
     uploadBtn.onclick = () => {
       const input = document.createElement("input");
@@ -730,8 +742,9 @@ function injectAttachmentControls(container, row, columns, reportName, config, d
 
   /* ===============================
      REMOVE BUTTONS (FILES + IMAGES)
-  =============================== */
-  if (!canEdit) return;
+     =============================== */
+  if (!canDelete) return;
+
 
   const attachmentLinks = Array.from(container.querySelectorAll("a")).filter(
     (a) => a.href && (a.href.includes("/files/") || a.href.includes("/private/files/"))
@@ -3734,6 +3747,61 @@ async function openGlobalReportConfigModal(reportName) {
         </div>
       </div>
     </div>
+
+
+        <!-- ATTACHMENT PERMISSIONS SETTINGS -->
+    <div class="card mb-3">
+      <div class="card-header bg-warning text-white">
+        <h6 class="mb-0">Attachment Permissions</h6>
+      </div>
+      <div class="card-body">
+        <p class="text-muted small mb-3">
+          <strong>Note:</strong> Users must have "Can Edit Record" permission enabled to upload or delete attachments. 
+          These settings provide additional granular control.
+        </p>
+        <div class="table-responsive">
+          <table class="table table-sm table-bordered">
+            <thead class="table-light">
+              <tr>
+                <th style="min-width: 180px">User</th>
+                <th class="text-center" style="width: 120px">Can Upload</th>
+                <th class="text-center" style="width: 120px">Can Delete</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${users.users
+                .map((user) => {
+                  const perms = config.attachment_permissions?.[user.email] || {
+                    can_upload: false,
+                    can_delete: false,
+                  };
+
+                  return `
+                    <tr>
+                      <td>${user.email}</td>
+                      <td class="text-center">
+                        <input type="checkbox" class="attachment-perm" 
+                               data-user="${user.email}" 
+                               data-perm="can_upload" 
+                               ${perms.can_upload ? "checked" : ""}>
+                      </td>
+                      <td class="text-center">
+                        <input type="checkbox" class="attachment-perm" 
+                               data-user="${user.email}" 
+                               data-perm="can_delete" 
+                               ${perms.can_delete ? "checked" : ""}>
+                      </td>
+                    </tr>
+                  `;
+                })
+                .join("")}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <!-- END ATTACHMENT PERMISSIONS -->
+    
   `;
 
   document.getElementById("globalConfigContent").innerHTML = contentHtml;
@@ -3853,6 +3921,25 @@ document.getElementById("saveGlobalConfigBtn").onclick = async () => {
       delete reportConfig[reportName].operation_planning_permissions;
     }
 
+
+
+        // Attachment Permissions
+        const attachmentPerms = {};
+        document.querySelectorAll(".attachment-perm").forEach((checkbox) => {
+          const user = checkbox.dataset.user;
+          const perm = checkbox.dataset.perm;
+          if (!attachmentPerms[user]) attachmentPerms[user] = { can_upload: false, can_delete: false };
+          attachmentPerms[user][perm] = checkbox.checked;
+        });
+        reportConfig[reportName].attachment_permissions = attachmentPerms;
+
+
+  
+
+
+
+
+  
     // ✅ THE CRITICAL FIX: Actually save to file!
     console.log("💾 Saving full reportConfig:", reportConfig);
     await saveReportConfig(reportConfig);
