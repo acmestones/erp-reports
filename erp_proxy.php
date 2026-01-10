@@ -670,6 +670,9 @@ if (isset($_GET['action']) && $_GET['action'] == 'add_time_log') {
         if (!empty($input['employee'])) {
             $new_log['employee'] = $input['employee'];
         }
+       if (isset($input['custom_machine'])) {
+        $new_log['custom_machine'] = $input['custom_machine'];
+       }
         if (isset($input['custom_job_detail'])) {
             $new_log['custom_job_detail'] = $input['custom_job_detail'];
         }
@@ -756,6 +759,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'update_time_log') {
                 'time_in_mins' => floatval($input['time_in_mins']),
                 'completed_qty' => floatval($input['completed_qty'] ?? 0),
                 'employee' => $input['employee'] ?? null,
+               'custom_machine' => $input['custom_machine'] ?? null,
                 'custom_job_detail' => $input['custom_job_detail'] ?? null,
                 'custom_job_image' => $input['custom_job_image'] ?? null
             ]);
