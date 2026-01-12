@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Enhanced Piwigo Image Manager</title>
-<link rel="stylesheet" href="manage-styles.css">
+    <link rel="stylesheet" href="manage-styles.css">
 </head>
 <body>
     <div class="container">
@@ -61,53 +61,31 @@
                 </div>
             </div>
 
+            <!-- Tags Panel -->
+            <div class="tags-panel" id="tagsPanel">
+                <div class="tags-section">
+                    <div class="tags-section-title">Tags in Album (click to filter)</div>
+                    <div class="tags-container" id="albumTagsContainer">
+                        <span class="tag-empty-state">No tags in this album</span>
+                    </div>
+                </div>
+                
+                <div class="tags-section" style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #e0e0e0;">
+                    <div class="tags-section-title">Add Tags to Selected Images</div>
+                    <div class="tag-input-container">
+                        <input 
+                            type="text" 
+                            id="tagInput" 
+                            class="tag-input" 
+                            placeholder="Type tag name... (↑↓ to navigate, Enter to select)"
+                            autocomplete="off"
+                        />
+                        <button class="tag-add-btn" id="addTagBtn">Add</button>
+                        <div class="tag-autocomplete" id="tagAutocomplete"></div>
+                    </div>
+                </div>
+            </div>
 
-
-
-
-
-            <!-- Tags Panel - Compact Version -->
-<div class="tags-panel" id="tagsPanel">
-    <!-- Album Tags -->
-    <div class="tags-section">
-        <div class="tags-section-title">Tags in Album (click to filter)</div>
-        <div class="tags-container" id="albumTagsContainer">
-            <span class="tag-empty-state">No tags in this album</span>
-        </div>
-    </div>
-    
-    <!-- Tag Input - Always Visible -->
-    <div class="tags-section" style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #e0e0e0;">
-        <div class="tags-section-title">Add Tags to Selected Images</div>
-        <div class="tag-input-container">
-            <input 
-                type="text" 
-                id="tagInput" 
-                class="tag-input" 
-                placeholder="Type tag name... (↑↓ to navigate, Enter to select)"
-                autocomplete="off"
-            />
-            <button class="tag-add-btn" id="addTagBtn">Add</button>
-            
-            <!-- Autocomplete dropdown -->
-            <div class="tag-autocomplete" id="tagAutocomplete"></div>
-        </div>
-    </div>
-</div>
-
-
-
-
-
-            
-
-
-
-
-
-
-
-            
             <div class="selection-controls" id="selectionControls">
                 <span class="selection-count" id="selectionCount">0 selected</span>
                 <button class="action-btn delete-selected" id="deleteSelectedBtn">Delete Selected</button>
@@ -142,7 +120,7 @@
                 this.selectedImages = new Set();
                 this.filterMode = 'all';
                 this.albumScrollPosition = 0;
-                this.currentTagLoadAlbumId = null; // Track which album's tags are being loaded
+                this.currentTagLoadAlbumId = null;
                 
                 this.initEventListeners();
                 this.checkStoredSession();
@@ -167,7 +145,6 @@
                     document.getElementById('password').value = storedPassword;
                     this.baseUrl = storedUrl.endsWith('/') ? storedUrl.slice(0, -1) : storedUrl;
                     
-                    // Try to check if session is still valid first
                     try {
                         const statusResponse = await fetch(`${this.baseUrl}/ws.php?format=json&method=pwg.session.getStatus`, {
                             method: 'GET',
@@ -176,7 +153,6 @@
                         const statusData = await statusResponse.json();
                         
                         if (statusData.stat === 'ok' && (statusData.result.status === 'webmaster' || statusData.result.status === 'admin')) {
-                            // Session still valid
                             this.sessionId = statusData.result.pwg_token || '';
                             this.session = statusData.result;
                             this.showConnectedState(statusData.result.username, statusData.result.status);
@@ -185,11 +161,10 @@
                             return;
                         }
                     } catch (e) {
-                        console.log('Session expired, reconnecting...');
+                        console.log('Session expired or invalid.');
                     }
                     
-                    // Session expired or invalid, reconnect
-                    setTimeout(() => this.connect(), 500);
+                    // Removed auto-reconnect to prevent loops on bad credentials
                 }
             }
 
@@ -213,20 +188,6 @@
                 }
             }
 
-
-            
-            
-            
-            
-            
-
-
-
-
-
-
-
-            
             updateLoadProgress(loaded, total) {
                 const progressEl = document.getElementById('loadProgress');
                 if (total > 0) {
@@ -273,7 +234,7 @@
                         const statusData = await statusResponse.json();
                         if (statusData.stat === 'ok' && (statusData.result.status === 'webmaster' || statusData.result.status === 'admin')) {
                             this.sessionId = statusData.result.pwg_token || '';
-                            this.session = statusData.result; // Store full session object
+                            this.session = statusData.result;
                             localStorage.setItem('piwigo_url', this.baseUrl);
                             localStorage.setItem('piwigo_username', username);
                             localStorage.setItem('piwigo_password', password);
@@ -400,94 +361,106 @@
                 return { stat, result };
             }
 
- 
-            
-            
-            
-            
-            
-async loadAlbums() {
-    const albumTree = document.getElementById('albumTree');
-    if (albumTree.scrollTop > 0) {
-        this.albumScrollPosition = albumTree.scrollTop;
-    }
-    albumTree.innerHTML = '<div class="loading"><div class="spinner"></div>Loading albums...</div>';
+            async loadAlbums() {
+                const albumTree = document.getElementById('albumTree');
+                if (albumTree.scrollTop > 0) {
+                    this.albumScrollPosition = albumTree.scrollTop;
+                }
+                albumTree.innerHTML = '<div class="loading"><div class="spinner"></div>Loading albums...</div>';
 
-    try {
-        const result = await this.apiCall('pwg.categories.getAdminList', { 
-            recursive: true
-        });
+                try {
+                    const result = await this.apiCall('pwg.categories.getAdminList', { 
+                        recursive: true
+                    });
 
-        let albums = result.categories;
+                    let albums = result.categories;
 
-        // Get physical/virtual status
-        try {
-            const dirResponse = await fetch(this.baseUrl + '/manage/get_album_dirs.php', {
-                credentials: 'include'
-            });
-            const dirData = await dirResponse.json();
-            
-            const physicalMap = new Map();
-            if (dirData.albums) {
-                dirData.albums.forEach(album => {
-                    physicalMap.set(album.id, album.isPhysical);
-                });
+                    // Get physical/virtual status
+                    try {
+                        const dirResponse = await fetch(this.baseUrl + '/manage/get_album_dirs.php', {
+                            credentials: 'include'
+                        });
+                        const dirData = await dirResponse.json();
+                        
+                        const physicalMap = new Map();
+                        if (dirData.albums) {
+                            dirData.albums.forEach(album => {
+                                physicalMap.set(album.id, album.isPhysical);
+                            });
+                        }
+
+                        for (const album of albums) {
+                            album.isPhysical = physicalMap.get(album.id) || false;
+                        }
+                    } catch (e) {
+                        albums.forEach(a => a.isPhysical = false);
+                    }
+
+                    albums = albums.filter(album => parseInt(album.id) > 0);
+                    
+                    // --- ADD DUPLICATE FINDER NODE ---
+                    try {
+                        const dupResponse = await fetch(this.baseUrl + '/manage/find_duplicates.php', {
+                            credentials: 'include'
+                        });
+                        if (dupResponse.ok) {
+                            const dupData = await dupResponse.json();
+                            if (dupData.total_groups > 0) {
+                                albums.unshift({
+                                    id: 'duplicates',
+                                    name: `🔍 Duplicates (${dupData.total_groups})`,
+                                    nb_images: dupData.groups.reduce((acc, group) => acc + group.images.length, 0),
+                                    isPhysical: false,
+                                    isVirtual: true,
+                                    uppercats: '',
+                                    global_rank: '0'
+                                });
+                            }
+                        }
+                    } catch (e) {
+                        console.error('Failed to load duplicate count:', e);
+                    }
+                    // -----------------------------------
+
+                    // Add special album for images with no virtual albums
+                    try {
+                        const noVirtualResponse = await fetch(this.baseUrl + '/manage/get_no_virtual_album_images.php', {
+                            credentials: 'include'
+                        });
+                        
+                        if (noVirtualResponse.ok) {
+                            const noVirtualData = await noVirtualResponse.json();
+                            if (noVirtualData && noVirtualData.count > 0) {
+                                albums.unshift({
+                                    id: 'no_virtual',
+                                    name: `📌 No Virtual Album (${noVirtualData.count})`,
+                                    nb_images: noVirtualData.count,
+                                    isPhysical: false,
+                                    isVirtual: true,
+                                    uppercats: '',
+                                    global_rank: '0'
+                                });
+                            }
+                        } else {
+                            console.warn(`Could not load No Virtual Album (Status: ${noVirtualResponse.status})`);
+                        }
+                    } catch (e) {
+                        console.error('Failed to get no-virtual-album data:', e);
+                    }
+                    
+                    this.albums = albums;
+                    this.renderAlbumTree();
+                    
+                    setTimeout(() => {
+                        if (this.albumScrollPosition > 0) {
+                            albumTree.scrollTop = this.albumScrollPosition;
+                        }
+                    }, 100);
+                } catch (error) {
+                    albumTree.innerHTML = `<div class="loading">Error: ${error.message}</div>`;
+                }
             }
 
-            for (const album of albums) {
-                album.isPhysical = physicalMap.get(album.id) || false;
-            }
-        } catch (e) {
-            albums.forEach(a => a.isPhysical = false);
-        }
-
-        albums = albums.filter(album => parseInt(album.id) > 0);
-        
-        // Add special album for images with no virtual albums
-        try {
-            const noVirtualResponse = await fetch(this.baseUrl + '/manage/get_no_virtual_album_images.php', {
-                credentials: 'include'
-            });
-            const noVirtualData = await noVirtualResponse.json();
-            
-            if (noVirtualData.count > 0) {
-                albums.unshift({
-                    id: 'no_virtual',
-                    name: `📌 No Virtual Album (${noVirtualData.count})`,
-                    nb_images: noVirtualData.count,
-                    isPhysical: false,
-                    isVirtual: true,
-                    uppercats: '',
-                    global_rank: '0'
-                });
-            }
-        } catch (e) {
-            console.error('Failed to get no-virtual-album count:', e);
-        }
-        
-        this.albums = albums;
-        this.renderAlbumTree();
-        
-        setTimeout(() => {
-            if (this.albumScrollPosition > 0) {
-                albumTree.scrollTop = this.albumScrollPosition;
-            }
-        }, 100);
-    } catch (error) {
-        albumTree.innerHTML = `<div class="loading">Error: ${error.message}</div>`;
-    }
-}
-
-
-
-
-
-
-
-
-
-
-            
             renderAlbumTree() {
                 const albumTree = document.getElementById('albumTree');
                 if (this.albums.length === 0) {
@@ -601,524 +574,460 @@ async loadAlbums() {
                 }
             }
 
+            async selectAlbum(albumId) {
+                // Cancel any ongoing load
+                if (this.currentLoadingController) {
+                    this.currentLoadingController.abort();
+                }
 
+                // --- ROUTER FOR SPECIAL ALBUMS ---
+                if (albumId === 'duplicates') {
+                    await this.loadDuplicates();
+                    return;
+                }
 
-
-
-            
-async selectAlbum(albumId) {
-    // Cancel any ongoing load
-    if (this.currentLoadingController) {
-        this.currentLoadingController.abort();
-    }
-    
-    // Handle special "no virtual album" album
-    if (albumId === 'no_virtual') {
-        await this.loadNoVirtualAlbumImages();
-        return;
-    }
-    
-    // Disconnect thumbnail observer
-    if (this.thumbnailObserver) {
-        this.thumbnailObserver.disconnect();
-    }
-    
-    // Store reference to old controller
-    const oldThumbnailController = this.thumbnailLoadingController;
-    
-    // Create new controllers FIRST
-    this.currentLoadingController = new AbortController();
-    this.thumbnailLoadingController = new AbortController();
-    
-    // NOW abort the old ones (after new ones are in place)
-    if (oldThumbnailController) {
-        oldThumbnailController.abort();
-    }
-    
-    this.clearSelection();
-    
-    document.querySelectorAll('.album-item').forEach(item => item.classList.remove('selected'));
-    const albumItem = document.querySelector(`[data-album-id="${albumId}"]`);
-    if (albumItem) {
-        albumItem.classList.add('selected');
-    }
-    
-    const album = this.albums.find(a => a.id === albumId);
-    if (album) {
-        document.getElementById('currentAlbum').textContent = album.name;
-    }
-    this.currentAlbumId = albumId;
-    
-    this.updateLoadProgress(0, 0);
-    await this.loadAllImages(albumId);
-    await this.loadAlbumTags();
-}
-
-
-
-
-
-
-
-
-
-
-            
-async loadAllImages(albumId) {
-    const imageGrid = document.getElementById('imageGrid');
-    imageGrid.innerHTML = '<div class="loading"><div class="spinner"></div>Loading images...</div>';
-    
-    try {
-        let allImages = [];
-        let page = 0;
-        const perPage = 200;
-        let hasMore = true;
-        
-        while (hasMore) {
-            if (this.currentLoadingController.signal.aborted) return;
-            
-            const result = await this.apiCall('pwg.categories.getImages', {
-                cat_id: albumId,
-                per_page: perPage,
-                page: page
-            });
-            
-            if (this.currentLoadingController.signal.aborted) return;
-            
-            const images = result.images || [];
-            allImages = allImages.concat(images);
-            
-            hasMore = images.length === perPage;
-            page++;
-            
-            // Show first batch immediately
-            if (page === 1) {
-                this.allImages = allImages;
-                this.currentImages = allImages;
-                this.renderImages();
-                document.getElementById('imageCount').textContent = `${allImages.length} images`;
+                if (albumId === 'no_virtual') {
+                    await this.loadNoVirtualAlbumImages();
+                    return;
+                }
+                // -----------------------------------
                 
-                // Start lazy loading thumbnails
-                this.setupLazyThumbnailLoading(allImages);
+                // Disconnect thumbnail observer
+                if (this.thumbnailObserver) {
+                    this.thumbnailObserver.disconnect();
+                }
+                
+                const oldThumbnailController = this.thumbnailLoadingController;
+                this.currentLoadingController = new AbortController();
+                this.thumbnailLoadingController = new AbortController();
+                
+                if (oldThumbnailController) {
+                    oldThumbnailController.abort();
+                }
+                
+                this.clearSelection();
+                
+                document.querySelectorAll('.album-item').forEach(item => item.classList.remove('selected'));
+                const albumItem = document.querySelector(`[data-album-id="${albumId}"]`);
+                if (albumItem) {
+                    albumItem.classList.add('selected');
+                }
+                
+                const album = this.albums.find(a => a.id === albumId);
+                if (album) {
+                    document.getElementById('currentAlbum').textContent = album.name;
+                }
+                this.currentAlbumId = albumId;
+                
+                this.updateLoadProgress(0, 0);
+                await this.loadAllImages(albumId);
+                await this.loadAlbumTags();
             }
-        }
-        
-        // Final update with all images
-        if (this.currentAlbumId === albumId) {
-            this.allImages = allImages;
-            this.currentImages = allImages;
-            this.renderImages();
-            document.getElementById('imageCount').textContent = `${allImages.length} images`;
-            
-            // Re-setup lazy loading with complete list
-            this.setupLazyThumbnailLoading(allImages);
-        }
-        
-    } catch (error) {
-        if (error.name !== 'AbortError') {
-            console.error('Failed to load images:', error);
-            imageGrid.innerHTML = `<div class="loading">Error: ${error.message}</div>`;
-        }
-    }
-}
 
-
-
-
-
-
-
-
-
-
-
-async loadNoVirtualAlbumImages() {
-    try {
-        // Clear previous selection and select this album
-        document.querySelectorAll('.album-item').forEach(item => item.classList.remove('selected'));
-        const noVirtualAlbumItem = document.querySelector('[data-album-id="no_virtual"]');
-        if (noVirtualAlbumItem) {
-            noVirtualAlbumItem.classList.add('selected');
-        }
-        
-        if (this.thumbnailObserver) {
-            this.thumbnailObserver.disconnect();
-        }
-        
-        this.currentAlbumId = 'no_virtual';
-        document.getElementById('currentAlbum').textContent = 'No Virtual Album';
-        
-        const imageGrid = document.getElementById('imageGrid');
-        imageGrid.innerHTML = '<div class="loading"><div class="spinner"></div>Loading images with no virtual album...</div>';
-        
-        const response = await fetch(this.baseUrl + '/manage/get_no_virtual_album_images.php', {
-            credentials: 'include'
-        });
-        const data = await response.json();
-        
-        // Limit to first 500 for performance
-        const allImages = data.images || [];
-        const maxInitialLoad = 500;
-        this.allImages = allImages.slice(0, maxInitialLoad);
-        this.currentImages = this.allImages;
-        this.remainingNoVirtualImages = allImages.slice(maxInitialLoad);
-        this.totalNoVirtualCount = allImages.length;
-        
-        const totalCount = allImages.length;
-        const loadedCount = this.allImages.length;
-        
-        if (totalCount > maxInitialLoad) {
-            document.getElementById('imageCount').textContent = `${loadedCount} of ${totalCount} images`;
-        } else {
-            document.getElementById('imageCount').textContent = `${loadedCount} images`;
-        }
-        
-        this.renderImages();
-        
-        // Add Load More button if there are more images
-        if (this.remainingNoVirtualImages.length > 0) {
-            this.showLoadMoreButton();
-        }
-        
-        if (this.allImages.length > 0) {
-            this.setupLazyThumbnailLoading(this.allImages);
-        }
-        
-        this.showStatus(`Loaded ${loadedCount} of ${totalCount} images`, 'success');
-    } catch (error) {
-        console.error('Failed to load no-virtual-album images:', error);
-        this.showStatus('Failed to load images', 'error');
-    }
-}
-
-
-
-
-
-
-
-
-showLoadMoreButton() {
-    const imageGrid = document.getElementById('imageGrid');
-    
-    // Remove existing button if present
-    const existingButton = document.getElementById('loadMoreBtn');
-    if (existingButton) {
-        existingButton.remove();
-    }
-    
-    // Create Load More button
-    const loadMoreContainer = document.createElement('div');
-    loadMoreContainer.id = 'loadMoreContainer';
-    loadMoreContainer.style.cssText = 'display: flex; justify-content: center; padding: 20px; margin-top: 20px;';
-    
-    const loadMoreBtn = document.createElement('button');
-    loadMoreBtn.id = 'loadMoreBtn';
-    loadMoreBtn.textContent = `Load More Images (${this.remainingNoVirtualImages.length} remaining)`;
-    loadMoreBtn.style.cssText = 'background: #007AFF; color: white; border: none; padding: 12px 24px; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500;';
-    
-    loadMoreBtn.addEventListener('click', () => {
-        this.loadMoreNoVirtualImages();
-    });
-    
-    loadMoreContainer.appendChild(loadMoreBtn);
-    imageGrid.appendChild(loadMoreContainer);
-}
-
-
-
-
-
-
-
-
-loadMoreNoVirtualImages() {
-    const batchSize = 500;
-    const nextBatch = this.remainingNoVirtualImages.slice(0, batchSize);
-    
-    // Add next batch to current images
-    this.allImages = this.allImages.concat(nextBatch);
-    this.currentImages = this.allImages;
-    this.remainingNoVirtualImages = this.remainingNoVirtualImages.slice(batchSize);
-    
-    // Update count
-    const loadedCount = this.allImages.length;
-    document.getElementById('imageCount').textContent = `${loadedCount} of ${this.totalNoVirtualCount} images`;
-    
-    // Remove the button before re-rendering
-    const loadMoreContainer = document.getElementById('loadMoreContainer');
-    if (loadMoreContainer) {
-        loadMoreContainer.remove();
-    }
-    
-    // Re-render grid
-    this.renderImages();
-    
-    // Re-add Load More button if there are still more images
-    if (this.remainingNoVirtualImages.length > 0) {
-        this.showLoadMoreButton();
-    }
-    
-    // Setup lazy loading for all images (including new ones)
-    this.setupLazyThumbnailLoading(this.allImages);
-    
-    this.showStatus(`Loaded ${nextBatch.length} more images. ${this.remainingNoVirtualImages.length} remaining.`, 'success');
-}
-
-
-
-            
-
-
-
-
-            
-
-
-
-
-
-
-
-setupLazyThumbnailLoading(images) {
-    // Disconnect any previous observer
-    if (this.thumbnailObserver) {
-        this.thumbnailObserver.disconnect();
-    }
-    
-    // Create observer that watches for images entering viewport
-    this.thumbnailObserver = new IntersectionObserver((entries) => {
-        entries.forEach(entry => {
-            if (entry.isIntersecting) {
-                const imageId = entry.target.dataset.imageId;
-                const placeholder = entry.target.querySelector('.image-placeholder');
+            async loadAllImages(albumId) {
+                const imageGrid = document.getElementById('imageGrid');
+                imageGrid.innerHTML = '<div class="loading"><div class="spinner"></div>Loading images...</div>';
                 
-                // Only load if not already loaded
-                if (placeholder && !placeholder.dataset.loading && !placeholder.dataset.loaded) {
-                    placeholder.dataset.loading = 'true';
-                    this.loadSingleThumbnail(imageId, entry.target);
+                try {
+                    let allImages = [];
+                    let page = 0;
+                    const perPage = 200;
+                    let hasMore = true;
+                    
+                    while (hasMore) {
+                        if (this.currentLoadingController.signal.aborted) return;
+                        
+                        const result = await this.apiCall('pwg.categories.getImages', {
+                            cat_id: albumId,
+                            per_page: perPage,
+                            page: page
+                        });
+                        
+                        if (this.currentLoadingController.signal.aborted) return;
+                        
+                        const images = result.images || [];
+                        allImages = allImages.concat(images);
+                        
+                        hasMore = images.length === perPage;
+                        page++;
+                        
+                        if (page === 1) {
+                            this.allImages = allImages;
+                            this.currentImages = allImages;
+                            this.renderImages();
+                            document.getElementById('imageCount').textContent = `${allImages.length} images`;
+                            this.setupLazyThumbnailLoading(allImages);
+                        }
+                    }
+                    
+                    if (this.currentAlbumId === albumId) {
+                        this.allImages = allImages;
+                        this.currentImages = allImages;
+                        this.renderImages();
+                        document.getElementById('imageCount').textContent = `${allImages.length} images`;
+                        this.setupLazyThumbnailLoading(allImages);
+                    }
+                    
+                } catch (error) {
+                    if (error.name !== 'AbortError') {
+                        console.error('Failed to load images:', error);
+                        imageGrid.innerHTML = `<div class="loading">Error: ${error.message}</div>`;
+                    }
                 }
             }
-        });
-    }, {
-        root: document.getElementById('imageGrid'),
-        rootMargin: '200px', // Start loading 200px before entering viewport
-        threshold: 0.01
-    });
-    
-    // Observe all image items
-    document.querySelectorAll('.image-item').forEach(item => {
-        this.thumbnailObserver.observe(item);
-    });
-}
 
+            // --- NEW: DUPLICATE HANDLERS ---
 
-            
-            
-async loadSingleThumbnail(imageId, imageItem) {
-    try {
-        const imageInfoUrl = `${this.baseUrl}/ws.php?format=json&method=pwg.images.getInfo&image_id=${imageId}&comments_page=0&comments_per_page=0`;
-        const response = await fetch(imageInfoUrl, { credentials: 'include' });
-        const data = await response.json();
-        
-        if (data.stat === 'ok' && data.result && data.result.derivatives) {
-            const derivs = data.result.derivatives;
-            let thumbnailUrl = derivs.square?.url || derivs.thumb?.url || derivs.medium?.url;
-            
-            if (thumbnailUrl) {
-                this.updateImageThumbnail(imageId, thumbnailUrl);
-                
-                // ADD THIS LINE - Load and display tags for this image
-                await this.loadAndDisplayImageTags(imageId);
+            async loadDuplicates() {
+                document.querySelectorAll('.album-item').forEach(item => item.classList.remove('selected'));
+                const dupItem = document.querySelector('[data-album-id="duplicates"]');
+                if (dupItem) dupItem.classList.add('selected');
+
+                this.currentAlbumId = 'duplicates';
+                document.getElementById('currentAlbum').textContent = 'Duplicate Files';
+                document.getElementById('imageCount').textContent = '';
+                document.getElementById('tagsPanel').classList.remove('show');
+
+                const imageGrid = document.getElementById('imageGrid');
+                imageGrid.innerHTML = '<div class="loading"><div class="spinner"></div>Scanning for duplicates...</div>';
+                this.clearSelection();
+
+                try {
+                    const response = await fetch(`${this.baseUrl}/manage/find_duplicates.php`, {
+                        credentials: 'include'
+                    });
+                    const data = await response.json();
+
+                    if (data.error) {
+                        throw new Error(data.error);
+                    }
+
+                    if (data.total_groups === 0) {
+                        imageGrid.innerHTML = '<div class="loading" style="text-align:center;">No duplicate files found!</div>';
+                        return;
+                    }
+
+                    this.allImages = [];
+                    this.currentImages = [];
+
+                    data.groups.forEach((group, index) => {
+                        group.images.forEach((img, imgIndex) => {
+                            const isMaster = imgIndex === 0;
+                            img.isMaster = isMaster;
+                            img.groupIndex = index;
+                            img.groupMd5 = group.md5;
+                            this.allImages.push(img);
+                        });
+                    });
+
+                    this.currentImages = this.allImages;
+                    this.renderDuplicateImages();
+                    const totalFiles = this.allImages.length;
+                    document.getElementById('imageCount').textContent = `${totalFiles} images in ${data.total_groups} groups`;
+
+                } catch (error) {
+                    console.error('Failed to load duplicates:', error);
+                    imageGrid.innerHTML = `<div class="loading">Error: ${error.message}</div>`;
+                    this.showStatus('Failed to scan for duplicates', 'error');
+                }
             }
-        }
-    } catch (e) {
-        console.log('Failed to load thumbnail for image', imageId);
-    }
-}
 
+            renderDuplicateImages() {
+                const imageGrid = document.getElementById('imageGrid');
+                if (this.currentImages.length === 0) {
+                    imageGrid.innerHTML = '<div class="loading">No duplicate files found</div>';
+                    return;
+                }
 
+                let html = '';
+                const groups = {};
+                this.currentImages.forEach(img => {
+                    if (!groups[img.groupIndex]) groups[img.groupIndex] = [];
+                    groups[img.groupIndex].push(img);
+                });
 
+                Object.values(groups).forEach(groupImages => {
+                    const master = groupImages.find(img => img.isMaster);
+                    const duplicates = groupImages.filter(img => !img.isMaster);
 
+                    html += `
+                    <div class="duplicate-group" style="border: 1px solid #ddd; border-radius: 8px; margin-bottom: 20px; overflow: hidden; background: #fff;">
+                        <div style="background: #e3f2fd; padding: 10px; border-bottom: 1px solid #bbdefb; font-size: 12px; color: #0d47a1;">
+                            <strong>MD5: ${master.groupMd5}</strong> | ${groupImages.length} Copies found
+                        </div>
+                        <div style="padding: 15px; display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px;">
+                            
+                            <!-- MASTER -->
+                            <div style="position: relative; border: 2px solid #4CAF50; padding: 5px; border-radius: 6px;">
+                                <div style="position: absolute; top: 0; left: 0; background: #4CAF50; color: white; font-size: 10px; padding: 2px 6px; border-radius: 4px 0 4px 0;">MASTER</div>
+                                <img src="${this.baseUrl}/i.php?/upload/${master.file}" style="width: 100%; height: 150px; object-fit: cover; border-radius: 4px;">
+                                <div style="font-size: 11px; margin-top: 4px; text-align: center;">ID: ${master.id}</div>
+                            </div>
 
+                            <!-- DUPLICATES -->
+                            ${duplicates.map(dup => `
+                                <div style="position: relative; border: 2px solid #f44336; padding: 5px; border-radius: 6px;">
+                                    <div style="position: absolute; top: 0; left: 0; background: #f44336; color: white; font-size: 10px; padding: 2px 6px; border-radius: 4px 0 4px 0;">DUP</div>
+                                    <img src="${this.baseUrl}/i.php?/upload/${dup.file}" style="width: 100%; height: 150px; object-fit: cover; border-radius: 4px;">
+                                    <div style="font-size: 11px; margin-top: 4px; text-align: center;">ID: ${dup.id}</div>
+                                    
+                                    <button 
+                                        onclick="window.piwigoManager.mergeImage(${master.id}, ${dup.id})"
+                                        style="width: 100%; margin-top: 5px; background: #2196F3; color: white; border: none; padding: 6px; border-radius: 4px; cursor: pointer; font-size: 11px;"
+                                    >
+                                        Merge →
+                                    </button>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                    `;
+                });
 
+                imageGrid.innerHTML = `<div class="grid-container" style="padding: 20px;">${html}</div>`;
+            }
 
-            
-      
-            
-            
-            
+            async mergeImage(masterId, dupId) {
+                if (!confirm('Merge this duplicate? \n\nTags will be moved to the Master, and the duplicate will be deleted.')) {
+                    return;
+                }
 
-            
-updateImageThumbnail(imageId, thumbnailUrl) {
-    // Only update if this image is in the current view
-    const imageItem = document.querySelector(`[data-image-id="${imageId}"]`);
-    if (!imageItem) {
-        return;
-    }
-    
-    const placeholder = imageItem.querySelector('.image-placeholder');
-    if (placeholder && !placeholder.dataset.loaded) {
-        placeholder.dataset.loaded = 'true';
-        
-        const img = document.createElement('img');
-        img.src = thumbnailUrl;
-        img.alt = 'Image';
-        // ✓ NO INLINE STYLES - Let CSS handle it!
-        
-        img.onload = () => {
-            // Replace placeholder with image (not insert before)
-            placeholder.replaceWith(img);
-        };
-        
-        img.onerror = () => {
-            // If image fails to load, keep placeholder
-            console.log('Failed to load thumbnail:', thumbnailUrl);
-        };
-    }
-}
+                try {
+                    const formData = new FormData();
+                    formData.append('master_id', masterId);
+                    formData.append('dup_id', dupId);
 
+                    const response = await fetch(`${this.baseUrl}/manage/merge_duplicate.php`, {
+                        method: 'POST',
+                        body: formData,
+                        credentials: 'include'
+                    });
 
+                    const result = await response.json();
 
+                    if (result.stat === 'ok') {
+                        this.showStatus('Merge successful', 'success');
+                        await this.loadDuplicates();
+                    } else {
+                        throw new Error(result.message || 'Merge failed');
+                    }
 
+                } catch (error) {
+                    console.error('Merge error:', error);
+                    this.showStatus(`Failed to merge: ${error.message}`, 'error');
+                }
+            }
 
+            // --- END DUPLICATE HANDLERS ---
 
+            async loadNoVirtualAlbumImages() {
+                try {
+                    document.querySelectorAll('.album-item').forEach(item => item.classList.remove('selected'));
+                    const noVirtualAlbumItem = document.querySelector('[data-album-id="no_virtual"]');
+                    if (noVirtualAlbumItem) {
+                        noVirtualAlbumItem.classList.add('selected');
+                    }
+                    
+                    if (this.thumbnailObserver) {
+                        this.thumbnailObserver.disconnect();
+                    }
+                    
+                    this.currentAlbumId = 'no_virtual';
+                    document.getElementById('currentAlbum').textContent = 'No Virtual Album';
+                    
+                    const imageGrid = document.getElementById('imageGrid');
+                    imageGrid.innerHTML = '<div class="loading"><div class="spinner"></div>Loading images with no virtual album...</div>';
+                    
+                    const response = await fetch(this.baseUrl + '/manage/get_no_virtual_album_images.php', {
+                        credentials: 'include'
+                    });
+                    const data = await response.json();
+                    
+                    const allImages = data.images || [];
+                    const maxInitialLoad = 500;
+                    this.allImages = allImages.slice(0, maxInitialLoad);
+                    this.currentImages = this.allImages;
+                    this.remainingNoVirtualImages = allImages.slice(maxInitialLoad);
+                    this.totalNoVirtualCount = allImages.length;
+                    
+                    const totalCount = allImages.length;
+                    const loadedCount = this.allImages.length;
+                    
+                    if (totalCount > maxInitialLoad) {
+                        document.getElementById('imageCount').textContent = `${loadedCount} of ${totalCount} images`;
+                    } else {
+                        document.getElementById('imageCount').textContent = `${loadedCount} images`;
+                    }
+                    
+                    this.renderImages();
+                    
+                    if (this.remainingNoVirtualImages.length > 0) {
+                        this.showLoadMoreButton();
+                    }
+                    
+                    if (this.allImages.length > 0) {
+                        this.setupLazyThumbnailLoading(this.allImages);
+                    }
+                    
+                    this.showStatus(`Loaded ${loadedCount} of ${totalCount} images`, 'success');
+                } catch (error) {
+                    console.error('Failed to load no-virtual-album images:', error);
+                    this.showStatus('Failed to load images', 'error');
+                }
+            }
 
+            showLoadMoreButton() {
+                const imageGrid = document.getElementById('imageGrid');
+                const existingButton = document.getElementById('loadMoreBtn');
+                if (existingButton) existingButton.remove();
+                
+                const loadMoreContainer = document.createElement('div');
+                loadMoreContainer.id = 'loadMoreContainer';
+                loadMoreContainer.style.cssText = 'display: flex; justify-content: center; padding: 20px; margin-top: 20px;';
+                
+                const loadMoreBtn = document.createElement('button');
+                loadMoreBtn.id = 'loadMoreBtn';
+                loadMoreBtn.textContent = `Load More Images (${this.remainingNoVirtualImages.length} remaining)`;
+                loadMoreBtn.style.cssText = 'background: #007AFF; color: white; border: none; padding: 12px 24px; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500;';
+                
+                loadMoreBtn.addEventListener('click', () => this.loadMoreNoVirtualImages());
+                
+                loadMoreContainer.appendChild(loadMoreBtn);
+                imageGrid.appendChild(loadMoreContainer);
+            }
 
+            loadMoreNoVirtualImages() {
+                const batchSize = 500;
+                const nextBatch = this.remainingNoVirtualImages.slice(0, batchSize);
+                this.allImages = this.allImages.concat(nextBatch);
+                this.currentImages = this.allImages;
+                this.remainingNoVirtualImages = this.remainingNoVirtualImages.slice(batchSize);
+                const loadedCount = this.allImages.length;
+                document.getElementById('imageCount').textContent = `${loadedCount} of ${this.totalNoVirtualCount} images`;
+                
+                const loadMoreContainer = document.getElementById('loadMoreContainer');
+                if (loadMoreContainer) loadMoreContainer.remove();
+                
+                this.renderImages();
+                
+                if (this.remainingNoVirtualImages.length > 0) {
+                    this.showLoadMoreButton();
+                }
+                
+                this.setupLazyThumbnailLoading(this.allImages);
+                this.showStatus(`Loaded ${nextBatch.length} more images. ${this.remainingNoVirtualImages.length} remaining.`, 'success');
+            }
 
+            setupLazyThumbnailLoading(images) {
+                if (this.thumbnailObserver) {
+                    this.thumbnailObserver.disconnect();
+                }
+                
+                this.thumbnailObserver = new IntersectionObserver((entries) => {
+                    entries.forEach(entry => {
+                        if (entry.isIntersecting) {
+                            const imageId = entry.target.dataset.imageId;
+                            const placeholder = entry.target.querySelector('.image-placeholder');
+                            if (placeholder && !placeholder.dataset.loading && !placeholder.dataset.loaded) {
+                                placeholder.dataset.loading = 'true';
+                                this.loadSingleThumbnail(imageId, entry.target);
+                            }
+                        }
+                    });
+                }, {
+                    root: document.getElementById('imageGrid'),
+                    rootMargin: '200px',
+                    threshold: 0.01
+                });
+                
+                document.querySelectorAll('.image-item').forEach(item => {
+                    this.thumbnailObserver.observe(item);
+                });
+            }
 
+            async loadSingleThumbnail(imageId, imageItem) {
+                try {
+                    const imageInfoUrl = `${this.baseUrl}/ws.php?format=json&method=pwg.images.getInfo&image_id=${imageId}&comments_page=0&comments_per_page=0`;
+                    const response = await fetch(imageInfoUrl, { credentials: 'include' });
+                    const data = await response.json();
+                    
+                    if (data.stat === 'ok' && data.result && data.result.derivatives) {
+                        const derivs = data.result.derivatives;
+                        let thumbnailUrl = derivs.square?.url || derivs.thumb?.url || derivs.medium?.url;
+                        if (thumbnailUrl) {
+                            this.updateImageThumbnail(imageId, thumbnailUrl);
+                            await this.loadAndDisplayImageTags(imageId);
+                        }
+                    }
+                } catch (e) {
+                    console.log('Failed to load thumbnail for image', imageId);
+                }
+            }
 
+            updateImageThumbnail(imageId, thumbnailUrl) {
+                const imageItem = document.querySelector(`[data-image-id="${imageId}"]`);
+                if (!imageItem) return;
+                
+                const placeholder = imageItem.querySelector('.image-placeholder');
+                if (placeholder && !placeholder.dataset.loaded) {
+                    placeholder.dataset.loaded = 'true';
+                    const img = document.createElement('img');
+                    img.src = thumbnailUrl;
+                    img.alt = 'Image';
+                    
+                    img.onload = () => {
+                        placeholder.replaceWith(img);
+                    };
+                    
+                    img.onerror = () => {
+                        console.log('Failed to load thumbnail:', thumbnailUrl);
+                    };
+                }
+            }
 
-            
             async loadAndDisplayImageTags(imageId) {
-        try {
-            const response = await fetch(
-                `${this.baseUrl}/ws.php?format=json&method=pwg.images.getInfo&image_id=${imageId}`,
-                { credentials: 'include' }
-            );
-            const data = await response.json();
+                try {
+                    const response = await fetch(
+                        `${this.baseUrl}/ws.php?format=json&method=pwg.images.getInfo&image_id=${imageId}`,
+                        { credentials: 'include' }
+                    );
+                    const data = await response.json();
 
-            if (data.stat === 'ok' && data.result && data.result.tags) {
-                this.renderImageTags(imageId, data.result.tags);
-            } else {
-                this.renderImageTags(imageId, []);
+                    if (data.stat === 'ok' && data.result && data.result.tags) {
+                        this.renderImageTags(imageId, data.result.tags);
+                    } else {
+                        this.renderImageTags(imageId, []);
+                    }
+                } catch (e) {
+                    console.log('Failed to load tags for image', imageId);
+                }
             }
-        } catch (e) {
-            console.log('Failed to load tags for image', imageId);
-        }
-    }
 
-    renderImageTags(imageId, tags) {
-        const tagContainer = document.querySelector(`[data-image-id="${imageId}"].image-tags`);
-        if (!tagContainer) return;
+            renderImageTags(imageId, tags) {
+                const tagContainer = document.querySelector(`[data-image-id="${imageId}"].image-tags`);
+                if (!tagContainer) return;
 
-        if (!tags || tags.length === 0) {
-            tagContainer.innerHTML = '<span class="no-tags"></span>';
-            return;
-        }
+                if (!tags || tags.length === 0) {
+                    tagContainer.innerHTML = '<span class="no-tags"></span>';
+                    return;
+                }
 
-        tagContainer.innerHTML = tags.map(tag => `
-            <span class="image-tag-pill">
-                <span>${tag.name}</span>
-                <span class="image-tag-remove" data-image-id="${imageId}" data-tag-id="${tag.id}" data-tag-name="${tag.name}">×</span>
-            </span>
-        `).join('');
+                tagContainer.innerHTML = tags.map(tag => `
+                    <span class="image-tag-pill">
+                        <span>${tag.name}</span>
+                        <span class="image-tag-remove" data-image-id="${imageId}" data-tag-id="${tag.id}" data-tag-name="${tag.name}">×</span>
+                    </span>
+                `).join('');
 
-        // Add click handlers for remove buttons
-        tagContainer.querySelectorAll('.image-tag-remove').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                this.removeTagFromImage(btn.dataset.imageId, btn.dataset.tagId, btn.dataset.tagName);
-            });
-        });
-    }
-
-    async removeTagFromImage(imageId, tagId, tagName) {
-        try {
-            console.log('=== REMOVE TAG DEBUG START ===');
-            console.log('Image ID:', imageId, 'Type:', typeof imageId);
-            console.log('Tag ID to remove:', tagId, 'Type:', typeof tagId);
-            console.log('Tag name:', tagName);
-            
-            // Get current tags for the image using direct fetch (not apiCall)
-            const response = await fetch(
-                `${this.baseUrl}/ws.php?format=json&method=pwg.images.getInfo&image_id=${imageId}`,
-                { credentials: 'include' }
-            );
-            const data = await response.json();
-            
-            console.log('Full API response:', data);
-            
-            if (data.stat !== 'ok' || !data.result) {
-                throw new Error('Failed to get image info');
+                tagContainer.querySelectorAll('.image-tag-remove').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        this.removeTagFromImage(btn.dataset.imageId, btn.dataset.tagId, btn.dataset.tagName);
+                    });
+                });
             }
-            
-            const imageInfo = data.result;
-            console.log('Image info:', imageInfo);
-            
-            // Handle case where image has no tags
-            const currentTags = imageInfo.tags || [];
-            
-            console.log('Current tags on image:', JSON.stringify(currentTags, null, 2));
-            
-            if (currentTags.length === 0) {
-                console.log('No tags to remove!');
-                this.showStatus('Image has no tags', 'error');
-                return;
-            }
-            
-            // Filter out the tag to remove
-            const remainingTags = currentTags.filter(t => {
-                const tagIdStr = String(t.id);
-                const removeIdStr = String(tagId);
-                const tagIdInt = parseInt(t.id);
-                const removeIdInt = parseInt(tagId);
-                
-                console.log(`Comparing tag ${t.name} (id: ${t.id}, type: ${typeof t.id})`);
-                console.log(`  String compare: "${tagIdStr}" !== "${removeIdStr}" = ${tagIdStr !== removeIdStr}`);
-                console.log(`  Int compare: ${tagIdInt} !== ${removeIdInt} = ${tagIdInt !== removeIdInt}`);
-                
-                // Keep the tag if IDs don't match
-                return tagIdStr !== removeIdStr;
-            });
-            
-            console.log('Tags after filtering:', JSON.stringify(remainingTags, null, 2));
-            console.log('Number of tags: Before =', currentTags.length, 'After =', remainingTags.length);
-            
-            const remainingTagIds = remainingTags.map(t => t.id).join(',');
-            
-            console.log('Remaining tag IDs string:', remainingTagIds);
 
-            // Update image with remaining tags
-            const updateParams = {
-                image_id: imageId,
-                tag_ids: remainingTagIds || '',
-                multiple_value_mode: 'replace',
-                pwg_token: this.sessionId || ''
-            };
-            
-            console.log('API call params:', updateParams);
-            
-            const result = await this.apiCall('pwg.images.setInfo', updateParams);
-            
-            console.log('API result:', result);
-            console.log('=== REMOVE TAG DEBUG END ===');
-
-            this.showStatus(`Removed tag "${tagName}" from image`, 'success');
-
-            // Reload tags for this image
-            await this.loadAndDisplayImageTags(imageId);
-            await this.loadAlbumTags();
-            if (this.selectedImages.has(parseInt(imageId))) {
-                await this.loadSelectedImagesTags();
-            }
-        } catch (error) {
-            console.error('Failed to remove tag:', error);
-            this.showStatus('Failed to remove tag: ' + error.message, 'error');
-        }
-    }
-
-    renderImages() {
+            renderImages() {
                 const imageGrid = document.getElementById('imageGrid');
                 
                 if (this.currentImages.length === 0) {
@@ -1141,7 +1050,7 @@ updateImageThumbnail(imageId, thumbnailUrl) {
                             </div>
                             <div class="image-info">
                                 <div class="image-title">${image.name || 'Untitled'}</div>
-                <div class="image-tags" data-image-id="${image.id}"></div>
+                                <div class="image-tags" data-image-id="${image.id}"></div>
                             </div>
                         </div>
                     `;
@@ -1152,7 +1061,6 @@ updateImageThumbnail(imageId, thumbnailUrl) {
                 document.querySelectorAll('.image-item').forEach(item => {
                     item.addEventListener('click', (e) => {
                         if (e.target.classList.contains('delete-btn')) return;
-                        
                         const imageId = item.dataset.imageId;
                         if (e.ctrlKey || e.metaKey) {
                             this.toggleImageSelection(imageId);
@@ -1231,14 +1139,12 @@ updateImageThumbnail(imageId, thumbnailUrl) {
                 this.showStatus(`Click on an album to ${action} ${this.selectedImages.size} selected images`, 'success');
             }
 
-updateAlbumCounts() {
-                // Simple approach: update the current album's count in the UI
+            updateAlbumCounts() {
                 const currentAlbumElement = document.querySelector(`[data-album-id="${this.currentAlbumId}"] .album-count`);
                 if (currentAlbumElement) {
                     currentAlbumElement.textContent = this.currentImages.length;
                 }
                 
-                // Also update the album object
                 const currentAlbum = this.albums.find(a => a.id == this.currentAlbumId);
                 if (currentAlbum) {
                     currentAlbum.nb_images = this.currentImages.length;
@@ -1247,12 +1153,10 @@ updateAlbumCounts() {
             }
 
             updateTargetAlbumCount(targetAlbumId, movedCount) {
-                // Update target album's count in UI
                 const targetAlbumElement = document.querySelector(`[data-album-id="${targetAlbumId}"] .album-count`);
                 const targetAlbum = this.albums.find(a => a.id == targetAlbumId);
                 
                 if (targetAlbum) {
-                    // For associate mode, increment count. For move mode, count was already updated by updateAlbumCounts
                     if (movedCount > 0) {
                         targetAlbum.nb_images += movedCount;
                         targetAlbum.total_nb_images += movedCount;
@@ -1261,7 +1165,6 @@ updateAlbumCounts() {
                             targetAlbumElement.textContent = targetAlbum.total_nb_images;
                         }
                     } else {
-                        // For associate mode, refresh the count from server to be accurate
                         this.refreshAlbumCount(targetAlbumId);
                     }
                 }
@@ -1324,7 +1227,6 @@ updateAlbumCounts() {
                     document.getElementById('imageCount').textContent = `${this.currentImages.length} images`;
                     this.showStatus(`${imageIds.length} images ${mode}d to ${targetAlbum.name}`, 'success');
                     
-                    // Update album counts manually instead of full reload
                     this.updateAlbumCounts();
                     this.updateTargetAlbumCount(targetAlbumId, mode === 'move' ? imageIds.length : 0);
                     
@@ -1349,11 +1251,9 @@ updateAlbumCounts() {
                     
                     for (const imageId of imageIds) {
                         try {
-                            // Get current categories for the image
                             const imageInfo = await this.apiCall('pwg.images.getInfo', { image_id: imageId });
                             
                             if (imageInfo.categories && imageInfo.categories.length > 1) {
-                                // Image is in multiple albums - remove only from current album
                                 const currentCategories = imageInfo.categories.map(cat => cat.id);
                                 const updatedCategories = currentCategories.filter(catId => catId != this.currentAlbumId);
                                 
@@ -1365,15 +1265,12 @@ updateAlbumCounts() {
                                     });
                                     successCount++;
                                 } else {
-                                    // Would leave image with no categories - skip
                                     console.log(`Skipping image ${imageId} - would become orphan`);
                                 }
                             } else {
-                                // Image is only in this album - cannot remove without making orphan
                                 console.log(`Cannot remove image ${imageId} - only in this album`);
                             }
                             
-                            // Remove from UI regardless
                             const imageElement = document.querySelector(`[data-image-id="${imageId}"]`);
                             if (imageElement) imageElement.remove();
                             
@@ -1389,7 +1286,6 @@ updateAlbumCounts() {
                     document.getElementById('imageCount').textContent = `${this.currentImages.length} images`;
                     this.showStatus(`${successCount} images removed from album`, 'success');
                     
-                    // Update album counts manually
                     this.updateAlbumCounts();
                     
                 } catch (error) {
@@ -1402,11 +1298,9 @@ updateAlbumCounts() {
                 if (!confirm('Remove this image from the album?')) return;
 
                 try {
-                    // Get current categories for the image
                     const imageInfo = await this.apiCall('pwg.images.getInfo', { image_id: imageId });
                     
                     if (imageInfo.categories && imageInfo.categories.length > 1) {
-                        // Image is in multiple albums - remove only from current album
                         const currentCategories = imageInfo.categories.map(cat => cat.id);
                         const updatedCategories = currentCategories.filter(catId => catId != this.currentAlbumId);
                         
@@ -1418,7 +1312,6 @@ updateAlbumCounts() {
                         
                         this.showStatus('Image removed from album', 'success');
                     } else {
-                        // Image is only in this album - fully delete it
                         await this.apiCall('pwg.images.delete', { image_id: imageId });
                         this.showStatus('Image deleted', 'success');
                     }
@@ -1474,7 +1367,6 @@ updateAlbumCounts() {
                         this.showStatus(`Moved to ${targetAlbum.name}`, 'success');
                     }
                     
-                    // Update album counts manually instead of full reload
                     this.updateAlbumCounts();
                     this.updateTargetAlbumCount(targetAlbumId, this.isAssociateMode ? 1 : 0);
                     
@@ -1530,847 +1422,633 @@ updateAlbumCounts() {
                 this.showStatus('Disconnected', 'success');
             }
 
-
-
-
-
-
-// Initialize tagging system
-async initTagging() {
-    this.allTags = [];
-    this.selectedImages = new Set();
-    this.autocompleteSelectedIndex = -1; // Track selected item in autocomplete
-    
-    // Load all available tags
-    await this.loadAllTags();
-    
-    // Tag input autocomplete
-    const tagInput = document.getElementById('tagInput');
-    const tagAutocomplete = document.getElementById('tagAutocomplete');
-    const addTagBtn = document.getElementById('addTagBtn');
-    
-    tagInput.addEventListener('input', (e) => {
-        this.autocompleteSelectedIndex = -1;
-        this.showTagAutocomplete(e.target.value);
-    });
-    
-    tagInput.addEventListener('keydown', (e) => {
-        const autocomplete = document.getElementById('tagAutocomplete');
-        const items = autocomplete.querySelectorAll('.tag-autocomplete-item');
-        
-        if (e.key === 'ArrowDown') {
-            e.preventDefault();
-            this.autocompleteSelectedIndex = Math.min(this.autocompleteSelectedIndex + 1, items.length - 1);
-            this.updateAutocompleteSelection();
-        } else if (e.key === 'ArrowUp') {
-            e.preventDefault();
-            this.autocompleteSelectedIndex = Math.max(this.autocompleteSelectedIndex - 1, -1);
-            this.updateAutocompleteSelection();
-        } else if (e.key === 'Enter') {
-            e.preventDefault();
-            if (this.autocompleteSelectedIndex >= 0 && items.length > 0) {
-                // Select from autocomplete
-                const selectedItem = items[this.autocompleteSelectedIndex];
-                const tagName = selectedItem.dataset.tagName || tagInput.value.trim();
-                tagInput.value = '';
-                autocomplete.classList.remove('show');
-                this.addTagToSelectedImages(tagName);
-            } else {
-                // Create new tag or use typed text
-                this.addTagToSelectedImages(tagInput.value.trim());
+            async initTagging() {
+                this.allTags = [];
+                this.selectedImages = new Set();
+                this.autocompleteSelectedIndex = -1;
+                
+                await this.loadAllTags();
+                
+                const tagInput = document.getElementById('tagInput');
+                const tagAutocomplete = document.getElementById('tagAutocomplete');
+                const addTagBtn = document.getElementById('addTagBtn');
+                
+                tagInput.addEventListener('input', (e) => {
+                    this.autocompleteSelectedIndex = -1;
+                    this.showTagAutocomplete(e.target.value);
+                });
+                
+                tagInput.addEventListener('keydown', (e) => {
+                    const autocomplete = document.getElementById('tagAutocomplete');
+                    const items = autocomplete.querySelectorAll('.tag-autocomplete-item');
+                    
+                    if (e.key === 'ArrowDown') {
+                        e.preventDefault();
+                        this.autocompleteSelectedIndex = Math.min(this.autocompleteSelectedIndex + 1, items.length - 1);
+                        this.updateAutocompleteSelection();
+                    } else if (e.key === 'ArrowUp') {
+                        e.preventDefault();
+                        this.autocompleteSelectedIndex = Math.max(this.autocompleteSelectedIndex - 1, -1);
+                        this.updateAutocompleteSelection();
+                    } else if (e.key === 'Enter') {
+                        e.preventDefault();
+                        if (this.autocompleteSelectedIndex >= 0 && items.length > 0) {
+                            const selectedItem = items[this.autocompleteSelectedIndex];
+                            const tagName = selectedItem.dataset.tagName || tagInput.value.trim();
+                            tagInput.value = '';
+                            autocomplete.classList.remove('show');
+                            this.addTagToSelectedImages(tagName);
+                        } else {
+                            this.addTagToSelectedImages(tagInput.value.trim());
+                        }
+                    } else if (e.key === 'Escape') {
+                        autocomplete.classList.remove('show');
+                        this.autocompleteSelectedIndex = -1;
+                    }
+                });
+                
+                addTagBtn.addEventListener('click', () => {
+                    this.addTagToSelectedImages(tagInput.value.trim());
+                });
+                
+                document.addEventListener('click', (e) => {
+                    if (!e.target.closest('.tag-input-container')) {
+                        tagAutocomplete.classList.remove('show');
+                        this.autocompleteSelectedIndex = -1;
+                    }
+                });
             }
-        } else if (e.key === 'Escape') {
-            autocomplete.classList.remove('show');
-            this.autocompleteSelectedIndex = -1;
-        }
-    });
-    
-    addTagBtn.addEventListener('click', () => {
-        this.addTagToSelectedImages(tagInput.value.trim());
-    });
-    
-    // Close autocomplete when clicking outside
-    document.addEventListener('click', (e) => {
-        if (!e.target.closest('.tag-input-container')) {
-            tagAutocomplete.classList.remove('show');
-            this.autocompleteSelectedIndex = -1;
-        }
-    });
-}
 
-updateAutocompleteSelection() {
-    const items = document.querySelectorAll('.tag-autocomplete-item');
-    items.forEach((item, index) => {
-        if (index === this.autocompleteSelectedIndex) {
-            item.classList.add('selected');
-            item.scrollIntoView({ block: 'nearest' });
-        } else {
-            item.classList.remove('selected');
-        }
-    });
-}
-
-
-            
-// Load all tags with fallback manual fetch if empty
-async loadAllTags() {
-    try {
-        const response = await fetch(
-            `${this.baseUrl}/ws.php?format=json&method=pwg.tags.getAdminList`,
-            { credentials: 'include' }
-        );
-        const data = await response.json();
-        if (data.stat === 'ok' && data.result?.tags) {
-            this.allTags = data.result.tags;
-            console.log(`Loaded ${this.allTags.length} tags successfully.`);
-        } else {
-            console.warn('Empty or failed tag list from API.');
-            this.allTags = [];
-        }
-    } catch (error) {
-        console.error('Error loading tags in loadAllTags:', error);
-        this.allTags = [];
-    }
-
-    // Fallback manual fetch if allTags empty
-    if (!this.allTags.length) {
-        try {
-            console.log('Fallback manual loadAllTags triggered');
-            const fallbackResponse = await fetch(
-                `${this.baseUrl}/ws.php?format=json&method=pwg.tags.getAdminList`,
-                { credentials: 'include' }
-            );
-            const fallbackData = await fallbackResponse.json();
-            if (fallbackData.stat === 'ok' && fallbackData.result?.tags) {
-                this.allTags = fallbackData.result.tags;
-                console.log(`Manually loaded ${this.allTags.length} tags after fallback`);
+            updateAutocompleteSelection() {
+                const items = document.querySelectorAll('.tag-autocomplete-item');
+                items.forEach((item, index) => {
+                    if (index === this.autocompleteSelectedIndex) {
+                        item.classList.add('selected');
+                        item.scrollIntoView({ block: 'nearest' });
+                    } else {
+                        item.classList.remove('selected');
+                    }
+                });
             }
-        } catch (fallbackError) {
-            console.error('Error in fallback loadAllTags:', fallbackError);
-        }
-    }
-}
 
-
-
-
-
-// Called after login/session restore to initialize tags and autocomplete
-async initializeTagsAfterLogin() {
-    await this.loadAllTags();
-
-    // Additional logic to initialize your autocomplete UI/event listeners here
-    // e.g., call this.initTagging();
-}
-            
-
-
-
-            
-
-// Load tags for current album
-async loadAlbumTags() {
-    if (!this.currentAlbumId || this.currentAlbumId === 'no_virtual') {
-        document.getElementById('tagsPanel').classList.remove('show');
-        return;
-    }
-    
-    // Track which album we're loading tags for
-    const loadingAlbumId = this.currentAlbumId;
-    this.currentTagLoadAlbumId = loadingAlbumId;
-    
-    document.getElementById('tagsPanel').classList.add('show');
-    
-    // Show loading state
-    const container = document.getElementById('albumTagsContainer');
-    container.innerHTML = '<span class="tag-empty-state">Loading tags...</span>';
-    try {
-        const imageIds = this.currentImages.map(img => img.id);
-        if (imageIds.length === 0) {
-            this.renderAlbumTags([]);
-            return;
-        }
-        
-        const tagMap = new Map();
-        const batchSize = 10;
-        
-            for (let i = 0; i < imageIds.length; i += batchSize) {
-            // Check if we've switched albums
-            if (this.currentTagLoadAlbumId !== loadingAlbumId) {
-                console.log('Album changed during tag loading, aborting...');
-                return;
-            }
-            
-            const batch = imageIds.slice(i, i + batchSize);
-            await Promise.all(batch.map(async (imageId) => {
+            async loadAllTags() {
                 try {
-                    const response = await fetch(`${this.baseUrl}/ws.php?format=json&method=pwg.images.getInfo&image_id=${imageId}`, {
+                    const response = await fetch(
+                        `${this.baseUrl}/ws.php?format=json&method=pwg.tags.getAdminList`,
+                        { credentials: 'include' }
+                    );
+                    const data = await response.json();
+                    if (data.stat === 'ok' && data.result?.tags) {
+                        this.allTags = data.result.tags;
+                        console.log(`Loaded ${this.allTags.length} tags successfully.`);
+                    } else {
+                        console.warn('Empty or failed tag list from API.');
+                        this.allTags = [];
+                    }
+                } catch (error) {
+                    console.error('Error loading tags in loadAllTags:', error);
+                    this.allTags = [];
+                }
+            }
+
+            async initializeTagsAfterLogin() {
+                await this.loadAllTags();
+            }
+
+            async loadAlbumTags() {
+                if (!this.currentAlbumId || this.currentAlbumId === 'no_virtual' || this.currentAlbumId === 'duplicates') {
+                    document.getElementById('tagsPanel').classList.remove('show');
+                    return;
+                }
+                
+                const loadingAlbumId = this.currentAlbumId;
+                this.currentTagLoadAlbumId = loadingAlbumId;
+                
+                document.getElementById('tagsPanel').classList.add('show');
+                
+                const container = document.getElementById('albumTagsContainer');
+                container.innerHTML = '<span class="tag-empty-state">Loading tags...</span>';
+                try {
+                    const imageIds = this.currentImages.map(img => img.id);
+                    if (imageIds.length === 0) {
+                        this.renderAlbumTags([]);
+                        return;
+                    }
+                    
+                    const tagMap = new Map();
+                    const batchSize = 10;
+                    
+                    for (let i = 0; i < imageIds.length; i += batchSize) {
+                        if (this.currentTagLoadAlbumId !== loadingAlbumId) {
+                            console.log('Album changed during tag loading, aborting...');
+                            return;
+                        }
+                        
+                        const batch = imageIds.slice(i, i + batchSize);
+                        await Promise.all(batch.map(async (imageId) => {
+                            try {
+                                const response = await fetch(`${this.baseUrl}/ws.php?format=json&method=pwg.images.getInfo&image_id=${imageId}`, {
+                                    credentials: 'include'
+                                });
+                                const result = await response.json();
+                                const imageData = result.result || {};
+                                const imageTags = imageData.tags || [];
+                                imageTags.forEach(tag => {
+                                    if (tagMap.has(tag.id)) {
+                                        tagMap.get(tag.id).count++;
+                                    } else {
+                                        tagMap.set(tag.id, {
+                                            id: tag.id,
+                                            name: tag.name,
+                                            count: 1
+                                        });
+                                    }
+                                });
+                            } catch (e) {
+                                console.log('Failed to get tags for image', imageId, e);
+                            }
+                        }));
+                    }
+                    
+                    if (this.currentTagLoadAlbumId !== loadingAlbumId) {
+                        console.log('Album changed before rendering tags, aborting...');
+                        return;
+                    }
+                    
+                    const albumTags = Array.from(tagMap.values());
+                    this.renderAlbumTags(albumTags);
+                } catch (error) {
+                    console.error('Failed to load album tags:', error);
+                }
+            }
+
+            renderAlbumTags(tags) {
+                const container = document.getElementById('albumTagsContainer');
+                
+                if (tags.length === 0) {
+                    container.innerHTML = '<span class="tag-empty-state">No tags in this album</span>';
+                    return;
+                }
+                
+                const groupedTags = {};
+                tags.forEach(tag => {
+                    const group = tag.group || 'Other';
+                    if (!groupedTags[group]) {
+                        groupedTags[group] = [];
+                    }
+                    groupedTags[group].push(tag);
+                });
+                
+                const sortedGroups = Object.keys(groupedTags).sort();
+                
+                let html = '';
+                sortedGroups.forEach(group => {
+                    const groupTags = groupedTags[group].sort((a, b) => b.count - a.count);
+                    
+                    html += `<div style="margin-bottom: 12px;">
+                        <div style="font-size: 11px; font-weight: 600; color: #666; margin-bottom: 4px;">${group}</div>
+                        <div style="display: flex; flex-wrap: wrap; gap: 6px;">`;
+                    
+                    groupTags.forEach(tag => {
+                        html += `
+                            <div class="tag-pill tag-filter-pill" data-tag-id="${tag.id}" data-tag-name="${tag.name}" style="cursor: pointer;">
+                                <span>${tag.name}</span>
+                                <span class="tag-count">${tag.count}</span>
+                            </div>`;
+                    });
+                    
+                    html += `</div></div>`;
+                });
+                
+                container.innerHTML = html;
+                
+                container.querySelectorAll('.tag-filter-pill').forEach(pill => {
+                    pill.addEventListener('click', () => {
+                        const tagId = pill.dataset.tagId;
+                        const tagName = pill.dataset.tagName;
+                        this.filterImagesByTag(tagId, tagName);
+                    });
+                });
+            }
+
+            async filterImagesByTag(tagId, tagName) {
+                if (!this.currentAlbumId) return;
+                
+                this.showStatus(`Filtering by tag: ${tagName}...`, 'success');
+                console.log(`Filtering by tag: ${tagName} (ID: ${tagId})`);
+                
+                const imageGrid = document.getElementById('imageGrid');
+                imageGrid.innerHTML = '<div class="loading"><div class="spinner"></div>Filtering images...</div>';
+                
+                const imagesWithTag = [];
+                const batchSize = 10;
+                
+                for (let i = 0; i < this.allImages.length; i += batchSize) {
+                    const batch = this.allImages.slice(i, i + batchSize);
+                    this.updateFilterProgress(i, this.allImages.length);
+                    
+                    await Promise.all(batch.map(async (image) => {
+                        try {
+                            const response = await fetch(
+                                `${this.baseUrl}/ws.php?format=json&method=pwg.images.getInfo&image_id=${image.id}`,
+                                { credentials: 'include' }
+                            );
+                            const data = await response.json();
+                            const imageTags = data.result?.tags || [];
+                            const hasTag = imageTags.some(t => String(t.id) === String(tagId));
+                            if (hasTag) {
+                                imagesWithTag.push(image);
+                            }
+                        } catch (e) {
+                            console.error(`Failed to check tags for image ${image.id}:`, e);
+                        }
+                    }));
+                }
+                
+                this.currentImages = imagesWithTag;
+                this.renderImages();
+                this.setupLazyThumbnailLoading(this.currentImages);
+                
+                const albumName = this.albums.find(a => a.id === this.currentAlbumId)?.name || 'Album';
+                const currentAlbumEl = document.getElementById('currentAlbum');
+                currentAlbumEl.innerHTML = `
+                    <span>${albumName}</span>
+                    <span style="color: #007AFF; font-size: 12px; margin-left: 8px;">• Filtered by: ${tagName}</span>
+                `;
+                
+                const clearBtn = document.createElement('button');
+                clearBtn.textContent = 'Clear Filter';
+                clearBtn.style.cssText = 'margin-left: 8px; padding: 4px 10px; font-size: 11px; background: #f0f0f0; border: 1px solid #ccc; border-radius: 4px; cursor: pointer;';
+                clearBtn.addEventListener('click', () => this.clearTagFilter());
+                currentAlbumEl.appendChild(clearBtn);
+                
+                this.showStatus(`Showing ${imagesWithTag.length} images with tag: ${tagName}`, 'success');
+            }
+
+            updateFilterProgress(current, total) {
+                const imageGrid = document.getElementById('imageGrid');
+                const percent = Math.round((current / total) * 100);
+                imageGrid.innerHTML = `<div class="loading"><div class="spinner"></div>Checking images... ${current}/${total} (${percent}%)</div>`;
+            }
+
+            async clearTagFilter() {
+                this.currentImages = this.allImages;
+                this.renderImages();
+                this.setupLazyThumbnailLoading(this.currentImages);
+                
+                const albumName = this.albums.find(a => a.id === this.currentAlbumId)?.name || 'Album';
+                document.getElementById('currentAlbum').textContent = albumName;
+                
+                this.showStatus('Filter cleared', 'success');
+            }
+
+            async debugTagIssue() {
+                console.log('=== TAG DEBUG START ===');
+                const testImage = this.currentImages[0];
+                console.log('Testing image ID:', testImage.id);
+                
+                const methods = [
+                    {
+                        name: 'pwg.categories.getImages',
+                        params: {
+                            cat_id: this.currentAlbumId,
+                            per_page: 1,
+                            page: 0,
+                            f_min_id: testImage.id,
+                            f_max_id: testImage.id
+                        }
+                    },
+                    {
+                        name: 'DIRECT_URL',
+                        url: `${this.baseUrl}/ws.php?format=json&method=pwg.images.getInfo&image_id=${testImage.id}`
+                    }
+                ];
+                
+                for (const method of methods) {
+                    try {
+                        console.log(`\n--- Testing ${method.name} ---`);
+                        let result;
+                        if (method.url) {
+                            const response = await fetch(method.url, { credentials: 'include' });
+                            result = await response.json();
+                        } else {
+                            result = await this.apiCall(method.name, method.params);
+                        }
+                        console.log('Response:', result);
+                        if (result.result) {
+                            console.log('result.result:', result.result);
+                            if (result.result.images) {
+                                console.log('Found images:', result.result.images);
+                                if (result.result.images[0]) {
+                                    console.log('First image:', result.result.images[0]);
+                                    console.log('Tags:', result.result.images[0].tags);
+                                }
+                            }
+                            if (result.result.tags) {
+                                console.log('Tags found:', result.result.tags);
+                            }
+                        }
+                        if (result.images) {
+                            console.log('result.images:', result.images);
+                            if (result.images[0]) {
+                                console.log('First image:', result.images[0]);
+                                console.log('Tags:', result.images[0].tags);
+                            }
+                        }
+                    } catch (error) {
+                        console.error(`${method.name} failed:`, error);
+                    }
+                }
+                
+                try {
+                    console.log('\n--- Testing pwg.categories.getImages for full album ---');
+                    const albumResult = await this.apiCall('pwg.categories.getImages', {
+                        cat_id: this.currentAlbumId,
+                        per_page: 5,
+                        page: 0
+                    });
+                    console.log('Album images result:', albumResult);
+                    if (albumResult.images && albumResult.images[0]) {
+                        console.log('First image from album:', albumResult.images[0]);
+                        console.log('Available fields:', Object.keys(albumResult.images[0]));
+                    }
+                } catch (e) {
+                    console.error('Album images failed:', e);
+                }
+                
+                console.log('\n=== TAG DEBUG END ===');
+            }
+
+            showTagAutocomplete(query) {
+                const autocomplete = document.getElementById('tagAutocomplete');
+                const tagInput = document.getElementById('tagInput');
+                if (!query) {
+                    autocomplete.classList.remove('show');
+                    autocomplete.innerHTML = '';
+                    return;
+                }
+
+                const matched = this.allTags.filter(tag =>
+                    tag.name.toLowerCase().startsWith(query.toLowerCase())
+                );
+
+                if (matched.length === 0) {
+                    autocomplete.innerHTML = `<div class="tag-autocomplete-item"><span>Create new tag "${query}"</span></div>`;
+                } else {
+                    autocomplete.innerHTML = matched.map(tag => `
+                        <div class="tag-autocomplete-item" data-tag-id="${tag.id}" data-tag-name="${tag.name}">
+                            <span class="tag-name">${tag.name}</span>
+                            <span class="tag-count">${tag.counter || 0}</span>
+                        </div>
+                    `).join('');
+                }
+
+                autocomplete.classList.add('show');
+
+                autocomplete.querySelectorAll('.tag-autocomplete-item').forEach(item => {
+                    item.addEventListener('mousedown', () => {
+                        const tagName = item.dataset.tagName || tagInput.value.trim();
+                        tagInput.value = tagName;
+                        autocomplete.classList.remove('show');
+                        this.addTagToSelectedImages(tagName);
+                        tagInput.value = '';
+                    });
+                });
+            }
+
+            async getOrCreateTagId(tagName) {
+                console.log('=== GET OR CREATE TAG DEBUG START ===');
+                console.log('Looking for tag:', tagName);
+                
+                const existingTag = this.allTags.find(t => t.name.toLowerCase() === tagName.toLowerCase());
+                if (existingTag) {
+                    console.log('Found existing tag:', existingTag);
+                    console.log('=== GET OR CREATE TAG DEBUG END ===');
+                    return existingTag.id;
+                }
+
+                console.log('Tag does not exist, creating new tag...');
+                
+                try {
+                    const params = new URLSearchParams({
+                        method: 'pwg.tags.add',
+                        format: 'json',
+                        name: tagName,
+                        pwg_token: this.sessionId || ''
+                    });
+                    
+                    const response = await fetch(`${this.baseUrl}/ws.php`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                        body: params,
                         credentials: 'include'
                     });
-                    const result = await response.json();
-                    const imageData = result.result || {};
-                    const imageTags = imageData.tags || [];
-                    imageTags.forEach(tag => {
-                        if (tagMap.has(tag.id)) {
-                            tagMap.get(tag.id).count++;
-                        } else {
-                            tagMap.set(tag.id, {
-                                id: tag.id,
-                                name: tag.name,
-                                count: 1
-                            });
+                    
+                    const text = await response.text();
+                    let data;
+                    try {
+                        data = JSON.parse(text);
+                    } catch (e) {
+                        const parser = new DOMParser();
+                        const xmlDoc = parser.parseFromString(text, 'text/xml');
+                        const rsp = xmlDoc.querySelector('rsp');
+                        const stat = rsp?.getAttribute('stat');
+                        if (stat === 'ok') {
+                            const idElement = xmlDoc.querySelector('id');
+                            if (idElement) {
+                                const tagId = idElement.textContent;
+                                const newTagId = parseInt(tagId);
+                                if (!isNaN(newTagId)) {
+                                    this.allTags.push({ id: newTagId, name: tagName });
+                                    return newTagId;
+                                }
+                            }
                         }
-                    });
-                } catch (e) {
-                    console.log('Failed to get tags for image', imageId, e);
-                }
-            }));
-            }
-        
-        // Final check before rendering - ensure we're still on the same album
-        if (this.currentTagLoadAlbumId !== loadingAlbumId) {
-            console.log('Album changed before rendering tags, aborting...');
-            return;
-        }
-        
-        const albumTags = Array.from(tagMap.values());
-        this.renderAlbumTags(albumTags);
-    } catch (error) {
-        console.error('Failed to load album tags:', error);
-    }
-}
-
-
-
-
-
-
-
-
-
-
-            
-
-// Render album tags grouped by category
-renderAlbumTags(tags) {
-    const container = document.getElementById('albumTagsContainer');
-    
-    if (tags.length === 0) {
-        container.innerHTML = '<span class="tag-empty-state">No tags in this album</span>';
-        return;
-    }
-    
-    // Group tags by their group name
-    const groupedTags = {};
-    tags.forEach(tag => {
-        const group = tag.group || 'Other';
-        if (!groupedTags[group]) {
-            groupedTags[group] = [];
-        }
-        groupedTags[group].push(tag);
-    });
-    
-    // Sort groups alphabetically
-    const sortedGroups = Object.keys(groupedTags).sort();
-    
-    let html = '';
-    sortedGroups.forEach(group => {
-        const groupTags = groupedTags[group].sort((a, b) => b.count - a.count);
-        
-        html += `<div style="margin-bottom: 12px;">
-            <div style="font-size: 11px; font-weight: 600; color: #666; margin-bottom: 4px;">${group}</div>
-            <div style="display: flex; flex-wrap: wrap; gap: 6px;">`;
-        
-        groupTags.forEach(tag => {
-            html += `
-                <div class="tag-pill tag-filter-pill" data-tag-id="${tag.id}" data-tag-name="${tag.name}" style="cursor: pointer;">
-                    <span>${tag.name}</span>
-                    <span class="tag-count">${tag.count}</span>
-                </div>`;
-        });
-        
-        html += `</div></div>`;
-    });
-    
-    container.innerHTML = html;
-    
-    // Add click handlers to filter by tag
-    container.querySelectorAll('.tag-filter-pill').forEach(pill => {
-        pill.addEventListener('click', () => {
-            const tagId = pill.dataset.tagId;
-            const tagName = pill.dataset.tagName;
-            this.filterImagesByTag(tagId, tagName);
-        });
-    });
-}
-
-
-
-
-
-            
-
-// Filter images in current album by tag
-async filterImagesByTag(tagId, tagName) {
-    if (!this.currentAlbumId) return;
-    
-    this.showStatus(`Filtering by tag: ${tagName}...`, 'success');
-    console.log(`Filtering by tag: ${tagName} (ID: ${tagId})`);
-    
-    // Show loading state
-    const imageGrid = document.getElementById('imageGrid');
-    imageGrid.innerHTML = '<div class="loading"><div class="spinner"></div>Filtering images...</div>';
-    
-    // Filter images that have this tag
-    const imagesWithTag = [];
-    const batchSize = 10;
-    
-for (let i = 0; i < this.allImages.length; i += batchSize) {
-    const batch = this.allImages.slice(i, i + batchSize);
-    
-    // Update progress
-    this.updateFilterProgress(i, this.allImages.length);
-    
-    await Promise.all(batch.map(async (image) => {
-            try {
-                const response = await fetch(
-                    `${this.baseUrl}/ws.php?format=json&method=pwg.images.getInfo&image_id=${image.id}`,
-                    { credentials: 'include' }
-                );
-                const data = await response.json();
-                const imageTags = data.result?.tags || [];
-                const hasTag = imageTags.some(t => String(t.id) === String(tagId));
-                if (hasTag) {
-                    imagesWithTag.push(image);
-                }
-            } catch (e) {
-                console.error(`Failed to check tags for image ${image.id}:`, e);
-            }
-        }));
-    }
-    
-    this.currentImages = imagesWithTag;
-    this.renderImages();
-    
-    // Load thumbnails and tags for filtered images
-    this.setupLazyThumbnailLoading(this.currentImages);
-    
-       
- 
-// Update the current album text to show filter
-    const albumName = this.albums.find(a => a.id === this.currentAlbumId)?.name || 'Album';
-    const currentAlbumEl = document.getElementById('currentAlbum');
-    currentAlbumEl.innerHTML = `
-        <span>${albumName}</span>
-        <span style="color: #007AFF; font-size: 12px; margin-left: 8px;">• Filtered by: ${tagName}</span>
-    `;
-    
-    // Add clear filter button with proper event listener
-    const clearBtn = document.createElement('button');
-    clearBtn.textContent = 'Clear Filter';
-    clearBtn.style.cssText = 'margin-left: 8px; padding: 4px 10px; font-size: 11px; background: #f0f0f0; border: 1px solid #ccc; border-radius: 4px; cursor: pointer;';
-    clearBtn.addEventListener('click', () => this.clearTagFilter());
-    currentAlbumEl.appendChild(clearBtn);
-    
-    this.showStatus(`Showing ${imagesWithTag.length} images with tag: ${tagName}`, 'success');
-}
-
-
-
-
-
-
-// Show progress while filtering
-updateFilterProgress(current, total) {
-    const imageGrid = document.getElementById('imageGrid');
-    const percent = Math.round((current / total) * 100);
-    imageGrid.innerHTML = `<div class="loading"><div class="spinner"></div>Checking images... ${current}/${total} (${percent}%)</div>`;
-}
-
-  
-
-
-
-
-
-
-
-            
-// Clear tag filter
-async clearTagFilter() {
-this.currentImages = this.allImages;
-    this.renderImages();
-    
-    // Reload thumbnails and tags
-    this.setupLazyThumbnailLoading(this.currentImages);
-    
-    const albumName = this.albums.find(a => a.id === this.currentAlbumId)?.name || 'Album';
-    document.getElementById('currentAlbum').textContent = albumName;
-    
-    this.showStatus('Filter cleared', 'success');
-}
-
-
-
-
-
-
-
-
-
-
-            
-
-
-// Add this debugging function
-async debugTagIssue() {
-    console.log('=== TAG DEBUG START ===');
-    
-    const testImage = this.currentImages[0];
-    console.log('Testing image ID:', testImage.id);
-    
-    // Try multiple API methods
-    const methods = [
-        // Method 1: categories.getImages with tags
-        {
-            name: 'pwg.categories.getImages',
-            params: {
-                cat_id: this.currentAlbumId,
-                per_page: 1,
-                page: 0,
-                f_min_id: testImage.id,
-                f_max_id: testImage.id
-            }
-        },
-        // Method 2: Direct URL call to ws.php
-        {
-            name: 'DIRECT_URL',
-            url: `${this.baseUrl}/ws.php?format=json&method=pwg.images.getInfo&image_id=${testImage.id}`
-        }
-    ];
-    
-    for (const method of methods) {
-        try {
-            console.log(`\n--- Testing ${method.name} ---`);
-            
-            let result;
-            if (method.url) {
-                // Direct fetch
-                const response = await fetch(method.url, { credentials: 'include' });
-                result = await response.json();
-            } else {
-                // Normal API call
-                result = await this.apiCall(method.name, method.params);
-            }
-            
-            console.log('Response:', result);
-            
-            // Try to find tags
-            if (result.result) {
-                console.log('result.result:', result.result);
-                if (result.result.images) {
-                    console.log('Found images:', result.result.images);
-                    if (result.result.images[0]) {
-                        console.log('First image:', result.result.images[0]);
-                        console.log('Tags:', result.result.images[0].tags);
+                        throw new Error('Could not parse response as JSON or XML');
                     }
-                }
-                if (result.result.tags) {
-                    console.log('Tags found:', result.result.tags);
-                }
-            }
-            
-            if (result.images) {
-                console.log('result.images:', result.images);
-                if (result.images[0]) {
-                    console.log('First image:', result.images[0]);
-                    console.log('Tags:', result.images[0].tags);
-                }
-            }
-            
-        } catch (error) {
-            console.error(`${method.name} failed:`, error);
-        }
-    }
-    
-    // Also try getting tags from the database directly via categories.getImages
-    try {
-        console.log('\n--- Testing pwg.categories.getImages for full album ---');
-        const albumResult = await this.apiCall('pwg.categories.getImages', {
-            cat_id: this.currentAlbumId,
-            per_page: 5,
-            page: 0
-        });
-        console.log('Album images result:', albumResult);
-        if (albumResult.images && albumResult.images[0]) {
-            console.log('First image from album:', albumResult.images[0]);
-            console.log('Available fields:', Object.keys(albumResult.images[0]));
-        }
-    } catch (e) {
-        console.error('Album images failed:', e);
-    }
-    
-    console.log('\n=== TAG DEBUG END ===');
-}
-
-
-
-
-
-
-
-
-
-
-            
-
-
-
-
-            
-
-
-// Method to show autocomplete suggestions based on user input for tag addition
-showTagAutocomplete(query) {
-    const autocomplete = document.getElementById('tagAutocomplete');
-    const tagInput = document.getElementById('tagInput');
-    if (!query) {
-        autocomplete.classList.remove('show');
-        autocomplete.innerHTML = '';
-        return;
-    }
-
-    const matched = this.allTags.filter(tag =>
-        tag.name.toLowerCase().startsWith(query.toLowerCase())
-    );
-
-    if (matched.length === 0) {
-        autocomplete.innerHTML = `<div class="tag-autocomplete-item"><span>Create new tag "${query}"</span></div>`;
-    } else {
-        autocomplete.innerHTML = matched.map(tag => `
-            <div class="tag-autocomplete-item" data-tag-id="${tag.id}" data-tag-name="${tag.name}">
-                <span class="tag-name">${tag.name}</span>
-                <span class="tag-count">${tag.counter || 0}</span>
-            </div>
-        `).join('');
-    }
-
-    autocomplete.classList.add('show');
-
-    autocomplete.querySelectorAll('.tag-autocomplete-item').forEach(item => {
-        item.addEventListener('mousedown', () => {
-            const tagName = item.dataset.tagName || tagInput.value.trim();
-            tagInput.value = tagName;
-            autocomplete.classList.remove('show');
-
-            this.addTagToSelectedImages(tagName);
-            tagInput.value = '';
-        });
-    });
-}
-
-
-
-
-
-            
-// Get existing tag ID by name or create a new tag and return its ID
-async getOrCreateTagId(tagName) {
-    console.log('=== GET OR CREATE TAG DEBUG START ===');
-    console.log('Looking for tag:', tagName);
-    
-    // Check if tag exists in cached allTags (case-insensitive)
-    const existingTag = this.allTags.find(t => t.name.toLowerCase() === tagName.toLowerCase());
-    if (existingTag) {
-        console.log('Found existing tag:', existingTag);
-        console.log('=== GET OR CREATE TAG DEBUG END ===');
-        return existingTag.id;
-    }
-
-    console.log('Tag does not exist, creating new tag...');
-    
-    // Tag doesn't exist: create it via pwg.tags.add using direct fetch
-    try {
-        const params = new URLSearchParams({
-            method: 'pwg.tags.add',
-            format: 'json',
-            name: tagName,
-            pwg_token: this.sessionId || ''
-        });
-        
-        console.log('API call params:', Object.fromEntries(params));
-        
-        const response = await fetch(`${this.baseUrl}/ws.php`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: params,
-            credentials: 'include'
-        });
-        
-        const text = await response.text();
-        console.log('Raw response text:', text);
-        
-        let data;
-        try {
-            data = JSON.parse(text);
-            console.log('Parsed JSON:', JSON.stringify(data, null, 2));
-        } catch (e) {
-            // Try parsing as XML
-            console.log('Response is not JSON, trying XML...');
-            const parser = new DOMParser();
-            const xmlDoc = parser.parseFromString(text, 'text/xml');
-            const rsp = xmlDoc.querySelector('rsp');
-            const stat = rsp?.getAttribute('stat');
-            console.log('XML stat:', stat);
-            
-            if (stat === 'ok') {
-                // Look for tag ID in XML - check <id> tag first
-                const idElement = xmlDoc.querySelector('id');
-                if (idElement) {
-                    const tagId = idElement.textContent;
-                    console.log('Found tag ID in XML <id>:', tagId);
-                    const newTagId = parseInt(tagId);
-                    if (!isNaN(newTagId)) {
+                    
+                    let newTagId = null;
+                    if (data.result) {
+                        if (data.result.info) newTagId = data.result.info;
+                        else if (data.result.id) newTagId = data.result.id;
+                        else if (data.result.tag_id) newTagId = data.result.tag_id;
+                        else if (typeof data.result === 'number') newTagId = data.result;
+                        else if (typeof data.result === 'string') newTagId = parseInt(data.result);
+                    } else if (data.info) {
+                        newTagId = data.info;
+                    } else if (data.id) {
+                        newTagId = data.id;
+                    }
+                    
+                    if (newTagId) {
                         this.allTags.push({ id: newTagId, name: tagName });
                         console.log('Successfully created tag with ID:', newTagId);
-                        console.log('=== GET OR CREATE TAG DEBUG END ===');
                         return newTagId;
+                    } else {
+                        throw new Error("Failed to create tag - no tag ID in response");
                     }
+                } catch (error) {
+                    console.error('Error creating tag:', error);
+                    throw new Error(error.message || "Failed to create tag");
                 }
             }
-            throw new Error('Could not parse response as JSON or XML');
-        }
-        
-        // Try different possible response formats in JSON
-        let newTagId = null;
-        
-        console.log('Checking data.result:', data.result);
-        console.log('Type of data.result:', typeof data.result);
-        
-        if (data.result) {
-            if (data.result.info) {
-                newTagId = data.result.info;
-                console.log('Found tag ID in data.result.info:', newTagId);
-            } else if (data.result.id) {
-                newTagId = data.result.id;
-                console.log('Found tag ID in data.result.id:', newTagId);
-            } else if (data.result.tag_id) {
-                newTagId = data.result.tag_id;
-                console.log('Found tag ID in data.result.tag_id:', newTagId);
-            } else if (typeof data.result === 'number') {
-                newTagId = data.result;
-                console.log('data.result itself is the tag ID:', newTagId);
-            } else if (typeof data.result === 'string') {
-                newTagId = parseInt(data.result);
-                console.log('data.result is string tag ID:', newTagId);
+
+            async addTagToSelectedImages(tagName) {
+                if (!tagName || this.selectedImages.size === 0) return;
+
+                try {
+                    const tagId = await this.getOrCreateTagId(tagName);
+                    const imageIds = Array.from(this.selectedImages);
+                    const pwgToken = this.sessionId || '';
+
+                    for (const imageId of imageIds) {
+                        try {
+                            await this.apiCall('pwg.images.setInfo', {
+                                image_id: imageId,
+                                tag_ids: tagId,
+                                multiple_value_mode: 'append',
+                                pwg_token: pwgToken
+                            });
+                        } catch (error) {
+                            console.error(`Failed to add tag to image ${imageId}:`, error);
+                        }
+                    }
+
+                    this.showStatus(`Added tag "${tagName}" to ${imageIds.length} images`, 'success');
+                    document.getElementById('tagInput').value = '';
+                    document.getElementById('tagAutocomplete').classList.remove('show');
+
+                    await this.loadAllTags();
+                    await this.loadAlbumTags();
+                    await this.loadSelectedImagesTags();
+                    
+                    for (const imageId of imageIds) {
+                        await this.loadAndDisplayImageTags(imageId);
+                    }
+
+                } catch (error) {
+                    console.error('Failed to add tags:', error);
+                    this.showStatus('Failed to add tags: ' + error.message, 'error');
+                }
             }
-        } else if (data.info) {
-            newTagId = data.info;
-            console.log('Found tag ID in data.info:', newTagId);
-        } else if (data.id) {
-            newTagId = data.id;
-            console.log('Found tag ID in data.id:', newTagId);
-        }
-        
-        if (newTagId) {
-            // Add new tag to local allTags cache
-            this.allTags.push({ id: newTagId, name: tagName });
-            console.log('Successfully created tag with ID:', newTagId);
-            console.log('=== GET OR CREATE TAG DEBUG END ===');
-            return newTagId;
-        } else {
-            console.error('Could not find tag ID in response!');
-            console.error('Full data structure:', data);
-            throw new Error("Failed to create tag - no tag ID in response");
-        }
-    } catch (error) {
-        console.error('Error creating tag:', error);
-        console.error('Error stack:', error.stack);
-        console.log('=== GET OR CREATE TAG DEBUG END ===');
-        throw new Error(error.message || "Failed to create tag");
-    }
-}
 
-
-
-
-
-            
-// Add tag to selected images by tag name (create or use existing tag)
-async addTagToSelectedImages(tagName) {
-    if (!tagName || this.selectedImages.size === 0) return;
-
-    try {
-        const tagId = await this.getOrCreateTagId(tagName);
-        const imageIds = Array.from(this.selectedImages);
-        const pwgToken = this.sessionId || '';
-
-        console.log(`Adding tag "${tagName}" (ID: ${tagId}) to ${imageIds.length} images`);
-
-        for (const imageId of imageIds) {
-            try {
-                await this.apiCall('pwg.images.setInfo', {
-                    image_id: imageId,
-                    tag_ids: tagId,
-                    multiple_value_mode: 'append',
-                    pwg_token: pwgToken
-                });
-                console.log(`Successfully added tag to image ${imageId}`);
-            } catch (error) {
-                console.error(`Failed to add tag to image ${imageId}:`, error);
-                // Continue with other images even if one fails
+            async loadSelectedImagesTags() {
+                return;
             }
-        }
 
-        this.showStatus(`Added tag "${tagName}" to ${imageIds.length} images`, 'success');
-        document.getElementById('tagInput').value = '';
-        document.getElementById('tagAutocomplete').classList.remove('show');
-
-        // Refresh all tag displays
-        await this.loadAllTags();
-        await this.loadAlbumTags();
-        await this.loadSelectedImagesTags();
-        
-        // Refresh tags for each affected image
-        for (const imageId of imageIds) {
-            await this.loadAndDisplayImageTags(imageId);
-        }
-
-    } catch (error) {
-        console.error('Failed to add tags:', error);
-        this.showStatus('Failed to add tags: ' + error.message, 'error');
-    }
-}
-
-
-
-
-
-
-
-
-            
-// Load tags for selected images
-async loadSelectedImagesTags() {
-    // UI section removed - this function is no longer needed
-    // Keeping for compatibility with existing calls
-    return;
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
-            
-
-// Render selected images tags
-renderSelectedImagesTags(tags) {
-    // UI section removed - this function is no longer needed
-    // Keeping for compatibility with existing calls
-    return;
-}
-
-
-
-
-
-
-            
-
-
-
-// Helper function to get tag IDs for an image
-async getTagsForImage(imageId) {
-    try {
-        const response = await fetch(
-            `${this.baseUrl}/ws.php?format=json&method=pwg.images.getInfo&image_id=${imageId}`,
-            { credentials: 'include' }
-        );
-        const data = await response.json();
-        
-        if (data.stat === 'ok' && data.result && data.result.tags && Array.isArray(data.result.tags)) {
-            return data.result.tags.map(tag => tag.id);
-        }
-        return [];
-    } catch (error) {
-        console.error(`Failed to get tags for image ${imageId}:`, error);
-        return [];
-    }
-}
-
-            
-
-            
-// Remove tag from selected images
-async removeTagFromSelectedImages(tagId) {
-    if (!tagId || this.selectedImages.size === 0) return;
-
-    try {
-        const imageIds = Array.from(this.selectedImages);
-        const pwgToken = this.sessionId || '';
-
-        console.log(`Removing tag ID ${tagId} from ${imageIds.length} images`);
-
-        for (const imageId of imageIds) {
-            try {
-                // Get current tags
-                const currentTags = await this.getTagsForImage(imageId);
-
-                // Filter out the tag to remove - convert both to strings for comparison
-                const updatedTags = currentTags.filter(id => String(id) !== String(tagId));
-                
-                console.log(`Image ${imageId}: ${currentTags.length} tags -> ${updatedTags.length} tags`);
-                
-                await this.apiCall('pwg.images.setInfo', {
-                    image_id: imageId,
-                    tag_ids: updatedTags.join(',') || '',
-                    multiple_value_mode: 'replace',
-                    pwg_token: pwgToken
-                });
-            } catch (error) {
-                console.error(`Failed to remove tag from image ${imageId}:`, error);
-                // Continue with other images even if one fails
+            renderSelectedImagesTags(tags) {
+                return;
             }
-        }
 
-        this.showStatus(`Removed tag from ${imageIds.length} images`, 'success');
-        
-        // Reload UI tags
-        await this.loadAllTags();
-        await this.loadAlbumTags();
-        await this.loadSelectedImagesTags();
-        
-        // Refresh tags for each affected image
-        for (const imageId of imageIds) {
-            await this.loadAndDisplayImageTags(imageId);
-        }
+            async getTagsForImage(imageId) {
+                try {
+                    const response = await fetch(
+                        `${this.baseUrl}/ws.php?format=json&method=pwg.images.getInfo&image_id=${imageId}`,
+                        { credentials: 'include' }
+                    );
+                    const data = await response.json();
+                    
+                    if (data.stat === 'ok' && data.result && data.result.tags && Array.isArray(data.result.tags)) {
+                        return data.result.tags.map(tag => tag.id);
+                    }
+                    return [];
+                } catch (error) {
+                    console.error(`Failed to get tags for image ${imageId}:`, error);
+                    return [];
+                }
+            }
 
-    } catch (error) {
-        console.error('Failed to remove tag:', error);
-        this.showStatus('Failed to remove tag: ' + error.message, 'error');
-    }
-}
+            async removeTagFromImage(imageId, tagId, tagName) {
+                try {
+                    console.log('=== REMOVE TAG DEBUG START ===');
+                    
+                    const response = await fetch(
+                        `${this.baseUrl}/ws.php?format=json&method=pwg.images.getInfo&image_id=${imageId}`,
+                        { credentials: 'include' }
+                    );
+                    const data = await response.json();
+                    
+                    if (data.stat !== 'ok' || !data.result) {
+                        throw new Error('Failed to get image info');
+                    }
+                    
+                    const imageInfo = data.result;
+                    const currentTags = imageInfo.tags || [];
+                    
+                    if (currentTags.length === 0) {
+                        console.log('No tags to remove!');
+                        this.showStatus('Image has no tags', 'error');
+                        return;
+                    }
+                    
+                    const remainingTags = currentTags.filter(t => {
+                        const tagIdStr = String(t.id);
+                        const removeIdStr = String(tagId);
+                        return tagIdStr !== removeIdStr;
+                    });
+                    
+                    const remainingTagIds = remainingTags.map(t => t.id).join(',');
+                    
+                    await this.apiCall('pwg.images.setInfo', {
+                        image_id: imageId,
+                        tag_ids: remainingTagIds || '',
+                        multiple_value_mode: 'replace',
+                        pwg_token: this.sessionId || ''
+                    });
+                    
+                    console.log('=== REMOVE TAG DEBUG END ===');
 
+                    this.showStatus(`Removed tag "${tagName}" from image`, 'success');
 
+                    await this.loadAndDisplayImageTags(imageId);
+                    await this.loadAlbumTags();
+                    if (this.selectedImages.has(parseInt(imageId))) {
+                        await this.loadSelectedImagesTags();
+                    }
+                } catch (error) {
+                    console.error('Failed to remove tag:', error);
+                    this.showStatus('Failed to remove tag: ' + error.message, 'error');
+                }
+            }
 
+            async removeTagFromSelectedImages(tagId) {
+                if (!tagId || this.selectedImages.size === 0) return;
 
+                try {
+                    const imageIds = Array.from(this.selectedImages);
+                    const pwgToken = this.sessionId || '';
 
-            
+                    for (const imageId of imageIds) {
+                        try {
+                            const currentTags = await this.getTagsForImage(imageId);
+                            const updatedTags = currentTags.filter(id => String(id) !== String(tagId));
+                            
+                            await this.apiCall('pwg.images.setInfo', {
+                                image_id: imageId,
+                                tag_ids: updatedTags.join(',') || '',
+                                multiple_value_mode: 'replace',
+                                pwg_token: pwgToken
+                            });
+                        } catch (error) {
+                            console.error(`Failed to remove tag from image ${imageId}:`, error);
+                        }
+                    }
 
+                    this.showStatus(`Removed tag from ${imageIds.length} images`, 'success');
+                    
+                    await this.loadAllTags();
+                    await this.loadAlbumTags();
+                    await this.loadSelectedImagesTags();
+                    
+                    for (const imageId of imageIds) {
+                        await this.loadAndDisplayImageTags(imageId);
+                    }
 
-
-
-
-
-            
+                } catch (error) {
+                    console.error('Failed to remove tag:', error);
+                    this.showStatus('Failed to remove tag: ' + error.message, 'error');
+                }
+            }
         }
 
         window.piwigoManager = new PiwigoManager();
