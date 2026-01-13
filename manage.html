@@ -762,89 +762,6 @@ async loadDuplicates() {
 
 
 
-updateDuplicateSelectionUI() {
-    const checkedBoxes = document.querySelectorAll('.dup-checkbox:checked');
-    const mergeBtn = document.getElementById('mergeSelectedDuplicatesBtn');
-    
-    if (checkedBoxes.length > 0) {
-        mergeBtn.style.display = 'inline-block';
-        mergeBtn.textContent = `Merge Selected (${checkedBoxes.length})`;
-    } else {
-        mergeBtn.style.display = 'none';
-    }
-}
-
-async mergeSelectedDuplicates() {
-    // Get all selected duplicate IDs
-    const checkboxes = document.querySelectorAll('.dup-checkbox:checked');
-    if (checkboxes.length === 0) {
-        this.showStatus('No duplicates selected', 'error');
-        return;
-    }
-
-    if (!confirm(`Merge ${checkboxes.length} selected duplicates into their Masters?`)) {
-        return;
-    }
-
-    this.showStatus(`Merging ${checkboxes.length} images...`, 'success');
-
-    // Group by Master ID to optimize (calls PHP once per master, not per duplicate)
-    const map = new Map();
-    checkboxes.forEach(box => {
-        const masterId = box.dataset.masterId;
-        const dupId = box.dataset.id;
-        
-        if (!map.has(masterId)) {
-            map.set(masterId, []);
-        }
-        map.get(masterId).push(dupId);
-    });
-
-    let successCount = 0;
-    let errorCount = 0;
-
-    // Loop through each master and merge its list of duplicates
-    for (const [masterId, dupIds] of map.entries()) {
-        for (const dupId of dupIds) {
-            try {
-                const formData = new FormData();
-                formData.append('master_id', masterId);
-                formData.append('dup_id', dupId);
-
-                const response = await fetch(`${this.baseUrl}/manage/merge_duplicate.php`, {
-                    method: 'POST',
-                    body: formData,
-                    credentials: 'include'
-                });
-
-                const result = await response.json();
-                
-                if (result.stat === 'ok') {
-                    successCount++;
-                } else {
-                    console.error('Merge failed for:', dupId, result.message);
-                    errorCount++;
-                }
-            } catch (error) {
-                console.error('Network error for:', dupId, error);
-                errorCount++;
-            }
-        }
-    }
-
-    if (errorCount > 0) {
-        this.showStatus(`Merge completed with ${errorCount} errors`, 'warning');
-    } else {
-        this.showStatus(`Successfully merged ${successCount} images`, 'success');
-    }
-
-    // Reload the view to show updated state
-    await this.loadDuplicates();
-}
-
-
-
-
             
             
 
@@ -2217,6 +2134,100 @@ renderDuplicateImages() {
                     this.showStatus('Failed to remove tag: ' + error.message, 'error');
                 }
             }
+        
+        
+        
+        
+        
+        
+        updateDuplicateSelectionUI() {
+    const checkedBoxes = document.querySelectorAll('.dup-checkbox:checked');
+    const mergeBtn = document.getElementById('mergeSelectedDuplicatesBtn');
+    
+    if (checkedBoxes.length > 0) {
+        mergeBtn.style.display = 'inline-block';
+        mergeBtn.textContent = `Merge Selected (${checkedBoxes.length})`;
+    } else {
+        mergeBtn.style.display = 'none';
+    }
+}
+
+async mergeSelectedDuplicates() {
+    // Get all selected duplicate IDs
+    const checkboxes = document.querySelectorAll('.dup-checkbox:checked');
+    if (checkboxes.length === 0) {
+        this.showStatus('No duplicates selected', 'error');
+        return;
+    }
+
+    if (!confirm(`Merge ${checkboxes.length} selected duplicates into their Masters?`)) {
+        return;
+    }
+
+    this.showStatus(`Merging ${checkboxes.length} images...`, 'success');
+
+    // Group by Master ID to optimize (calls PHP once per master, not per duplicate)
+    const map = new Map();
+    checkboxes.forEach(box => {
+        const masterId = box.dataset.masterId;
+        const dupId = box.dataset.id;
+        
+        if (!map.has(masterId)) {
+            map.set(masterId, []);
+        }
+        map.get(masterId).push(dupId);
+    });
+
+    let successCount = 0;
+    let errorCount = 0;
+
+    // Loop through each master and merge its list of duplicates
+    for (const [masterId, dupIds] of map.entries()) {
+        for (const dupId of dupIds) {
+            try {
+                const formData = new FormData();
+                formData.append('master_id', masterId);
+                formData.append('dup_id', dupId);
+
+                const response = await fetch(`${this.baseUrl}/manage/merge_duplicate.php`, {
+                    method: 'POST',
+                    body: formData,
+                    credentials: 'include'
+                });
+
+                const result = await response.json();
+                
+                if (result.stat === 'ok') {
+                    successCount++;
+                } else {
+                    console.error('Merge failed for:', dupId, result.message);
+                    errorCount++;
+                }
+            } catch (error) {
+                console.error('Network error for:', dupId, error);
+                errorCount++;
+            }
+        }
+    }
+
+    if (errorCount > 0) {
+        this.showStatus(`Merge completed with ${errorCount} errors`, 'warning');
+    } else {
+        this.showStatus(`Successfully merged ${successCount} images`, 'success');
+    }
+
+    // Reload the view to show updated state
+    await this.loadDuplicates();
+}
+        
+        
+        
+        
+        
+        
+        
+        
+        
         }
 
         window.piwigoManager = new PiwigoManager();
