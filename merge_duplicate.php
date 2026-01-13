@@ -1,4 +1,9 @@
 <?php
+// Enable error reporting so we can see any PHP crashes
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
+
 define('PHPWG_ROOT_PATH', '../');
 include_once(PHPWG_ROOT_PATH.'include/common.inc.php');
 
@@ -7,8 +12,8 @@ if (!is_admin()) {
     exit;
 }
 
- $masterId = $_POST['master_id'] ?? 0;
- $dupId = $_POST['dup_id'] ?? 0;
+ $masterId = isset($_POST['master_id']) ? intval($_POST['master_id']) : 0;
+ $dupId = isset($_POST['dup_id']) ? intval($_POST['dup_id']) : 0;
 
 if (!$masterId || !$dupId) {
     echo json_encode(['error' => 'Missing IDs']);
@@ -16,40 +21,51 @@ if (!$masterId || !$dupId) {
 }
 
 // 1. Get all tags from the duplicate
- $dupTags = [];
- $query = '
-SELECT tag_id 
-FROM '.IMAGE_TAG_TABLE.' 
-WHERE image_id = '.$dupId;
+ $query = 'SELECT tag_id FROM '.IMAGE_TAG_TABLE.' WHERE image_id = '.$dupId;
  $result = pwg_query($query);
-
+ $dupTags = [];
 while ($row = pwg_db_fetch_assoc($result)) {
     $dupTags[] = $row['tag_id'];
 }
 
-// 2. Move tags to Master (avoiding duplicates)
+// 2. Add tags to Master (Using INSERT IGNORE to avoid duplicate errors)
 if (count($dupTags) > 0) {
     foreach ($dupTags as $tagId) {
-        // Check if Master already has this tag
-        $check = pwg_db_fetch_assoc(pwg_query('
-            SELECT image_id FROM '.IMAGE_TAG_TABLE.' 
-            WHERE image_id = '.$masterId.' AND tag_id = '.$tagId
-        '));
-        
-        if (!$check) {
-            // Add tag to Master
-            $insert = array(
-                'image_id' => $masterId,
-                'tag_id' => $tagId,
-            );
-            mass_inserts(IMAGE_TAG_TABLE, array($insert));
-        }
+        $query = 'INSERT IGNORE INTO '.IMAGE_TAG_TABLE.' (image_id, tag_id) VALUES ('.$masterId.', '.$tagId.')';
+        pwg_query($query);
     }
 }
 
-// 3. Delete the duplicate image (Physical file + DB entry)
-include_once(PHPWG_ROOT_PATH.'admin/include/functions.php');
-delete_elements(array($dupId), true);
+// 3. Delete the duplicate image
+ $success = true;
+ $error_msg = '';
 
-echo json_encode(['stat' => 'ok', 'message' => 'Merged and deleted successfully']);
+// Try to delete physical file + DB entry using Piwigo function
+try {
+    include_once(PHPWG_ROOT_PATH.'admin/include/functions.php');
+    delete_elements(array($dupId), true);
+} catch (Exception $e) {
+    // If standard delete fails (e.g. file permission), we fallback to removing DB entry only
+    $success = false;
+    $error_msg = $e->getMessage();
+}
+
+if (!$success) {
+    // Fallback: Just remove from Database so the duplicate disappears from the list
+    // Even if physical file remains, the merge (tags) is successful.
+    $query = 'DELETE FROM '.IMAGES_TABLE.' WHERE id = '.$dupId;
+    pwg_query($query);
+    
+    // Also remove associations
+    $query = 'DELETE FROM '.IMAGE_CATEGORY_TABLE.' WHERE image_id = '.$dupId;
+    pwg_query($query);
+}
+
+// 4. Return result
+echo json_encode([
+    'stat' => 'ok', 
+    'message' => 'Merged and deleted successfully',
+    'deleted_physically' => $success,
+    'note' => $error_msg ? 'File delete failed (DB only): ' . $error_msg : 'File deleted'
+]);
 ?>
