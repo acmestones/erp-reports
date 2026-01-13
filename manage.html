@@ -732,60 +732,85 @@
                 }
             }
 
-            renderDuplicateImages() {
-                const imageGrid = document.getElementById('imageGrid');
-                if (this.currentImages.length === 0) {
-                    imageGrid.innerHTML = '<div class="loading">No duplicate files found</div>';
-                    return;
-                }
+renderDuplicateImages() {
+    const imageGrid = document.getElementById('imageGrid');
+    if (this.currentImages.length === 0) {
+        imageGrid.innerHTML = '<div class="loading">No duplicate files found</div>';
+        return;
+    }
 
-                let html = '';
-                const groups = {};
-                this.currentImages.forEach(img => {
-                    if (!groups[img.groupIndex]) groups[img.groupIndex] = [];
-                    groups[img.groupIndex].push(img);
-                });
+    let html = '';
+    const groups = {};
+    this.currentImages.forEach(img => {
+        if (!groups[img.groupIndex]) groups[img.groupIndex] = [];
+        groups[img.groupIndex].push(img);
+    });
 
-                Object.values(groups).forEach(groupImages => {
-                    const master = groupImages.find(img => img.isMaster);
-                    const duplicates = groupImages.filter(img => !img.isMaster);
+    Object.values(groups).forEach(groupImages => {
+        const master = groupImages.find(img => img.isMaster);
+        const duplicates = groupImages.filter(img => !img.isMaster);
 
-                    html += `
-                    <div class="duplicate-group" style="border: 1px solid #ddd; border-radius: 8px; margin-bottom: 20px; overflow: hidden; background: #fff;">
-                        <div style="background: #e3f2fd; padding: 10px; border-bottom: 1px solid #bbdefb; font-size: 12px; color: #0d47a1;">
-                            <strong>MD5: ${master.groupMd5}</strong> | ${groupImages.length} Copies found
-                        </div>
-                        <div style="padding: 15px; display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px;">
-                            
-                            <!-- MASTER -->
-                            <div style="position: relative; border: 2px solid #4CAF50; padding: 5px; border-radius: 6px;">
-                                <div style="position: absolute; top: 0; left: 0; background: #4CAF50; color: white; font-size: 10px; padding: 2px 6px; border-radius: 4px 0 4px 0;">MASTER</div>
-                                <img src="${this.baseUrl}/i.php?/upload/${master.file}" style="width: 100%; height: 150px; object-fit: cover; border-radius: 4px;">
-                                <div style="font-size: 11px; margin-top: 4px; text-align: center;">ID: ${master.id}</div>
-                            </div>
-
-                            <!-- DUPLICATES -->
-                            ${duplicates.map(dup => `
-                                <div style="position: relative; border: 2px solid #f44336; padding: 5px; border-radius: 6px;">
-                                    <div style="position: absolute; top: 0; left: 0; background: #f44336; color: white; font-size: 10px; padding: 2px 6px; border-radius: 4px 0 4px 0;">DUP</div>
-                                    <img src="${this.baseUrl}/i.php?/upload/${dup.file}" style="width: 100%; height: 150px; object-fit: cover; border-radius: 4px;">
-                                    <div style="font-size: 11px; margin-top: 4px; text-align: center;">ID: ${dup.id}</div>
-                                    
-                                    <button 
-                                        onclick="window.piwigoManager.mergeImage(${master.id}, ${dup.id})"
-                                        style="width: 100%; margin-top: 5px; background: #2196F3; color: white; border: none; padding: 6px; border-radius: 4px; cursor: pointer; font-size: 11px;"
-                                    >
-                                        Merge →
-                                    </button>
-                                </div>
-                            `).join('')}
+        html += `
+        <div class="duplicate-group" style="border: 1px solid #ddd; border-radius: 8px; margin-bottom: 20px; overflow: hidden; background: #fff;">
+            <div style="background: #e3f2fd; padding: 10px; border-bottom: 1px solid #bbdefb; font-size: 12px; color: #0d47a1;">
+                <strong>MD5: ${master.groupMd5}</strong> | ${groupImages.length} Copies found
+            </div>
+            
+            <div style="padding: 15px; display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 15px;">
+                
+                <!-- MASTER -->
+                <div style="position: relative; border: 2px solid #4CAF50; padding: 5px; border-radius: 6px;">
+                    <div style="position: absolute; top: 0; left: 0; background: #4CAF50; color: white; font-size: 10px; padding: 2px 6px; border-radius: 4px 0 4px 0;">MASTER</div>
+                    
+                    <!-- USE PLACEHOLDER & DATA-ATTRIBUTES FOR LAZY LOADING -->
+                    <div class="image-container" style="width: 100%; height: 150px; border-radius: 4px;">
+                        <div class="image-placeholder" data-image-id="${master.id}">
+                            <div class="placeholder-icon">🖼️</div>
+                            <div class="placeholder-id">ID: ${master.id}</div>
+                            <div class="placeholder-file">${master.file || 'No file'}</div>
                         </div>
                     </div>
-                    `;
-                });
 
-                imageGrid.innerHTML = `<div class="grid-container" style="padding: 20px;">${html}</div>`;
-            }
+                    <div style="font-size: 11px; margin-top: 4px; text-align: center; font-weight: bold;">ID: ${master.id}</div>
+                    <div style="font-size: 10px; color: #666; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${master.name}</div>
+                </div>
+
+                <!-- DUPLICATES -->
+                ${duplicates.map(dup => `
+                    <div style="position: relative; border: 2px solid #f44336; padding: 5px; border-radius: 6px;">
+                        <div style="position: absolute; top: 0; left: 0; background: #f44336; color: white; font-size: 10px; padding: 2px 6px; border-radius: 4px 0 4px 0;">DUP</div>
+                        
+                        <!-- USE PLACEHOLDER & DATA-ATTRIBUTES FOR LAZY LOADING -->
+                        <div class="image-container" style="width: 100%; height: 150px; border-radius: 4px;">
+                            <div class="image-placeholder" data-image-id="${dup.id}">
+                                <div class="placeholder-icon">🖼️</div>
+                                <div class="placeholder-id">ID: ${dup.id}</div>
+                                <div class="placeholder-file">${dup.file || 'No file'}</div>
+                            </div>
+                        </div>
+
+                        <div style="font-size: 11px; margin-top: 4px; text-align: center; font-weight: bold;">ID: ${dup.id}</div>
+                        <div style="font-size: 10px; color: #666; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${dup.name}</div>
+                        
+                        <!-- MERGE BUTTON -->
+                        <button 
+                            onclick="window.piwigoManager.mergeImage(${master.id}, ${dup.id})"
+                            style="width: 100%; margin-top: 5px; background: #2196F3; color: white; border: none; padding: 6px; border-radius: 4px; cursor: pointer; font-size: 11px;"
+                        >
+                            Merge →
+                        </button>
+                    </div>
+                `).join('')}
+            </div>
+        </div>
+        `;
+    });
+
+    imageGrid.innerHTML = `<div class="grid-container" style="display: block;">${html}</div>`;
+    
+    // TRIGGER LAZY LOADING AFTER RENDERING
+    this.setupLazyThumbnailLoading(this.currentImages);
+}
 
             async mergeImage(masterId, dupId) {
                 if (!confirm('Merge this duplicate? \n\nTags will be moved to the Master, and the duplicate will be deleted.')) {
