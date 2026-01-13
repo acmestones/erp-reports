@@ -756,13 +756,13 @@ renderDuplicateImages() {
                 <strong>MD5: ${master.groupMd5}</strong> | ${groupImages.length} Copies found
             </div>
             
-            <div style="padding: 15px; display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 15px;">
+            <div style="padding: 15px; display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 15px;">
                 
                 <!-- MASTER -->
-                <div style="position: relative; border: 2px solid #4CAF50; padding: 5px; border-radius: 6px;">
+                <!-- ADDED class="image-item" HERE to enable lazy loading and CSS -->
+                <div class="image-item" style="position: relative; border: 2px solid #4CAF50; padding: 5px; border-radius: 6px;">
                     <div style="position: absolute; top: 0; left: 0; background: #4CAF50; color: white; font-size: 10px; padding: 2px 6px; border-radius: 4px 0 4px 0;">MASTER</div>
                     
-                    <!-- USE PLACEHOLDER & DATA-ATTRIBUTES FOR LAZY LOADING -->
                     <div class="image-container" style="width: 100%; height: 150px; border-radius: 4px;">
                         <div class="image-placeholder" data-image-id="${master.id}">
                             <div class="placeholder-icon">🖼️</div>
@@ -771,16 +771,19 @@ renderDuplicateImages() {
                         </div>
                     </div>
 
-                    <div style="font-size: 11px; margin-top: 4px; text-align: center; font-weight: bold;">ID: ${master.id}</div>
-                    <div style="font-size: 10px; color: #666; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${master.name}</div>
+                    <div class="image-info">
+                        <div class="image-title" style="font-size: 11px; margin-top: 4px; text-align: center; font-weight: bold;">${master.name}</div>
+                        <!-- ADDED TAGS CONTAINER HERE -->
+                        <div class="image-tags" data-image-id="${master.id}"></div>
+                    </div>
                 </div>
 
                 <!-- DUPLICATES -->
                 ${duplicates.map(dup => `
-                    <div style="position: relative; border: 2px solid #f44336; padding: 5px; border-radius: 6px;">
+                    <!-- ADDED class="image-item" HERE -->
+                    <div class="image-item" style="position: relative; border: 2px solid #f44336; padding: 5px; border-radius: 6px;">
                         <div style="position: absolute; top: 0; left: 0; background: #f44336; color: white; font-size: 10px; padding: 2px 6px; border-radius: 4px 0 4px 0;">DUP</div>
                         
-                        <!-- USE PLACEHOLDER & DATA-ATTRIBUTES FOR LAZY LOADING -->
                         <div class="image-container" style="width: 100%; height: 150px; border-radius: 4px;">
                             <div class="image-placeholder" data-image-id="${dup.id}">
                                 <div class="placeholder-icon">🖼️</div>
@@ -789,16 +792,19 @@ renderDuplicateImages() {
                             </div>
                         </div>
 
-                        <div style="font-size: 11px; margin-top: 4px; text-align: center; font-weight: bold;">ID: ${dup.id}</div>
-                        <div style="font-size: 10px; color: #666; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${dup.name}</div>
-                        
-                        <!-- MERGE BUTTON -->
-                        <button 
-                            onclick="window.piwigoManager.mergeImage(${master.id}, ${dup.id})"
-                            style="width: 100%; margin-top: 5px; background: #2196F3; color: white; border: none; padding: 6px; border-radius: 4px; cursor: pointer; font-size: 11px;"
-                        >
-                            Merge →
-                        </button>
+                        <div class="image-info">
+                            <div class="image-title" style="font-size: 11px; margin-top: 4px; text-align: center; font-weight: bold;">${dup.name}</div>
+                            <!-- ADDED TAGS CONTAINER HERE -->
+                            <div class="image-tags" data-image-id="${dup.id}"></div>
+                            
+                            <!-- MERGE BUTTON -->
+                            <button 
+                                onclick="window.piwigoManager.mergeImage(${master.id}, ${dup.id})"
+                                style="width: 100%; margin-top: 5px; background: #2196F3; color: white; border: none; padding: 6px; border-radius: 4px; cursor: pointer; font-size: 11px;"
+                            >
+                                Merge →
+                            </button>
+                        </div>
                     </div>
                 `).join('')}
             </div>
@@ -808,7 +814,7 @@ renderDuplicateImages() {
 
     imageGrid.innerHTML = `<div class="grid-container" style="display: block;">${html}</div>`;
     
-    // TRIGGER LAZY LOADING AFTER RENDERING
+    // This will now find the elements because they have class="image-item"
     this.setupLazyThumbnailLoading(this.currentImages);
 }
 
