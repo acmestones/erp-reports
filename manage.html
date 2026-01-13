@@ -678,59 +678,175 @@
 
             // --- NEW: DUPLICATE HANDLERS ---
 
-            async loadDuplicates() {
-                document.querySelectorAll('.album-item').forEach(item => item.classList.remove('selected'));
-                const dupItem = document.querySelector('[data-album-id="duplicates"]');
-                if (dupItem) dupItem.classList.add('selected');
+async loadDuplicates() {
+    document.querySelectorAll('.album-item').forEach(item => item.classList.remove('selected'));
+    const dupItem = document.querySelector('[data-album-id="duplicates"]');
+    if (dupItem) dupItem.classList.add('selected');
 
-                this.currentAlbumId = 'duplicates';
-                document.getElementById('currentAlbum').textContent = 'Duplicate Files';
-                document.getElementById('imageCount').textContent = '';
-                document.getElementById('tagsPanel').classList.remove('show');
+    this.currentAlbumId = 'duplicates';
+    document.getElementById('currentAlbum').textContent = 'Duplicate Files';
+    document.getElementById('imageCount').textContent = '';
+    document.getElementById('tagsPanel').classList.remove('show');
 
-                const imageGrid = document.getElementById('imageGrid');
-                imageGrid.innerHTML = '<div class="loading"><div class="spinner"></div>Scanning for duplicates...</div>';
-                this.clearSelection();
+    // --- SHOW MERGE SELECTED BUTTON ---
+    const toolbarRight = document.querySelector('.toolbar-right');
+    
+    // Remove existing button if any (cleanup)
+    const existingBtn = document.getElementById('mergeSelectedDuplicatesBtn');
+    if (existingBtn) existingBtn.remove();
+    
+    // Create new button
+    const mergeBtn = document.createElement('button');
+    mergeBtn.id = 'mergeSelectedDuplicatesBtn';
+    mergeBtn.className = 'action-btn';
+    mergeBtn.style.marginLeft = '10px'; // Spacing
+    mergeBtn.style.background = '#2196F3'; // Blue for merge
+    mergeBtn.style.display = 'none'; // Hidden by default
+    mergeBtn.textContent = 'Merge Selected';
+    mergeBtn.addEventListener('click', () => this.mergeSelectedDuplicates());
+    
+    // Insert into toolbar (before mode toggle)
+    const modeToggle = document.getElementById('modeToggle');
+    toolbarRight.insertBefore(mergeBtn, modeToggle);
+    // -----------------------------------
 
-                try {
-                    const response = await fetch(`${this.baseUrl}/manage/find_duplicates.php`, {
-                        credentials: 'include'
-                    });
-                    const data = await response.json();
+    const imageGrid = document.getElementById('imageGrid');
+    imageGrid.innerHTML = '<div class="loading"><div class="spinner"></div>Scanning for duplicates...</div>';
+    this.clearSelection(); // Clear standard selection
 
-                    if (data.error) {
-                        throw new Error(data.error);
-                    }
+    try {
+        const response = await fetch(`${this.baseUrl}/manage/find_duplicates.php`, {
+            credentials: 'include'
+        });
+        const data = await response.json();
 
-                    if (data.total_groups === 0) {
-                        imageGrid.innerHTML = '<div class="loading" style="text-align:center;">No duplicate files found!</div>';
-                        return;
-                    }
+        if (data.error) {
+            throw new Error(data.error);
+        }
 
-                    this.allImages = [];
-                    this.currentImages = [];
+        if (data.total_groups === 0) {
+            imageGrid.innerHTML = '<div class="loading" style="text-align:center;">No duplicate files found!</div>';
+            return;
+        }
 
-                    data.groups.forEach((group, index) => {
-                        group.images.forEach((img, imgIndex) => {
-                            const isMaster = imgIndex === 0;
-                            img.isMaster = isMaster;
-                            img.groupIndex = index;
-                            img.groupMd5 = group.md5;
-                            this.allImages.push(img);
-                        });
-                    });
+        this.allImages = [];
+        this.currentImages = [];
 
-                    this.currentImages = this.allImages;
-                    this.renderDuplicateImages();
-                    const totalFiles = this.allImages.length;
-                    document.getElementById('imageCount').textContent = `${totalFiles} images in ${data.total_groups} groups`;
+        data.groups.forEach((group, index) => {
+            group.images.forEach((img, imgIndex) => {
+                const isMaster = imgIndex === 0;
+                img.isMaster = isMaster;
+                img.groupIndex = index; // Use this for Master ID reference
+                img.groupMd5 = group.md5;
+                this.allImages.push(img);
+            });
+        });
 
-                } catch (error) {
-                    console.error('Failed to load duplicates:', error);
-                    imageGrid.innerHTML = `<div class="loading">Error: ${error.message}</div>`;
-                    this.showStatus('Failed to scan for duplicates', 'error');
+        this.currentImages = this.allImages;
+        this.renderDuplicateImages();
+        const totalFiles = this.allImages.length;
+        document.getElementById('imageCount').textContent = `${totalFiles} images in ${data.total_groups} groups`;
+
+    } catch (error) {
+        console.error('Failed to load duplicates:', error);
+        imageGrid.innerHTML = `<div class="loading">Error: ${error.message}</div>`;
+        this.showStatus('Failed to scan for duplicates', 'error');
+    }
+}
+
+
+
+
+
+
+
+
+
+updateDuplicateSelectionUI() {
+    const checkedBoxes = document.querySelectorAll('.dup-checkbox:checked');
+    const mergeBtn = document.getElementById('mergeSelectedDuplicatesBtn');
+    
+    if (checkedBoxes.length > 0) {
+        mergeBtn.style.display = 'inline-block';
+        mergeBtn.textContent = `Merge Selected (${checkedBoxes.length})`;
+    } else {
+        mergeBtn.style.display = 'none';
+    }
+}
+
+async mergeSelectedDuplicates() {
+    // Get all selected duplicate IDs
+    const checkboxes = document.querySelectorAll('.dup-checkbox:checked');
+    if (checkboxes.length === 0) {
+        this.showStatus('No duplicates selected', 'error');
+        return;
+    }
+
+    if (!confirm(`Merge ${checkboxes.length} selected duplicates into their Masters?`)) {
+        return;
+    }
+
+    this.showStatus(`Merging ${checkboxes.length} images...`, 'success');
+
+    // Group by Master ID to optimize (calls PHP once per master, not per duplicate)
+    const map = new Map();
+    checkboxes.forEach(box => {
+        const masterId = box.dataset.masterId;
+        const dupId = box.dataset.id;
+        
+        if (!map.has(masterId)) {
+            map.set(masterId, []);
+        }
+        map.get(masterId).push(dupId);
+    });
+
+    let successCount = 0;
+    let errorCount = 0;
+
+    // Loop through each master and merge its list of duplicates
+    for (const [masterId, dupIds] of map.entries()) {
+        for (const dupId of dupIds) {
+            try {
+                const formData = new FormData();
+                formData.append('master_id', masterId);
+                formData.append('dup_id', dupId);
+
+                const response = await fetch(`${this.baseUrl}/manage/merge_duplicate.php`, {
+                    method: 'POST',
+                    body: formData,
+                    credentials: 'include'
+                });
+
+                const result = await response.json();
+                
+                if (result.stat === 'ok') {
+                    successCount++;
+                } else {
+                    console.error('Merge failed for:', dupId, result.message);
+                    errorCount++;
                 }
+            } catch (error) {
+                console.error('Network error for:', dupId, error);
+                errorCount++;
             }
+        }
+    }
+
+    if (errorCount > 0) {
+        this.showStatus(`Merge completed with ${errorCount} errors`, 'warning');
+    } else {
+        this.showStatus(`Successfully merged ${successCount} images`, 'success');
+    }
+
+    // Reload the view to show updated state
+    await this.loadDuplicates();
+}
+
+
+
+
+            
+            
 
 renderDuplicateImages() {
     const imageGrid = document.getElementById('imageGrid');
