@@ -1,5 +1,10 @@
 <?php
-define('PHPWG_ROOT_PATH', '../../'); // Adjust path as needed
+// Enable all error reporting so we can see what is wrong
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
+
+define('PHPWG_ROOT_PATH', '../');
 include_once(PHPWG_ROOT_PATH.'include/common.inc.php');
 
 if (!is_admin()) {
