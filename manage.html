@@ -759,12 +759,13 @@ renderDuplicateImages() {
             <div style="padding: 15px; display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 15px;">
                 
                 <!-- MASTER -->
-                <!-- ADDED class="image-item" HERE to enable lazy loading and CSS -->
-                <div class="image-item" style="position: relative; border: 2px solid #4CAF50; padding: 5px; border-radius: 6px;">
+                <!-- FIXED: Moved data-image-id HERE to the outer wrapper -->
+                <div class="image-item" data-image-id="${master.id}" style="position: relative; border: 2px solid #4CAF50; padding: 5px; border-radius: 6px;">
                     <div style="position: absolute; top: 0; left: 0; background: #4CAF50; color: white; font-size: 10px; padding: 2px 6px; border-radius: 4px 0 4px 0;">MASTER</div>
                     
                     <div class="image-container" style="width: 100%; height: 150px; border-radius: 4px;">
-                        <div class="image-placeholder" data-image-id="${master.id}">
+                        <!-- data-image-id REMOVED from here -->
+                        <div class="image-placeholder">
                             <div class="placeholder-icon">🖼️</div>
                             <div class="placeholder-id">ID: ${master.id}</div>
                             <div class="placeholder-file">${master.file || 'No file'}</div>
@@ -773,19 +774,19 @@ renderDuplicateImages() {
 
                     <div class="image-info">
                         <div class="image-title" style="font-size: 11px; margin-top: 4px; text-align: center; font-weight: bold;">${master.name}</div>
-                        <!-- ADDED TAGS CONTAINER HERE -->
                         <div class="image-tags" data-image-id="${master.id}"></div>
                     </div>
                 </div>
 
                 <!-- DUPLICATES -->
                 ${duplicates.map(dup => `
-                    <!-- ADDED class="image-item" HERE -->
-                    <div class="image-item" style="position: relative; border: 2px solid #f44336; padding: 5px; border-radius: 6px;">
+                    <!-- FIXED: Moved data-image-id HERE to the outer wrapper -->
+                    <div class="image-item" data-image-id="${dup.id}" style="position: relative; border: 2px solid #f44336; padding: 5px; border-radius: 6px;">
                         <div style="position: absolute; top: 0; left: 0; background: #f44336; color: white; font-size: 10px; padding: 2px 6px; border-radius: 4px 0 4px 0;">DUP</div>
                         
                         <div class="image-container" style="width: 100%; height: 150px; border-radius: 4px;">
-                            <div class="image-placeholder" data-image-id="${dup.id}">
+                            <!-- data-image-id REMOVED from here -->
+                            <div class="image-placeholder">
                                 <div class="placeholder-icon">🖼️</div>
                                 <div class="placeholder-id">ID: ${dup.id}</div>
                                 <div class="placeholder-file">${dup.file || 'No file'}</div>
@@ -794,7 +795,6 @@ renderDuplicateImages() {
 
                         <div class="image-info">
                             <div class="image-title" style="font-size: 11px; margin-top: 4px; text-align: center; font-weight: bold;">${dup.name}</div>
-                            <!-- ADDED TAGS CONTAINER HERE -->
                             <div class="image-tags" data-image-id="${dup.id}"></div>
                             
                             <!-- MERGE BUTTON -->
@@ -814,7 +814,7 @@ renderDuplicateImages() {
 
     imageGrid.innerHTML = `<div class="grid-container" style="display: block;">${html}</div>`;
     
-    // This will now find the elements because they have class="image-item"
+    // This will now correctly find the parent, then the child placeholder
     this.setupLazyThumbnailLoading(this.currentImages);
 }
 
