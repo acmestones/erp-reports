@@ -1,9 +1,4 @@
 <?php
-// Enable all error reporting so we can see what is wrong
-ini_set('display_errors', 1);
-ini_set('display_startup_errors', 1);
-error_reporting(E_ALL);
-
 define('PHPWG_ROOT_PATH', '../');
 include_once(PHPWG_ROOT_PATH.'include/common.inc.php');
 
@@ -12,17 +7,20 @@ if (!is_admin()) {
     exit;
 }
 
-// 1. Get all images with their MD5 checksums
+// 1. Get all images WITH their MD5 checksums
+// IMPORTANT: We MUST select 'md5sum' column
  $query = '
-SELECT id, file, path, name 
+SELECT id, file, path, name, md5sum 
 FROM '.IMAGES_TABLE.' 
 WHERE md5sum IS NOT NULL 
-ORDER BY md5sum, id;';
+ORDER BY md5sum, id ASC';
+
  $result = pwg_query($query);
 
  $map = [];
 while ($row = pwg_db_fetch_assoc($result)) {
     $md5 = $row['md5sum'];
+    // Use md5 as the key for grouping
     if (!isset($map[$md5])) {
         $map[$md5] = [];
     }
