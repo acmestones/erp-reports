@@ -732,92 +732,308 @@
                 }
             }
 
+
+            
+            
+            
 renderDuplicateImages() {
     const imageGrid = document.getElementById('imageGrid');
+    
     if (this.currentImages.length === 0) {
-        imageGrid.innerHTML = '<div class="loading">No duplicate files found</div>';
+        imageGrid.innerHTML = `<div class="loading">No duplicate files found</div>`;
         return;
     }
 
-    let html = '';
+    // Add controls toolbar
+    let html = `
+        <div class="duplicate-controls">
+            <div class="duplicate-controls-left">
+                <button class="duplicate-select-btn" id="selectAllDuplicates">Select All</button>
+                <button class="duplicate-select-btn" id="clearAllDuplicates">Clear All</button>
+            </div>
+            <div class="duplicate-controls-right">
+                <span class="duplicate-selection-count" id="duplicateSelectionCount">0 groups selected</span>
+                <button class="duplicate-merge-all-btn" id="mergeAllSelectedBtn" disabled>
+                    Merge All Selected
+                </button>
+            </div>
+        </div>
+    `;
+
+    // Group images by MD5
     const groups = {};
     this.currentImages.forEach(img => {
-        if (!groups[img.groupIndex]) groups[img.groupIndex] = [];
+        if (!groups[img.groupIndex]) {
+            groups[img.groupIndex] = [];
+        }
         groups[img.groupIndex].push(img);
     });
 
+    // Render groups
     Object.values(groups).forEach(groupImages => {
         const master = groupImages.find(img => img.isMaster);
         const duplicates = groupImages.filter(img => !img.isMaster);
+        const groupId = `group-${master.groupIndex}`;
+        const isSelected = this.selectedDuplicates.has(groupId);
 
         html += `
-        <div class="duplicate-group" style="border: 1px solid #ddd; border-radius: 8px; margin-bottom: 20px; overflow: hidden; background: #fff;">
-            <div style="background: #e3f2fd; padding: 10px; border-bottom: 1px solid #bbdefb; font-size: 12px; color: #0d47a1;">
-                <strong>MD5: ${master.groupMd5}</strong> | ${groupImages.length} Copies found
-            </div>
-            
-            <div style="padding: 15px; display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 15px;">
-                
-                <!-- MASTER -->
-                <!-- FIXED: Moved data-image-id HERE to the outer wrapper -->
-                <div class="image-item" data-image-id="${master.id}" style="position: relative; border: 2px solid #4CAF50; padding: 5px; border-radius: 6px;">
-                    <div style="position: absolute; top: 0; left: 0; background: #4CAF50; color: white; font-size: 10px; padding: 2px 6px; border-radius: 4px 0 4px 0;">MASTER</div>
-                    
-                    <div class="image-container" style="width: 100%; height: 150px; border-radius: 4px;">
-                        <!-- data-image-id REMOVED from here -->
-                        <div class="image-placeholder">
-                            <div class="placeholder-icon">🖼️</div>
-                            <div class="placeholder-id">ID: ${master.id}</div>
-                            <div class="placeholder-file">${master.file || 'No file'}</div>
-                        </div>
+            <div class="duplicate-group ${isSelected ? 'selected' : ''}" id="${groupId}" data-group-id="${groupId}" data-master-id="${master.id}">
+                <div style="background: #e3f2fd; padding: 10px; border-bottom: 1px solid #bbdefb; font-size: 12px; color: #0d47a1; display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <strong>MD5: ${master.groupMd5}</strong> — ${groupImages.length} Copies found
                     </div>
-
-                    <div class="image-info">
-                        <div class="image-title" style="font-size: 11px; margin-top: 4px; text-align: center; font-weight: bold;">${master.name}</div>
-                        <div class="image-tags" data-image-id="${master.id}"></div>
-                    </div>
+                    <input type="checkbox" class="duplicate-checkbox" data-group-id="${groupId}" ${isSelected ? 'checked' : ''}>
                 </div>
-
-                <!-- DUPLICATES -->
-                ${duplicates.map(dup => `
-                    <!-- FIXED: Moved data-image-id HERE to the outer wrapper -->
-                    <div class="image-item" data-image-id="${dup.id}" style="position: relative; border: 2px solid #f44336; padding: 5px; border-radius: 6px;">
-                        <div style="position: absolute; top: 0; left: 0; background: #f44336; color: white; font-size: 10px; padding: 2px 6px; border-radius: 4px 0 4px 0;">DUP</div>
-                        
+                <div style="padding: 15px; display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 15px;">
+                    <!-- MASTER -->
+                    <div class="image-item" data-image-id="${master.id}" style="position: relative; border: 2px solid #4CAF50; padding: 5px; border-radius: 6px;">
+                        <div style="position: absolute; top: 0; left: 0; background: #4CAF50; color: white; font-size: 10px; padding: 2px 6px; border-radius: 4px 0 4px 0;">MASTER</div>
                         <div class="image-container" style="width: 100%; height: 150px; border-radius: 4px;">
-                            <!-- data-image-id REMOVED from here -->
                             <div class="image-placeholder">
-                                <div class="placeholder-icon">🖼️</div>
-                                <div class="placeholder-id">ID: ${dup.id}</div>
-                                <div class="placeholder-file">${dup.file || 'No file'}</div>
+                                <div class="placeholder-icon">📷</div>
+                                <div class="placeholder-id">ID: ${master.id}</div>
+                                <div class="placeholder-file">${master.file || 'No file'}</div>
                             </div>
                         </div>
-
                         <div class="image-info">
-                            <div class="image-title" style="font-size: 11px; margin-top: 4px; text-align: center; font-weight: bold;">${dup.name}</div>
-                            <div class="image-tags" data-image-id="${dup.id}"></div>
-                            
-                            <!-- MERGE BUTTON -->
-                            <button 
-                                onclick="window.piwigoManager.mergeImage(${master.id}, ${dup.id})"
-                                style="width: 100%; margin-top: 5px; background: #2196F3; color: white; border: none; padding: 6px; border-radius: 4px; cursor: pointer; font-size: 11px;"
-                            >
-                                Merge →
-                            </button>
+                            <div class="image-title" style="font-size: 11px; margin-top: 4px; text-align: center; font-weight: bold;">${master.name}</div>
                         </div>
+                        <div class="image-tags" data-image-id="${master.id}"></div>
                     </div>
-                `).join('')}
+                    
+                    <!-- DUPLICATES -->
+                    ${duplicates.map(dup => `
+                        <div class="image-item" data-image-id="${dup.id}" style="position: relative; border: 2px solid #f44336; padding: 5px; border-radius: 6px;" data-dup-id="${dup.id}">
+                            <div style="position: absolute; top: 0; left: 0; background: #f44336; color: white; font-size: 10px; padding: 2px 6px; border-radius: 4px 0 4px 0;">DUP</div>
+                            <div class="image-container" style="width: 100%; height: 150px; border-radius: 4px;">
+                                <div class="image-placeholder">
+                                    <div class="placeholder-icon">📷</div>
+                                    <div class="placeholder-id">ID: ${dup.id}</div>
+                                    <div class="placeholder-file">${dup.file || 'No file'}</div>
+                                </div>
+                            </div>
+                            <div class="image-info">
+                                <div class="image-title" style="font-size: 11px; margin-top: 4px; text-align: center; font-weight: bold;">${dup.name}</div>
+                            </div>
+                            <div class="image-tags" data-image-id="${dup.id}"></div>
+                        </div>
+                    `).join('')}
+                </div>
             </div>
-        </div>
         `;
     });
 
     imageGrid.innerHTML = `<div class="grid-container" style="display: block;">${html}</div>`;
     
-    // This will now correctly find the parent, then the child placeholder
+    // Setup event listeners
+    this.setupDuplicateControls();
     this.setupLazyThumbnailLoading(this.currentImages);
 }
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+setupDuplicateControls() {
+    // Select All button
+    const selectAllBtn = document.getElementById('selectAllDuplicates');
+    if (selectAllBtn) {
+        selectAllBtn.addEventListener('click', () => this.selectAllDuplicateGroups());
+    }
+
+    // Clear All button
+    const clearAllBtn = document.getElementById('clearAllDuplicates');
+    if (clearAllBtn) {
+        clearAllBtn.addEventListener('click', () => this.clearAllDuplicateGroups());
+    }
+
+    // Merge All Selected button
+    const mergeAllBtn = document.getElementById('mergeAllSelectedBtn');
+    if (mergeAllBtn) {
+        mergeAllBtn.addEventListener('click', () => this.mergeAllSelectedDuplicates());
+    }
+
+    // Checkbox listeners
+    document.querySelectorAll('.duplicate-checkbox').forEach(checkbox => {
+        checkbox.addEventListener('change', (e) => {
+            const groupId = e.target.dataset.groupId;
+            this.toggleDuplicateGroupSelection(groupId);
+        });
+    });
+}
+
+selectAllDuplicateGroups() {
+    document.querySelectorAll('.duplicate-group').forEach(group => {
+        const groupId = group.dataset.groupId;
+        this.selectedDuplicates.add(groupId);
+        group.classList.add('selected');
+        const checkbox = group.querySelector('.duplicate-checkbox');
+        if (checkbox) checkbox.checked = true;
+    });
+    this.updateDuplicateSelectionUI();
+}
+
+clearAllDuplicateGroups() {
+    this.selectedDuplicates.clear();
+    document.querySelectorAll('.duplicate-group').forEach(group => {
+        group.classList.remove('selected');
+        const checkbox = group.querySelector('.duplicate-checkbox');
+        if (checkbox) checkbox.checked = false;
+    });
+    this.updateDuplicateSelectionUI();
+}
+
+toggleDuplicateGroupSelection(groupId) {
+    const group = document.getElementById(groupId);
+    if (!group) return;
+
+    if (this.selectedDuplicates.has(groupId)) {
+        this.selectedDuplicates.delete(groupId);
+        group.classList.remove('selected');
+    } else {
+        this.selectedDuplicates.add(groupId);
+        group.classList.add('selected');
+    }
+    
+    this.updateDuplicateSelectionUI();
+}
+
+updateDuplicateSelectionUI() {
+    const countEl = document.getElementById('duplicateSelectionCount');
+    const mergeBtn = document.getElementById('mergeAllSelectedBtn');
+    
+    if (countEl) {
+        countEl.textContent = `${this.selectedDuplicates.size} groups selected`;
+    }
+    
+    if (mergeBtn) {
+        mergeBtn.disabled = this.selectedDuplicates.size === 0;
+    }
+}
+
+async mergeAllSelectedDuplicates() {
+    if (this.selectedDuplicates.size === 0) {
+        this.showStatus('No duplicate groups selected', 'error');
+        return;
+    }
+
+    const totalGroups = this.selectedDuplicates.size;
+    let totalDuplicates = 0;
+    
+    // Count total duplicates
+    this.selectedDuplicates.forEach(groupId => {
+        const group = document.getElementById(groupId);
+        if (group) {
+            const dupCount = group.querySelectorAll('[data-dup-id]').length;
+            totalDuplicates += dupCount;
+        }
+    });
+
+    if (!confirm(`Merge ${totalGroups} duplicate groups (${totalDuplicates} duplicate images)?\n\nThis will:\n- Transfer all tags to master images\n- Delete duplicate images\n\nThis action cannot be undone.`)) {
+        return;
+    }
+
+    this.showStatus(`Merging ${totalGroups} groups...`, 'success');
+    
+    let successCount = 0;
+    let failCount = 0;
+    const errors = [];
+
+    for (const groupId of this.selectedDuplicates) {
+        const group = document.getElementById(groupId);
+        if (!group) continue;
+
+        const masterId = group.dataset.masterId;
+        const duplicates = group.querySelectorAll('[data-dup-id]');
+
+        for (const dupElement of duplicates) {
+            const dupId = dupElement.dataset.dupId;
+            
+            try {
+                const formData = new FormData();
+                formData.append('master_id', masterId);
+                formData.append('dup_id', dupId);
+
+                const response = await fetch(`${this.baseUrl}/manage/merge_duplicate.php`, {
+                    method: 'POST',
+                    body: formData,
+                    credentials: 'include'
+                });
+
+                const result = await response.json();
+
+                if (result.stat === 'ok') {
+                    successCount++;
+                } else {
+                    failCount++;
+                    errors.push(`Group ${groupId}: ${result.message || 'Unknown error'}`);
+                }
+            } catch (error) {
+                failCount++;
+                errors.push(`Group ${groupId}: ${error.message}`);
+                console.error('Merge error:', error);
+            }
+        }
+    }
+
+    // Show results
+    if (failCount === 0) {
+        this.showStatus(`Successfully merged ${successCount} duplicates from ${totalGroups} groups`, 'success');
+    } else {
+        this.showStatus(`Merged ${successCount} duplicates, ${failCount} failed`, 'error');
+        console.error('Merge errors:', errors);
+    }
+
+    // Reload duplicates view
+    this.selectedDuplicates.clear();
+    await this.loadDuplicates();
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+            
+
+
+
+
+
+
+
+
+
+
+            
+
+
+
+
+
+            
             async mergeImage(masterId, dupId) {
                 if (!confirm('Merge this duplicate? \n\nTags will be moved to the Master, and the duplicate will be deleted.')) {
                     return;
