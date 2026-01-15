@@ -690,9 +690,16 @@ async loadDuplicates() {
 
     // --- SHOW MERGE SELECTED BUTTON ---
     const toolbarRight = document.querySelector('.toolbar-right');
-    
-    // IMPORTANT: Check if toolbar exists to prevent crash
-    if (toolbarRight) {
+
+    // --- START OF ROBUST FIX ---
+    // Check if the elements exist before trying to use them
+    if (!toolbarRight || !modeToggle) {
+        console.warn('Toolbar elements not found yet, skipping button creation.');
+        // We exit early so we don't crash
+        return; 
+    }
+
+    try {
         // Remove existing button if any (cleanup)
         const existingBtn = document.getElementById('mergeSelectedDuplicatesBtn');
         if (existingBtn) existingBtn.remove();
@@ -708,10 +715,14 @@ async loadDuplicates() {
         mergeBtn.addEventListener('click', () => this.mergeSelectedDuplicates());
         
         // Insert into toolbar (before mode toggle)
-        const modeToggle = document.getElementById('modeToggle');
+        // SAFETY CHECK: Ensure we are not inserting into a null node
         if (modeToggle) {
             toolbarRight.insertBefore(mergeBtn, modeToggle);
+        } else {
+            console.error('Mode toggle not found, cannot insert button.');
         }
+    } catch (e) {
+        console.error('Error creating Merge button:', e);
     }
     // -----------------------------------
 
@@ -758,7 +769,6 @@ async loadDuplicates() {
         this.showStatus('Failed to scan for duplicates', 'error');
     }
 }
-
 
 
 
