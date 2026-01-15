@@ -780,12 +780,17 @@ async loadDuplicates() {
             
             
 
-renderDuplicateImages() {
-    const imageGrid = document.getElementById('imageGrid');
-    if (this.currentImages.length === 0) {
-        imageGrid.innerHTML = '<div class="loading">No duplicate files found</div>';
-        return;
-    }
+            renderDuplicateImages() {
+                const imageGrid = document.getElementById('imageGrid');
+                
+                // SAFETY CHECK: Only rebuild if we are actually switching content or grid is empty
+                // This prevents destroying your selection state if the function is called unnecessarily
+                if (imageGrid.innerHTML === '' || imageGrid.innerHTML.includes('No duplicate files found')) {
+                    // Proceed with render...
+                } else {
+                    console.log('Skipping render, grid already populated');
+                    return; 
+                }
 
     let html = '';
     const groups = {};
@@ -2167,6 +2172,25 @@ renderDuplicateImages() {
     }
 }
 
+
+
+
+           selectAllDuplicates(groupIndex) {
+                const allCheckboxes = document.querySelectorAll(`.dup-checkbox[data-master-id="${groupIndex}"]`);
+                
+                // Uncheck all first to ensure clean state
+                allCheckboxes.forEach(box => box.checked = false);
+                
+                // Then check all
+                allCheckboxes.forEach(box => box.checked = true);
+                
+                // Update UI
+                this.updateDuplicateSelectionUI();
+            }
+
+            
+
+            
 async mergeSelectedDuplicates() {
     // Get all selected duplicate IDs
     const checkboxes = document.querySelectorAll('.dup-checkbox:checked');
