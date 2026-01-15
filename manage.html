@@ -2156,7 +2156,23 @@ async loadDuplicates() {
         
         
         
-        
+
+
+           selectAllDuplicates(groupIndex) {
+                const allCheckboxes = document.querySelectorAll(`.dup-checkbox[data-master-id="${groupIndex}"]`);
+                
+                // Uncheck all first to ensure clean state
+                allCheckboxes.forEach(box => box.checked = false);
+                
+                // Then check all
+                allCheckboxes.forEach(box => box.checked = true);
+                
+                // Update UI
+                this.updateDuplicateSelectionUI();
+            }
+
+
+            
         
         
         updateDuplicateSelectionUI() {
@@ -2174,18 +2190,7 @@ async loadDuplicates() {
 
 
 
-           selectAllDuplicates(groupIndex) {
-                const allCheckboxes = document.querySelectorAll(`.dup-checkbox[data-master-id="${groupIndex}"]`);
-                
-                // Uncheck all first to ensure clean state
-                allCheckboxes.forEach(box => box.checked = false);
-                
-                // Then check all
-                allCheckboxes.forEach(box => box.checked = true);
-                
-                // Update UI
-                this.updateDuplicateSelectionUI();
-            }
+
 
             
 
