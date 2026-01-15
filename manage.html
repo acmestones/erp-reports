@@ -779,11 +779,13 @@ renderDuplicateImages() {
 
         html += `
             <div class="duplicate-group ${isSelected ? 'selected' : ''}" id="${groupId}" data-group-id="${groupId}" data-master-id="${master.id}">
-                <div style="background: #e3f2fd; padding: 10px; border-bottom: 1px solid #bbdefb; font-size: 12px; color: #0d47a1; display: flex; justify-content: space-between; align-items: center;">
-                    <div>
+                <div class="duplicate-group-header" data-group-id="${groupId}" style="background: #e3f2fd; padding: 10px; border-bottom: 1px solid #bbdefb; font-size: 12px; color: #0d47a1; display: flex; justify-content: space-between; align-items: center; cursor: pointer;">
+                    <div style="pointer-events: none;">
                         <strong>MD5: ${master.groupMd5}</strong> — ${groupImages.length} Copies found
                     </div>
-                    <input type="checkbox" class="duplicate-checkbox" data-group-id="${groupId}" ${isSelected ? 'checked' : ''}>
+                    <label style="display: flex; align-items: center; cursor: pointer; margin: 0;">
+                        <input type="checkbox" class="duplicate-checkbox" data-group-id="${groupId}" ${isSelected ? 'checked' : ''} style="width: 18px; height: 18px; cursor: pointer;">
+                    </label>
                 </div>
                 <div style="padding: 15px; display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 15px;">
                     <!-- MASTER -->
@@ -845,6 +847,7 @@ renderDuplicateImages() {
 
 
 
+
 setupDuplicateControls() {
     // Select All button
     const selectAllBtn = document.getElementById('selectAllDuplicates');
@@ -864,14 +867,35 @@ setupDuplicateControls() {
         mergeAllBtn.addEventListener('click', () => this.mergeAllSelectedDuplicates());
     }
 
-    // Checkbox listeners
+    // Checkbox listeners - handle direct checkbox changes
     document.querySelectorAll('.duplicate-checkbox').forEach(checkbox => {
         checkbox.addEventListener('change', (e) => {
+            e.stopPropagation(); // Prevent triggering header click
             const groupId = e.target.dataset.groupId;
             this.toggleDuplicateGroupSelection(groupId);
         });
     });
+
+    // Group header click listeners - clicking anywhere on header toggles selection
+    document.querySelectorAll('.duplicate-group-header').forEach(header => {
+        header.addEventListener('click', (e) => {
+            // Don't toggle if clicking directly on checkbox (it handles itself)
+            if (e.target.classList.contains('duplicate-checkbox')) {
+                return;
+            }
+            
+            const groupId = header.dataset.groupId;
+            this.toggleDuplicateGroupSelection(groupId);
+            
+            // Update checkbox state
+            const checkbox = header.querySelector('.duplicate-checkbox');
+            if (checkbox) {
+                checkbox.checked = this.selectedDuplicates.has(groupId);
+            }
+        });
+    });
 }
+
 
 selectAllDuplicateGroups() {
     document.querySelectorAll('.duplicate-group').forEach(group => {
@@ -898,16 +922,21 @@ toggleDuplicateGroupSelection(groupId) {
     const group = document.getElementById(groupId);
     if (!group) return;
 
+    const checkbox = group.querySelector('.duplicate-checkbox');
+
     if (this.selectedDuplicates.has(groupId)) {
         this.selectedDuplicates.delete(groupId);
         group.classList.remove('selected');
+        if (checkbox) checkbox.checked = false;
     } else {
         this.selectedDuplicates.add(groupId);
         group.classList.add('selected');
+        if (checkbox) checkbox.checked = true;
     }
     
     this.updateDuplicateSelectionUI();
 }
+
 
 updateDuplicateSelectionUI() {
     const countEl = document.getElementById('duplicateSelectionCount');
