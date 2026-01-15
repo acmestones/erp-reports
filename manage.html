@@ -691,23 +691,28 @@ async loadDuplicates() {
     // --- SHOW MERGE SELECTED BUTTON ---
     const toolbarRight = document.querySelector('.toolbar-right');
     
-    // Remove existing button if any (cleanup)
-    const existingBtn = document.getElementById('mergeSelectedDuplicatesBtn');
-    if (existingBtn) existingBtn.remove();
-    
-    // Create new button
-    const mergeBtn = document.createElement('button');
-    mergeBtn.id = 'mergeSelectedDuplicatesBtn';
-    mergeBtn.className = 'action-btn';
-    mergeBtn.style.marginLeft = '10px'; // Spacing
-    mergeBtn.style.background = '#2196F3'; // Blue for merge
-    mergeBtn.style.display = 'none'; // Hidden by default
-    mergeBtn.textContent = 'Merge Selected';
-    mergeBtn.addEventListener('click', () => this.mergeSelectedDuplicates());
-    
-    // Insert into toolbar (before mode toggle)
-    const modeToggle = document.getElementById('modeToggle');
-    toolbarRight.insertBefore(mergeBtn, modeToggle);
+    // IMPORTANT: Check if toolbar exists to prevent crash
+    if (toolbarRight) {
+        // Remove existing button if any (cleanup)
+        const existingBtn = document.getElementById('mergeSelectedDuplicatesBtn');
+        if (existingBtn) existingBtn.remove();
+        
+        // Create new button
+        const mergeBtn = document.createElement('button');
+        mergeBtn.id = 'mergeSelectedDuplicatesBtn';
+        mergeBtn.className = 'action-btn';
+        mergeBtn.style.marginLeft = '10px';
+        mergeBtn.style.background = '#2196F3';
+        mergeBtn.style.display = 'none';
+        mergeBtn.textContent = 'Merge Selected';
+        mergeBtn.addEventListener('click', () => this.mergeSelectedDuplicates());
+        
+        // Insert into toolbar (before mode toggle)
+        const modeToggle = document.getElementById('modeToggle');
+        if (modeToggle) {
+            toolbarRight.insertBefore(mergeBtn, modeToggle);
+        }
+    }
     // -----------------------------------
 
     const imageGrid = document.getElementById('imageGrid');
