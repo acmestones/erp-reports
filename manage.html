@@ -779,7 +779,6 @@ async loadDuplicates() {
 
             
             
-
             renderDuplicateImages() {
                 const imageGrid = document.getElementById('imageGrid');
                 
@@ -792,108 +791,106 @@ async loadDuplicates() {
                     return; 
                 }
 
-    let html = '';
-    const groups = {};
-    this.currentImages.forEach(img => {
-        if (!groups[img.groupIndex]) groups[img.groupIndex] = [];
-        groups[img.groupIndex].push(img);
-    });
-
-    Object.values(groups).forEach((groupImages, groupIndex) => {
-        const master = groupImages.find(img => img.isMaster);
-        const duplicates = groupImages.filter(img => !img.isMaster);
-
-        html += `
-        <div class="duplicate-group" style="border: 1px solid #ddd; border-radius: 8px; margin-bottom: 20px; overflow: hidden; background: #fff;">
-            
-            <!-- GROUP HEADER WITH SELECT ALL -->
-            <div style="background: #f5f5f5; padding: 8px 10px; border-bottom: 1px solid #e0e0e0; display: flex; justify-content: space-between; align-items: center;">
-                <div style="font-size: 12px; color: #333;">
-                    <strong>MD5: ${master.groupMd5}</strong> | ${groupImages.length} Copies found
-                </div>
+                const imageGrid = document.getElementById('imageGrid');
                 
-                <label style="font-size: 12px; color: #666; cursor: pointer; display: flex; align-items: center; gap: 5px;">
-                    <input type="checkbox" class="dup-select-all" data-group-index="${groupIndex}" style="cursor: pointer;">
-                    <span>Select All Duplicates</span>
-                </label>
-            </div>
-            
-            <div style="padding: 15px; display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 15px;">
+                let html = '';
+                const groups = {};
+                this.currentImages.forEach(img => {
+                    if (!groups[img.groupIndex]) groups[img.groupIndex] = [];
+                    groups[img.groupIndex].push(img);
+                });
 
-            
+                Object.values(groups).forEach((groupImages, groupIndex) => {
+                    const master = groupImages.find(img => img.isMaster);
+                    const duplicates = groupImages.filter(img => !img.isMaster);
+
+                    html += `
+                    <div class="duplicate-group" style="border: 1px solid #ddd; border-radius: 8px; margin-bottom: 20px; overflow: hidden; background: #fff;">
                 
-                <!-- MASTER -->
-                <div class="image-item" data-image-id="${master.id}" style="position: relative; border: 2px solid #4CAF50; padding: 5px; border-radius: 6px;">
-                    <div style="position: absolute; top: 0; left: 0; background: #4CAF50; color: white; font-size: 10px; padding: 2px 6px; border-radius: 4px 0 4px 0;">MASTER</div>
-                    
-                    <div class="image-container" style="width: 100%; height: 150px; border-radius: 4px;">
-                        <div class="image-placeholder">
-                            <div class="placeholder-icon">🖼️</div>
-                            <div class="placeholder-id">ID: ${master.id}</div>
-                            <div class="placeholder-file">${master.file || 'No file'}</div>
-                        </div>
-                    </div>
-
-                    <div class="image-info">
-                        <div class="image-title" style="font-size: 11px; margin-top: 4px; text-align: center; font-weight: bold;">${master.name}</div>
-                        <div class="image-tags" data-image-id="${master.id}"></div>
-                    </div>
-                </div>
-
-                <!-- DUPLICATES -->
-                ${duplicates.map(dup => `
-                    <div class="image-item" data-image-id="${dup.id}" style="position: relative; border: 2px solid #f44336; padding: 5px; border-radius: 6px;">
-                        <!-- CHECKBOX ADDED HERE -->
-                        <div style="position: absolute; top: 5px; right: 5px; z-index: 10;">
-                            <input type="checkbox" class="dup-checkbox" data-id="${dup.id}" data-master-id="${master.id}" style="cursor: pointer; width: 18px; height: 18px;">
-                        </div>
-                        
-                        <div style="position: absolute; top: 0; left: 0; background: #f44336; color: white; font-size: 10px; padding: 2px 6px; border-radius: 4px 0 4px 0;">DUP</div>
-                        
-                        <div class="image-container" style="width: 100%; height: 150px; border-radius: 4px;">
-                            <div class="image-placeholder">
-                                <div class="placeholder-icon">🖼️</div>
-                                <div class="placeholder-id">ID: ${dup.id}</div>
-                                <div class="placeholder-file">${dup.file || 'No file'}</div>
+                        <!-- GROUP HEADER WITH SELECT ALL -->
+                        <div style="background: #f5f5f5; padding: 8px 10px; border-bottom: 1px solid #e0e0e0; display: flex; justify-content: space-between; align-items: center;">
+                            <div style="font-size: 12px; color: #333;">
+                                <strong>MD5: ${master.groupMd5}</strong> | ${groupImages.length} Copies found
                             </div>
+                            
+                            <label style="font-size: 12px; color: #666; cursor: pointer; display: flex; align-items: center; gap: 5px;">
+                                <input type="checkbox" class="dup-select-all" data-group-index="${groupIndex}" style="cursor: pointer;">
+                                <span>Select All Duplicates</span>
+                            </label>
                         </div>
+                    
+                        <div style="padding: 15px; display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 15px;">
+                
+                            <!-- MASTER -->
+                            <div class="image-item" data-image-id="${master.id}" style="position: relative; border: 2px solid #4CAF50; padding: 5px; border-radius: 6px;">
+                                <div style="position: absolute; top: 0; left: 0; background: #4CAF50; color: white; font-size: 10px; padding: 2px 6px; border-radius: 4px 0 4px 0;">MASTER</div>
+                                
+                                <div class="image-container" style="width: 100%; height: 150px; border-radius: 4px;">
+                                    <div class="image-placeholder">
+                                        <div class="placeholder-icon">🖼️</div>
+                                        <div class="placeholder-id">ID: ${master.id}</div>
+                                        <div class="placeholder-file">${master.file || 'No file'}</div>
+                                    </div>
+                                </div>
 
-                        <div class="image-info">
-                            <div class="image-title" style="font-size: 11px; margin-top: 4px; text-align: center; font-weight: bold;">${dup.name}</div>
-                            <div class="image-tags" data-image-id="${dup.id}"></div>
+                                <div class="image-info">
+                                    <div class="image-title" style="font-size: 11px; margin-top: 4px; text-align: center; font-weight: bold;">${master.name}</div>
+                                    <div class="image-tags" data-image-id="${master.id}"></div>
+                                </div>
+                            </div>
+
+                            <!-- DUPLICATES -->
+                            ${duplicates.map(dup => `
+                                <div class="image-item" data-image-id="${dup.id}" style="position: relative; border: 2px solid #f44336; padding: 5px; border-radius: 6px;">
+                                    <!-- CHECKBOX ADDED HERE -->
+                                    <div style="position: absolute; top: 5px; right: 5px; z-index: 10;">
+                                        <input type="checkbox" class="dup-checkbox" data-id="${dup.id}" data-master-id="${master.id}" style="cursor: pointer; width: 18px; height: 18px;">
+                                    </div>
+                                    
+                                    <div style="position: absolute; top: 0; left: 0; background: #f44336; color: white; font-size: 10px; padding: 2px 6px; border-radius: 4px 0 4px 0;">DUP</div>
+                                    
+                                    <div class="image-container" style="width: 100%; height: 150px; border-radius: 4px;">
+                                        <div class="image-placeholder">
+                                            <div class="placeholder-icon">🖼️</div>
+                                            <div class="placeholder-id">ID: ${dup.id}</div>
+                                            <div class="placeholder-file">${dup.file || 'No file'}</div>
+                                        </div>
+                                    </div>
+
+                                    <div class="image-info">
+                                        <div class="image-title" style="font-size: 11px; margin-top: 4px; text-align: center; font-weight: bold;">${dup.name}</div>
+                                        <div class="image-tags" data-image-id="${dup.id}"></div>
+                                    </div>
+                                </div>
+                            `).join('')}
                         </div>
                     </div>
-                `).join('')}
-            </div>
-        </div>
-        `;
-    });
-
-    imageGrid.innerHTML = `<div class="grid-container" style="display: block;">${html}</div>`;
-    this.setupLazyThumbnailLoading(this.currentImages);
-    
-    // Bind events for "Select All" checkboxes
-    document.querySelectorAll('.dup-select-all').forEach(chk => {
-        chk.addEventListener('change', (e) => {
-            const isChecked = e.target.checked;
-            const groupIndex = e.target.dataset.groupIndex;
-            
-            // Check/Uncheck all individual checkboxes in this group
-            document.querySelectorAll(`.dup-checkbox[data-master-id="${groupIndex}"]`).forEach(box => {
-                box.checked = isChecked;
+                `;
             });
-            
-            this.updateDuplicateSelectionUI();
-        });
-    });
+
+            imageGrid.innerHTML = `<div class="grid-container" style="display: block;">${html}</div>`;
+            this.setupLazyThumbnailLoading(this.currentImages);
     
-    // Bind events for individual checkboxes
-    document.querySelectorAll('.dup-checkbox').forEach(chk => {
-        chk.addEventListener('change', () => {
-            this.updateDuplicateSelectionUI();
-        });
-    });
+            // Bind events for "Select All" checkboxes
+            document.querySelectorAll('.dup-select-all').forEach(chk => {
+                chk.addEventListener('click', (e) => {
+                    // Pass the group index so we know which group to select
+                    this.selectAllDuplicates(e.target.dataset.groupIndex);
+                });
+            });
+    
+            // Bind events for individual checkboxes
+            document.querySelectorAll('.dup-checkbox').forEach(chk => {
+                chk.addEventListener('change', () => {
+                    this.updateDuplicateSelectionUI();
+                });
+            });
 }
+
+
+
+
+            
             async mergeImage(masterId, dupId) {
                 if (!confirm('Merge this duplicate? \n\nTags will be moved to the Master, and the duplicate will be deleted.')) {
                     return;
