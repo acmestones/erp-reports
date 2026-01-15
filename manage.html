@@ -770,9 +770,39 @@ async loadDuplicates() {
     }
 }
 
+            
+
+           selectAllDuplicates(groupIndex) {
+                const allCheckboxes = document.querySelectorAll(`.dup-checkbox[data-master-id="${groupIndex}"]`);
+                
+                // Uncheck all first to ensure clean state
+                allCheckboxes.forEach(box => box.checked = false);
+                
+                // Then check all
+                allCheckboxes.forEach(box => box.checked = true);
+                
+                // Update UI
+                this.updateDuplicateSelectionUI();
+            }
 
 
 
+            
+
+
+            updateDuplicateSelectionUI() {
+                const checkedBoxes = document.querySelectorAll('.dup-checkbox:checked');
+                const mergeBtn = document.getElementById('mergeSelectedDuplicatesBtn');
+                
+                if (checkedBoxes.length > 0) {
+                    mergeBtn.style.display = 'inline-block';
+                    mergeBtn.textContent = `Merge Selected (${checkedBoxes.length})`;
+                } else {
+                    mergeBtn.style.display = 'none';
+                }
+            }
+
+            
 
 
 
@@ -2158,35 +2188,11 @@ async loadDuplicates() {
         
 
 
-           selectAllDuplicates(groupIndex) {
-                const allCheckboxes = document.querySelectorAll(`.dup-checkbox[data-master-id="${groupIndex}"]`);
-                
-                // Uncheck all first to ensure clean state
-                allCheckboxes.forEach(box => box.checked = false);
-                
-                // Then check all
-                allCheckboxes.forEach(box => box.checked = true);
-                
-                // Update UI
-                this.updateDuplicateSelectionUI();
-            }
 
 
             
         
         
-        updateDuplicateSelectionUI() {
-    const checkedBoxes = document.querySelectorAll('.dup-checkbox:checked');
-    const mergeBtn = document.getElementById('mergeSelectedDuplicatesBtn');
-    
-    if (checkedBoxes.length > 0) {
-        mergeBtn.style.display = 'inline-block';
-        mergeBtn.textContent = `Merge Selected (${checkedBoxes.length})`;
-    } else {
-        mergeBtn.style.display = 'none';
-    }
-}
-
 
 
 
