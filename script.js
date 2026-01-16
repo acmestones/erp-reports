@@ -1944,11 +1944,18 @@ const name = displayTitle;
       p.className = "mb-1 small";
 
       let value = row[fieldKey];
+      
+      // ✅ FIX: Sanitize HTML content to fix image URLs
+      if (typeof value === "string" && (value.includes("<img") || value.includes("<a"))) {
+        value = sanitizeRichHtml(value);
+      }
+      
       if (typeof value === "string" && value.length > 40) {
         value = value.substring(0, 40) + "...";
       }
 
       p.innerHTML = `<strong>${label}:</strong> ${value}`;
+
       cardBody.appendChild(p);
       count++;
     }
