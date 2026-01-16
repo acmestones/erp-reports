@@ -2138,7 +2138,21 @@ console.log("  displayTitle (for modal):", displayTitle);
         const htmlValue = value || `<p class="text-muted">No content</p>`;
         displayDiv.innerHTML = sanitizeRichHtml(htmlValue);
         normalizeFileLinks(displayDiv);
+
+        
         autoFixImages(displayDiv);
+        console.log("🖼️ DEBUG - Display Mode Image Check:", {
+          fieldname: reportFieldname,
+          innerHTML: displayDiv.innerHTML.substring(0, 200),
+          imageCount: displayDiv.querySelectorAll('img').length,
+          imageSources: Array.from(displayDiv.querySelectorAll('img')).map(img => ({
+            src: img.src,
+            getAttribute: img.getAttribute('src'),
+            complete: img.complete,
+            naturalWidth: img.naturalWidth
+          }))
+        });
+
         constrainRichTextImages(displayDiv);
 
         // ----- EDIT MODE -----
