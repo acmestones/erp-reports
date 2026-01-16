@@ -613,6 +613,14 @@ function fixImageUrl(url) {
 
   console.log("Fixing URL:", url); // Debug log
 
+    // ✅ FIX: Skip if already a proxy URL
+  if (url.includes("erp_proxy.php") || url.includes("action=proxyimage")) {
+    console.log("Already proxied, skipping");
+    return url;
+  }
+
+
+  
   // Already absolute URL
   if (url.startsWith("http://") || url.startsWith("https://")) {
     // Check if it's a private file (anywhere in the URL)
