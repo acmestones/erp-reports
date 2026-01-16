@@ -558,6 +558,12 @@ function autoFixImages(container) {
     let src = img.getAttribute("src");
     if (!src || src.startsWith("data:image")) return;
 
+
+    // ✅ FIX: Skip if already a proxy URL
+    if (src.includes("erp_proxy.php") || src.includes("action=proxyimage")) {
+      return;
+    }
+    
     // Absolute ERP URL
     if (src.startsWith("/")) {
       src = "https://acmestones.erpnext.com" + src;
@@ -613,6 +619,14 @@ function fixImageUrl(url) {
 
   console.log("Fixing URL:", url); // Debug log
 
+    // ✅ FIX: Skip if already a proxy URL
+  if (url.includes("erp_proxy.php") || url.includes("action=proxyimage")) {
+    console.log("Already proxied, skipping");
+    return url;
+  }
+
+
+  
   // Already absolute URL
   if (url.startsWith("http://") || url.startsWith("https://")) {
     // Check if it's a private file (anywhere in the URL)
@@ -693,12 +707,24 @@ function injectAttachmentControls(container, row, columns, reportName, config, d
   const canEdit = currentUser?.can_edit === true;
 
   /* ===============================
-     UPLOAD BUTTON (ALWAYS VISIBLE)
-  =============================== */
-  if (canEdit && !container.querySelector(".upload-attachment-btn")) {
+     UPLOAD BUTTON
+     =============================== */
+  // Check attachment upload permission
+  const userEmail = localStorage.getItem("userEmail");
+  const attachmentPerms = config.attachment_permissions?.[userEmail] || {
+    can_upload: false,
+    can_delete: false,
+  };
+  
+  const canUpload = canEdit && attachmentPerms.can_upload;
+  const canDelete = canEdit && attachmentPerms.can_delete;
+
+  if (canUpload && !container.querySelector(".upload-attachment-btn")) {
     const uploadBtn = document.createElement("button");
     uploadBtn.className = "btn btn-sm btn-outline-primary mb-2 upload-attachment-btn";
     uploadBtn.textContent = "➕ Upload Attachment";
+
+    
 
     uploadBtn.onclick = () => {
       const input = document.createElement("input");
@@ -730,8 +756,9 @@ function injectAttachmentControls(container, row, columns, reportName, config, d
 
   /* ===============================
      REMOVE BUTTONS (FILES + IMAGES)
-  =============================== */
-  if (!canEdit) return;
+     =============================== */
+  if (!canDelete) return;
+
 
   const attachmentLinks = Array.from(container.querySelectorAll("a")).filter(
     (a) => a.href && (a.href.includes("/files/") || a.href.includes("/private/files/"))
@@ -823,7 +850,18 @@ async function loadAttachments(container, docName, config, row, columns, reportN
   container.innerHTML = "";
 
   // UPLOAD BUTTON
-  if (currentUser?.can_edit === true) {
+const userEmail = localStorage.getItem("userEmail");
+const attachmentPerms = config.attachment_permissions?.[userEmail] || {
+  can_upload: false,
+  can_delete: false,
+};
+
+const canUpload = currentUser?.can_edit === true && attachmentPerms.can_upload;
+const canDelete = currentUser?.can_edit === true && attachmentPerms.can_delete;
+
+if (canUpload) {
+
+  
     const uploadBtn = document.createElement("button");
     uploadBtn.className = "btn btn-sm btn-outline-primary mb-2";
     uploadBtn.textContent = "📎 Upload Attachment";
@@ -942,7 +980,8 @@ async function loadAttachments(container, docName, config, row, columns, reportN
       imageWrapper.appendChild(fileNameLabel);
 
       // Remove button for images
-      if (currentUser?.can_edit === true) {
+      if (canDelete) {
+
         const removeBtn = document.createElement("button");
         removeBtn.textContent = "🗑️";
         removeBtn.className = "btn btn-sm btn-outline-danger mt-1";
@@ -1004,7 +1043,8 @@ async function loadAttachments(container, docName, config, row, columns, reportN
       rowDiv.appendChild(link);
 
       // Remove button for files
-      if (currentUser?.can_edit === true) {
+      if (canDelete) {
+
         const removeBtn = document.createElement("button");
         removeBtn.textContent = "🗑️";
         removeBtn.className = "btn btn-sm btn-outline-danger";
@@ -1904,11 +1944,18 @@ const name = displayTitle;
       p.className = "mb-1 small";
 
       let value = row[fieldKey];
+      
+      // ✅ FIX: Sanitize HTML content to fix image URLs
+      if (typeof value === "string" && (value.includes("<img") || value.includes("<a"))) {
+        value = sanitizeRichHtml(value);
+      }
+      
       if (typeof value === "string" && value.length > 40) {
         value = value.substring(0, 40) + "...";
       }
 
       p.innerHTML = `<strong>${label}:</strong> ${value}`;
+
       cardBody.appendChild(p);
       count++;
     }
@@ -2112,7 +2159,22 @@ console.log("  displayTitle (for modal):", displayTitle);
         const htmlValue = value || `<p class="text-muted">No content</p>`;
         displayDiv.innerHTML = sanitizeRichHtml(htmlValue);
         normalizeFileLinks(displayDiv);
+
+        
         autoFixImages(displayDiv);
+        console.log("🖼️ DEBUG - Display Mode Image Check:", {
+          fieldname: reportFieldname,
+          innerHTML: displayDiv.innerHTML.substring(0, 200),
+          imageCount: displayDiv.querySelectorAll('img').length,
+          imageSources: Array.from(displayDiv.querySelectorAll('img')).map(img => ({
+            src: img.src,
+            getAttribute: img.getAttribute('src'),
+            complete: img.complete,
+            naturalWidth: img.naturalWidth
+          }))
+        });
+
+        constrainRichTextImages(displayDiv);
 
         // ----- EDIT MODE -----
         const editorWrapper = document.createElement("div");
@@ -3734,6 +3796,62 @@ async function openGlobalReportConfigModal(reportName) {
         </div>
       </div>
     </div>
+
+
+        <!-- ATTACHMENT PERMISSIONS SETTINGS -->
+    <div class="card mb-3">
+      <div class="card-header bg-warning text-white">
+        <h6 class="mb-0">Attachment Permissions</h6>
+      </div>
+      <div class="card-body">
+        <p class="text-muted small mb-3">
+          <strong>Note:</strong> Users must have "Can Edit Record" permission enabled to upload or delete attachments. 
+          These settings provide additional granular control.
+        </p>
+        <div class="table-responsive">
+          <table class="table table-sm table-bordered">
+            <thead class="table-light">
+              <tr>
+                <th style="min-width: 180px">User</th>
+                <th class="text-center" style="width: 120px">Can Upload</th>
+                <th class="text-center" style="width: 120px">Can Delete</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${users.users
+                .map((user) => {
+                  const perms = config.attachment_permissions?.[user.email] || {
+                    can_upload: false,
+                    can_delete: false,
+                  };
+
+return `
+  <tr>
+    <td>${user.email}</td>
+    <td class="text-center">
+      <input type="checkbox" class="attachment-perm" 
+             data-user="${user.email}" 
+             data-perm="can_upload" 
+             ${perms.can_upload ? "checked" : ""}>
+    </td>
+    <td class="text-center">
+      <input type="checkbox" class="attachment-perm" 
+             data-user="${user.email}" 
+             data-perm="can_delete" 
+             ${perms.can_delete ? "checked" : ""}>
+    </td>
+  </tr>
+`;
+
+                })
+                .join("")}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <!-- END ATTACHMENT PERMISSIONS -->
+    
   `;
 
   document.getElementById("globalConfigContent").innerHTML = contentHtml;
@@ -3853,6 +3971,26 @@ document.getElementById("saveGlobalConfigBtn").onclick = async () => {
       delete reportConfig[reportName].operation_planning_permissions;
     }
 
+
+
+// Attachment Permissions
+const attachmentPerms = {};
+document.querySelectorAll(".attachment-perm").forEach((checkbox) => {
+  const user = checkbox.dataset.user;
+  const perm = checkbox.dataset.perm;
+  if (!attachmentPerms[user]) attachmentPerms[user] = { can_upload: false, can_delete: false };
+  attachmentPerms[user][perm] = checkbox.checked;
+});
+reportConfig[reportName].attachment_permissions = attachmentPerms;
+
+
+
+  
+
+
+
+
+  
     // ✅ THE CRITICAL FIX: Actually save to file!
     console.log("💾 Saving full reportConfig:", reportConfig);
     await saveReportConfig(reportConfig);
@@ -4651,6 +4789,7 @@ function renderTimeLogs(timeLogs, jobCard, jobCardInfo, timeLogsPerms, reportNam
           <thead class="table-light">
             <tr>
               <th>Employee</th>
+              <th>Machine</th>
               <th>From Time</th>
               <th>To Time</th>
               <th>Time (mins)</th>
@@ -4663,19 +4802,21 @@ function renderTimeLogs(timeLogs, jobCard, jobCardInfo, timeLogsPerms, reportNam
           <tbody>
     `;
 
-    timeLogs.forEach((log, index) => {
-      const fromTime = log.from_time ? new Date(log.from_time).toLocaleString() : "-";
-      const toTime = log.to_time ? new Date(log.to_time).toLocaleString() : "-";
-      const timeInMins = log.time_in_mins || 0;
-      const completedQty = log.completed_qty || 0;
-      const employee = log.employee || "-";
-      const jobDetail = log.custom_job_detail || "-";
-      const jobImage = log.custom_job_image_view || log.custom_job_image;
-
-      html += `
-        <tr data-log-index="${index}">
+      timeLogs.forEach((log, index) => {
+        const fromTime = log.from_time ? new Date(log.from_time).toLocaleString() : "-";
+        const toTime = log.to_time ? new Date(log.to_time).toLocaleString() : "-";
+        const timeInMins = log.time_in_mins || 0;
+        const completedQty = log.completed_qty || 0;
+        const employee = log.employee || "-";
+        const machine = log.custom_machine || "-";
+        const jobDetail = log.custom_job_detail || "-";
+        const jobImage = log.custom_job_image_view || log.custom_job_image;
+    
+        html += `<tr data-log-index="${index}">
           <td>${employee}</td>
+          <td>${machine}</td>
           <td>${fromTime}</td>
+
           <td>${toTime}</td>
           <td>${timeInMins}</td>
           <td>${completedQty}</td>
@@ -4839,14 +4980,15 @@ async function showTimeLogForm(existingLog, jobCard, jobCardInfo, reportName, co
             </div>
 
             <div class="col-md-6 mb-3">
-              <label class="form-label">Workstation ${timeLogsPerms.can_edit_workstation ? "" : "(Read-only)"}</label>
-              <select class="form-select" name="workstation" ${timeLogsPerms.can_edit_workstation ? "" : "disabled"}>
-                <option value="">-- Select Workstation --</option>
+              <label class="form-label">Machine</label>
+              <select class="form-select" name="custom_machine" id="timeLogMachineSelect">
+                <option value="">-- Select Machine --</option>
                 ${workstations
+                  .sort((a, b) => a.name.localeCompare(b.name))
                   .map(
                     (ws) => `
                       <option value="${ws.name}" ${
-                        (existingLog?.workstation || jobCardInfo.workstation) === ws.name ? "selected" : ""
+                        (existingLog?.custom_machine || jobCardInfo.workstation) === ws.name ? "selected" : ""
                       }>
                         ${ws.name}
                       </option>
@@ -4854,12 +4996,8 @@ async function showTimeLogForm(existingLog, jobCard, jobCardInfo, reportName, co
                   )
                   .join("")}
               </select>
-              ${
-                !timeLogsPerms.can_edit_workstation
-                  ? "<small class=\"text-muted\">You don't have permission to edit workstation</small>"
-                  : ""
-              }
             </div>
+
           </div>
 
           <div class="row">
@@ -4962,13 +5100,10 @@ async function showTimeLogForm(existingLog, jobCard, jobCardInfo, reportName, co
       time_in_mins: parseInt(formData.get("time_in_mins")),
       completed_qty: parseFloat(formData.get("completed_qty")) || 0,
       employee: formData.get("employee") || null,
+      custom_machine: formData.get("custom_machine") || null,
       custom_job_detail: formData.get("custom_job_detail") || null
     };
 
-    // Handle workstation if user has permission
-    if (timeLogsPerms.can_edit_workstation) {
-      data.workstation = formData.get("workstation") || null;
-    }
 
     // Handle image upload
     const imageFile = document.getElementById("jobImageFile").files[0];
