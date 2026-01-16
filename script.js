@@ -558,6 +558,12 @@ function autoFixImages(container) {
     let src = img.getAttribute("src");
     if (!src || src.startsWith("data:image")) return;
 
+
+    // ✅ FIX: Skip if already a proxy URL
+    if (src.includes("erp_proxy.php") || src.includes("action=proxyimage")) {
+      return;
+    }
+    
     // Absolute ERP URL
     if (src.startsWith("/")) {
       src = "https://acmestones.erpnext.com" + src;
