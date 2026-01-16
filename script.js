@@ -2139,6 +2139,7 @@ console.log("  displayTitle (for modal):", displayTitle);
         displayDiv.innerHTML = sanitizeRichHtml(htmlValue);
         normalizeFileLinks(displayDiv);
         autoFixImages(displayDiv);
+        constrainRichTextImages(displayDiv);
 
         // ----- EDIT MODE -----
         const editorWrapper = document.createElement("div");
