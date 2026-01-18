@@ -33,7 +33,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             mkdir($thumb_dir, 0755, true);
         }
         
-        // Save thumbnail
+        // Save new thumbnail
         if (file_put_contents($thumb_path, $decoded_image)) {
             // Update database
             $query = 'UPDATE '.IMAGES_TABLE.' 
@@ -41,32 +41,100 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                       WHERE id = '.$video_id;
             pwg_query($query);
             
-            // Clear cache ONLY for this specific video (not entire gallery!)
+            // CRITICAL: Delete ALL derivative cache files
             include_once(PHPWG_ROOT_PATH.'admin/include/functions.php');
             
-            // Method 1: Clear derivative cache for this image only
+            // Use Piwigo's function first
             clear_derivative_cache(array($video_id));
             
-            // Method 2: Delete cached derivatives manually (more aggressive)
-            $derivative_base = PHPWG_ROOT_PATH . '_data/i/';
-            if (is_dir($derivative_base)) {
-                // Find all subdirectories (size variants)
-                $dirs = glob($derivative_base . '*', GLOB_ONLYDIR);
-                foreach ($dirs as $dir) {
-                    // Delete only files matching this video
-                    $files = glob($dir . '/*' . $video_name . '*');
-                    foreach ($files as $file) {
-                        @unlink($file);
+            // Get the exact stored path from database
+            $query = 'SELECT path FROM '.IMAGES_TABLE.' WHERE id = '.$video_id;
+            $result = pwg_query($query);
+            $image_info = pwg_db_fetch_assoc($result);
+            
+            $deleted_count = 0;
+            
+            if ($image_info) {
+                // Get just the filename without extension
+                $stored_path = $image_info['path'];
+                $path_parts = pathinfo($stored_path);
+                $filename_no_ext = $path_parts['filename'];
+                
+                // Construct path to derivatives
+                $derivative_base = PHPWG_ROOT_PATH . '_data/i/';
+                
+                if (is_dir($derivative_base)) {
+                    // Get all subdirectories (square, thumb, small, medium, etc.)
+                    $size_dirs = scandir($derivative_base);
+                    
+                    foreach ($size_dirs as $size_dir) {
+                        if ($size_dir == '.' || $size_dir == '..') continue;
+                        
+                        $full_size_path = $derivative_base . $size_dir;
+                        
+                        if (is_dir($full_size_path)) {
+                            // Get the stored path structure
+                            // Piwigo stores derivatives like: _data/i/square/galleries/path/to/video-md5.jpg
+                            
+                            // Build the expected derivative path mirroring the gallery structure
+                            $relative_path = str_replace('../', '', dirname($stored_path));
+                            $derivative_folder = $full_size_path . '/' . $relative_path;
+                            
+                            if (is_dir($derivative_folder)) {
+                                // Find all files in this folder matching the video name
+                                $files = scandir($derivative_folder);
+                                foreach ($files as $file) {
+                                    if ($file == '.' || $file == '..') continue;
+                                    
+                                    // Match files that contain the video filename
+                                    if (strpos($file, $filename_no_ext) === 0) {
+                                        $full_file_path = $derivative_folder . '/' . $file;
+                                        if (@unlink($full_file_path)) {
+                                            $deleted_count++;
+                                        }
+                                    }
+                                }
+                            }
+                            
+                            // Also try direct glob pattern match
+                            $pattern = $full_size_path . '/*/' . $filename_no_ext . '*';
+                            $matches = glob($pattern);
+                            foreach ($matches as $match_file) {
+                                if (is_file($match_file) && @unlink($match_file)) {
+                                    $deleted_count++;
+                                }
+                            }
+                        }
+                    }
+                    
+                    // Additional recursive search as fallback
+                    $iterator = new RecursiveIteratorIterator(
+                        new RecursiveDirectoryIterator($derivative_base, RecursiveDirectoryIterator::SKIP_DOTS),
+                        RecursiveIteratorIterator::SELF_FIRST
+                    );
+                    
+                    foreach ($iterator as $file) {
+                        if ($file->isFile()) {
+                            $basename = $file->getFilename();
+                            // Check if filename starts with our video name
+                            if (strpos($basename, $filename_no_ext) === 0) {
+                                if (@unlink($file->getPathname())) {
+                                    $deleted_count++;
+                                }
+                            }
+                        }
                     }
                 }
             }
             
-            // Clear user cache (lightweight operation)
+            // Clear user cache
             invalidate_user_cache();
             
             echo json_encode([
                 'success' => true, 
-                'message' => 'Thumbnail saved and cache cleared'
+                'message' => 'Thumbnail saved successfully',
+                'deleted_derivatives' => $deleted_count,
+                'note' => $deleted_count > 0 ? 'Old thumbnails deleted. New ones will be generated automatically.' : 'No old derivatives found (this might be the first thumbnail).'
             ]);
         } else {
             echo json_encode(['success' => false, 'message' => 'Failed to save thumbnail']);
@@ -79,26 +147,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         
         include_once(PHPWG_ROOT_PATH.'admin/include/functions.php');
         
-        // Clear derivative cache for this video only
+        // Use Piwigo's function
         clear_derivative_cache(array($video_id));
         
-        // Get video info to clear manual derivatives
+        // Get video info
         $query = 'SELECT path FROM '.IMAGES_TABLE.' WHERE id = '.$video_id;
         $result = pwg_query($query);
         $video_info = pwg_db_fetch_assoc($result);
         
+        $deleted_count = 0;
+        
         if ($video_info) {
-            $video_path_info = pathinfo($video_info['path']);
-            $video_name = $video_path_info['filename'];
+            $filename_no_ext = pathinfo($video_info['path'], PATHINFO_FILENAME);
             
-            // Delete cached derivatives manually
+            // Aggressive deletion
             $derivative_base = PHPWG_ROOT_PATH . '_data/i/';
+            
             if (is_dir($derivative_base)) {
-                $dirs = glob($derivative_base . '*', GLOB_ONLYDIR);
-                foreach ($dirs as $dir) {
-                    $files = glob($dir . '/*' . $video_name . '*');
-                    foreach ($files as $file) {
-                        @unlink($file);
+                $iterator = new RecursiveIteratorIterator(
+                    new RecursiveDirectoryIterator($derivative_base, RecursiveDirectoryIterator::SKIP_DOTS),
+                    RecursiveIteratorIterator::SELF_FIRST
+                );
+                
+                foreach ($iterator as $file) {
+                    if ($file->isFile()) {
+                        $basename = $file->getFilename();
+                        if (strpos($basename, $filename_no_ext) === 0) {
+                            if (@unlink($file->getPathname())) {
+                                $deleted_count++;
+                            }
+                        }
                     }
                 }
             }
@@ -106,7 +184,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         
         invalidate_user_cache();
         
-        echo json_encode(['success' => true, 'message' => 'Video cache cleared']);
+        echo json_encode([
+            'success' => true, 
+            'message' => 'Cache cleared',
+            'deleted' => $deleted_count
+        ]);
         exit;
     }
     
@@ -450,7 +532,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         <p class="subtitle">Choose the perfect frame for each video thumbnail</p>
         
         <div class="info-banner">
-            💡 <strong>How it works:</strong> Select a video, use the slider to find a good frame, capture it, and save. The thumbnail will appear immediately in Piwigo! If you don't see it, use the "Refresh Thumbnail" button on that video.
+            💡 <strong>How it works:</strong> Select a video, use the slider to find a good frame, capture it, and save. The script will automatically clear old cached thumbnails. Refresh your Piwigo gallery after saving!
         </div>
         
         <div class="filter-buttons">
@@ -524,7 +606,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         async function clearVideoCache(videoId) {
             const btn = event.target;
             const originalText = btn.textContent;
-            btn.textContent = '⏳ Refreshing...';
+            btn.textContent = '⏳ Clearing...';
             btn.disabled = true;
             
             try {
@@ -536,11 +618,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 const data = await response.json();
                 
                 if (data.success) {
-                    // Wait a moment then reload videos
-                    setTimeout(() => {
-                        loadVideos();
-                        alert('✅ Thumbnail cache cleared! Refresh your Piwigo gallery.');
-                    }, 500);
+                    alert(`✅ Cleared ${data.deleted} cached thumbnail files! Hard refresh your Piwigo gallery (Ctrl+Shift+R).`);
+                    setTimeout(() => loadVideos(), 500);
                 } else {
                     alert('⚠️ Cache clear may have failed');
                     btn.textContent = originalText;
@@ -582,7 +661,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                         </button>
                         ${video.has_thumbnail ? 
                             `<button class="select-btn refresh-btn" onclick="clearVideoCache(${video.id})">
-                                🔄 Refresh Thumbnail
+                                🔄 Clear Cache & Regenerate
                             </button>` : ''
                         }
                     </div>
@@ -677,11 +756,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 const data = await response.json();
                 
                 if (data.success) {
-                    showStatus('✅ Thumbnail saved! Refresh your Piwigo gallery to see it.', 'success');
+                    showStatus(`✅ Thumbnail saved! Deleted ${data.deleted_derivatives} old cached files. Hard refresh Piwigo (Ctrl+Shift+R) to see changes.`, 'success');
                     setTimeout(() => {
                         closeModal();
-                        loadVideos(); // Refresh list
-                    }, 2000);
+                        loadVideos();
+                    }, 3000);
                 } else {
                     showStatus('❌ Error: ' + data.message, 'error');
                     document.getElementById('saveBtn').disabled = false;
