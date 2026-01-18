@@ -19,12 +19,17 @@ $videos = array();
 while ($row = pwg_db_fetch_assoc($result)) {
     $ext = strtolower(pathinfo($row['file'], PATHINFO_EXTENSION));
     if (in_array($ext, $video_ext)) {
+        // Build proper full URL
+        $base_url = get_absolute_root_url();
+        $clean_path = str_replace('../', '', $row['path']);
+        $full_url = $base_url . $clean_path;
+        
         $videos[] = array(
             'id' => $row['id'],
             'file' => $row['file'],
             'path' => $row['path'],
             'name' => $row['name'],
-            'url' => get_root_url().$row['path']
+            'url' => $full_url
         );
     }
 }
