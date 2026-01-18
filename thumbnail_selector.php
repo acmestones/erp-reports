@@ -41,11 +41,51 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                       WHERE id = '.$video_id;
             pwg_query($query);
             
+            // Clear caches
+            include_once(PHPWG_ROOT_PATH.'admin/include/functions.php');
+            
+            // Delete derivative cache for this specific image
+            clear_derivative_cache(array($video_id));
+            
+            // Clear user cache
             invalidate_user_cache();
             
-            echo json_encode(['success' => true, 'message' => 'Thumbnail saved successfully']);
+            // Force regeneration by deleting any existing derivatives
+            $derivative_dir = PHPWG_ROOT_PATH . '_data/i/';
+            if (is_dir($derivative_dir)) {
+                // Delete cached derivatives for this video
+                $dirs = glob($derivative_dir . '*', GLOB_ONLYDIR);
+                foreach ($dirs as $dir) {
+                    $pattern = $dir . '/' . $video_name . '*';
+                    foreach (glob($pattern) as $file) {
+                        @unlink($file);
+                    }
+                }
+            }
+            
+            echo json_encode([
+                'success' => true, 
+                'message' => 'Thumbnail saved and cache cleared successfully'
+            ]);
         } else {
             echo json_encode(['success' => false, 'message' => 'Failed to save thumbnail']);
+        }
+        exit;
+    }
+    
+    if ($_POST['action'] === 'clear_cache') {
+        include_once(PHPWG_ROOT_PATH.'admin/include/functions.php');
+        
+        try {
+            // Clear derivative cache
+            clear_derivative_cache_all();
+            
+            // Invalidate user cache
+            invalidate_user_cache();
+            
+            echo json_encode(['success' => true, 'message' => 'Cache cleared successfully']);
+        } catch (Exception $e) {
+            echo json_encode(['success' => false, 'message' => 'Error: ' . $e->getMessage()]);
         }
         exit;
     }
@@ -72,7 +112,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 $thumb_path = PHPWG_ROOT_PATH . $video_dir . '/pwg_representative/' . $video_name . '.jpg';
                 
                 $has_thumbnail = file_exists($thumb_path);
-                $thumb_url = $has_thumbnail ? $base_url . $video_dir . '/pwg_representative/' . $video_name . '.jpg' : null;
+                $thumb_url = $has_thumbnail ? $base_url . $video_dir . '/pwg_representative/' . $video_name . '.jpg?t=' . time() : null;
                 
                 $videos[] = array(
                     'id' => intval($row['id']),
@@ -350,6 +390,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             margin-bottom: 20px;
             display: flex;
             gap: 10px;
+            flex-wrap: wrap;
         }
         .filter-btn {
             padding: 8px 16px;
@@ -365,6 +406,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             color: white;
             border-color: #3b82f6;
         }
+        .filter-btn.cache-btn {
+            margin-left: auto;
+            background: #f59e0b;
+            border-color: #f59e0b;
+            color: white;
+        }
+        .filter-btn.cache-btn:hover {
+            background: #d97706;
+        }
+        .info-banner {
+            background: #e0f2fe;
+            border-left: 4px solid #0284c7;
+            padding: 12px 16px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            font-size: 14px;
+            color: #075985;
+        }
     </style>
 </head>
 <body>
@@ -372,10 +431,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         <h1>🎬 Video Thumbnail Selector</h1>
         <p class="subtitle">Choose the perfect frame for each video thumbnail</p>
         
+        <div class="info-banner">
+            💡 <strong>Tip:</strong> After changing thumbnails, they should appear immediately. If not, click the "Clear Cache" button below.
+        </div>
+        
         <div class="filter-buttons">
             <button class="filter-btn active" onclick="filterVideos('all')">All Videos</button>
             <button class="filter-btn" onclick="filterVideos('no-thumb')">No Thumbnail</button>
             <button class="filter-btn" onclick="filterVideos('has-thumb')">Has Thumbnail</button>
+            <button class="filter-btn cache-btn" onclick="clearAllCache()">🔄 Clear Piwigo Cache</button>
         </div>
         
         <div id="videoList" class="loading">Loading videos...</div>
@@ -435,9 +499,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 
         function filterVideos(filter) {
             currentFilter = filter;
-            document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.filter-btn:not(.cache-btn)').forEach(btn => btn.classList.remove('active'));
             event.target.classList.add('active');
             renderVideos();
+        }
+
+        async function clearAllCache() {
+            if (!confirm('Clear all Piwigo thumbnail cache? This will regenerate thumbnails for your entire gallery. Continue?')) {
+                return;
+            }
+            
+            const btn = event.target;
+            const originalText = btn.textContent;
+            btn.textContent = '⏳ Clearing...';
+            btn.disabled = true;
+            
+            try {
+                const response = await fetch('', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+                    body: 'action=clear_cache'
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    alert('✅ Cache cleared successfully! Refresh your Piwigo gallery to see changes.');
+                    loadVideos(); // Refresh list
+                } else {
+                    alert('⚠️ ' + (data.message || 'Cache clear failed. Go to Admin → Tools → Maintenance to clear manually.'));
+                }
+            } catch (error) {
+                alert('❌ Error: ' + error.message);
+            }
+            
+            btn.textContent = originalText;
+            btn.disabled = false;
         }
 
         function escapeHtml(text) {
@@ -461,7 +557,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                     <div class="video-card ${video.has_thumbnail ? 'has-thumbnail' : ''}">
                         <div class="video-name" title="${escapeHtml(video.name)}">${escapeHtml(video.name)}</div>
                         ${video.has_thumbnail ? 
-                            `<img src="${video.thumbnail_url}?${Date.now()}" class="current-thumb" alt="Current thumbnail">` :
+                            `<img src="${video.thumbnail_url}" class="current-thumb" alt="Current thumbnail">` :
                             '<div class="no-thumb">No thumbnail</div>'
                         }
                         <button class="select-btn" onclick="openModalById(${video.id})">
@@ -559,11 +655,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 const data = await response.json();
                 
                 if (data.success) {
-                    showStatus('✅ Thumbnail saved successfully!', 'success');
+                    showStatus('✅ Thumbnail saved and cache cleared! Refresh Piwigo to see changes.', 'success');
                     setTimeout(() => {
                         closeModal();
                         loadVideos(); // Refresh list
-                    }, 1500);
+                    }, 2000);
                 } else {
                     showStatus('❌ Error: ' + data.message, 'error');
                     document.getElementById('saveBtn').disabled = false;
