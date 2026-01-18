@@ -18,9 +18,7 @@ $query = 'UPDATE '.IMAGES_TABLE.'
           WHERE id = '.$video_id;
 pwg_query($query);
 
-// Clear cache for this image
-$query = 'DELETE FROM '.IMAGE_CATEGORY_TABLE.' WHERE image_id = '.$video_id;
-// Actually, we don't delete associations, just clear derivative cache
+// Clear cache
 invalidate_user_cache();
 
 echo json_encode(['success' => true, 'video_id' => $video_id]);
