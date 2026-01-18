@@ -75,7 +75,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 $thumb_url = $has_thumbnail ? $base_url . $video_dir . '/pwg_representative/' . $video_name . '.jpg' : null;
                 
                 $videos[] = array(
-                    'id' => $row['id'],
+                    'id' => intval($row['id']),
                     'file' => $row['file'],
                     'path' => $row['path'],
                     'name' => $row['name'] ?: $row['file'],
@@ -440,6 +440,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             renderVideos();
         }
 
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
         function renderVideos() {
             let filteredVideos = videos;
             
@@ -451,14 +457,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             
             const html = filteredVideos.length === 0 ? 
                 '<div style="text-align: center; padding: 40px; color: #666;">No videos found</div>' :
-                filteredVideos.map(video => `
+                filteredVideos.map((video, index) => `
                     <div class="video-card ${video.has_thumbnail ? 'has-thumbnail' : ''}">
-                        <div class="video-name" title="${video.name}">${video.name}</div>
+                        <div class="video-name" title="${escapeHtml(video.name)}">${escapeHtml(video.name)}</div>
                         ${video.has_thumbnail ? 
                             `<img src="${video.thumbnail_url}?${Date.now()}" class="current-thumb" alt="Current thumbnail">` :
                             '<div class="no-thumb">No thumbnail</div>'
                         }
-                        <button class="select-btn" onclick="openModal(${video.id})">
+                        <button class="select-btn" onclick="openModalById(${video.id})">
                             ${video.has_thumbnail ? 'Change Thumbnail' : 'Create Thumbnail'}
                         </button>
                     </div>
@@ -467,22 +473,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             document.getElementById('videoList').innerHTML = `<div class="video-list">${html}</div>`;
         }
 
-        function openModal(videoId) {
-            currentVideo = videos.find(v => v.id === videoId);
+        function openModalById(videoId) {
+            const video = videos.find(v => v.id == videoId);
+            if (!video) {
+                alert('Video not found');
+                return;
+            }
+            openModal(video);
+        }
+
+        function openModal(video) {
+            currentVideo = video;
             document.getElementById('modalTitle').textContent = currentVideo.name;
             
-            const video = document.getElementById('videoPlayer');
-            video.src = currentVideo.url;
+            const videoElement = document.getElementById('videoPlayer');
+            videoElement.src = currentVideo.url;
             
             document.getElementById('modal').classList.add('active');
             document.getElementById('saveBtn').disabled = true;
             document.getElementById('status').style.display = 'none';
             capturedImage = null;
             
-            video.addEventListener('loadedmetadata', function() {
-                document.getElementById('timeSlider').max = video.duration;
-                document.getElementById('duration').textContent = formatTime(video.duration);
-            });
+            // Clear canvas
+            const canvas = document.getElementById('previewCanvas');
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            videoElement.addEventListener('loadedmetadata', function() {
+                document.getElementById('timeSlider').max = videoElement.duration;
+                document.getElementById('duration').textContent = formatTime(videoElement.duration);
+            }, { once: true });
         }
 
         function closeModal() {
@@ -570,6 +590,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 
         // Load videos on page load
         loadVideos();
+        
+        // Close modal on ESC key
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                closeModal();
+            }
+        });
+        
+        // Close modal when clicking outside
+        document.getElementById('modal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeModal();
+            }
+        });
     </script>
 </body>
 </html>
