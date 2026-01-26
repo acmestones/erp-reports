@@ -719,21 +719,61 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             document.getElementById('currentTime').textContent = formatTime(video.currentTime);
         });
 
-        function captureFrame() {
-            const video = document.getElementById('videoPlayer');
-            const canvas = document.getElementById('previewCanvas');
-            const ctx = canvas.getContext('2d');
-            
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-            
-            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-            
-            capturedImage = canvas.toDataURL('image/jpeg', 0.9);
-            document.getElementById('saveBtn').disabled = false;
-            
-            showStatus('✅ Frame captured! Click "Save Thumbnail" to upload.', 'success');
-        }
+        
+function addPlayIconOverlay(ctx, width, height) {
+    const centerX = width / 2;
+    const centerY = height / 2;
+    const iconSize = Math.min(width, height) / 5;
+    const circleRadius = iconSize / 2;
+    
+    // Draw semi-transparent black circle background
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, circleRadius, 0, 2 * Math.PI);
+    ctx.fill();
+    
+    // Draw white circle border
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, circleRadius, 0, 2 * Math.PI);
+    ctx.stroke();
+    
+    // Draw white play triangle
+    const triangleSize = iconSize / 2.5;
+    const offsetX = triangleSize / 8;
+    
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+    ctx.beginPath();
+    ctx.moveTo(centerX - triangleSize / 2 + offsetX, centerY - triangleSize / 2);
+    ctx.lineTo(centerX - triangleSize / 2 + offsetX, centerY + triangleSize / 2);
+    ctx.lineTo(centerX + triangleSize / 2 + offsetX, centerY);
+    ctx.closePath();
+    ctx.fill();
+}
+
+function captureFrame() {
+    const video = document.getElementById('videoPlayer');
+    const canvas = document.getElementById('previewCanvas');
+    const ctx = canvas.getContext('2d');
+    
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    
+    // Draw video frame
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    
+    // Add play button overlay
+    addPlayIconOverlay(ctx, canvas.width, canvas.height);
+    
+    capturedImage = canvas.toDataURL('image/jpeg', 0.9);
+    document.getElementById('saveBtn').disabled = false;
+    
+    showStatus('✅ Frame captured with play icon! Click "Save Thumbnail" to upload.', 'success');
+}
+
+
+        
 
         async function saveThumbnail() {
             if (!capturedImage) return;
