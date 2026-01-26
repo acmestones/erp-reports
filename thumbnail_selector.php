@@ -439,6 +439,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             border-radius: 8px;
             border: 2px solid #e5e7eb;
             margin-bottom: 20px;
+            background: #f9fafb;
         }
         .button-group {
             display: flex;
@@ -524,6 +525,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             font-size: 14px;
             color: #075985;
         }
+        .play-icon-toggle {
+            margin-bottom: 15px;
+            padding: 12px;
+            background: #fef3c7;
+            border-radius: 6px;
+            border-left: 4px solid #f59e0b;
+        }
+        .play-icon-toggle label {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            color: #92400e;
+        }
+        .play-icon-toggle input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+        }
     </style>
 </head>
 <body>
@@ -532,7 +554,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         <p class="subtitle">Choose the perfect frame for each video thumbnail</p>
         
         <div class="info-banner">
-            💡 <strong>How it works:</strong> Select a video, use the slider to find a good frame, capture it, and save. The script will automatically clear old cached thumbnails. Refresh your Piwigo gallery after saving!
+            💡 <strong>How it works:</strong> Select a video, use the slider to find a good frame, capture it with a play icon overlay, and save. The script will automatically clear old cached thumbnails. Refresh your Piwigo gallery after saving!
         </div>
         
         <div class="filter-buttons">
@@ -551,9 +573,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 <button class="close-btn" onclick="closeModal()">&times;</button>
             </div>
             
-            <video id="videoPlayer" class="video-player" controls crossorigin="anonymous"></video>
+            <video id="videoPlayer" class="video-player" controls></video>
             
             <div class="controls">
+                <div class="play-icon-toggle">
+                    <label>
+                        <input type="checkbox" id="addPlayIcon" checked>
+                        <span>▶️ Add play icon overlay to thumbnail</span>
+                    </label>
+                </div>
+                
                 <div class="slider-container">
                     <label class="slider-label">Select Frame Position:</label>
                     <input type="range" id="timeSlider" class="time-slider" min="0" max="100" value="0" step="0.1">
@@ -691,9 +720,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             document.getElementById('status').style.display = 'none';
             capturedImage = null;
             
-            // Clear canvas
+            // Clear and reset canvas
             const canvas = document.getElementById('previewCanvas');
             const ctx = canvas.getContext('2d');
+            canvas.width = 640;  // Default size
+            canvas.height = 360;
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             
             videoElement.addEventListener('loadedmetadata', function() {
@@ -704,8 +735,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 
         function closeModal() {
             document.getElementById('modal').classList.remove('active');
-            document.getElementById('videoPlayer').pause();
-            document.getElementById('videoPlayer').src = '';
+            const videoElement = document.getElementById('videoPlayer');
+            videoElement.pause();
+            videoElement.src = '';
         }
 
         document.getElementById('timeSlider').addEventListener('input', function(e) {
@@ -719,56 +751,77 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             document.getElementById('currentTime').textContent = formatTime(video.currentTime);
         });
 
-function captureFrame() {
-    const video = document.getElementById('videoPlayer');
-    const canvas = document.getElementById('previewCanvas');
-    const ctx = canvas.getContext('2d');
-    
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    
-    // Draw video frame
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    
-    // Add play button overlay
-    addPlayIconOverlay(ctx, canvas.width, canvas.height);
-    
-    capturedImage = canvas.toDataURL('image/jpeg', 0.9);
-    document.getElementById('saveBtn').disabled = false;
-    
-    showStatus('✅ Frame captured with play icon! Click "Save Thumbnail" to upload.', 'success');
-}
+        function addPlayIconOverlay(ctx, width, height) {
+            const centerX = width / 2;
+            const centerY = height / 2;
+            const iconSize = Math.min(width, height) / 5;
+            const circleRadius = iconSize / 2;
+            
+            // Draw semi-transparent black circle background
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, circleRadius, 0, 2 * Math.PI);
+            ctx.fill();
+            
+            // Draw white circle border
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
+            ctx.lineWidth = 4;
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, circleRadius, 0, 2 * Math.PI);
+            ctx.stroke();
+            
+            // Draw white play triangle
+            const triangleSize = iconSize / 2.5;
+            const offsetX = triangleSize / 8; // Shift right for visual centering
+            
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+            ctx.beginPath();
+            ctx.moveTo(centerX - triangleSize / 2 + offsetX, centerY - triangleSize / 2);
+            ctx.lineTo(centerX - triangleSize / 2 + offsetX, centerY + triangleSize / 2);
+            ctx.lineTo(centerX + triangleSize / 2 + offsetX, centerY);
+            ctx.closePath();
+            ctx.fill();
+        }
 
-function addPlayIconOverlay(ctx, width, height) {
-    const centerX = width / 2;
-    const centerY = height / 2;
-    const iconSize = Math.min(width, height) / 4;
-    const circleRadius = iconSize / 2;
-    
-    // Draw semi-transparent circle
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-    ctx.beginPath();
-    ctx.arc(centerX, centerY, circleRadius, 0, 2 * Math.PI);
-    ctx.fill();
-    
-    // Draw white border for circle
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
-    ctx.lineWidth = 3;
-    ctx.stroke();
-    
-    // Draw play triangle
-    const triangleSize = iconSize / 3;
-    const offsetX = triangleSize / 6; // Shift right for visual centering
-    
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
-    ctx.beginPath();
-    ctx.moveTo(centerX - triangleSize / 2 + offsetX, centerY - triangleSize / 2);
-    ctx.lineTo(centerX - triangleSize / 2 + offsetX, centerY + triangleSize / 2);
-    ctx.lineTo(centerX + triangleSize / 2 + offsetX, centerY);
-    ctx.closePath();
-    ctx.fill();
-}
-
+        function captureFrame() {
+            const video = document.getElementById('videoPlayer');
+            const canvas = document.getElementById('previewCanvas');
+            const ctx = canvas.getContext('2d');
+            
+            // Check if video is loaded
+            if (video.readyState < 2) {
+                showStatus('⚠️ Video is still loading. Please wait...', 'error');
+                return;
+            }
+            
+            // Set canvas size to match video
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            
+            // Clear previous content
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            try {
+                // Draw video frame
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                
+                // Add play button overlay if checkbox is checked
+                if (document.getElementById('addPlayIcon').checked) {
+                    addPlayIconOverlay(ctx, canvas.width, canvas.height);
+                }
+                
+                capturedImage = canvas.toDataURL('image/jpeg', 0.9);
+                document.getElementById('saveBtn').disabled = false;
+                
+                const message = document.getElementById('addPlayIcon').checked ? 
+                    '✅ Frame captured with play icon! Click "Save Thumbnail" to upload.' :
+                    '✅ Frame captured! Click "Save Thumbnail" to upload.';
+                showStatus(message, 'success');
+            } catch (error) {
+                showStatus('❌ Error capturing frame: ' + error.message, 'error');
+                console.error('Capture error:', error);
+            }
+        }
 
         async function saveThumbnail() {
             if (!capturedImage) return;
@@ -802,40 +855,4 @@ function addPlayIconOverlay(ctx, width, height) {
                 }
             } catch (error) {
                 showStatus('❌ Error saving thumbnail: ' + error.message, 'error');
-                document.getElementById('saveBtn').disabled = false;
-            }
-            
-            document.getElementById('saveBtn').textContent = '💾 Save Thumbnail';
-        }
-
-        function showStatus(message, type) {
-            const status = document.getElementById('status');
-            status.textContent = message;
-            status.className = 'status ' + type;
-        }
-
-        function formatTime(seconds) {
-            const mins = Math.floor(seconds / 60);
-            const secs = Math.floor(seconds % 60);
-            return `${mins}:${secs.toString().padStart(2, '0')}`;
-        }
-
-        // Load videos on page load
-        loadVideos();
-        
-        // Close modal on ESC key
-        document.addEventListener('keydown', function(e) {
-            if (e.key === 'Escape') {
-                closeModal();
-            }
-        });
-        
-        // Close modal when clicking outside
-        document.getElementById('modal').addEventListener('click', function(e) {
-            if (e.target === this) {
-                closeModal();
-            }
-        });
-    </script>
-</body>
-</html>
+                document.getElementById('saveBtn').disabled = false
