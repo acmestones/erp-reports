@@ -349,15 +349,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             align-items: center;
             justify-content: center;
         }
-        .modal-content {
-            background: white;
-            border-radius: 12px;
-            padding: 30px;
-            max-width: 900px;
-            width: 100%;
-            max-height: 90vh;
-            overflow: auto;
-        }
+.modal-content {
+    background: white;
+    border-radius: 12px;
+    padding: 20px;
+    max-width: 95vw;
+    max-height: 95vh;
+    width: 100%;
+    overflow: auto;
+}
+
         .modal-header {
             display: flex;
             justify-content: space-between;
@@ -382,12 +383,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         .close-btn:hover {
             color: #000;
         }
-        .video-player {
-            width: 100%;
-            border-radius: 8px;
-            background: #000;
-            margin-bottom: 20px;
-        }
+.video-player {
+    width: 100%;
+    max-height: 60vh;
+    height: auto;
+    border-radius: 8px;
+    background: #000;
+    margin-bottom: 20px;
+    object-fit: contain;
+}
+
         .controls {
             background: #f9fafb;
             padding: 20px;
@@ -434,12 +439,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             font-size: 14px;
             margin-top: 8px;
         }
-        .preview-canvas {
-            width: 100%;
-            border-radius: 8px;
-            border: 2px solid #e5e7eb;
-            margin-bottom: 20px;
-        }
+.preview-canvas {
+    width: 100%;
+    max-height: 50vh;
+    height: auto;
+    border-radius: 8px;
+    border: 2px solid #e5e7eb;
+    margin-bottom: 20px;
+    object-fit: contain;
+    background: #f9fafb;
+}
+
         .button-group {
             display: flex;
             gap: 10px;
@@ -551,7 +561,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 <button class="close-btn" onclick="closeModal()">&times;</button>
             </div>
             
-            <video id="videoPlayer" class="video-player" controls crossorigin="anonymous"></video>
+            <video id="videoPlayer" class="video-player" controls></video>
             
             <div class="controls">
                 <div class="slider-container">
