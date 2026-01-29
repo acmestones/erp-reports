@@ -2297,42 +2297,45 @@ console.log("  displayTitle (for modal):", displayTitle);
 
         valueDiv.append(displayDiv, editorWrapper, editBtn, cancelBtn, saveBtn);
           } 
-      // NEW URL field with Edit button
-      else if (isURL) {
-          // Display mode
-          const displayDiv = document.createElement('div');
-          displayDiv.className = 'p-2 bg-light rounded';
-          if (value) {
-              const link = document.createElement('a');
-              link.textContent = value;
-              link.style.color = '#0d6efd';
-              link.style.cursor = 'pointer';
-              link.style.textDecoration = 'underline';
-              
-              // For UNC paths, use onclick to preserve exact format for LocalExplorer
-              if (value.startsWith('\\\\')) {
-                  link.href = '#';
-                  link.onclick = (e) => {
-                      e.preventDefault();
-                      window.location.href = value;
-                  };
-              } else if (value.startsWith('file://')) {
-                  link.href = '#';
-                  link.onclick = (e) => {
-                      e.preventDefault();
-                      window.location.href = value;
-                  };
-              } else if (value.startsWith('http://') || value.startsWith('https://')) {
-                  link.href = value;
-                  link.target = '_blank';
-                  link.rel = 'noopener noreferrer';
-              } else {
-                  link.href = `https://${value}`;
-                  link.target = '_blank';
-                  link.rel = 'noopener noreferrer';
-              }
-              
-              displayDiv.appendChild(link);
+// NEW URL field with Edit button
+else if (isURL) {
+    // Display mode
+    const displayDiv = document.createElement('div');
+    displayDiv.className = 'p-2 bg-light rounded';
+    if (value) {
+        const link = document.createElement('a');
+        link.textContent = value;
+        link.style.color = '#0d6efd';
+        link.style.cursor = 'pointer';
+        link.style.textDecoration = 'underline';
+        
+        // For UNC paths, prevent default and use window.open with exact path
+        if (value.startsWith('\\\\')) {
+            link.href = 'javascript:void(0)';
+            link.onclick = (e) => {
+                e.preventDefault();
+                window.open(value);
+                return false;
+            };
+        } else if (value.startsWith('file://')) {
+            link.href = 'javascript:void(0)';
+            link.onclick = (e) => {
+                e.preventDefault();
+                window.open(value);
+                return false;
+            };
+        } else if (value.startsWith('http://') || value.startsWith('https://')) {
+            link.href = value;
+            link.target = '_blank';
+            link.rel = 'noopener noreferrer';
+        } else {
+            link.href = `https://${value}`;
+            link.target = '_blank';
+            link.rel = 'noopener noreferrer';
+        }
+        
+        displayDiv.appendChild(link);
+
 
 
 
@@ -2436,38 +2439,40 @@ console.log("  displayTitle (for modal):", displayTitle);
       }
 
 
-        // NEW URL field (Data field with URL option)
-        else if (fieldType === 'Data' && fieldOptions === 'URL') {
-            const link = document.createElement('a');
-            link.textContent = value;
-            link.style.color = '#0d6efd';
-            link.style.cursor = 'pointer';
-            link.style.textDecoration = 'underline';
-            
-            // For UNC paths, use onclick to preserve exact format for LocalExplorer
-            if (value.startsWith('\\\\')) {
-                link.href = '#';
-                link.onclick = (e) => {
-                    e.preventDefault();
-                    window.location.href = value;
-                };
-            } else if (value.startsWith('file://')) {
-                link.href = '#';
-                link.onclick = (e) => {
-                    e.preventDefault();
-                    window.location.href = value;
-                };
-            } else if (value.startsWith('http://') || value.startsWith('https://')) {
-                link.href = value;
-                link.target = '_blank';
-                link.rel = 'noopener noreferrer';
-            } else {
-                link.href = `https://${value}`;
-                link.target = '_blank';
-                link.rel = 'noopener noreferrer';
-            }
-            
-            valueDiv.appendChild(link);
+// NEW URL field (Data field with URL option)
+else if (fieldType === 'Data' && fieldOptions === 'URL') {
+    const link = document.createElement('a');
+    link.textContent = value;
+    link.style.color = '#0d6efd';
+    link.style.cursor = 'pointer';
+    link.style.textDecoration = 'underline';
+    
+    // For UNC paths, prevent default and use window.open with exact path
+    if (value.startsWith('\\\\')) {
+        link.href = 'javascript:void(0)';
+        link.onclick = (e) => {
+            e.preventDefault();
+            window.open(value);
+            return false;
+        };
+    } else if (value.startsWith('file://')) {
+        link.href = 'javascript:void(0)';
+        link.onclick = (e) => {
+            e.preventDefault();
+            window.open(value);
+            return false;
+        };
+    } else if (value.startsWith('http://') || value.startsWith('https://')) {
+        link.href = value;
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+    } else {
+        link.href = `https://${value}`;
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+    }
+    
+    valueDiv.appendChild(link);
 
 
 
