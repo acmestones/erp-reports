@@ -2309,21 +2309,17 @@ else if (isURL) {
         link.style.cursor = 'pointer';
         link.style.textDecoration = 'underline';
         
-        // For UNC paths, prevent default and use window.open with exact path
+        // For UNC paths, convert to localexplorer:// protocol
         if (value.startsWith('\\\\')) {
-            link.href = 'javascript:void(0)';
-            link.onclick = (e) => {
-                e.preventDefault();
-                window.open(value);
-                return false;
-            };
+            // Convert \\office1\path to localexplorer://office1/path
+            const convertedPath = value.substring(2).replace(/\\/g, '/');
+            link.href = `localexplorer://${convertedPath}`;
+            link.target = '_blank';
         } else if (value.startsWith('file://')) {
-            link.href = 'javascript:void(0)';
-            link.onclick = (e) => {
-                e.preventDefault();
-                window.open(value);
-                return false;
-            };
+            // Convert file://office1/path to localexplorer://office1/path
+            const convertedPath = value.substring(7);
+            link.href = `localexplorer://${convertedPath}`;
+            link.target = '_blank';
         } else if (value.startsWith('http://') || value.startsWith('https://')) {
             link.href = value;
             link.target = '_blank';
@@ -2335,6 +2331,7 @@ else if (isURL) {
         }
         
         displayDiv.appendChild(link);
+
 
 
 
@@ -2447,21 +2444,17 @@ else if (fieldType === 'Data' && fieldOptions === 'URL') {
     link.style.cursor = 'pointer';
     link.style.textDecoration = 'underline';
     
-    // For UNC paths, prevent default and use window.open with exact path
+    // For UNC paths, convert to localexplorer:// protocol
     if (value.startsWith('\\\\')) {
-        link.href = 'javascript:void(0)';
-        link.onclick = (e) => {
-            e.preventDefault();
-            window.open(value);
-            return false;
-        };
+        // Convert \\office1\path to localexplorer://office1/path
+        const convertedPath = value.substring(2).replace(/\\/g, '/');
+        link.href = `localexplorer://${convertedPath}`;
+        link.target = '_blank';
     } else if (value.startsWith('file://')) {
-        link.href = 'javascript:void(0)';
-        link.onclick = (e) => {
-            e.preventDefault();
-            window.open(value);
-            return false;
-        };
+        // Convert file://office1/path to localexplorer://office1/path
+        const convertedPath = value.substring(7);
+        link.href = `localexplorer://${convertedPath}`;
+        link.target = '_blank';
     } else if (value.startsWith('http://') || value.startsWith('https://')) {
         link.href = value;
         link.target = '_blank';
@@ -2473,6 +2466,7 @@ else if (fieldType === 'Data' && fieldOptions === 'URL') {
     }
     
     valueDiv.appendChild(link);
+
 
 
 
