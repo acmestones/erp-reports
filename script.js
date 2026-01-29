@@ -2308,21 +2308,27 @@ else if (isURL) {
             // Option 1: LocalExplorer (for subfolders - opens in File Explorer)
             const link1 = document.createElement('a');
             link1.textContent = '📁 Open in Explorer';
-            link1.href = `localexplorer:${value}`;
-            link1.target = '_blank';
+            link1.href = 'javascript:void(0)';
             link1.style.color = '#0d6efd';
             link1.style.cursor = 'pointer';
-            link1.style.marginRight = '10px';
+            link1.style.marginRight = '15px';
             link1.title = 'Open directly in Windows Explorer (works for subfolders)';
+            link1.onclick = (e) => {
+                e.preventDefault();
+                window.open(`localexplorer:${value}`, '_blank');
+            };
             
             // Option 2: Browser listing (for root shares)
             const link2 = document.createElement('a');
             link2.textContent = '📋 Browse in Browser';
-            link2.href = value;
-            link2.target = '_blank';
+            link2.href = 'javascript:void(0)';
             link2.style.color = '#198754';
             link2.style.cursor = 'pointer';
             link2.title = 'View folder contents in browser (works for root shares)';
+            link2.onclick = (e) => {
+                e.preventDefault();
+                window.open(value, '_blank');
+            };
             
             // Show the path as text
             const pathText = document.createElement('div');
@@ -2356,6 +2362,7 @@ else if (isURL) {
             link.style.color = '#0d6efd';
             displayDiv.appendChild(link);
         }
+
 
 
 
@@ -2470,21 +2477,27 @@ else if (fieldType === 'Data' && fieldOptions === 'URL') {
         // Option 1: LocalExplorer (for subfolders)
         const link1 = document.createElement('a');
         link1.textContent = '📁 Open in Explorer';
-        link1.href = `localexplorer:${value}`;
-        link1.target = '_blank';
+        link1.href = 'javascript:void(0)';
         link1.style.color = '#0d6efd';
         link1.style.cursor = 'pointer';
-        link1.style.marginRight = '10px';
+        link1.style.marginRight = '15px';
         link1.title = 'Open directly in Windows Explorer';
+        link1.onclick = (e) => {
+            e.preventDefault();
+            window.open(`localexplorer:${value}`, '_blank');
+        };
         
         // Option 2: Browser listing (for root shares)
         const link2 = document.createElement('a');
         link2.textContent = '📋 Browse in Browser';
-        link2.href = value;
-        link2.target = '_blank';
+        link2.href = 'javascript:void(0)';
         link2.style.color = '#198754';
         link2.style.cursor = 'pointer';
         link2.title = 'View folder contents in browser';
+        link2.onclick = (e) => {
+            e.preventDefault();
+            window.open(value, '_blank');
+        };
         
         // Show the path
         const pathText = document.createElement('div');
@@ -2518,6 +2531,7 @@ else if (fieldType === 'Data' && fieldOptions === 'URL') {
         link.style.color = '#0d6efd';
         valueDiv.appendChild(link);
     }
+
 
 
 
