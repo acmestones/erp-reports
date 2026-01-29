@@ -2309,16 +2309,13 @@ else if (isURL) {
         link.style.cursor = 'pointer';
         link.style.textDecoration = 'underline';
         
-        // For UNC paths, convert to localexplorer:// protocol
+        // For UNC paths, convert to localexplorer:// protocol keeping backslashes
         if (value.startsWith('\\\\')) {
-            // Convert \\office1\path to localexplorer://office1/path
-            const convertedPath = value.substring(2).replace(/\\/g, '/');
-            link.href = `localexplorer://${convertedPath}`;
+            // Convert \\office1\path to localexplorer:\\office1\path
+            link.href = `localexplorer:${value}`;
             link.target = '_blank';
         } else if (value.startsWith('file://')) {
-            // Convert file://office1/path to localexplorer://office1/path
-            const convertedPath = value.substring(7);
-            link.href = `localexplorer://${convertedPath}`;
+            link.href = value;
             link.target = '_blank';
         } else if (value.startsWith('http://') || value.startsWith('https://')) {
             link.href = value;
@@ -2331,6 +2328,7 @@ else if (isURL) {
         }
         
         displayDiv.appendChild(link);
+
 
 
 
@@ -2444,16 +2442,13 @@ else if (fieldType === 'Data' && fieldOptions === 'URL') {
     link.style.cursor = 'pointer';
     link.style.textDecoration = 'underline';
     
-    // For UNC paths, convert to localexplorer:// protocol
+    // For UNC paths, convert to localexplorer:// protocol keeping backslashes
     if (value.startsWith('\\\\')) {
-        // Convert \\office1\path to localexplorer://office1/path
-        const convertedPath = value.substring(2).replace(/\\/g, '/');
-        link.href = `localexplorer://${convertedPath}`;
+        // Convert \\office1\path to localexplorer:\\office1\path
+        link.href = `localexplorer:${value}`;
         link.target = '_blank';
     } else if (value.startsWith('file://')) {
-        // Convert file://office1/path to localexplorer://office1/path
-        const convertedPath = value.substring(7);
-        link.href = `localexplorer://${convertedPath}`;
+        link.href = value;
         link.target = '_blank';
     } else if (value.startsWith('http://') || value.startsWith('https://')) {
         link.href = value;
@@ -2466,6 +2461,7 @@ else if (fieldType === 'Data' && fieldOptions === 'URL') {
     }
     
     valueDiv.appendChild(link);
+
 
 
 
