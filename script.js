@@ -2146,8 +2146,11 @@ console.log("  displayTitle (for modal):", displayTitle);
         const isRichText = ['Text', 'Small Text', 'Long Text', 'Text Editor', 'HTML', 'HTML Editor'].includes(fieldType);
         // Treat as URL if: 1) Has URL option, OR 2) Is Data field with current value starting with \\ or file:// or http
         const isURL = (fieldType === 'Data' && fieldOptions === 'URL') || 
-              (fieldType === 'Data' && value && typeof value === 'string' && 
-               (value.startsWith('\\\\') || value.startsWith('file://') || value.startsWith('http')));
+                      (fieldType === 'Data' && value && typeof value === 'string' && 
+                       (value.startsWith('\\\\') || 
+                        value.startsWith('file://') || 
+                        value.startsWith('http') ||
+                        /^[A-Za-z]:\\/.test(value))); // Detect local drive paths like P:\, C:\, etc.
 
         
       if (isRichText) {
@@ -2309,14 +2312,20 @@ else if (isURL) {
         link.style.cursor = 'pointer';
         link.style.textDecoration = 'underline';
         
-        // For UNC paths, always use localexplorer protocol
-        if (value.startsWith('\\\\')) {
-            link.href = `localexplorer:${value}`;
-            link.target = '_blank';
-        } else if (value.startsWith('file://')) {
-            link.href = `localexplorer:${value.substring(7)}`;
-            link.target = '_blank';
-        } else if (value.startsWith('http://') || value.startsWith('https://')) {
+      // For UNC or local drive paths, use localexplorer protocol
+      if (value.startsWith('\\\\')) {
+          // UNC path: \\server\share
+          link.href = `localexplorer:${value}`;
+          link.target = '_blank';
+      } else if (/^[A-Za-z]:\\/.test(value)) {
+          // Local drive path: P:\folder or C:\folder
+          link.href = `localexplorer:${value}`;
+          link.target = '_blank';
+      } else if (value.startsWith('file://')) {
+          link.href = `localexplorer:${value.substring(7)}`;
+          link.target = '_blank';
+      } else if (value.startsWith('http://') || value.startsWith('https://')) {
+
             link.href = value;
             link.target = '_blank';
             link.rel = 'noopener noreferrer';
@@ -2444,14 +2453,20 @@ else if (fieldType === 'Data' && fieldOptions === 'URL') {
     link.style.cursor = 'pointer';
     link.style.textDecoration = 'underline';
     
-    // For UNC paths, always use localexplorer protocol
-    if (value.startsWith('\\\\')) {
-        link.href = `localexplorer:${value}`;
-        link.target = '_blank';
-    } else if (value.startsWith('file://')) {
-        link.href = `localexplorer:${value.substring(7)}`;
-        link.target = '_blank';
-    } else if (value.startsWith('http://') || value.startsWith('https://')) {
+        // For UNC or local drive paths, use localexplorer protocol
+        if (value.startsWith('\\\\')) {
+            // UNC path: \\server\share
+            link.href = `localexplorer:${value}`;
+            link.target = '_blank';
+        } else if (/^[A-Za-z]:\\/.test(value)) {
+            // Local drive path: P:\folder or C:\folder
+            link.href = `localexplorer:${value}`;
+            link.target = '_blank';
+        } else if (value.startsWith('file://')) {
+            link.href = `localexplorer:${value.substring(7)}`;
+            link.target = '_blank';
+        } else if (value.startsWith('http://') || value.startsWith('https://')) {
+
         link.href = value;
         link.target = '_blank';
         link.rel = 'noopener noreferrer';
