@@ -2303,31 +2303,60 @@ else if (isURL) {
     const displayDiv = document.createElement('div');
     displayDiv.className = 'p-2 bg-light rounded';
     if (value) {
-        const link = document.createElement('a');
-        link.textContent = value;
-        link.style.color = '#0d6efd';
-        link.style.cursor = 'pointer';
-        link.style.textDecoration = 'underline';
-        
-        // For UNC paths, convert to localexplorer:// protocol keeping backslashes
+        // For UNC paths, provide two link options
         if (value.startsWith('\\\\')) {
-            // Convert \\office1\path to localexplorer:\\office1\path
-            link.href = `localexplorer:${value}`;
-            link.target = '_blank';
+            // Option 1: LocalExplorer (for subfolders - opens in File Explorer)
+            const link1 = document.createElement('a');
+            link1.textContent = '📁 Open in Explorer';
+            link1.href = `localexplorer:${value}`;
+            link1.target = '_blank';
+            link1.style.color = '#0d6efd';
+            link1.style.cursor = 'pointer';
+            link1.style.marginRight = '10px';
+            link1.title = 'Open directly in Windows Explorer (works for subfolders)';
+            
+            // Option 2: Browser listing (for root shares)
+            const link2 = document.createElement('a');
+            link2.textContent = '📋 Browse in Browser';
+            link2.href = value;
+            link2.target = '_blank';
+            link2.style.color = '#198754';
+            link2.style.cursor = 'pointer';
+            link2.title = 'View folder contents in browser (works for root shares)';
+            
+            // Show the path as text
+            const pathText = document.createElement('div');
+            pathText.className = 'text-muted small mt-1';
+            pathText.textContent = value;
+            
+            displayDiv.appendChild(link1);
+            displayDiv.appendChild(link2);
+            displayDiv.appendChild(pathText);
         } else if (value.startsWith('file://')) {
+            const link = document.createElement('a');
             link.href = value;
             link.target = '_blank';
+            link.textContent = value;
+            link.style.color = '#0d6efd';
+            displayDiv.appendChild(link);
         } else if (value.startsWith('http://') || value.startsWith('https://')) {
+            const link = document.createElement('a');
             link.href = value;
             link.target = '_blank';
             link.rel = 'noopener noreferrer';
+            link.textContent = value;
+            link.style.color = '#0d6efd';
+            displayDiv.appendChild(link);
         } else {
+            const link = document.createElement('a');
             link.href = `https://${value}`;
             link.target = '_blank';
             link.rel = 'noopener noreferrer';
+            link.textContent = value;
+            link.style.color = '#0d6efd';
+            displayDiv.appendChild(link);
         }
-        
-        displayDiv.appendChild(link);
+
 
 
 
@@ -2436,31 +2465,59 @@ else if (isURL) {
 
 // NEW URL field (Data field with URL option)
 else if (fieldType === 'Data' && fieldOptions === 'URL') {
-    const link = document.createElement('a');
-    link.textContent = value;
-    link.style.color = '#0d6efd';
-    link.style.cursor = 'pointer';
-    link.style.textDecoration = 'underline';
-    
-    // For UNC paths, convert to localexplorer:// protocol keeping backslashes
+    // For UNC paths, provide two link options
     if (value.startsWith('\\\\')) {
-        // Convert \\office1\path to localexplorer:\\office1\path
-        link.href = `localexplorer:${value}`;
-        link.target = '_blank';
+        // Option 1: LocalExplorer (for subfolders)
+        const link1 = document.createElement('a');
+        link1.textContent = '📁 Open in Explorer';
+        link1.href = `localexplorer:${value}`;
+        link1.target = '_blank';
+        link1.style.color = '#0d6efd';
+        link1.style.cursor = 'pointer';
+        link1.style.marginRight = '10px';
+        link1.title = 'Open directly in Windows Explorer';
+        
+        // Option 2: Browser listing (for root shares)
+        const link2 = document.createElement('a');
+        link2.textContent = '📋 Browse in Browser';
+        link2.href = value;
+        link2.target = '_blank';
+        link2.style.color = '#198754';
+        link2.style.cursor = 'pointer';
+        link2.title = 'View folder contents in browser';
+        
+        // Show the path
+        const pathText = document.createElement('div');
+        pathText.className = 'text-muted small mt-1';
+        pathText.textContent = value;
+        
+        valueDiv.appendChild(link1);
+        valueDiv.appendChild(link2);
+        valueDiv.appendChild(pathText);
     } else if (value.startsWith('file://')) {
+        const link = document.createElement('a');
         link.href = value;
         link.target = '_blank';
+        link.textContent = value;
+        link.style.color = '#0d6efd';
+        valueDiv.appendChild(link);
     } else if (value.startsWith('http://') || value.startsWith('https://')) {
+        const link = document.createElement('a');
         link.href = value;
         link.target = '_blank';
         link.rel = 'noopener noreferrer';
+        link.textContent = value;
+        link.style.color = '#0d6efd';
+        valueDiv.appendChild(link);
     } else {
+        const link = document.createElement('a');
         link.href = `https://${value}`;
         link.target = '_blank';
         link.rel = 'noopener noreferrer';
+        link.textContent = value;
+        link.style.color = '#0d6efd';
+        valueDiv.appendChild(link);
     }
-    
-    valueDiv.appendChild(link);
 
 
 
