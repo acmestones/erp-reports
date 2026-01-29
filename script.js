@@ -2138,13 +2138,17 @@ console.log("  displayTitle (for modal):", displayTitle);
     ============================== */
 
       if (isEditable) {
-        // ✅ FIX: Get fieldtype and options from mapping (has full metadata)
+        // FIX: Get fieldtype and options from mapping (has full metadata)
         const fieldInfo = window.reportFieldMapping?.[reportFieldname];
         const fieldType = fieldInfo?.fieldtype || col.fieldtype;
         const fieldOptions = fieldInfo?.options || col.options;
         
         const isRichText = ['Text', 'Small Text', 'Long Text', 'Text Editor', 'HTML', 'HTML Editor'].includes(fieldType);
-        const isURL = fieldType === 'Data' && fieldOptions === 'URL';
+        // Treat as URL if: 1) Has URL option, OR 2) Is Data field with current value starting with \\ or file:// or http
+        const isURL = (fieldType === 'Data' && fieldOptions === 'URL') || 
+              (fieldType === 'Data' && value && typeof value === 'string' && 
+               (value.startsWith('\\\\') || value.startsWith('file://') || value.startsWith('http')));
+
         
       if (isRichText) {
         // ----- DISPLAY MODE -----
