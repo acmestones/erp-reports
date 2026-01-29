@@ -2297,29 +2297,28 @@ console.log("  displayTitle (for modal):", displayTitle);
 
         valueDiv.append(displayDiv, editorWrapper, editBtn, cancelBtn, saveBtn);
           } 
-      // NEW URL field with Edit button
-      else if (isURL) {
-          // Display mode
-          const displayDiv = document.createElement('div');
-          displayDiv.className = 'p-2 bg-light rounded';
-          if (value) {
-              const link = document.createElement('a');
-              // Handle different URL types without forcing https://
-              if (value.startsWith('\\\\')) {
-                  // UNC path - convert to file:// protocol
-                  link.href = `file:${value.replace(/\\/g, '/')}`;
-              } else if (value.startsWith('file://') || value.startsWith('http://') || value.startsWith('https://')) {
-                  // Already has protocol
-                  link.href = value;
-              } else {
-                  // Assume web URL without protocol
-                  link.href = `https://${value}`;
-              }
-              link.target = '_blank';
-              link.rel = 'noopener noreferrer';
-              link.textContent = value;
-              link.style.color = '#0d6efd';
-              displayDiv.appendChild(link);
+        // NEW URL field with Edit button
+        else if (isURL) {
+            // Display mode
+            const displayDiv = document.createElement('div');
+            displayDiv.className = 'p-2 bg-light rounded';
+            if (value) {
+                const link = document.createElement('a');
+                // Keep UNC paths and file:// URLs exactly as-is for LocalExplorer
+                if (value.startsWith('\\\\') || value.startsWith('file://')) {
+                    link.href = value;
+                } else if (value.startsWith('http://') || value.startsWith('https://')) {
+                    link.href = value;
+                } else {
+                    // Assume web URL without protocol
+                    link.href = `https://${value}`;
+                }
+                link.target = '_blank';
+                link.rel = 'noopener noreferrer';
+                link.textContent = value;
+                link.style.color = '#0d6efd';
+                displayDiv.appendChild(link);
+
 
             } else {
               displayDiv.innerHTML = '<span class="text-muted">No URL set</span>';
@@ -2424,12 +2423,10 @@ console.log("  displayTitle (for modal):", displayTitle);
         // NEW URL field (Data field with URL option)
         else if (fieldType === 'Data' && fieldOptions === 'URL') {
             const link = document.createElement('a');
-            // Handle different URL types without forcing https://
-            if (value.startsWith('\\\\')) {
-                // UNC path - convert to file:// protocol
-                link.href = `file:${value.replace(/\\/g, '/')}`;
-            } else if (value.startsWith('file://') || value.startsWith('http://') || value.startsWith('https://')) {
-                // Already has protocol
+            // Keep UNC paths and file:// URLs exactly as-is for LocalExplorer
+            if (value.startsWith('\\\\') || value.startsWith('file://')) {
+                link.href = value;
+            } else if (value.startsWith('http://') || value.startsWith('https://')) {
                 link.href = value;
             } else {
                 // Assume web URL without protocol
@@ -2441,6 +2438,7 @@ console.log("  displayTitle (for modal):", displayTitle);
             link.style.color = '#0d6efd';
             link.style.textDecoration = 'underline';
             valueDiv.appendChild(link);
+
 
       }
 
