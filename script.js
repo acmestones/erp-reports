@@ -2138,13 +2138,20 @@ console.log("  displayTitle (for modal):", displayTitle);
     ============================== */
 
       if (isEditable) {
-        // ✅ FIX: Get fieldtype and options from mapping (has full metadata)
+        // FIX: Get fieldtype and options from mapping (has full metadata)
         const fieldInfo = window.reportFieldMapping?.[reportFieldname];
         const fieldType = fieldInfo?.fieldtype || col.fieldtype;
         const fieldOptions = fieldInfo?.options || col.options;
         
         const isRichText = ['Text', 'Small Text', 'Long Text', 'Text Editor', 'HTML', 'HTML Editor'].includes(fieldType);
-        const isURL = fieldType === 'Data' && fieldOptions === 'URL';
+        // Treat as URL if: 1) Has URL option, OR 2) Is Data field with current value starting with \\ or file:// or http
+        const isURL = (fieldType === 'Data' && fieldOptions === 'URL') || 
+                      (fieldType === 'Data' && value && typeof value === 'string' && 
+                       (value.startsWith('\\\\') || 
+                        value.startsWith('file://') || 
+                        value.startsWith('http') ||
+                        /^[A-Za-z]:\\/.test(value))); // Detect local drive paths like P:\, C:\, etc.
+
         
       if (isRichText) {
         // ----- DISPLAY MODE -----
@@ -2293,19 +2300,51 @@ console.log("  displayTitle (for modal):", displayTitle);
 
         valueDiv.append(displayDiv, editorWrapper, editBtn, cancelBtn, saveBtn);
           } 
-          // ✅ NEW: URL field with Edit button
-          else if (isURL) {
-            // Display mode
-            const displayDiv = document.createElement('div');
-            displayDiv.className = 'p-2 bg-light rounded';
-            if (value) {
-              const link = document.createElement('a');
-              link.href = value.startsWith('http') ? value : `https://${value}`;
-              link.target = '_blank';
-              link.rel = 'noopener noreferrer';
-              link.textContent = value;
-              link.style.color = '#0d6efd';
-              displayDiv.appendChild(link);
+// NEW URL field with Edit button
+else if (isURL) {
+    // Display mode
+    const displayDiv = document.createElement('div');
+    displayDiv.className = 'p-2 bg-light rounded';
+    if (value) {
+        const link = document.createElement('a');
+        link.textContent = value;
+        link.style.color = '#0d6efd';
+        link.style.cursor = 'pointer';
+        link.style.textDecoration = 'underline';
+        
+      // For UNC or local drive paths, use localexplorer protocol
+      if (value.startsWith('\\\\')) {
+          // UNC path: \\server\share
+          link.href = `localexplorer:${value}`;
+          link.target = '_blank';
+      } else if (/^[A-Za-z]:\\/.test(value)) {
+          // Local drive path: P:\folder or C:\folder
+          link.href = `localexplorer:${value}`;
+          link.target = '_blank';
+      } else if (value.startsWith('file://')) {
+          link.href = `localexplorer:${value.substring(7)}`;
+          link.target = '_blank';
+      } else if (value.startsWith('http://') || value.startsWith('https://')) {
+
+            link.href = value;
+            link.target = '_blank';
+            link.rel = 'noopener noreferrer';
+        } else {
+            link.href = `https://${value}`;
+            link.target = '_blank';
+            link.rel = 'noopener noreferrer';
+        }
+        
+        displayDiv.appendChild(link);
+
+
+
+
+
+
+
+
+
             } else {
               displayDiv.innerHTML = '<span class="text-muted">No URL set</span>';
             }
@@ -2406,16 +2445,44 @@ console.log("  displayTitle (for modal):", displayTitle);
       }
 
 
-      // ✅ NEW: URL field (Data field with "URL" option)
-      else if (fieldType === 'Data' && fieldOptions === 'URL') {
-        const link = document.createElement('a');
-        link.href = value.startsWith('http') ? value : `https://${value}`;
+// NEW URL field (Data field with URL option)
+else if (fieldType === 'Data' && fieldOptions === 'URL') {
+    const link = document.createElement('a');
+    link.textContent = value;
+    link.style.color = '#0d6efd';
+    link.style.cursor = 'pointer';
+    link.style.textDecoration = 'underline';
+    
+        // For UNC or local drive paths, use localexplorer protocol
+        if (value.startsWith('\\\\')) {
+            // UNC path: \\server\share
+            link.href = `localexplorer:${value}`;
+            link.target = '_blank';
+        } else if (/^[A-Za-z]:\\/.test(value)) {
+            // Local drive path: P:\folder or C:\folder
+            link.href = `localexplorer:${value}`;
+            link.target = '_blank';
+        } else if (value.startsWith('file://')) {
+            link.href = `localexplorer:${value.substring(7)}`;
+            link.target = '_blank';
+        } else if (value.startsWith('http://') || value.startsWith('https://')) {
+
+        link.href = value;
         link.target = '_blank';
         link.rel = 'noopener noreferrer';
-        link.textContent = value;
-        link.style.color = '#0d6efd';
-        link.style.textDecoration = 'underline';
-        valueDiv.appendChild(link);
+    } else {
+        link.href = `https://${value}`;
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+    }
+    
+    valueDiv.appendChild(link);
+
+
+
+
+
+
       }
 
 
