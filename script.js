@@ -2414,14 +2414,14 @@ else if (isURL) {
        READ-ONLY FIELDS
     ============================== */
 // READ-ONLY FIELDS
-else if (hasValue || reportFieldname === ATTACHMENTSREPORTFIELD) {
+else if (hasValue || reportFieldname === 'attachments') {
     // Get metadata for read-only fields
     const fieldInfo = window.reportFieldMapping?.[reportFieldname];
     const fieldType = fieldInfo?.fieldtype || col.fieldtype;
     const fieldOptions = fieldInfo?.options || col.options;
     
     // ATTACHMENTS
-    if (reportFieldname === ATTACHMENTSREPORTFIELD) {
+    if (reportFieldname === 'attachments') {
         valueDiv.innerHTML = `<div class="text-muted small">Loading attachments...</div>`;
         loadAttachments(valueDiv, docName, config, row, columns, reportName);
     }
@@ -2457,11 +2457,9 @@ else if (hasValue || reportFieldname === ATTACHMENTSREPORTFIELD) {
         
         // For UNC or local drive paths, use localexplorer protocol
         if (value.startsWith('\\\\')) {
-            // UNC path: \\server\share
             link.href = `localexplorer:${value}`;
             link.target = '_blank';
         } else if (/^[A-Za-z]:\\/.test(value)) {
-            // Local drive path: P:\folder or C:\folder
             link.href = `localexplorer:${value}`;
             link.target = '_blank';
         } else if (value.startsWith('file://')) {
@@ -2483,11 +2481,11 @@ else if (hasValue || reportFieldname === ATTACHMENTSREPORTFIELD) {
     else {
         valueDiv.textContent = value;
     }
+}
 
-    }
+fieldDiv.append(labelDiv, valueDiv);
+modalBody.appendChild(fieldDiv);
 
-    fieldDiv.append(labelDiv, valueDiv);
-    modalBody.appendChild(fieldDiv);
   }
 
   modal.show();
