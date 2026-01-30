@@ -2446,7 +2446,9 @@ else if (isURL) {
 
 
 // NEW URL field (Data field with URL option)
-else if (fieldType === 'Data' && fieldOptions === 'URL') {
+else if ((fieldType === 'Data' && fieldOptions === 'URL') || 
+         (fieldType === 'Data' && value && typeof value === 'string' && 
+          (value.startsWith('\\\\') || value.startsWith('file://') || value.startsWith('http') || /^[A-Za-z]:\\/.test(value)))) {
     const link = document.createElement('a');
     link.textContent = value;
     link.style.color = '#0d6efd';
