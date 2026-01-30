@@ -2413,46 +2413,48 @@ else if (isURL) {
     /* =============================
        READ-ONLY FIELDS
     ============================== */
-  // READ-ONLY FIELDS
-  else if (hasValue || reportFieldname === ATTACHMENTS_REPORT_FIELD) {
-    // ✅ Get metadata for read-only fields
+// READ-ONLY FIELDS
+else if (hasValue || reportFieldname === ATTACHMENTSREPORTFIELD) {
+    // Get metadata for read-only fields
     const fieldInfo = window.reportFieldMapping?.[reportFieldname];
     const fieldType = fieldInfo?.fieldtype || col.fieldtype;
     const fieldOptions = fieldInfo?.options || col.options;
-
     
-      // ATTACHMENTS
-      if (reportFieldname === ATTACHMENTS_REPORT_FIELD) {
-        valueDiv.innerHTML = '<div class="text-muted small">Loading attachments…</div>';
+    // ATTACHMENTS
+    if (reportFieldname === ATTACHMENTSREPORTFIELD) {
+        valueDiv.innerHTML = `<div class="text-muted small">Loading attachments...</div>`;
         loadAttachments(valueDiv, docName, config, row, columns, reportName);
-      }
-      // Rich text
-      else if (typeof value === "string" && value.includes("<")) {
+    }
+    // Rich text
+    else if (typeof value === 'string' && value.includes('<')) {
         valueDiv.innerHTML = sanitizeRichHtml(value);
         normalizeFileLinks(valueDiv);
         normalizeAttachmentLayout(valueDiv);
         autoFixImages(valueDiv);
         constrainRichTextImages(valueDiv);
-      }
-      // Link field
-      else if (fieldType === "Link" && fieldOptions) {
-        const link = document.createElement("a");
-        link.href = `${ERP_BASE}/app/${col.options.toLowerCase().replace(/\s+/g, "-")}/${encodeURIComponent(value)}`;
-        link.target = "_blank";
-        link.rel = "noopener noreferrer";
+    }
+    // Link field
+    else if (fieldType === 'Link' && fieldOptions) {
+        const link = document.createElement('a');
+        link.href = `${ERPBASE}/app/${col.options.toLowerCase().replace(/ /g, '-')}/${encodeURIComponent(value)}`;
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
         link.textContent = value;
         valueDiv.appendChild(link);
-      }
-
-
-// NEW URL field (Data field with URL option)
-else if (fieldType === 'Data' && fieldOptions === 'URL') {
-    const link = document.createElement('a');
-    link.textContent = value;
-    link.style.color = '#0d6efd';
-    link.style.cursor = 'pointer';
-    link.style.textDecoration = 'underline';
-    
+    }
+    // NEW: URL field - Check both Data+URL option AND value pattern
+    else if ((fieldType === 'Data' && fieldOptions === 'URL') || 
+             (fieldType === 'Data' && value && typeof value === 'string' && 
+              (value.startsWith('\\\\') || 
+               value.startsWith('file://') || 
+               value.startsWith('http') ||
+               /^[A-Za-z]:\\/.test(value)))) {
+        const link = document.createElement('a');
+        link.textContent = value;
+        link.style.color = '#0d6efd';
+        link.style.cursor = 'pointer';
+        link.style.textDecoration = 'underline';
+        
         // For UNC or local drive paths, use localexplorer protocol
         if (value.startsWith('\\\\')) {
             // UNC path: \\server\share
@@ -2466,32 +2468,22 @@ else if (fieldType === 'Data' && fieldOptions === 'URL') {
             link.href = `localexplorer:${value.substring(7)}`;
             link.target = '_blank';
         } else if (value.startsWith('http://') || value.startsWith('https://')) {
-
-        link.href = value;
-        link.target = '_blank';
-        link.rel = 'noopener noreferrer';
-    } else {
-        link.href = `https://${value}`;
-        link.target = '_blank';
-        link.rel = 'noopener noreferrer';
-    }
-    
-    valueDiv.appendChild(link);
-
-
-
-
-
-
-      }
-
-
-
+            link.href = value;
+            link.target = '_blank';
+            link.rel = 'noopener noreferrer';
+        } else {
+            link.href = `https://${value}`;
+            link.target = '_blank';
+            link.rel = 'noopener noreferrer';
+        }
         
-      // Plain text
-      else {
+        valueDiv.appendChild(link);
+    }
+    // Plain text
+    else {
         valueDiv.textContent = value;
-      }
+    }
+
     }
 
     fieldDiv.append(labelDiv, valueDiv);
