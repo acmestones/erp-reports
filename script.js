@@ -1763,9 +1763,6 @@ function renderGroupedCards(grouped, columns, reportName) {
 
   
 
-  if (!reportConfig[reportName]) reportConfig[reportName] = {};
-  const config = reportConfig[reportName] || {};
-
   // Normalize legacy keys (for safety)
 
   // Normalize nested hidden group keys for current user (support legacy names too)
