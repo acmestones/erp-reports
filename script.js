@@ -2187,10 +2187,9 @@ function createTableView(rows, columns, reportName, config, level1, level2) {
     const tableContainer = document.createElement('div');
     tableContainer.className = 'table-responsive mt-2';
     
-    // Determine which columns to show
-    const tableColumns = config.table_columns && config.table_columns.length > 0
-        ? config.table_columns
-        : columns.map(c => c.fieldname);
+    // Determine which columns to show (all columns, user-level hidden fields will filter)
+    const tableColumns = columns.map(c => c.fieldname);
+
     
     // Get user permissions
     const userEmail = localStorage.getItem('userEmail');
@@ -3828,22 +3827,20 @@ async function openGlobalReportConfigModal(reportName) {
       </div>
       
       <div id="tableViewSection" style="display: none;">
-        <div class="mb-3">
-          <label class="form-label">Table Columns (comma-separated field names)</label>
-          <input type="text" class="form-control" id="configTableColumns" placeholder="e.g., name, status, date">
-          <small class="text-muted">Leave empty to show all fields</small>
+        <div class="alert alert-info small">
+          <strong>Note:</strong> Table columns are controlled by user-level "Hidden Fields" configuration.
+          Configure which fields each user can see in the User Permissions section below.
         </div>
         
         <div class="mb-3">
-          <label class="form-label">Aggregate Functions</label>
-          <div id="aggregateFieldsList" class="border rounded p-2" style="max-height: 200px; overflow-y: auto;">
-            <small class="text-muted">Configure aggregates after setting table columns</small>
+          <label class="form-label fw-bold">Aggregate Functions</label>
+          <small class="text-muted d-block mb-2">Select fields to show aggregates (sum, average, etc.) below each table</small>
+          <div id="aggregateFieldsList" class="border rounded p-3" style="max-height: 300px; overflow-y: auto; background: #f8f9fa;">
+            <small class="text-muted">Loading fields...</small>
           </div>
-          <button type="button" class="btn btn-sm btn-outline-primary mt-2" id="addAggregateBtn">
-            ➕ Add Aggregate
-          </button>
         </div>
       </div>
+
 
 
 
@@ -4411,7 +4408,10 @@ return `
         function updateViewTypeSections() {
             const viewType = viewTypeSelect.value;
             if (viewType === 'table') {
-                if (tableViewSection) tableViewSection.style.display = 'block';
+                if (tableViewSection) {
+                    tableViewSection.style.display = 'block';
+                    renderAggregateFieldsCheckboxes();
+                }
             } else {
                 if (tableViewSection) tableViewSection.style.display = 'none';
             }
@@ -4421,75 +4421,145 @@ return `
         viewTypeSelect.addEventListener('change', updateViewTypeSections);
     }
     
-    // Initialize table columns
-    const tableColumnsInput = document.getElementById('configTableColumns');
-    if (tableColumnsInput) {
-        const tableColumns = config.table_columns || [];
-        tableColumnsInput.value = Array.isArray(tableColumns) ? tableColumns.join(', ') : tableColumns;
-    }
-    
-    // Initialize aggregates
-    const aggregatesList = document.getElementById('aggregateFieldsList');
-    const addAggregateBtn = document.getElementById('addAggregateBtn');
-    
-    function renderAggregatesList() {
+    // Render aggregate fields with checkboxes
+    function renderAggregateFieldsCheckboxes() {
+        const aggregatesList = document.getElementById('aggregateFieldsList');
         if (!aggregatesList) return;
         
-        const aggregates = config.aggregates || [];
+        // Get all report columns
+        const reportColumns = currentReportColumns || [];
         
-        if (aggregates.length === 0) {
-            aggregatesList.innerHTML = '<small class="text-muted">No aggregates configured</small>';
+        if (reportColumns.length === 0) {
+            aggregatesList.innerHTML = '<small class="text-muted">Please load the report first to see available fields</small>';
             return;
         }
         
+        // Get existing aggregates
+        const existingAggregates = config.aggregates || [];
+        
         aggregatesList.innerHTML = '';
         
-        aggregates.forEach((agg, index) => {
-            const aggDiv = document.createElement('div');
-            aggDiv.className = 'mb-2 p-2 border rounded bg-light d-flex justify-content-between align-items-center';
-            aggDiv.innerHTML = `
-                <div>
-                    <strong>${agg.field}</strong>: ${agg.function}
-                    ${agg.label ? ` (${agg.label})` : ''}
-                </div>
-                <button type="button" class="btn btn-sm btn-outline-danger" data-index="${index}">
-                    ❌
-                </button>
+        // Filter numeric/date fields (suitable for aggregation)
+        const aggregatableFields = reportColumns.filter(col => {
+            const fieldType = col.fieldtype || '';
+            return ['Int', 'Float', 'Currency', 'Percent', 'Data', 'Date', 'Datetime'].includes(fieldType) ||
+                   col.fieldname.toLowerCase().includes('qty') ||
+                   col.fieldname.toLowerCase().includes('amount') ||
+                   col.fieldname.toLowerCase().includes('total') ||
+                   col.fieldname.toLowerCase().includes('count') ||
+                   col.fieldname.toLowerCase().includes('time');
+        });
+        
+        if (aggregatableFields.length === 0) {
+            aggregatesList.innerHTML = '<small class="text-muted">No numeric fields available for aggregation</small>';
+            return;
+        }
+        
+        aggregatableFields.forEach(col => {
+            const fieldname = col.fieldname;
+            const label = fieldLabels?.[fieldname] || col.label || fieldname;
+            
+            // Find if this field has an existing aggregate
+            const existingAgg = existingAggregates.find(a => a.field === fieldname);
+            
+            const fieldDiv = document.createElement('div');
+            fieldDiv.className = 'mb-3 p-2 border rounded bg-white';
+            
+            // Checkbox to enable/disable aggregate for this field
+            const checkboxDiv = document.createElement('div');
+            checkboxDiv.className = 'form-check mb-2';
+            
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.className = 'form-check-input';
+            checkbox.id = `agg_enable_${fieldname}`;
+            checkbox.checked = !!existingAgg;
+            
+            const checkboxLabel = document.createElement('label');
+            checkboxLabel.className = 'form-check-label fw-bold';
+            checkboxLabel.htmlFor = `agg_enable_${fieldname}`;
+            checkboxLabel.textContent = label;
+            
+            checkboxDiv.appendChild(checkbox);
+            checkboxDiv.appendChild(checkboxLabel);
+            fieldDiv.appendChild(checkboxDiv);
+            
+            // Options div (function and custom label)
+            const optionsDiv = document.createElement('div');
+            optionsDiv.className = 'ms-4';
+            optionsDiv.style.display = existingAgg ? 'block' : 'none';
+            
+            // Function selector
+            const funcDiv = document.createElement('div');
+            funcDiv.className = 'mb-2';
+            funcDiv.innerHTML = `
+                <label class="form-label small mb-1">Function:</label>
+                <select class="form-select form-select-sm" id="agg_func_${fieldname}">
+                    <option value="sum">Sum</option>
+                    <option value="average">Average</option>
+                    <option value="count">Count</option>
+                    <option value="min">Minimum</option>
+                    <option value="max">Maximum</option>
+                </select>
             `;
             
-            aggDiv.querySelector('button').addEventListener('click', function() {
-                aggregates.splice(index, 1);
-                config.aggregates = aggregates;
-                renderAggregatesList();
+            // Custom label input
+            const labelDiv = document.createElement('div');
+            labelDiv.innerHTML = `
+                <label class="form-label small mb-1">Custom Label (optional):</label>
+                <input type="text" class="form-control form-control-sm" id="agg_label_${fieldname}" 
+                       placeholder="e.g., Total Amount">
+            `;
+            
+            optionsDiv.appendChild(funcDiv);
+            optionsDiv.appendChild(labelDiv);
+            fieldDiv.appendChild(optionsDiv);
+            
+            // Set existing values
+            if (existingAgg) {
+                const funcSelect = optionsDiv.querySelector(`#agg_func_${fieldname}`);
+                const labelInput = optionsDiv.querySelector(`#agg_label_${fieldname}`);
+                if (funcSelect) funcSelect.value = existingAgg.function || 'sum';
+                if (labelInput) labelInput.value = existingAgg.label || '';
+            }
+            
+            // Toggle options visibility on checkbox change
+            checkbox.addEventListener('change', function() {
+                optionsDiv.style.display = this.checked ? 'block' : 'none';
+                updateAggregatesConfig();
             });
             
-            aggregatesList.appendChild(aggDiv);
+            // Update config on any change
+            optionsDiv.addEventListener('change', updateAggregatesConfig);
+            
+            aggregatesList.appendChild(fieldDiv);
         });
-    }
-    
-    if (addAggregateBtn) {
-        addAggregateBtn.addEventListener('click', function() {
-            const field = prompt('Enter field name:');
-            if (!field) return;
+        
+        // Function to update config.aggregates based on UI
+        function updateAggregatesConfig() {
+            const newAggregates = [];
             
-            const func = prompt('Enter function (sum, average, count, min, max):', 'sum');
-            if (!func) return;
-            
-            const label = prompt('Enter label (optional):', func + ' of ' + field);
-            
-            if (!config.aggregates) config.aggregates = [];
-            
-            config.aggregates.push({
-                field: field.trim(),
-                function: func.trim().toLowerCase(),
-                label: label ? label.trim() : null
+            aggregatableFields.forEach(col => {
+                const fieldname = col.fieldname;
+                const checkbox = document.getElementById(`agg_enable_${fieldname}`);
+                
+                if (checkbox && checkbox.checked) {
+                    const funcSelect = document.getElementById(`agg_func_${fieldname}`);
+                    const labelInput = document.getElementById(`agg_label_${fieldname}`);
+                    
+                    newAggregates.push({
+                        field: fieldname,
+                        function: funcSelect ? funcSelect.value : 'sum',
+                        label: labelInput && labelInput.value ? labelInput.value : null
+                    });
+                }
             });
             
-            renderAggregatesList();
-        });
+            config.aggregates = newAggregates;
+            console.log('Updated aggregates:', config.aggregates);
+        }
     }
-    
-    renderAggregatesList();
+
 
 
 
@@ -4594,21 +4664,14 @@ document.getElementById("saveGlobalConfigBtn").onclick = async () => {
 
 
         
-        // Save view type and table settings
+        // Save view type
         const viewTypeSelect = document.getElementById('configViewType');
         if (viewTypeSelect) {
             reportConfig[reportName].view_type = viewTypeSelect.value;
         }
         
-        const tableColumnsInput = document.getElementById('configTableColumns');
-        if (tableColumnsInput && reportConfig[reportName].view_type === 'table') {
-            reportConfig[reportName].table_columns = tableColumnsInput.value
-                .split(',')
-                .map(x => x.trim())
-                .filter(Boolean);
-        }
-        
-        // Aggregates are already saved in config.aggregates from the UI
+        // Aggregates are already saved in config.aggregates from the UI (no additional save needed)
+
 
 
 
