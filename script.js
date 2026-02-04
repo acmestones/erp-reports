@@ -1831,77 +1831,85 @@ function renderGroupedCards(grouped, columns, reportName) {
       level2Content.className = "level2-content";
       level2Content.style.display = collapsed ? "none" : "block";
 
-      const cardsContainer = document.createElement("div");
-      cardsContainer.className = "d-flex flex-wrap gap-3 mt-2";
-
-      // Apply saved card priority if it exists
-
-      const cardPriority = config.card_priority?.[level1]?.[level2];
-      let cardsToRender = grouped[level1][level2];
-
-      // IMPORTANT: createCard() below also normalizes title_field/titlefield,
-      // but keep a consistent default here too.
-
-      const titleField = config.title_field || "name";
-      const idField = config.id_field || "name";
       
-      // Helper function using admin-configured id_field
-      const getCardId = (row) => {
-        return row[idField];
-      };
+        // Check view type
+        const viewType = config.view_type || 'cards';
+        
+        if (viewType === 'table') {
+            // ============ TABLE VIEW ============
+            const tableView = createTableView(grouped[level1][level2], columns, reportName, config, level1, level2);
+            level2Content.appendChild(tableView);
+            
+        } else {
+            // ============ CARDS VIEW (original code) ============
+            const cardsContainer = document.createElement('div');
+            cardsContainer.className = 'd-flex flex-wrap gap-3 mt-2';
+            
+            // Apply saved card priority if it exists
+            const cardPriority = config.card_priority?.[level1]?.[level2];
+            let cardsToRender = [...grouped[level1][level2]];
+            
+            // IMPORTANT: createCard below also normalizes titlefield→title_field, but keep a consistent default here too.
+            const titleField = config.title_field || 'name';
+            const idField = config.id_field || 'name';
+            
+            // Helper function using admin-configured id_field
+            const getCardId = (row) => {
+                return row[idField];
+            };
+            
+            if (cardPriority && Array.isArray(cardPriority)) {
+                cardsToRender = [...cardsToRender].sort((a, b) => {
+                    const idA = getCardId(a);
+                    const idB = getCardId(b);
+                    const indexA = cardPriority.indexOf(idA);
+                    const indexB = cardPriority.indexOf(idB);
+                    
+                    // Both cards are in the priority list - use priority order
+                    if (indexA !== -1 && indexB !== -1) {
+                        return indexA - indexB;
+                    }
+                    
+                    // Only A is in priority list - A comes first
+                    if (indexA !== -1) return -1;
+                    
+                    // Only B is in priority list - B comes first
+                    if (indexB !== -1) return 1;
+                    
+                    // Neither is in priority list - NEW CARDS
+                    if (config.sort_by) {
+                        const sortField = config.sort_by;
+                        const valA = a[sortField];
+                        const valB = b[sortField];
+                        if (valA === valB) return 0;
+                        if (valA === null || valA === undefined) return 1;
+                        if (valB === null || valB === undefined) return -1;
+                        const comparison = valA < valB ? -1 : 1;
+                        return config.sort_order === 'desc' ? -comparison : comparison;
+                    }
+                    
+                    return 0;
+                });
+            }
+            
+            const fragment = document.createDocumentFragment();
+            cardsToRender.forEach((row) => {
+                const card = createCard(row, columns, reportName, config);
+                card.className += ' card-grid-item';
+                fragment.appendChild(card);
+            });
+            cardsContainer.appendChild(fragment);
+            
+            // Initialize drag-and-drop for this subgroup (admin only)
+            if (currentUser && currentUser.role === 'admin') {
+                initializeSortable(cardsContainer, reportName, level1, level2);
+            }
+            
+            level2Content.appendChild(cardsContainer);
+        }
 
-
-
-
-      if (cardPriority && Array.isArray(cardPriority)) {
-        cardsToRender = [...cardsToRender].sort((a, b) => {
-          const idA = getCardId(a);
-          const idB = getCardId(b);
-
-          const indexA = cardPriority.indexOf(idA);
-          const indexB = cardPriority.indexOf(idB);
-
-          // Both cards are in the priority list - use priority order
-          if (indexA !== -1 && indexB !== -1) return indexA - indexB;
-
-          // Only A is in priority list - A comes first
-          if (indexA !== -1) return -1;
-
-          // Only B is in priority list - B comes first
-          if (indexB !== -1) return 1;
-
-          // Neither is in priority list - NEW CARDS
-          if (config.sort_by) {
-            const sortField = config.sort_by;
-            const valA = a[sortField];
-            const valB = b[sortField];
-
-            if (valA === valB) return 0;
-            if (valA === null || valA === undefined) return 1;
-            if (valB === null || valB === undefined) return -1;
-
-            const comparison = valA < valB ? -1 : 1;
-            return config.sort_order === "desc" ? -comparison : comparison;
-          }
-
-          return 0;
-        });
-      }
-
-      const fragment = document.createDocumentFragment();
-      cardsToRender.forEach((row) => {
-        const card = createCard(row, columns, reportName, config);
-        card.className = card.className + " card-grid-item";
-        fragment.appendChild(card);
-      });
-      cardsContainer.appendChild(fragment);
-
-      // Initialize drag-and-drop for this subgroup (admin only)
-      if (currentUser && currentUser.role === "admin") {
-        initializeSortable(cardsContainer, reportName, level1, level2);
-      }
-
-      level2Content.appendChild(cardsContainer);
+      
+      
       level2Div.appendChild(level2Header);
       level2Div.appendChild(level2Content);
 
@@ -2160,6 +2168,203 @@ const name = displayTitle;
 
   return card;
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+function createTableView(rows, columns, reportName, config, level1, level2) {
+    const tableContainer = document.createElement('div');
+    tableContainer.className = 'table-responsive mt-2';
+    
+    // Determine which columns to show
+    const tableColumns = config.table_columns && config.table_columns.length > 0
+        ? config.table_columns
+        : columns.map(c => c.fieldname);
+    
+    // Get user permissions
+    const userEmail = localStorage.getItem('userEmail');
+    const userPermsRaw = config.user_permissions?.[userEmail] || {};
+    const hiddenFields = userPermsRaw.hidden_fields ?? userPermsRaw.hiddenfields ?? [];
+    
+    // Filter visible columns
+    const visibleColumns = tableColumns.filter(fieldname => !hiddenFields.includes(fieldname));
+    
+    if (visibleColumns.length === 0) {
+        tableContainer.innerHTML = '<p class="text-muted">No columns to display</p>';
+        return tableContainer;
+    }
+    
+    // Create table
+    const table = document.createElement('table');
+    table.className = 'table table-sm table-bordered table-hover';
+    
+    // Table header
+    const thead = document.createElement('thead');
+    thead.className = 'table-light';
+    const headerRow = document.createElement('tr');
+    
+    visibleColumns.forEach(fieldname => {
+        const th = document.createElement('th');
+        const col = columns.find(c => c.fieldname === fieldname);
+        th.textContent = fieldLabels?.[fieldname] || col?.label || fieldname;
+        th.style.whiteSpace = 'nowrap';
+        headerRow.appendChild(th);
+    });
+    
+    thead.appendChild(headerRow);
+    table.appendChild(thead);
+    
+    // Table body
+    const tbody = document.createElement('tbody');
+    
+    rows.forEach(row => {
+        const tr = document.createElement('tr');
+        tr.style.cursor = 'pointer';
+        tr.title = 'Click to view details';
+        
+        // Add click handler for row
+        tr.addEventListener('click', () => {
+            showDetailModal(row, columns, reportName, config);
+        });
+        
+        visibleColumns.forEach(fieldname => {
+            const td = document.createElement('td');
+            let value = row[fieldname];
+            
+            // Format value
+            if (value === null || value === undefined || value === '') {
+                td.innerHTML = '<span class="text-muted">-</span>';
+            } else if (typeof value === 'string' && value.includes('<img')) {
+                // Handle images in table
+                const imgUrl = extractImageUrl(value);
+                if (imgUrl) {
+                    const img = document.createElement('img');
+                    img.src = fixImageUrl(imgUrl);
+                    img.style.maxWidth = '50px';
+                    img.style.maxHeight = '50px';
+                    img.style.objectFit = 'cover';
+                    img.style.cursor = 'pointer';
+                    img.onclick = (e) => {
+                        e.stopPropagation();
+                        window.open(img.src, '_blank', 'noopener');
+                    };
+                    td.appendChild(img);
+                } else {
+                    td.textContent = value.replace(/<[^>]*>/g, '').substring(0, 50);
+                }
+            } else if (typeof value === 'string' && value.length > 50) {
+                td.textContent = value.substring(0, 50) + '...';
+                td.title = value;
+            } else if (typeof value === 'number') {
+                td.textContent = value.toLocaleString();
+                td.style.textAlign = 'right';
+            } else {
+                td.textContent = value;
+            }
+            
+            tr.appendChild(td);
+        });
+        
+        tbody.appendChild(tr);
+    });
+    
+    table.appendChild(tbody);
+    
+    // Calculate and add aggregates footer
+    const aggregates = config.aggregates || [];
+    if (aggregates.length > 0) {
+        const tfoot = document.createElement('tfoot');
+        tfoot.className = 'table-secondary fw-bold';
+        
+        aggregates.forEach(agg => {
+            const footerRow = document.createElement('tr');
+            
+            // Label cell (spans to the aggregate field column)
+            const labelCell = document.createElement('td');
+            const fieldIndex = visibleColumns.indexOf(agg.field);
+            
+            if (fieldIndex > 0) {
+                labelCell.colSpan = fieldIndex;
+            }
+            
+            labelCell.textContent = agg.label || `${agg.function} of ${agg.field}`;
+            labelCell.style.textAlign = 'right';
+            footerRow.appendChild(labelCell);
+            
+            // Value cell
+            const valueCell = document.createElement('td');
+            valueCell.style.textAlign = 'right';
+            
+            // Calculate aggregate
+            const values = rows
+                .map(r => parseFloat(r[agg.field]))
+                .filter(v => !isNaN(v));
+            
+            let result = 0;
+            
+            switch (agg.function.toLowerCase()) {
+                case 'sum':
+                    result = values.reduce((a, b) => a + b, 0);
+                    break;
+                case 'average':
+                case 'avg':
+                    result = values.length > 0 ? values.reduce((a, b) => a + b, 0) / values.length : 0;
+                    break;
+                case 'count':
+                    result = values.length;
+                    break;
+                case 'min':
+                    result = values.length > 0 ? Math.min(...values) : 0;
+                    break;
+                case 'max':
+                    result = values.length > 0 ? Math.max(...values) : 0;
+                    break;
+                default:
+                    result = 0;
+            }
+            
+            valueCell.textContent = result.toLocaleString(undefined, {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+            });
+            
+            footerRow.appendChild(valueCell);
+            
+            // Fill remaining columns
+            const remainingCols = visibleColumns.length - fieldIndex - 1;
+            if (remainingCols > 0) {
+                const emptyCell = document.createElement('td');
+                emptyCell.colSpan = remainingCols;
+                footerRow.appendChild(emptyCell);
+            }
+            
+            tfoot.appendChild(footerRow);
+        });
+        
+        table.appendChild(tfoot);
+    }
+    
+    tableContainer.appendChild(table);
+    return tableContainer;
+}
+
+
+
+
+
+
+
 
 
 
@@ -3607,6 +3812,43 @@ async function openGlobalReportConfigModal(reportName) {
 
 
 
+
+
+
+
+      
+      <!-- VIEW TYPE SECTION -->
+      <div class="mb-3">
+        <label class="form-label">View Type</label>
+        <select class="form-select" id="configViewType">
+          <option value="cards">Cards View</option>
+          <option value="table">Table View</option>
+        </select>
+        <small class="text-muted">Choose how data should be displayed</small>
+      </div>
+      
+      <div id="tableViewSection" style="display: none;">
+        <div class="mb-3">
+          <label class="form-label">Table Columns (comma-separated field names)</label>
+          <input type="text" class="form-control" id="configTableColumns" placeholder="e.g., name, status, date">
+          <small class="text-muted">Leave empty to show all fields</small>
+        </div>
+        
+        <div class="mb-3">
+          <label class="form-label">Aggregate Functions</label>
+          <div id="aggregateFieldsList" class="border rounded p-2" style="max-height: 200px; overflow-y: auto;">
+            <small class="text-muted">Configure aggregates after setting table columns</small>
+          </div>
+          <button type="button" class="btn btn-sm btn-outline-primary mt-2" id="addAggregateBtn">
+            ➕ Add Aggregate
+          </button>
+        </div>
+      </div>
+
+
+
+
+
     
 
     <!-- BASIC SETTINGS -->
@@ -4114,6 +4356,7 @@ return `
     const sortTypeSelect = document.getElementById('configSortType');
     if (sortTypeSelect) {
         sortTypeSelect.value = config.sort_type || 'manual';
+   
         
         // Show/hide relevant sections based on sort type
         const manualSortSection = document.querySelector('.card-header:has(.bg-warning)');
@@ -4150,6 +4393,103 @@ return `
     }
 
 
+
+
+
+
+
+
+
+      
+    // Initialize view type configuration
+    const viewTypeSelect = document.getElementById('configViewType');
+    const tableViewSection = document.getElementById('tableViewSection');
+    
+    if (viewTypeSelect) {
+        viewTypeSelect.value = config.view_type || 'cards';
+        
+        function updateViewTypeSections() {
+            const viewType = viewTypeSelect.value;
+            if (viewType === 'table') {
+                if (tableViewSection) tableViewSection.style.display = 'block';
+            } else {
+                if (tableViewSection) tableViewSection.style.display = 'none';
+            }
+        }
+        
+        updateViewTypeSections();
+        viewTypeSelect.addEventListener('change', updateViewTypeSections);
+    }
+    
+    // Initialize table columns
+    const tableColumnsInput = document.getElementById('configTableColumns');
+    if (tableColumnsInput) {
+        const tableColumns = config.table_columns || [];
+        tableColumnsInput.value = Array.isArray(tableColumns) ? tableColumns.join(', ') : tableColumns;
+    }
+    
+    // Initialize aggregates
+    const aggregatesList = document.getElementById('aggregateFieldsList');
+    const addAggregateBtn = document.getElementById('addAggregateBtn');
+    
+    function renderAggregatesList() {
+        if (!aggregatesList) return;
+        
+        const aggregates = config.aggregates || [];
+        
+        if (aggregates.length === 0) {
+            aggregatesList.innerHTML = '<small class="text-muted">No aggregates configured</small>';
+            return;
+        }
+        
+        aggregatesList.innerHTML = '';
+        
+        aggregates.forEach((agg, index) => {
+            const aggDiv = document.createElement('div');
+            aggDiv.className = 'mb-2 p-2 border rounded bg-light d-flex justify-content-between align-items-center';
+            aggDiv.innerHTML = `
+                <div>
+                    <strong>${agg.field}</strong>: ${agg.function}
+                    ${agg.label ? ` (${agg.label})` : ''}
+                </div>
+                <button type="button" class="btn btn-sm btn-outline-danger" data-index="${index}">
+                    ❌
+                </button>
+            `;
+            
+            aggDiv.querySelector('button').addEventListener('click', function() {
+                aggregates.splice(index, 1);
+                config.aggregates = aggregates;
+                renderAggregatesList();
+            });
+            
+            aggregatesList.appendChild(aggDiv);
+        });
+    }
+    
+    if (addAggregateBtn) {
+        addAggregateBtn.addEventListener('click', function() {
+            const field = prompt('Enter field name:');
+            if (!field) return;
+            
+            const func = prompt('Enter function (sum, average, count, min, max):', 'sum');
+            if (!func) return;
+            
+            const label = prompt('Enter label (optional):', func + ' of ' + field);
+            
+            if (!config.aggregates) config.aggregates = [];
+            
+            config.aggregates.push({
+                field: field.trim(),
+                function: func.trim().toLowerCase(),
+                label: label ? label.trim() : null
+            });
+            
+            renderAggregatesList();
+        });
+    }
+    
+    renderAggregatesList();
 
 
 
@@ -4243,6 +4583,45 @@ document.getElementById("saveGlobalConfigBtn").onclick = async () => {
       );
     }
 
+
+
+
+
+
+
+
+
+
+
+        
+        // Save view type and table settings
+        const viewTypeSelect = document.getElementById('configViewType');
+        if (viewTypeSelect) {
+            reportConfig[reportName].view_type = viewTypeSelect.value;
+        }
+        
+        const tableColumnsInput = document.getElementById('configTableColumns');
+        if (tableColumnsInput && reportConfig[reportName].view_type === 'table') {
+            reportConfig[reportName].table_columns = tableColumnsInput.value
+                .split(',')
+                .map(x => x.trim())
+                .filter(Boolean);
+        }
+        
+        // Aggregates are already saved in config.aggregates from the UI
+
+
+
+    
+
+
+
+
+
+
+
+
+    
     // Time Logs
     reportConfig[reportName].show_time_logs_button = document.getElementById("configShowTimeLogs")?.checked || false;
     if (reportConfig[reportName].show_time_logs_button) {
