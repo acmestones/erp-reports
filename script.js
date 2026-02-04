@@ -1499,14 +1499,12 @@ async function loadReport(reportName) {
     // Sort rows if configured
     const sortedRows = sortRows(rows, columns, config);
 
-    // Group data using the group_by configuration
-    const groupByFields =
-      config.group_by && Array.isArray(config.group_by) ? config.group_by.filter(Boolean) : [];
+    // Group data using the groupby configuration
+    const groupByFields = config.group_by ? (Array.isArray(config.group_by) ? config.group_by.filter(Boolean) : []) : [];
+    const grouped = groupByFields.length > 0 
+        ? groupData(sortedRows, columns, groupByFields, config.group_sort || {}, reportName) 
+        : { 'All Records': { 'All': sortedRows } };
 
-    const grouped =
-      groupByFields.length > 0
-        ? groupData(sortedRows, columns, groupByFields, config.group_sort || {})
-        : { "All Records": { All: sortedRows } };
 
     currentReportData = {
       grouped,
@@ -1555,68 +1553,215 @@ function sortRows(rows, columns, config) {
   });
 }
 
-function groupData(rows, columns, groupFields, groupSort = {}) {
-  const grouped = {};
 
-  rows.forEach((row) => {
-    const level1 = row[groupFields[0]] || "Unknown";
-    const level2 = groupFields[1] ? row[groupFields[1]] || "Unknown" : "All";
 
-    if (!grouped[level1]) {
-      grouped[level1] = {};
-    }
-    if (!grouped[level1][level2]) {
-      grouped[level1][level2] = [];
-    }
-    grouped[level1][level2].push(row);
-  });
 
-  const sortedGrouped = {};
 
-  const level1Keys = Object.keys(grouped);
-  if (groupSort[groupFields[0]]) {
-    const customOrder = groupSort[groupFields[0]];
-    level1Keys.sort((a, b) => {
-      const indexA = customOrder.indexOf(a);
-      const indexB = customOrder.indexOf(b);
-      if (indexA === -1 && indexB === -1) return a.localeCompare(b);
-      if (indexA === -1) return 1;
-      if (indexB === -1) return -1;
-      return indexA - indexB;
+
+function groupData(rows, columns, groupFields, groupSort, reportName) {
+    const grouped = {};
+    rows.forEach(row => {
+        const level1 = row[groupFields[0]] || 'Unknown';
+        const level2 = groupFields[1] ? row[groupFields[1]] || 'Unknown' : 'All';
+        if (!grouped[level1]) grouped[level1] = {};
+        if (!grouped[level1][level2]) grouped[level1][level2] = [];
+        grouped[level1][level2].push(row);
     });
-  } else {
-    level1Keys.sort();
-  }
 
-  level1Keys.forEach((key1) => {
-    sortedGrouped[key1] = {};
+    const sortedGrouped = {};
+    const config = reportConfig[reportName] || {};
+    const sortType = config.sort_type || 'manual';
+    
+    // Get user-specific sort preferences for automatic sorting
+    let primarySortOrder = config.primary_sort_order || 'asc';
+    let secondarySortOrder = config.secondary_sort_order || 'asc';
+    
+    if (sortType === 'automatic') {
+        const userEmail = localStorage.getItem('userEmail');
+        const userSortKey = `sort_pref_${reportName}_${userEmail}`;
+        const savedUserSort = localStorage.getItem(userSortKey);
+        
+        if (savedUserSort) {
+            try {
+                const parsed = JSON.parse(savedUserSort);
+                primarySortOrder = parsed.primary || primarySortOrder;
+                secondarySortOrder = parsed.secondary || secondarySortOrder;
+            } catch (e) {
+                console.error('Failed to parse user sort preference', e);
+            }
+        }
+    }
 
-    const level2Keys = Object.keys(grouped[key1]);
-    if (groupFields[1] && groupSort[groupFields[1]]) {
-      const customOrder = groupSort[groupFields[1]];
-      level2Keys.sort((a, b) => {
-        const indexA = customOrder.indexOf(a);
-        const indexB = customOrder.indexOf(b);
-        if (indexA === -1 && indexB === -1) return a.localeCompare(b);
-        if (indexA === -1) return 1;
-        if (indexB === -1) return -1;
-        return indexA - indexB;
-      });
+    const level1Keys = Object.keys(grouped);
+    
+    // Sort level 1 (primary groups)
+    if (sortType === 'manual' && groupSort[groupFields[0]]) {
+        // Manual sort with custom order
+        const customOrder = groupSort[groupFields[0]];
+        level1Keys.sort((a, b) => {
+            const indexA = customOrder.indexOf(a);
+            const indexB = customOrder.indexOf(b);
+            if (indexA === -1 && indexB === -1) return a.localeCompare(b);
+            if (indexA === -1) return 1;
+            if (indexB === -1) return -1;
+            return indexA - indexB;
+        });
+    } else if (sortType === 'automatic') {
+        // Automatic sort - detect if date or text
+        level1Keys.sort((a, b) => {
+            // Try to parse as dates
+            const dateA = new Date(a);
+            const dateB = new Date(b);
+            
+            // Check if both are valid dates
+            if (!isNaN(dateA.getTime()) && !isNaN(dateB.getTime())) {
+                // Date sorting
+                return primarySortOrder === 'asc' ? dateA - dateB : dateB - dateA;
+            } else {
+                // Text/alphabetical sorting
+                const comparison = a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
+                return primarySortOrder === 'asc' ? comparison : -comparison;
+            }
+        });
     } else {
-      level2Keys.sort();
+        // Default alphabetical
+        level1Keys.sort();
     }
 
-    level2Keys.forEach((key2) => {
-      sortedGrouped[key1][key2] = grouped[key1][key2];
-    });
-  });
+    level1Keys.forEach(key1 => {
+        sortedGrouped[key1] = {};
+        const level2Keys = Object.keys(grouped[key1]);
+        
+        // Sort level 2 (secondary groups)
+        if (sortType === 'manual' && groupFields[1] && groupSort[groupFields[1]]) {
+            // Manual sort with custom order
+            const customOrder = groupSort[groupFields[1]];
+            level2Keys.sort((a, b) => {
+                const indexA = customOrder.indexOf(a);
+                const indexB = customOrder.indexOf(b);
+                if (indexA === -1 && indexB === -1) return a.localeCompare(b);
+                if (indexA === -1) return 1;
+                if (indexB === -1) return -1;
+                return indexA - indexB;
+            });
+        } else if (sortType === 'automatic') {
+            // Automatic sort - detect if date or text
+            level2Keys.sort((a, b) => {
+                // Try to parse as dates
+                const dateA = new Date(a);
+                const dateB = new Date(b);
+                
+                // Check if both are valid dates
+                if (!isNaN(dateA.getTime()) && !isNaN(dateB.getTime())) {
+                    // Date sorting
+                    return secondarySortOrder === 'asc' ? dateA - dateB : dateB - dateA;
+                } else {
+                    // Text/alphabetical sorting
+                    const comparison = a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
+                    return secondarySortOrder === 'asc' ? comparison : -comparison;
+                }
+            });
+        } else {
+            // Default alphabetical
+            level2Keys.sort();
+        }
 
-  return sortedGrouped;
+        level2Keys.forEach(key2 => {
+            sortedGrouped[key1][key2] = grouped[key1][key2];
+        });
+    });
+
+    return sortedGrouped;
 }
+
+
+
+
+
+
+
 
 function renderGroupedCards(grouped, columns, reportName) {
   const reportArea = document.getElementById("reportArea");
   reportArea.innerHTML = "";
+
+
+
+    if (!reportConfig[reportName]) {
+        reportConfig[reportName] = {};
+    }
+    
+    const config = reportConfig[reportName];
+    
+    // Show sort controls only for automatic sort reports
+    if (config.sort_type === 'automatic') {
+        const sortControlsDiv = document.createElement('div');
+        sortControlsDiv.className = 'mb-3 p-3 bg-light rounded';
+        sortControlsDiv.innerHTML = `
+            <div class="row align-items-center">
+                <div class="col-md-6 mb-2 mb-md-0">
+                    <label class="form-label mb-1 fw-bold">Primary Group Sort:</label>
+                    <select class="form-select form-select-sm" id="userPrimarySortOrder">
+                        <option value="asc">Ascending (A-Z or Oldest First)</option>
+                        <option value="desc">Descending (Z-A or Newest First)</option>
+                    </select>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label mb-1 fw-bold">Secondary Group Sort:</label>
+                    <select class="form-select form-select-sm" id="userSecondarySortOrder">
+                        <option value="asc">Ascending (A-Z or Oldest First)</option>
+                        <option value="desc">Descending (Z-A or Newest First)</option>
+                    </select>
+                </div>
+            </div>
+        `;
+        reportArea.appendChild(sortControlsDiv);
+        
+        // Load user-specific sort preferences
+        const userEmail = localStorage.getItem('userEmail');
+        const userSortKey = `sort_pref_${reportName}_${userEmail}`;
+        const savedUserSort = localStorage.getItem(userSortKey);
+        
+        let userPrimarySort = config.primary_sort_order || 'asc';
+        let userSecondarySort = config.secondary_sort_order || 'asc';
+        
+        if (savedUserSort) {
+            try {
+                const parsed = JSON.parse(savedUserSort);
+                userPrimarySort = parsed.primary || userPrimarySort;
+                userSecondarySort = parsed.secondary || userSecondarySort;
+            } catch (e) {
+                console.error('Failed to parse user sort preference', e);
+            }
+        }
+        
+        const primarySortSelect = document.getElementById('userPrimarySortOrder');
+        const secondarySortSelect = document.getElementById('userSecondarySortOrder');
+        
+        primarySortSelect.value = userPrimarySort;
+        secondarySortSelect.value = userSecondarySort;
+        
+        // Save and re-render on change
+        primarySortSelect.addEventListener('change', function() {
+            const sortPref = {
+                primary: primarySortSelect.value,
+                secondary: secondarySortSelect.value
+            };
+            localStorage.setItem(userSortKey, JSON.stringify(sortPref));
+            loadReport(reportName);
+        });
+        
+        secondarySortSelect.addEventListener('change', function() {
+            const sortPref = {
+                primary: primarySortSelect.value,
+                secondary: secondarySortSelect.value
+            };
+            localStorage.setItem(userSortKey, JSON.stringify(sortPref));
+            loadReport(reportName);
+        });
+    }
+
+  
 
   if (!reportConfig[reportName]) reportConfig[reportName] = {};
   const config = reportConfig[reportName] || {};
@@ -3432,6 +3577,41 @@ async function openGlobalReportConfigModal(reportName) {
       <strong>⚠️ Required Fields:</strong> DocType, Title Field, and Primary Grouping Field are mandatory to run the report.
     </div>
 
+
+
+      
+      <!-- SORT TYPE SECTION -->
+      <div class="mb-3">
+        <label class="form-label">Sort Type</label>
+        <select class="form-select" id="configSortType">
+          <option value="manual">Manual (Drag & Drop)</option>
+          <option value="automatic">Automatic (Alphabetical/Date)</option>
+        </select>
+        <small class="text-muted">Choose how groups should be sorted</small>
+      </div>
+      
+      <div id="autoSortSection" style="display: none;">
+        <div class="mb-3">
+          <label class="form-label">Primary Group Sort Order</label>
+          <select class="form-select" id="configPrimarySortOrder">
+            <option value="asc">Ascending (A-Z or Oldest First)</option>
+            <option value="desc">Descending (Z-A or Newest First)</option>
+          </select>
+        </div>
+        
+        <div class="mb-3">
+          <label class="form-label">Secondary Group Sort Order</label>
+          <select class="form-select" id="configSecondarySortOrder">
+            <option value="asc">Ascending (A-Z or Oldest First)</option>
+            <option value="desc">Descending (Z-A or Newest First)</option>
+          </select>
+        </div>
+      </div>
+
+
+
+    
+
     <!-- BASIC SETTINGS -->
     <div class="card mb-3">
       <div class="card-header bg-primary text-white">
@@ -3929,6 +4109,58 @@ return `
   setupDragDrop("group1SortList");
   setupDragDrop("group2SortList");
 
+
+
+
+
+    // Initialize sort type configuration
+    const sortTypeSelect = document.getElementById('configSortType');
+    if (sortTypeSelect) {
+        sortTypeSelect.value = config.sort_type || 'manual';
+        
+        // Show/hide relevant sections based on sort type
+        const manualSortSection = document.querySelector('.card-header:has(.bg-warning)');
+        const autoSortSection = document.getElementById('autoSortSection');
+        
+        function updateSortSections() {
+            const sortType = sortTypeSelect.value;
+            const groupSortCards = document.querySelectorAll('.card-header .bg-warning');
+            
+            if (sortType === 'manual') {
+                groupSortCards.forEach(card => card.closest('.card').style.display = 'block');
+                if (autoSortSection) autoSortSection.style.display = 'none';
+            } else {
+                groupSortCards.forEach(card => card.closest('.card').style.display = 'none');
+                if (autoSortSection) autoSortSection.style.display = 'block';
+            }
+        }
+        
+        updateSortSections();
+        
+        sortTypeSelect.addEventListener('change', updateSortSections);
+    }
+    
+    // Auto sort order configuration
+    const primarySortOrderSelect = document.getElementById('configPrimarySortOrder');
+    const secondarySortOrderSelect = document.getElementById('configSecondarySortOrder');
+    
+    if (primarySortOrderSelect) {
+        primarySortOrderSelect.value = config.primary_sort_order || 'asc';
+    }
+    
+    if (secondarySortOrderSelect) {
+        secondarySortOrderSelect.value = config.secondary_sort_order || 'asc';
+    }
+
+
+
+
+
+
+
+
+
+  
   // Toggle Time Logs permissions section
   document.getElementById("configShowTimeLogs").addEventListener("change", (e) => {
     document.getElementById("timeLogsPermissionsSection").style.display = e.target.checked ? "block" : "none";
@@ -3963,6 +4195,31 @@ document.getElementById("saveGlobalConfigBtn").onclick = async () => {
 
     // Grouping
     reportConfig[reportName].group_by = [group1, group2].filter((g) => g && g !== "-- None --");
+
+
+            // Save sort type and order
+        const sortTypeSelect = document.getElementById('configSortType');
+        if (sortTypeSelect) {
+            reportConfig[reportName].sort_type = sortTypeSelect.value;
+        }
+        
+        const primarySortOrderSelect = document.getElementById('configPrimarySortOrder');
+        const secondarySortOrderSelect = document.getElementById('configSecondarySortOrder');
+        
+        if (reportConfig[reportName].sort_type === 'automatic') {
+            reportConfig[reportName].primary_sort_order = primarySortOrderSelect ? primarySortOrderSelect.value : 'asc';
+            reportConfig[reportName].secondary_sort_order = secondarySortOrderSelect ? secondarySortOrderSelect.value : 'asc';
+        } else {
+            // Remove automatic sort settings if switching to manual
+            delete reportConfig[reportName].primary_sort_order;
+            delete reportConfig[reportName].secondary_sort_order;
+        }
+
+
+    
+
+
+    
 
     // Sorting
     reportConfig[reportName].sort_by = document.getElementById("configsortby")?.value || "";
