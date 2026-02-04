@@ -4469,16 +4469,22 @@ return `
             const checkboxDiv = document.createElement('div');
             checkboxDiv.className = 'form-check mb-2';
             
-            const checkbox = document.createElement('input');
-            checkbox.type = 'checkbox';
-            checkbox.className = 'form-check-input';
-            checkbox.id = `agg_enable_${fieldname}`;
-            checkbox.checked = !!existingAgg;
+// Sanitize fieldname for use in IDs (remove special characters)
+const safeFieldname = fieldname.replace(/[^a-zA-Z0-9_]/g, '_');
+
+const checkbox = document.createElement('input');
+checkbox.type = 'checkbox';
+checkbox.className = 'form-check-input';
+checkbox.id = `agg_enable_${safeFieldname}`;
+checkbox.dataset.fieldname = fieldname; // Store original fieldname in data attribute
+checkbox.checked = !!existingAgg;
+
             
-            const checkboxLabel = document.createElement('label');
-            checkboxLabel.className = 'form-check-label fw-bold';
-            checkboxLabel.htmlFor = `agg_enable_${fieldname}`;
-            checkboxLabel.textContent = label;
+const checkboxLabel = document.createElement('label');
+checkboxLabel.className = 'form-check-label fw-bold';
+checkboxLabel.htmlFor = `agg_enable_${safeFieldname}`;
+checkboxLabel.textContent = label;
+
             
             checkboxDiv.appendChild(checkbox);
             checkboxDiv.appendChild(checkboxLabel);
@@ -4494,7 +4500,8 @@ return `
             funcDiv.className = 'mb-2';
             funcDiv.innerHTML = `
                 <label class="form-label small mb-1">Function:</label>
-                <select class="form-select form-select-sm" id="agg_func_${fieldname}">
+                <select class="form-select form-select-sm" id="agg_func_${safeFieldname}" data-fieldname="${fieldname}">
+
                     <option value="sum">Sum</option>
                     <option value="average">Average</option>
                     <option value="count">Count</option>
@@ -4507,9 +4514,10 @@ return `
             const labelDiv = document.createElement('div');
             labelDiv.innerHTML = `
                 <label class="form-label small mb-1">Custom Label (optional):</label>
-                <input type="text" class="form-control form-control-sm" id="agg_label_${fieldname}" 
-                       placeholder="e.g., Total Amount">
+                <input type="text" class="form-control form-control-sm" id="agg_label_${safeFieldname}" 
+                       data-fieldname="${fieldname}" placeholder="e.g., Total Amount">
             `;
+
             
             optionsDiv.appendChild(funcDiv);
             optionsDiv.appendChild(labelDiv);
@@ -4517,11 +4525,12 @@ return `
             
             // Set existing values
             if (existingAgg) {
-                const funcSelect = optionsDiv.querySelector(`#agg_func_${fieldname}`);
-                const labelInput = optionsDiv.querySelector(`#agg_label_${fieldname}`);
+                const funcSelect = optionsDiv.querySelector(`#agg_func_${safeFieldname}`);
+                const labelInput = optionsDiv.querySelector(`#agg_label_${safeFieldname}`);
                 if (funcSelect) funcSelect.value = existingAgg.function || 'sum';
                 if (labelInput) labelInput.value = existingAgg.label || '';
             }
+
             
             // Toggle options visibility on checkbox change
             checkbox.addEventListener('change', function() {
@@ -4541,14 +4550,15 @@ return `
             
             aggregatableFields.forEach(col => {
                 const fieldname = col.fieldname;
-                const checkbox = document.getElementById(`agg_enable_${fieldname}`);
+                const safeFieldname = fieldname.replace(/[^a-zA-Z0-9_]/g, '_');
+                const checkbox = document.getElementById(`agg_enable_${safeFieldname}`);
                 
                 if (checkbox && checkbox.checked) {
-                    const funcSelect = document.getElementById(`agg_func_${fieldname}`);
-                    const labelInput = document.getElementById(`agg_label_${fieldname}`);
+                    const funcSelect = document.getElementById(`agg_func_${safeFieldname}`);
+                    const labelInput = document.getElementById(`agg_label_${safeFieldname}`);
                     
                     newAggregates.push({
-                        field: fieldname,
+                        field: fieldname, // Use original fieldname, not sanitized
                         function: funcSelect ? funcSelect.value : 'sum',
                         label: labelInput && labelInput.value ? labelInput.value : null
                     });
@@ -4558,6 +4568,7 @@ return `
             config.aggregates = newAggregates;
             console.log('Updated aggregates:', config.aggregates);
         }
+
     }
 
 
