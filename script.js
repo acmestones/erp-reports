@@ -2244,24 +2244,79 @@ function createTableView(rows, columns, reportName, config, level1, level2) {
             // Format value
             if (value === null || value === undefined || value === '') {
                 td.innerHTML = '<span class="text-muted">-</span>';
-            } else if (typeof value === 'string' && value.includes('<img')) {
-                // Handle images in table
-                const imgUrl = extractImageUrl(value);
-                if (imgUrl) {
-                    const img = document.createElement('img');
-                    img.src = fixImageUrl(imgUrl);
-                    img.style.maxWidth = '50px';
-                    img.style.maxHeight = '50px';
-                    img.style.objectFit = 'cover';
-                    img.style.cursor = 'pointer';
-                    img.onclick = (e) => {
-                        e.stopPropagation();
-                        window.open(img.src, '_blank', 'noopener');
-                    };
-                    td.appendChild(img);
-                } else {
-                    td.textContent = value.replace(/<[^>]*>/g, '').substring(0, 50);
+            } else if (typeof value === 'string' && (value.includes('<') || value.includes('img'))) {
+                // Handle HTML/rich text content
+                const tempDiv = document.createElement('div');
+                tempDiv.innerHTML = value;
+                
+                // Check if there are images
+                const images = tempDiv.querySelectorAll('img');
+                const hasImages = images.length > 0;
+                
+                // Get text content (without HTML tags)
+                const textContent = tempDiv.textContent || tempDiv.innerText || '';
+                const trimmedText = textContent.trim();
+                
+                // Create a container for mixed content
+                const contentDiv = document.createElement('div');
+                contentDiv.style.display = 'flex';
+                contentDiv.style.alignItems = 'center';
+                contentDiv.style.gap = '8px';
+                
+                // Add first image if exists
+                if (hasImages) {
+                    const imgUrl = images[0].getAttribute('src');
+                    if (imgUrl) {
+                        const img = document.createElement('img');
+                        img.src = fixImageUrl(imgUrl);
+                        img.style.maxWidth = '50px';
+                        img.style.maxHeight = '50px';
+                        img.style.minWidth = '50px';
+                        img.style.minHeight = '50px';
+                        img.style.objectFit = 'cover';
+                        img.style.cursor = 'pointer';
+                        img.style.border = '1px solid #ddd';
+                        img.style.borderRadius = '4px';
+                        img.style.flexShrink = '0';
+                        img.onclick = (e) => {
+                            e.stopPropagation();
+                            window.open(img.src, '_blank', 'noopener');
+                        };
+                        contentDiv.appendChild(img);
+                    }
                 }
+                
+                // Add text content if exists
+                if (trimmedText) {
+                    const textSpan = document.createElement('span');
+                    textSpan.style.flex = '1';
+                    textSpan.style.overflow = 'hidden';
+                    textSpan.style.textOverflow = 'ellipsis';
+                    textSpan.style.display = '-webkit-box';
+                    textSpan.style.webkitLineClamp = '2';
+                    textSpan.style.webkitBoxOrient = 'vertical';
+                    textSpan.style.wordBreak = 'break-word';
+                    
+                    // Truncate text if too long
+                    if (trimmedText.length > 100) {
+                        textSpan.textContent = trimmedText.substring(0, 100) + '...';
+                        textSpan.title = trimmedText; // Full text on hover
+                    } else {
+                        textSpan.textContent = trimmedText;
+                    }
+                    
+                    contentDiv.appendChild(textSpan);
+                }
+                
+                // If we have content to show, add it
+                if (hasImages || trimmedText) {
+                    td.appendChild(contentDiv);
+                    td.style.maxWidth = '300px';
+                } else {
+                    // Fallback: show raw HTML stripped
+                    td.innerHTML = '<span class="text-muted">-</span>';
+                }
+                
             } else if (typeof value === 'string' && value.length > 50) {
                 td.textContent = value.substring(0, 50) + '...';
                 td.title = value;
@@ -2274,6 +2329,7 @@ function createTableView(rows, columns, reportName, config, level1, level2) {
             
             tr.appendChild(td);
         });
+
         
         tbody.appendChild(tr);
     });
