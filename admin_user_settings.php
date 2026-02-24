@@ -21,15 +21,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     // First try to get from POST (for form data)
     $currentUserEmail = $_POST['currentUser'] ?? null;
     
-    // If not in POST, read from JSON body
+    // If not in POST, read from JSON body — cache globally for reuse
     if (!$currentUserEmail) {
-        $postData = file_get_contents('php://input');
-        if ($postData) {
-            $jsonData = json_decode($postData, true);
+        $RAW_POST_BODY = file_get_contents('php://input');
+        if ($RAW_POST_BODY) {
+            $jsonData = json_decode($RAW_POST_BODY, true);
             $currentUserEmail = $jsonData['currentUser'] ?? null;
         }
     }
 }
+
+// Ensure $RAW_POST_BODY is always defined
+if (!isset($RAW_POST_BODY)) {
+    $RAW_POST_BODY = file_get_contents('php://input');
+}
+
 
 // Log for debugging
 error_log("Current user email: " . ($currentUserEmail ?? 'NULL'));
@@ -165,7 +171,7 @@ $action = null;
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     $action = $_GET['action'] ?? 'get';
 } else {
-    $postData = file_get_contents('php://input');
+    $postData = $RAW_POST_BODY;
     if ($postData) {
         $jsonData = json_decode($postData, true);
         $action = $jsonData['action'] ?? null;
@@ -230,7 +236,7 @@ if ($action === 'save') {
         exit;
     }
     
-    $postData = file_get_contents('php://input');
+    $postData = $RAW_POST_BODY;
     $data = json_decode($postData, true);
     
     if (!$data || !isset($data['settings'])) {
@@ -275,7 +281,7 @@ if ($action === 'addUser') {
         exit;
     }
     
-    $postData = file_get_contents('php://input');
+    $postData = $RAW_POST_BODY;
     $data = json_decode($postData, true);
     
     $newUserEmail = $data['email'] ?? null;
@@ -334,7 +340,7 @@ if ($action === 'updateUser') {
         exit;
     }
     
-    $postData = file_get_contents('php://input');
+    $postData = $RAW_POST_BODY;
     $data = json_decode($postData, true);
     
     // Add debug logging
@@ -417,7 +423,7 @@ if ($action === 'deleteUser') {
         exit;
     }
     
-    $postData = file_get_contents('php://input');
+    $postData = $RAW_POST_BODY;
     $data = json_decode($postData, true);
     
     $userEmail = $data['email'] ?? null;
