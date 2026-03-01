@@ -433,25 +433,25 @@ if ($action === 'deleteUser') {
     // Remove from admins if present
     $settings['admins'] = array_values($remainingAdmins);
 
-    // Invalidate user session
+    // Invalidate user session if they are logged in
     session_start();
     if (isset($_SESSION['user']) && $_SESSION['user'] === $userEmail) {
         session_unset();
         session_destroy();
     }
 
-            // Save settings
-            if (saveSettings($settingsFile, $settings)) {
-                echo json_encode([
-                    'success' => true,
-                    'message' => 'User deleted successfully'
-                ]);
-            } else {
-                http_response_code(500);
-                echo json_encode(['error' => 'Failed to save settings']);
-            }
+    if (saveSettings($settingsFile, $settings)) {
+        echo json_encode([
+            'success' => true,
+            'message' => 'User deleted successfully'
+        ]);
+    } else {
+        http_response_code(500);
+        echo json_encode(['error' => 'Failed to save settings']);
+    }
     exit;
 }
+
 
 http_response_code(400);
 echo json_encode(['error' => 'Invalid action: ' . ($action ?? 'none')]);
