@@ -21,6 +21,32 @@ if (!in_array($userEmail, $allowedUsers)) {
     header("Location: login.html?error=access_denied");
     exit();
 }
+
+
+
+// Add this to the top of your main app script
+document.addEventListener('DOMContentLoaded', function() {
+    const userEmail = localStorage.getItem("user");
+    if (userEmail) {
+        fetch(`admin_user_settings.php?action=getPermissions&currentUser=${encodeURIComponent(userEmail)}`)
+            .then(res => res.json())
+            .then(data => {
+                if (!data.success || !data.permissions) {
+                    alert("Your account has been deleted or access revoked. You will be logged out.");
+                    logout();
+                }
+            })
+            .catch(err => {
+                console.error("Failed to check user session validity:", err);
+                alert("Session validation failed. You will be logged out for security reasons.");
+                logout();
+            });
+    }
+});
+
+
+
+    
 ?>
 
 
