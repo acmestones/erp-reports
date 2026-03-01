@@ -4,7 +4,6 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Login — Acme Stonemart Catalog</title>
-
   <script src="https://accounts.google.com/gsi/client" async defer></script>
   <style>
     body { display:flex; align-items:center; justify-content:center; height:100vh; font-family: Inter, sans-serif; background:#f7f8fb; }
@@ -16,21 +15,23 @@
   <div class="box">
     <h3>🔒 Acme Stones Internal Catalog</h3>
     <p class="small">Sign in with Google to continue</p>
-
     <div id="buttonDiv" style="margin:18px 0;"></div>
     <div id="status"></div>
     <p class="small" style="margin-top:10px;color:#999">If you don't have access, please contact the admin.</p>
   </div>
 
   <script>
-    // === CONFIG: replace CLIENT_ID and allowed emails ===
+    // Fetch allowed users dynamically
+    let ALLOWED_USERS = [];
+    fetch('admin_user_settings.php?action=get')
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          ALLOWED_USERS = data.settings.users.map(user => user.email);
+        }
+      });
+
     const CLIENT_ID = "979512358609-1ouc1qj18hcqghjbimu5npce8l8volhe.apps.googleusercontent.com";
-    const ALLOWED_USERS = [
-      "marblehouse@gmail.com",        // admin
-      "designacmestones@gmail.com",    // team
-      "satishguptajaipur@gmail.com"   // user
-      // add more emails here if needed
-    ];
     const REDIRECT_PAGE = "index.html";
 
     function parseJwt(token) {
@@ -48,8 +49,12 @@
         if (ALLOWED_USERS.includes(email)) {
           // Save user and redirect
           localStorage.setItem("user", email);
-          // store lastUser to allow index.js to clear caches if user changed
-          localStorage.setItem("lastUser", email);
+          // Send user to server for session validation
+          fetch('login.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ user: email })
+          });
           window.location.replace(REDIRECT_PAGE);
         } else {
           document.getElementById("status").innerHTML = `<p style="color:crimson">❌ Access denied for ${email}</p>`;
@@ -63,15 +68,12 @@
     window.onload = function () {
       if (!CLIENT_ID || CLIENT_ID.includes("YOUR_GOOGLE_CLIENT_ID")) {
         document.getElementById("status").innerHTML = `<p style="color:crimson">⚠️ CLIENT_ID is not configured. Please add your OAuth Client ID.</p>`;
-        // still render disabled button for appearance
       }
       google.accounts.id.initialize({
         client_id: CLIENT_ID,
         callback: handleCredentialResponse
       });
       google.accounts.id.renderButton(document.getElementById("buttonDiv"), { theme: "outline", size: "large" });
-      // optional auto prompt
-      // google.accounts.id.prompt();
     };
   </script>
 </body>
