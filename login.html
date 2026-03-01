@@ -42,28 +42,39 @@
       ).join('')));
     }
 
-    function handleCredentialResponse(response) {
-      try {
-        const data = parseJwt(response.credential);
-        const email = data.email;
-        if (ALLOWED_USERS.includes(email)) {
-          // Save user and redirect
-          localStorage.setItem("user", email);
-          // Send user to server for session validation
-          fetch('login.php', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ user: email })
-          });
+function handleCredentialResponse(response) {
+  try {
+    const data = parseJwt(response.credential);
+    const email = data.email;
+    if (ALLOWED_USERS.includes(email)) {
+      // Save user to localStorage
+      localStorage.setItem("user", email);
+      // Send user to server for session validation and AWAIT response
+      fetch('login.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user: email })
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
           window.location.replace(REDIRECT_PAGE);
         } else {
-          document.getElementById("status").innerHTML = `<p style="color:crimson">❌ Access denied for ${email}</p>`;
+          document.getElementById("status").innerHTML = `<p style="color:crimson">❌ Server error: ${data.error}</p>`;
         }
-      } catch (e) {
-        document.getElementById("status").innerHTML = `<p style="color:crimson">Authentication error</p>`;
-        console.error(e);
-      }
+      })
+      .catch(err => {
+        document.getElementById("status").innerHTML = `<p style="color:crimson">❌ Server error</p>`;
+        console.error(err);
+      });
+    } else {
+      document.getElementById("status").innerHTML = `<p style="color:crimson">❌ Access denied for ${email}</p>`;
     }
+  } catch (e) {
+    document.getElementById("status").innerHTML = `<p style="color:crimson">Authentication error</p>`;
+    console.error(e);
+  }
+}
 
     window.onload = function () {
       if (!CLIENT_ID || CLIENT_ID.includes("YOUR_GOOGLE_CLIENT_ID")) {
