@@ -2310,7 +2310,19 @@ function createMultiSelectDropdown(options, selectedValues) {
 
 
 
-  
+  function logout() {
+  fetch('logout.php')
+    .then(() => {
+      localStorage.removeItem("user");
+      window.location.href = "login.html";
+    })
+    .catch(err => {
+      console.error("Logout error:", err);
+      localStorage.removeItem("user");
+      window.location.href = "login.html";
+    });
+}
+
 
 
 
