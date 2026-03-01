@@ -2331,6 +2331,37 @@ function logout() {
 
 
 
+
+
+
+// Add this function to script.js
+function checkUserValidity() {
+    const userEmail = localStorage.getItem("user");
+    if (!userEmail) return;
+
+    fetch(`admin_user_settings.php?action=getPermissions&currentUser=${encodeURIComponent(userEmail)}`)
+        .then(res => res.json())
+        .then(data => {
+            if (!data.success || !data.permissions) {
+                // User no longer exists or is not authorized
+                alert("Your account has been deleted or access revoked. You will be logged out.");
+                logout();
+            }
+        })
+        .catch(err => {
+            console.error("Failed to check user validity:", err);
+        });
+}
+
+// Call this function periodically (e.g., every 5 minutes)
+setInterval(checkUserValidity, 300000); // 300,000 ms = 5 minutes
+
+
+
+  
+  
+
+
   
 
 
