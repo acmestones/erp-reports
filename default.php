@@ -1,3 +1,30 @@
+<?php
+session_start();
+$settingsFile = __DIR__ . '/user_settings.json';
+if (!file_exists($settingsFile)) {
+    header("Location: login.html?error=config_missing");
+    exit();
+}
+
+$settings = json_decode(file_get_contents($settingsFile), true);
+$allowedUsers = array_column($settings['users'], 'email');
+
+// Check if user is logged in (via session)
+if (!isset($_SESSION['user'])) {
+    header("Location: login.html?error=not_logged_in");
+    exit();
+}
+
+// Validate user
+$userEmail = $_SESSION['user'];
+if (!in_array($userEmail, $allowedUsers)) {
+    header("Location: login.html?error=access_denied");
+    exit();
+}
+?>
+
+
+
 <!DOCTYPE html>
 <html lang="en">
     <head>
