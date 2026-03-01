@@ -443,7 +443,8 @@ if ($action === 'deleteUser') {
     if (saveSettings($settingsFile, $settings)) {
         echo json_encode([
             'success' => true,
-            'message' => 'User deleted successfully'
+            'message' => 'User deleted successfully',
+            'invalidated_user' => $userEmail // Add this line
         ]);
     } else {
         http_response_code(500);
