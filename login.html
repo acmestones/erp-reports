@@ -47,30 +47,35 @@ function handleCredentialResponse(response) {
     const email = data.email;
 
     // Fetch allowed users and then check access
-    fetch(`admin_user_settings.php?action=getPermissions&currentUser=${encodeURIComponent(email)}`)
+    fetch('admin_user_settings.php?action=get&currentUser=' + encodeURIComponent(email))
       .then(res => res.json())
       .then(data => {
-        if (data.success && data.permissions) {
-          localStorage.setItem("user", email);
-          fetch('login.php', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ user: email })
-          })
-          .then(res => res.json())
-          .then(data => {
-            if (data.success) {
-              window.location.replace(REDIRECT_PAGE);
-            } else {
-              document.getElementById("status").innerHTML = `<p style="color:crimson">❌ Server error: ${data.error}</p>`;
-            }
-          })
-          .catch(err => {
-            document.getElementById("status").innerHTML = `<p style="color:crimson">❌ Server error</p>`;
-            console.error(err);
-          });
+        if (data.success) {
+          const ALLOWED_USERS = data.settings.users.map(user => user.email);
+          if (ALLOWED_USERS.includes(email)) {
+            localStorage.setItem("user", email);
+            fetch('login.php', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ user: email })
+            })
+            .then(res => res.json())
+            .then(data => {
+              if (data.success) {
+                window.location.replace(REDIRECT_PAGE);
+              } else {
+                document.getElementById("status").innerHTML = `<p style="color:crimson">❌ Server error: ${data.error}</p>`;
+              }
+            })
+            .catch(err => {
+              document.getElementById("status").innerHTML = `<p style="color:crimson">❌ Server error</p>`;
+              console.error(err);
+            });
+          } else {
+            document.getElementById("status").innerHTML = `<p style="color:crimson">❌ Access denied for ${email}</p>`;
+          }
         } else {
-          document.getElementById("status").innerHTML = `<p style="color:crimson">❌ Access denied for ${email}</p>`;
+          document.getElementById("status").innerHTML = `<p style="color:crimson">❌ Failed to load user settings</p>`;
         }
       })
       .catch(err => {
@@ -82,7 +87,6 @@ function handleCredentialResponse(response) {
     console.error(e);
   }
 }
-
 
 
     window.onload = function () {
