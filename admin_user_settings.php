@@ -444,7 +444,8 @@ if ($action === 'deleteUser') {
         echo json_encode([
             'success' => true,
             'message' => 'User deleted successfully',
-            'invalidated_user' => $userEmail // Add this line
+            'invalidated_user' => $userEmail,
+            'invalidation_timestamp' => time() // Add this line
         ]);
     } else {
         http_response_code(500);
