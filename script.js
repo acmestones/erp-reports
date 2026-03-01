@@ -2309,21 +2309,12 @@ function createMultiSelectDropdown(options, selectedValues) {
   
 
 
-
-// Listen for logout events from other tabs
-window.addEventListener('storage', function(event) {
-    if (event.key === 'forceLogout') {
-        alert("Your session has been terminated. You will be logged out.");
-        logout();
-    }
-});
-
-// In your logout function, broadcast the event
+// Add this to script.js
 function logout() {
-    localStorage.removeItem("user");
-    localStorage.removeItem("lastUser");
     localStorage.setItem('forceLogout', Date.now()); // Broadcast logout
     localStorage.removeItem('forceLogout'); // Clean up
+    localStorage.removeItem("user");
+    localStorage.removeItem("lastUser");
 
     fetch('logout.php')
         .then(() => {
@@ -2334,6 +2325,7 @@ function logout() {
             window.location.href = "login.html";
         });
 }
+
 
 
 
