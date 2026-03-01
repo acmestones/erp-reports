@@ -2309,67 +2309,9 @@ function createMultiSelectDropdown(options, selectedValues) {
   
 
 
-// Add this to script.js
-function logout() {
-    localStorage.setItem('forceLogout', Date.now()); // Broadcast logout
-    localStorage.removeItem('forceLogout'); // Clean up
-    localStorage.removeItem("user");
-    localStorage.removeItem("lastUser");
-
-    fetch('logout.php')
-        .then(() => {
-            window.location.href = "login.html";
-        })
-        .catch(err => {
-            console.error("Server-side logout failed, but local data cleared:", err);
-            window.location.href = "login.html";
-        });
-}
-
-
-
-
-
-
-
-
-// Add this to script.js
-function checkUserValidity() {
-    const userEmail = localStorage.getItem("user");
-    if (!userEmail) return;
-
-    fetch(`admin_user_settings.php?action=getPermissions&currentUser=${encodeURIComponent(userEmail)}`)
-        .then(res => res.json())
-        .then(data => {
-            if (!data.success || !data.permissions) {
-                alert("Your account has been deleted or access revoked. You will be logged out.");
-                logout();
-            }
-        })
-        .catch(err => {
-            console.error("Failed to check user validity:", err);
-            alert("Session validation failed. You will be logged out for security reasons.");
-            logout();
-        });
-}
-
-// Check every 1 minute
-setInterval(checkUserValidity, 60000);
-
-// Listen for logout events from other tabs
-window.addEventListener('storage', function(event) {
-    if (event.key === 'forceLogout') {
-        alert("Your session has been terminated. You will be logged out.");
-        logout();
-    }
-});
-
-
-
 
   
-  
-  
+
 
 
   
@@ -2393,5 +2335,4 @@ if (document.readyState === 'loading') {
 
 
   
-
 
