@@ -157,12 +157,12 @@ $settings = loadSettings($settingsFile, $BOOTSTRAP_ADMINS, $currentUserEmail);
 
 // ACTION: Get all settings
 if ($action === 'get') {
-    // Check if current user is admin
-    if (!isAdmin($currentUserEmail, $settings)) {
-        http_response_code(403);
-        echo json_encode(['error' => 'Forbidden - Admin access required']);
-        exit;
-    }
+    // Remove the admin check for public access
+    // if (!isAdmin($currentUserEmail, $settings)) {
+    //     http_response_code(403);
+    //     echo json_encode(['error' => 'Forbidden - Admin access required']);
+    //     exit;
+    // }
 
     echo json_encode([
         'success' => true,
@@ -170,6 +170,7 @@ if ($action === 'get') {
     ]);
     exit;
 }
+
 
 // ACTION: Get current user's permissions
 if ($action === 'getPermissions') {
