@@ -11,19 +11,29 @@ $BOOTSTRAP_ADMINS = [
 ];
 
 // Get current user from request
+// For GET requests, use query parameter
+// For POST requests with JSON body, read from decoded JSON
 $currentUserEmail = null;
+
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     $currentUserEmail = $_GET['currentUser'] ?? null;
 } else if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    // First try to get from POST (for form data)
     $currentUserEmail = $_POST['currentUser'] ?? null;
+    
+    // If not in POST, read from JSON body
     if (!$currentUserEmail) {
-        $RAW_POST_BODY = file_get_contents('php://input');
-        if ($RAW_POST_BODY) {
-            $jsonData = json_decode($RAW_POST_BODY, true);
+        $postData = file_get_contents('php://input');
+        if ($postData) {
+            $jsonData = json_decode($postData, true);
             $currentUserEmail = $jsonData['currentUser'] ?? null;
         }
     }
 }
+
+// Log for debugging
+error_log("Current user email: " . ($currentUserEmail ?? 'NULL'));
+error_log("Request method: " . $_SERVER['REQUEST_METHOD']);
 
 if (!$currentUserEmail) {
     http_response_code(401);
@@ -31,14 +41,18 @@ if (!$currentUserEmail) {
     exit;
 }
 
+
+
+
+
 // Load settings with auto-initialization
 function loadSettings($settingsFile, $bootstrapAdmins, $currentUser) {
     $needsSave = false;
-
+    
     if (file_exists($settingsFile)) {
         $content = file_get_contents($settingsFile);
         $settings = json_decode($content, true);
-
+        
         // Validate structure only
         if (!isset($settings['admins'])) {
             $settings['admins'] = [];
@@ -50,9 +64,9 @@ function loadSettings($settingsFile, $bootstrapAdmins, $currentUser) {
         }
         if (!isset($settings['available_attributes'])) {
             $settings['available_attributes'] = [
-                'sku', 'label', 'price', 'cost', 'msrp', 'categories',
-                'productfamily', 'images', 'thumbnail', 'assets',
-                'enabledisableproduct', 'description', 'weight',
+                'sku', 'label', 'price', 'cost', 'msrp', 'categories', 
+                'productfamily', 'images', 'thumbnail', 'assets', 
+                'enabledisableproduct', 'description', 'weight', 
                 'dimensions', 'material', 'color', 'finish'
             ];
             $needsSave = true;
@@ -63,21 +77,21 @@ function loadSettings($settingsFile, $bootstrapAdmins, $currentUser) {
             'admins' => [],
             'users' => [],
             'available_attributes' => [
-                'sku', 'label', 'price', 'cost', 'msrp', 'categories',
-                'productfamily', 'images', 'thumbnail', 'assets',
-                'enabledisableproduct', 'description', 'weight',
+                'sku', 'label', 'price', 'cost', 'msrp', 'categories', 
+                'productfamily', 'images', 'thumbnail', 'assets', 
+                'enabledisableproduct', 'description', 'weight', 
                 'dimensions', 'material', 'color', 'finish'
             ]
         ];
         $needsSave = true;
     }
-
+    
     // Bootstrap: ONLY run if there are NO admins at all (first time setup)
     if (empty($settings['admins'])) {
         error_log("Bootstrap: No admins exist, adding bootstrap admins");
         $settings['admins'] = $bootstrapAdmins;
         $needsSave = true;
-
+        
         // Add bootstrap admins to users array
         foreach ($bootstrapAdmins as $adminEmail) {
             $settings['users'][] = [
@@ -95,7 +109,7 @@ function loadSettings($settingsFile, $bootstrapAdmins, $currentUser) {
                 $settings['admins'][] = $currentUser;
                 $needsSave = true;
             }
-
+            
             // Check if user exists in users array
             $userExists = false;
             foreach ($settings['users'] as $user) {
@@ -104,7 +118,7 @@ function loadSettings($settingsFile, $bootstrapAdmins, $currentUser) {
                     break;
                 }
             }
-
+            
             // Only add if they don't exist at all
             if (!$userExists) {
                 error_log("Adding new bootstrap admin user: " . $currentUser);
@@ -116,17 +130,25 @@ function loadSettings($settingsFile, $bootstrapAdmins, $currentUser) {
                 ];
                 $needsSave = true;
             }
+            // DO NOT modify existing users - this was the bug!
         }
     }
-
+    
     // Save if changes were made
     if ($needsSave) {
         error_log("Saving settings due to bootstrap changes");
         saveSettings($settingsFile, $settings);
     }
-
+    
     return $settings;
 }
+
+
+
+
+
+
+
 
 // Save settings
 function saveSettings($settingsFile, $settings) {
@@ -143,7 +165,7 @@ $action = null;
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     $action = $_GET['action'] ?? 'get';
 } else {
-    $postData = $RAW_POST_BODY;
+    $postData = file_get_contents('php://input');
     if ($postData) {
         $jsonData = json_decode($postData, true);
         $action = $jsonData['action'] ?? null;
@@ -157,20 +179,19 @@ $settings = loadSettings($settingsFile, $BOOTSTRAP_ADMINS, $currentUserEmail);
 
 // ACTION: Get all settings
 if ($action === 'get') {
-    // Remove the admin check for public access
-    // if (!isAdmin($currentUserEmail, $settings)) {
-    //     http_response_code(403);
-    //     echo json_encode(['error' => 'Forbidden - Admin access required']);
-    //     exit;
-    // }
-
+    // Check if current user is admin
+    if (!isAdmin($currentUserEmail, $settings)) {
+        http_response_code(403);
+        echo json_encode(['error' => 'Forbidden - Admin access required']);
+        exit;
+    }
+    
     echo json_encode([
         'success' => true,
         'settings' => $settings
     ]);
     exit;
 }
-
 
 // ACTION: Get current user's permissions
 if ($action === 'getPermissions') {
@@ -181,7 +202,7 @@ if ($action === 'getPermissions') {
             break;
         }
     }
-
+    
     if (!$userPermissions) {
         // Default permissions if user not found
         $userPermissions = [
@@ -191,9 +212,9 @@ if ($action === 'getPermissions') {
             'editable_attributes' => []
         ];
     }
-
+    
     $userPermissions['isAdmin'] = isAdmin($currentUserEmail, $settings);
-
+    
     echo json_encode([
         'success' => true,
         'permissions' => $userPermissions
@@ -208,32 +229,32 @@ if ($action === 'save') {
         echo json_encode(['error' => 'Forbidden - Admin access required']);
         exit;
     }
-
-    $postData = $RAW_POST_BODY;
+    
+    $postData = file_get_contents('php://input');
     $data = json_decode($postData, true);
-
+    
     if (!$data || !isset($data['settings'])) {
         http_response_code(400);
         echo json_encode(['error' => 'Invalid data']);
         exit;
     }
-
+    
     $newSettings = $data['settings'];
-
+    
     // Validate structure
     if (!isset($newSettings['admins']) || !isset($newSettings['users']) || !isset($newSettings['available_attributes'])) {
         http_response_code(400);
         echo json_encode(['error' => 'Invalid settings structure']);
         exit;
     }
-
+    
     // Ensure at least one admin exists
     if (empty($newSettings['admins'])) {
         http_response_code(400);
         echo json_encode(['error' => 'At least one admin must exist']);
         exit;
     }
-
+    
     if (saveSettings($settingsFile, $newSettings)) {
         echo json_encode([
             'success' => true,
@@ -253,19 +274,19 @@ if ($action === 'addUser') {
         echo json_encode(['error' => 'Forbidden - Admin access required']);
         exit;
     }
-
-    $postData = $RAW_POST_BODY;
+    
+    $postData = file_get_contents('php://input');
     $data = json_decode($postData, true);
-
+    
     $newUserEmail = $data['email'] ?? null;
     $role = $data['role'] ?? 'user';
-
+    
     if (!$newUserEmail || !filter_var($newUserEmail, FILTER_VALIDATE_EMAIL)) {
         http_response_code(400);
         echo json_encode(['error' => 'Invalid email address']);
         exit;
     }
-
+    
     // Check if user already exists
     foreach ($settings['users'] as $user) {
         if ($user['email'] === $newUserEmail) {
@@ -274,7 +295,7 @@ if ($action === 'addUser') {
             exit;
         }
     }
-
+    
     // Add new user - use what's provided, don't auto-set to ['all']
     $newUser = [
         'email' => $newUserEmail,
@@ -282,16 +303,16 @@ if ($action === 'addUser') {
         'visible_attributes' => $data['visible_attributes'] ?? ['sku', 'label', 'images', 'thumbnail', 'assets'],
         'editable_attributes' => $data['editable_attributes'] ?? []
     ];
-
+    
     $settings['users'][] = $newUser;
-
+    
     // If role is admin, add to admins array
     if ($role === 'admin') {
         if (!in_array($newUserEmail, $settings['admins'])) {
             $settings['admins'][] = $newUserEmail;
         }
     }
-
+    
     if (saveSettings($settingsFile, $settings)) {
         echo json_encode([
             'success' => true,
@@ -312,28 +333,28 @@ if ($action === 'updateUser') {
         echo json_encode(['error' => 'Forbidden - Admin access required']);
         exit;
     }
-
-    $postData = $RAW_POST_BODY;
+    
+    $postData = file_get_contents('php://input');
     $data = json_decode($postData, true);
-
+    
     // Add debug logging
     error_log("=== UPDATE USER ===");
     error_log("Received data: " . print_r($data, true));
-
+    
     $userEmail = $data['email'] ?? null;
-
+    
     if (!$userEmail) {
         http_response_code(400);
         echo json_encode(['error' => 'Email required']);
         exit;
     }
-
+    
     // Find and update user
     $userFound = false;
     foreach ($settings['users'] as &$user) {
         if ($user['email'] === $userEmail) {
             $user['role'] = $data['role'] ?? $user['role'];
-
+            
             // CRITICAL FIX: Use exactly what was sent, don't override
             if (isset($data['visible_attributes'])) {
                 $user['visible_attributes'] = $data['visible_attributes'];
@@ -341,11 +362,11 @@ if ($action === 'updateUser') {
             if (isset($data['editable_attributes'])) {
                 $user['editable_attributes'] = $data['editable_attributes'];
             }
-
+            
             error_log("Updated user: " . print_r($user, true));
-
+            
             $userFound = true;
-
+            
             // Update admin status
             if ($user['role'] === 'admin') {
                 if (!in_array($userEmail, $settings['admins'])) {
@@ -356,24 +377,24 @@ if ($action === 'updateUser') {
                     return $email !== $userEmail;
                 }));
             }
-
+            
             break;
         }
     }
-
+    
     if (!$userFound) {
         http_response_code(404);
         echo json_encode(['error' => 'User not found']);
         exit;
     }
-
+    
     // Ensure at least one admin remains
     if (empty($settings['admins'])) {
         http_response_code(400);
         echo json_encode(['error' => 'Cannot remove last admin']);
         exit;
     }
-
+    
     if (saveSettings($settingsFile, $settings)) {
         error_log("Settings saved successfully");
         echo json_encode([
@@ -395,58 +416,48 @@ if ($action === 'deleteUser') {
         echo json_encode(['error' => 'Forbidden - Admin access required']);
         exit;
     }
-
-    $postData = $RAW_POST_BODY;
+    
+    $postData = file_get_contents('php://input');
     $data = json_decode($postData, true);
-
+    
     $userEmail = $data['email'] ?? null;
-
+    
     if (!$userEmail) {
         http_response_code(400);
         echo json_encode(['error' => 'Email required']);
         exit;
     }
-
+    
     // Prevent deleting yourself
     if ($userEmail === $currentUserEmail) {
         http_response_code(400);
         echo json_encode(['error' => 'Cannot delete your own account']);
         exit;
     }
-
+    
     // Check if this would remove the last admin
     $remainingAdmins = array_filter($settings['admins'], function($email) use ($userEmail) {
         return $email !== $userEmail;
     });
-
+    
     if (empty($remainingAdmins)) {
         http_response_code(400);
         echo json_encode(['error' => 'Cannot delete the last admin']);
         exit;
     }
-
+    
     // Remove user
     $settings['users'] = array_values(array_filter($settings['users'], function($user) use ($userEmail) {
         return $user['email'] !== $userEmail;
     }));
-
+    
     // Remove from admins if present
     $settings['admins'] = array_values($remainingAdmins);
-
-    // Invalidate user session if they are logged in
-    session_start();
-    if (isset($_SESSION['user']) && $_SESSION['user'] === $userEmail) {
-        session_unset();
-        session_destroy();
-    }
-
+    
     if (saveSettings($settingsFile, $settings)) {
         echo json_encode([
             'success' => true,
-            'message' => 'User deleted successfully',
-            'invalidated_user' => $userEmail,
-            'invalidation_timestamp' => time() // Add this line
-            'force_logout' => true // Add this line
+            'message' => 'User deleted successfully'
         ]);
     } else {
         http_response_code(500);
@@ -454,7 +465,6 @@ if ($action === 'deleteUser') {
     }
     exit;
 }
-
 
 http_response_code(400);
 echo json_encode(['error' => 'Invalid action: ' . ($action ?? 'none')]);
