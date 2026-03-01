@@ -446,6 +446,7 @@ if ($action === 'deleteUser') {
             'message' => 'User deleted successfully',
             'invalidated_user' => $userEmail,
             'invalidation_timestamp' => time() // Add this line
+            'force_logout' => true // Add this line
         ]);
     } else {
         http_response_code(500);
