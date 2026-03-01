@@ -2310,18 +2310,23 @@ function createMultiSelectDropdown(options, selectedValues) {
 
 
 
-  function logout() {
+// Updated logout function to clear both localStorage and server session
+function logout() {
+  // Clear localStorage
+  localStorage.removeItem("user");
+  localStorage.removeItem("lastUser");
+
+  // Call server-side logout to destroy the session
   fetch('logout.php')
     .then(() => {
-      localStorage.removeItem("user");
       window.location.href = "login.html";
     })
     .catch(err => {
-      console.error("Logout error:", err);
-      localStorage.removeItem("user");
+      console.error("Server-side logout failed, but local data cleared:", err);
       window.location.href = "login.html";
     });
 }
+
 
 
 
