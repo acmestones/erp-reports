@@ -22,8 +22,7 @@
 
   <script>
     // Fetch allowed users dynamically
-    let ALLOWED_USERS = [];
-    fetch('admin_user_settings.php?action=get')
+    fetch('admin_user_settings.php?action=get&currentUser=' + encodeURIComponent(localStorage.getItem("user")))
       .then(res => res.json())
       .then(data => {
         if (data.success) {
