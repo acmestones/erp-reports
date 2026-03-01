@@ -439,15 +439,16 @@ if ($action === 'deleteUser') {
         session_destroy();
     }
 
-    if (saveSettings($settingsFile, $settings)) {
-        echo json_encode([
-            'success' => true,
-            'message' => 'User deleted successfully'
-        ]);
-    } else {
-        http_response_code(500);
-        echo json_encode(['error' => 'Failed to save settings']);
-    }
+            // Save settings
+            if (saveSettings($settingsFile, $settings)) {
+                echo json_encode([
+                    'success' => true,
+                    'message' => 'User deleted successfully'
+                ]);
+            } else {
+                http_response_code(500);
+                echo json_encode(['error' => 'Failed to save settings']);
+            }
     exit;
 }
 
