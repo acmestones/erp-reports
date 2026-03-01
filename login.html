@@ -45,30 +45,43 @@ function handleCredentialResponse(response) {
   try {
     const data = parseJwt(response.credential);
     const email = data.email;
-    if (ALLOWED_USERS.includes(email)) {
-      // Save user to localStorage
-      localStorage.setItem("user", email);
-      // Send user to server for session validation and AWAIT response
-      fetch('login.php', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user: email })
-      })
+
+    // Fetch allowed users and then check access
+    fetch('admin_user_settings.php?action=get&currentUser=' + encodeURIComponent(email))
       .then(res => res.json())
       .then(data => {
         if (data.success) {
-          window.location.replace(REDIRECT_PAGE);
+          const ALLOWED_USERS = data.settings.users.map(user => user.email);
+          if (ALLOWED_USERS.includes(email)) {
+            localStorage.setItem("user", email);
+            fetch('login.php', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ user: email })
+            })
+            .then(res => res.json())
+            .then(data => {
+              if (data.success) {
+                window.location.replace(REDIRECT_PAGE);
+              } else {
+                document.getElementById("status").innerHTML = `<p style="color:crimson">❌ Server error: ${data.error}</p>`;
+              }
+            })
+            .catch(err => {
+              document.getElementById("status").innerHTML = `<p style="color:crimson">❌ Server error</p>`;
+              console.error(err);
+            });
+          } else {
+            document.getElementById("status").innerHTML = `<p style="color:crimson">❌ Access denied for ${email}</p>`;
+          }
         } else {
-          document.getElementById("status").innerHTML = `<p style="color:crimson">❌ Server error: ${data.error}</p>`;
+          document.getElementById("status").innerHTML = `<p style="color:crimson">❌ Failed to load user settings</p>`;
         }
       })
       .catch(err => {
-        document.getElementById("status").innerHTML = `<p style="color:crimson">❌ Server error</p>`;
+        document.getElementById("status").innerHTML = `<p style="color:crimson">❌ Failed to load user settings</p>`;
         console.error(err);
       });
-    } else {
-      document.getElementById("status").innerHTML = `<p style="color:crimson">❌ Access denied for ${email}</p>`;
-    }
   } catch (e) {
     document.getElementById("status").innerHTML = `<p style="color:crimson">Authentication error</p>`;
     console.error(e);
