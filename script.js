@@ -2358,6 +2358,36 @@ setInterval(checkUserValidity, 300000); // 300,000 ms = 5 minutes
 
 
 
+
+
+
+// Add this to script.js
+function checkUserSessionValidity() {
+    const userEmail = localStorage.getItem("user");
+    if (!userEmail) return;
+
+    fetch(`admin_user_settings.php?action=getPermissions&currentUser=${encodeURIComponent(userEmail)}`)
+        .then(res => res.json())
+        .then(data => {
+            if (!data.success || !data.permissions) {
+                alert("Your account has been deleted or access revoked. You will be logged out.");
+                logout();
+            }
+        })
+        .catch(err => {
+            console.error("Failed to check user session validity:", err);
+            // Assume the worst and log out
+            alert("Session validation failed. You will be logged out for security reasons.");
+            logout();
+        });
+}
+
+// Check every 1 minute
+setInterval(checkUserSessionValidity, 60000);
+
+
+
+  
   
   
 
