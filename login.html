@@ -4,6 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Login — Acme Stonemart Catalog</title>
+
   <script src="https://accounts.google.com/gsi/client" async defer></script>
   <style>
     body { display:flex; align-items:center; justify-content:center; height:100vh; font-family: Inter, sans-serif; background:#f7f8fb; }
@@ -15,22 +16,21 @@
   <div class="box">
     <h3>🔒 Acme Stones Internal Catalog</h3>
     <p class="small">Sign in with Google to continue</p>
+
     <div id="buttonDiv" style="margin:18px 0;"></div>
     <div id="status"></div>
     <p class="small" style="margin-top:10px;color:#999">If you don't have access, please contact the admin.</p>
   </div>
 
   <script>
-    // Fetch allowed users dynamically
-    fetch('admin_user_settings.php?action=get&currentUser=' + encodeURIComponent(localStorage.getItem("user")))
-      .then(res => res.json())
-      .then(data => {
-        if (data.success) {
-          ALLOWED_USERS = data.settings.users.map(user => user.email);
-        }
-      });
-
+    // === CONFIG: replace CLIENT_ID and allowed emails ===
     const CLIENT_ID = "979512358609-1ouc1qj18hcqghjbimu5npce8l8volhe.apps.googleusercontent.com";
+    const ALLOWED_USERS = [
+      "marblehouse@gmail.com",        // admin
+      "designacmestones@gmail.com",    // team
+      "satishguptajaipur@gmail.com"   // user
+      // add more emails here if needed
+    ];
     const REDIRECT_PAGE = "index.html";
 
     function parseJwt(token) {
@@ -41,63 +41,37 @@
       ).join('')));
     }
 
-function handleCredentialResponse(response) {
-  try {
-    const data = parseJwt(response.credential);
-    const email = data.email;
-
-    // Fetch allowed users and then check access
-    fetch('admin_user_settings.php?action=get&currentUser=' + encodeURIComponent(email))
-      .then(res => res.json())
-      .then(data => {
-        if (data.success) {
-          const ALLOWED_USERS = data.settings.users.map(user => user.email);
-          if (ALLOWED_USERS.includes(email)) {
-            localStorage.setItem("user", email);
-            fetch('login.php', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ user: email })
-            })
-            .then(res => res.json())
-            .then(data => {
-              if (data.success) {
-                window.location.replace(REDIRECT_PAGE);
-              } else {
-                document.getElementById("status").innerHTML = `<p style="color:crimson">❌ Server error: ${data.error}</p>`;
-              }
-            })
-            .catch(err => {
-              document.getElementById("status").innerHTML = `<p style="color:crimson">❌ Server error</p>`;
-              console.error(err);
-            });
-          } else {
-            document.getElementById("status").innerHTML = `<p style="color:crimson">❌ Access denied for ${email}</p>`;
-          }
+    function handleCredentialResponse(response) {
+      try {
+        const data = parseJwt(response.credential);
+        const email = data.email;
+        if (ALLOWED_USERS.includes(email)) {
+          // Save user and redirect
+          localStorage.setItem("user", email);
+          // store lastUser to allow index.js to clear caches if user changed
+          localStorage.setItem("lastUser", email);
+          window.location.replace(REDIRECT_PAGE);
         } else {
-          document.getElementById("status").innerHTML = `<p style="color:crimson">❌ Failed to load user settings</p>`;
+          document.getElementById("status").innerHTML = `<p style="color:crimson">❌ Access denied for ${email}</p>`;
         }
-      })
-      .catch(err => {
-        document.getElementById("status").innerHTML = `<p style="color:crimson">❌ Failed to load user settings</p>`;
-        console.error(err);
-      });
-  } catch (e) {
-    document.getElementById("status").innerHTML = `<p style="color:crimson">Authentication error</p>`;
-    console.error(e);
-  }
-}
-
+      } catch (e) {
+        document.getElementById("status").innerHTML = `<p style="color:crimson">Authentication error</p>`;
+        console.error(e);
+      }
+    }
 
     window.onload = function () {
       if (!CLIENT_ID || CLIENT_ID.includes("YOUR_GOOGLE_CLIENT_ID")) {
         document.getElementById("status").innerHTML = `<p style="color:crimson">⚠️ CLIENT_ID is not configured. Please add your OAuth Client ID.</p>`;
+        // still render disabled button for appearance
       }
       google.accounts.id.initialize({
         client_id: CLIENT_ID,
         callback: handleCredentialResponse
       });
       google.accounts.id.renderButton(document.getElementById("buttonDiv"), { theme: "outline", size: "large" });
+      // optional auto prompt
+      // google.accounts.id.prompt();
     };
   </script>
 </body>
