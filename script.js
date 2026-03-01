@@ -2310,22 +2310,31 @@ function createMultiSelectDropdown(options, selectedValues) {
 
 
 
-// Updated logout function to clear both localStorage and server session
-function logout() {
-  // Clear localStorage
-  localStorage.removeItem("user");
-  localStorage.removeItem("lastUser");
+// Listen for logout events from other tabs
+window.addEventListener('storage', function(event) {
+    if (event.key === 'forceLogout') {
+        alert("Your session has been terminated. You will be logged out.");
+        logout();
+    }
+});
 
-  // Call server-side logout to destroy the session
-  fetch('logout.php')
-    .then(() => {
-      window.location.href = "login.html";
-    })
-    .catch(err => {
-      console.error("Server-side logout failed, but local data cleared:", err);
-      window.location.href = "login.html";
-    });
+// In your logout function, broadcast the event
+function logout() {
+    localStorage.removeItem("user");
+    localStorage.removeItem("lastUser");
+    localStorage.setItem('forceLogout', Date.now()); // Broadcast logout
+    localStorage.removeItem('forceLogout'); // Clean up
+
+    fetch('logout.php')
+        .then(() => {
+            window.location.href = "login.html";
+        })
+        .catch(err => {
+            console.error("Server-side logout failed, but local data cleared:", err);
+            window.location.href = "login.html";
+        });
 }
+
 
 
 
