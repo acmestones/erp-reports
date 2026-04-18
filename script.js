@@ -1499,14 +1499,12 @@ async function loadReport(reportName) {
     // Sort rows if configured
     const sortedRows = sortRows(rows, columns, config);
 
-    // Group data using the group_by configuration
-    const groupByFields =
-      config.group_by && Array.isArray(config.group_by) ? config.group_by.filter(Boolean) : [];
+    // Group data using the groupby configuration
+    const groupByFields = config.group_by ? (Array.isArray(config.group_by) ? config.group_by.filter(Boolean) : []) : [];
+    const grouped = groupByFields.length > 0 
+        ? groupData(sortedRows, columns, groupByFields, config.group_sort || {}, reportName) 
+        : { 'All Records': { 'All': sortedRows } };
 
-    const grouped =
-      groupByFields.length > 0
-        ? groupData(sortedRows, columns, groupByFields, config.group_sort || {})
-        : { "All Records": { All: sortedRows } };
 
     currentReportData = {
       grouped,
@@ -1555,71 +1553,215 @@ function sortRows(rows, columns, config) {
   });
 }
 
-function groupData(rows, columns, groupFields, groupSort = {}) {
-  const grouped = {};
 
-  rows.forEach((row) => {
-    const level1 = row[groupFields[0]] || "Unknown";
-    const level2 = groupFields[1] ? row[groupFields[1]] || "Unknown" : "All";
 
-    if (!grouped[level1]) {
-      grouped[level1] = {};
-    }
-    if (!grouped[level1][level2]) {
-      grouped[level1][level2] = [];
-    }
-    grouped[level1][level2].push(row);
-  });
 
-  const sortedGrouped = {};
 
-  const level1Keys = Object.keys(grouped);
-  if (groupSort[groupFields[0]]) {
-    const customOrder = groupSort[groupFields[0]];
-    level1Keys.sort((a, b) => {
-      const indexA = customOrder.indexOf(a);
-      const indexB = customOrder.indexOf(b);
-      if (indexA === -1 && indexB === -1) return a.localeCompare(b);
-      if (indexA === -1) return 1;
-      if (indexB === -1) return -1;
-      return indexA - indexB;
+
+function groupData(rows, columns, groupFields, groupSort, reportName) {
+    const grouped = {};
+    rows.forEach(row => {
+        const level1 = row[groupFields[0]] || 'Unknown';
+        const level2 = groupFields[1] ? row[groupFields[1]] || 'Unknown' : 'All';
+        if (!grouped[level1]) grouped[level1] = {};
+        if (!grouped[level1][level2]) grouped[level1][level2] = [];
+        grouped[level1][level2].push(row);
     });
-  } else {
-    level1Keys.sort();
-  }
 
-  level1Keys.forEach((key1) => {
-    sortedGrouped[key1] = {};
+    const sortedGrouped = {};
+    const config = reportConfig[reportName] || {};
+    const sortType = config.sort_type || 'manual';
+    
+    // Get user-specific sort preferences for automatic sorting
+    let primarySortOrder = config.primary_sort_order || 'asc';
+    let secondarySortOrder = config.secondary_sort_order || 'asc';
+    
+    if (sortType === 'automatic') {
+        const userEmail = localStorage.getItem('userEmail');
+        const userSortKey = `sort_pref_${reportName}_${userEmail}`;
+        const savedUserSort = localStorage.getItem(userSortKey);
+        
+        if (savedUserSort) {
+            try {
+                const parsed = JSON.parse(savedUserSort);
+                primarySortOrder = parsed.primary || primarySortOrder;
+                secondarySortOrder = parsed.secondary || secondarySortOrder;
+            } catch (e) {
+                console.error('Failed to parse user sort preference', e);
+            }
+        }
+    }
 
-    const level2Keys = Object.keys(grouped[key1]);
-    if (groupFields[1] && groupSort[groupFields[1]]) {
-      const customOrder = groupSort[groupFields[1]];
-      level2Keys.sort((a, b) => {
-        const indexA = customOrder.indexOf(a);
-        const indexB = customOrder.indexOf(b);
-        if (indexA === -1 && indexB === -1) return a.localeCompare(b);
-        if (indexA === -1) return 1;
-        if (indexB === -1) return -1;
-        return indexA - indexB;
-      });
+    const level1Keys = Object.keys(grouped);
+    
+    // Sort level 1 (primary groups)
+    if (sortType === 'manual' && groupSort[groupFields[0]]) {
+        // Manual sort with custom order
+        const customOrder = groupSort[groupFields[0]];
+        level1Keys.sort((a, b) => {
+            const indexA = customOrder.indexOf(a);
+            const indexB = customOrder.indexOf(b);
+            if (indexA === -1 && indexB === -1) return a.localeCompare(b);
+            if (indexA === -1) return 1;
+            if (indexB === -1) return -1;
+            return indexA - indexB;
+        });
+    } else if (sortType === 'automatic') {
+        // Automatic sort - detect if date or text
+        level1Keys.sort((a, b) => {
+            // Try to parse as dates
+            const dateA = new Date(a);
+            const dateB = new Date(b);
+            
+            // Check if both are valid dates
+            if (!isNaN(dateA.getTime()) && !isNaN(dateB.getTime())) {
+                // Date sorting
+                return primarySortOrder === 'asc' ? dateA - dateB : dateB - dateA;
+            } else {
+                // Text/alphabetical sorting
+                const comparison = a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
+                return primarySortOrder === 'asc' ? comparison : -comparison;
+            }
+        });
     } else {
-      level2Keys.sort();
+        // Default alphabetical
+        level1Keys.sort();
     }
 
-    level2Keys.forEach((key2) => {
-      sortedGrouped[key1][key2] = grouped[key1][key2];
-    });
-  });
+    level1Keys.forEach(key1 => {
+        sortedGrouped[key1] = {};
+        const level2Keys = Object.keys(grouped[key1]);
+        
+        // Sort level 2 (secondary groups)
+        if (sortType === 'manual' && groupFields[1] && groupSort[groupFields[1]]) {
+            // Manual sort with custom order
+            const customOrder = groupSort[groupFields[1]];
+            level2Keys.sort((a, b) => {
+                const indexA = customOrder.indexOf(a);
+                const indexB = customOrder.indexOf(b);
+                if (indexA === -1 && indexB === -1) return a.localeCompare(b);
+                if (indexA === -1) return 1;
+                if (indexB === -1) return -1;
+                return indexA - indexB;
+            });
+        } else if (sortType === 'automatic') {
+            // Automatic sort - detect if date or text
+            level2Keys.sort((a, b) => {
+                // Try to parse as dates
+                const dateA = new Date(a);
+                const dateB = new Date(b);
+                
+                // Check if both are valid dates
+                if (!isNaN(dateA.getTime()) && !isNaN(dateB.getTime())) {
+                    // Date sorting
+                    return secondarySortOrder === 'asc' ? dateA - dateB : dateB - dateA;
+                } else {
+                    // Text/alphabetical sorting
+                    const comparison = a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
+                    return secondarySortOrder === 'asc' ? comparison : -comparison;
+                }
+            });
+        } else {
+            // Default alphabetical
+            level2Keys.sort();
+        }
 
-  return sortedGrouped;
+        level2Keys.forEach(key2 => {
+            sortedGrouped[key1][key2] = grouped[key1][key2];
+        });
+    });
+
+    return sortedGrouped;
 }
+
+
+
+
+
+
+
 
 function renderGroupedCards(grouped, columns, reportName) {
   const reportArea = document.getElementById("reportArea");
   reportArea.innerHTML = "";
 
-  if (!reportConfig[reportName]) reportConfig[reportName] = {};
-  const config = reportConfig[reportName] || {};
+
+
+    if (!reportConfig[reportName]) {
+        reportConfig[reportName] = {};
+    }
+    
+    const config = reportConfig[reportName];
+    
+    // Show sort controls only for automatic sort reports
+    if (config.sort_type === 'automatic') {
+        const sortControlsDiv = document.createElement('div');
+        sortControlsDiv.className = 'mb-3 p-3 bg-light rounded';
+        sortControlsDiv.innerHTML = `
+            <div class="row align-items-center">
+                <div class="col-md-6 mb-2 mb-md-0">
+                    <label class="form-label mb-1 fw-bold">Primary Group Sort:</label>
+                    <select class="form-select form-select-sm" id="userPrimarySortOrder">
+                        <option value="asc">Ascending (A-Z or Oldest First)</option>
+                        <option value="desc">Descending (Z-A or Newest First)</option>
+                    </select>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label mb-1 fw-bold">Secondary Group Sort:</label>
+                    <select class="form-select form-select-sm" id="userSecondarySortOrder">
+                        <option value="asc">Ascending (A-Z or Oldest First)</option>
+                        <option value="desc">Descending (Z-A or Newest First)</option>
+                    </select>
+                </div>
+            </div>
+        `;
+        reportArea.appendChild(sortControlsDiv);
+        
+        // Load user-specific sort preferences
+        const userEmail = localStorage.getItem('userEmail');
+        const userSortKey = `sort_pref_${reportName}_${userEmail}`;
+        const savedUserSort = localStorage.getItem(userSortKey);
+        
+        let userPrimarySort = config.primary_sort_order || 'asc';
+        let userSecondarySort = config.secondary_sort_order || 'asc';
+        
+        if (savedUserSort) {
+            try {
+                const parsed = JSON.parse(savedUserSort);
+                userPrimarySort = parsed.primary || userPrimarySort;
+                userSecondarySort = parsed.secondary || userSecondarySort;
+            } catch (e) {
+                console.error('Failed to parse user sort preference', e);
+            }
+        }
+        
+        const primarySortSelect = document.getElementById('userPrimarySortOrder');
+        const secondarySortSelect = document.getElementById('userSecondarySortOrder');
+        
+        primarySortSelect.value = userPrimarySort;
+        secondarySortSelect.value = userSecondarySort;
+        
+        // Save and re-render on change
+        primarySortSelect.addEventListener('change', function() {
+            const sortPref = {
+                primary: primarySortSelect.value,
+                secondary: secondarySortSelect.value
+            };
+            localStorage.setItem(userSortKey, JSON.stringify(sortPref));
+            loadReport(reportName);
+        });
+        
+        secondarySortSelect.addEventListener('change', function() {
+            const sortPref = {
+                primary: primarySortSelect.value,
+                secondary: secondarySortSelect.value
+            };
+            localStorage.setItem(userSortKey, JSON.stringify(sortPref));
+            loadReport(reportName);
+        });
+    }
+
+  
 
   // Normalize legacy keys (for safety)
 
@@ -1689,77 +1831,85 @@ function renderGroupedCards(grouped, columns, reportName) {
       level2Content.className = "level2-content";
       level2Content.style.display = collapsed ? "none" : "block";
 
-      const cardsContainer = document.createElement("div");
-      cardsContainer.className = "d-flex flex-wrap gap-3 mt-2";
-
-      // Apply saved card priority if it exists
-
-      const cardPriority = config.card_priority?.[level1]?.[level2];
-      let cardsToRender = grouped[level1][level2];
-
-      // IMPORTANT: createCard() below also normalizes title_field/titlefield,
-      // but keep a consistent default here too.
-
-      const titleField = config.title_field || "name";
-      const idField = config.id_field || "name";
       
-      // Helper function using admin-configured id_field
-      const getCardId = (row) => {
-        return row[idField];
-      };
+        // Check view type
+        const viewType = config.view_type || 'cards';
+        
+        if (viewType === 'table') {
+            // ============ TABLE VIEW ============
+            const tableView = createTableView(grouped[level1][level2], columns, reportName, config, level1, level2);
+            level2Content.appendChild(tableView);
+            
+        } else {
+            // ============ CARDS VIEW (original code) ============
+            const cardsContainer = document.createElement('div');
+            cardsContainer.className = 'd-flex flex-wrap gap-3 mt-2';
+            
+            // Apply saved card priority if it exists
+            const cardPriority = config.card_priority?.[level1]?.[level2];
+            let cardsToRender = [...grouped[level1][level2]];
+            
+            // IMPORTANT: createCard below also normalizes titlefield→title_field, but keep a consistent default here too.
+            const titleField = config.title_field || 'name';
+            const idField = config.id_field || 'name';
+            
+            // Helper function using admin-configured id_field
+            const getCardId = (row) => {
+                return row[idField];
+            };
+            
+            if (cardPriority && Array.isArray(cardPriority)) {
+                cardsToRender = [...cardsToRender].sort((a, b) => {
+                    const idA = getCardId(a);
+                    const idB = getCardId(b);
+                    const indexA = cardPriority.indexOf(idA);
+                    const indexB = cardPriority.indexOf(idB);
+                    
+                    // Both cards are in the priority list - use priority order
+                    if (indexA !== -1 && indexB !== -1) {
+                        return indexA - indexB;
+                    }
+                    
+                    // Only A is in priority list - A comes first
+                    if (indexA !== -1) return -1;
+                    
+                    // Only B is in priority list - B comes first
+                    if (indexB !== -1) return 1;
+                    
+                    // Neither is in priority list - NEW CARDS
+                    if (config.sort_by) {
+                        const sortField = config.sort_by;
+                        const valA = a[sortField];
+                        const valB = b[sortField];
+                        if (valA === valB) return 0;
+                        if (valA === null || valA === undefined) return 1;
+                        if (valB === null || valB === undefined) return -1;
+                        const comparison = valA < valB ? -1 : 1;
+                        return config.sort_order === 'desc' ? -comparison : comparison;
+                    }
+                    
+                    return 0;
+                });
+            }
+            
+            const fragment = document.createDocumentFragment();
+            cardsToRender.forEach((row) => {
+                const card = createCard(row, columns, reportName, config);
+                card.className += ' card-grid-item';
+                fragment.appendChild(card);
+            });
+            cardsContainer.appendChild(fragment);
+            
+            // Initialize drag-and-drop for this subgroup (admin only)
+            if (currentUser && currentUser.role === 'admin') {
+                initializeSortable(cardsContainer, reportName, level1, level2);
+            }
+            
+            level2Content.appendChild(cardsContainer);
+        }
 
-
-
-
-      if (cardPriority && Array.isArray(cardPriority)) {
-        cardsToRender = [...cardsToRender].sort((a, b) => {
-          const idA = getCardId(a);
-          const idB = getCardId(b);
-
-          const indexA = cardPriority.indexOf(idA);
-          const indexB = cardPriority.indexOf(idB);
-
-          // Both cards are in the priority list - use priority order
-          if (indexA !== -1 && indexB !== -1) return indexA - indexB;
-
-          // Only A is in priority list - A comes first
-          if (indexA !== -1) return -1;
-
-          // Only B is in priority list - B comes first
-          if (indexB !== -1) return 1;
-
-          // Neither is in priority list - NEW CARDS
-          if (config.sort_by) {
-            const sortField = config.sort_by;
-            const valA = a[sortField];
-            const valB = b[sortField];
-
-            if (valA === valB) return 0;
-            if (valA === null || valA === undefined) return 1;
-            if (valB === null || valB === undefined) return -1;
-
-            const comparison = valA < valB ? -1 : 1;
-            return config.sort_order === "desc" ? -comparison : comparison;
-          }
-
-          return 0;
-        });
-      }
-
-      const fragment = document.createDocumentFragment();
-      cardsToRender.forEach((row) => {
-        const card = createCard(row, columns, reportName, config);
-        card.className = card.className + " card-grid-item";
-        fragment.appendChild(card);
-      });
-      cardsContainer.appendChild(fragment);
-
-      // Initialize drag-and-drop for this subgroup (admin only)
-      if (currentUser && currentUser.role === "admin") {
-        initializeSortable(cardsContainer, reportName, level1, level2);
-      }
-
-      level2Content.appendChild(cardsContainer);
+      
+      
       level2Div.appendChild(level2Header);
       level2Div.appendChild(level2Content);
 
@@ -2018,6 +2168,258 @@ const name = displayTitle;
 
   return card;
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+function createTableView(rows, columns, reportName, config, level1, level2) {
+    const tableContainer = document.createElement('div');
+    tableContainer.className = 'table-responsive mt-2';
+    
+    // Determine which columns to show (all columns, user-level hidden fields will filter)
+    const tableColumns = columns.map(c => c.fieldname);
+
+    
+    // Get user permissions
+    const userEmail = localStorage.getItem('userEmail');
+    const userPermsRaw = config.user_permissions?.[userEmail] || {};
+    const hiddenFields = userPermsRaw.hidden_fields ?? userPermsRaw.hiddenfields ?? [];
+    
+    // Filter visible columns
+    const visibleColumns = tableColumns.filter(fieldname => !hiddenFields.includes(fieldname));
+    
+    if (visibleColumns.length === 0) {
+        tableContainer.innerHTML = '<p class="text-muted">No columns to display</p>';
+        return tableContainer;
+    }
+    
+    // Create table
+    const table = document.createElement('table');
+    table.className = 'table table-sm table-bordered table-hover';
+    
+    // Table header
+    const thead = document.createElement('thead');
+    thead.className = 'table-light';
+    const headerRow = document.createElement('tr');
+    
+    visibleColumns.forEach(fieldname => {
+        const th = document.createElement('th');
+        const col = columns.find(c => c.fieldname === fieldname);
+        th.textContent = fieldLabels?.[fieldname] || col?.label || fieldname;
+        th.style.whiteSpace = 'nowrap';
+        headerRow.appendChild(th);
+    });
+    
+    thead.appendChild(headerRow);
+    table.appendChild(thead);
+    
+    // Table body
+    const tbody = document.createElement('tbody');
+    
+    rows.forEach(row => {
+        const tr = document.createElement('tr');
+        tr.style.cursor = 'pointer';
+        tr.title = 'Click to view details';
+        
+        // Add click handler for row
+        tr.addEventListener('click', () => {
+            showDetailModal(row, columns, reportName, config);
+        });
+        
+        visibleColumns.forEach(fieldname => {
+            const td = document.createElement('td');
+            let value = row[fieldname];
+            
+            // Format value
+            if (value === null || value === undefined || value === '') {
+                td.innerHTML = '<span class="text-muted">-</span>';
+            } else if (typeof value === 'string' && (value.includes('<') || value.includes('img'))) {
+                // Handle HTML/rich text content
+                const tempDiv = document.createElement('div');
+                tempDiv.innerHTML = value;
+                
+                // Check if there are images
+                const images = tempDiv.querySelectorAll('img');
+                const hasImages = images.length > 0;
+                
+                // Get text content (without HTML tags)
+                const textContent = tempDiv.textContent || tempDiv.innerText || '';
+                const trimmedText = textContent.trim();
+                
+                // Create a container for mixed content
+                const contentDiv = document.createElement('div');
+                contentDiv.style.display = 'flex';
+                contentDiv.style.alignItems = 'center';
+                contentDiv.style.gap = '8px';
+                
+                // Add first image if exists
+                if (hasImages) {
+                    const imgUrl = images[0].getAttribute('src');
+                    if (imgUrl) {
+                        const img = document.createElement('img');
+                        img.src = fixImageUrl(imgUrl);
+                        img.style.maxWidth = '50px';
+                        img.style.maxHeight = '50px';
+                        img.style.minWidth = '50px';
+                        img.style.minHeight = '50px';
+                        img.style.objectFit = 'cover';
+                        img.style.cursor = 'pointer';
+                        img.style.border = '1px solid #ddd';
+                        img.style.borderRadius = '4px';
+                        img.style.flexShrink = '0';
+                        img.onclick = (e) => {
+                            e.stopPropagation();
+                            window.open(img.src, '_blank', 'noopener');
+                        };
+                        contentDiv.appendChild(img);
+                    }
+                }
+                
+                // Add text content if exists
+                if (trimmedText) {
+                    const textSpan = document.createElement('span');
+                    textSpan.style.flex = '1';
+                    textSpan.style.overflow = 'hidden';
+                    textSpan.style.textOverflow = 'ellipsis';
+                    textSpan.style.display = '-webkit-box';
+                    textSpan.style.webkitLineClamp = '2';
+                    textSpan.style.webkitBoxOrient = 'vertical';
+                    textSpan.style.wordBreak = 'break-word';
+                    
+                    // Truncate text if too long
+                    if (trimmedText.length > 100) {
+                        textSpan.textContent = trimmedText.substring(0, 100) + '...';
+                        textSpan.title = trimmedText; // Full text on hover
+                    } else {
+                        textSpan.textContent = trimmedText;
+                    }
+                    
+                    contentDiv.appendChild(textSpan);
+                }
+                
+                // If we have content to show, add it
+                if (hasImages || trimmedText) {
+                    td.appendChild(contentDiv);
+                    td.style.maxWidth = '300px';
+                } else {
+                    // Fallback: show raw HTML stripped
+                    td.innerHTML = '<span class="text-muted">-</span>';
+                }
+                
+            } else if (typeof value === 'string' && value.length > 50) {
+                td.textContent = value.substring(0, 50) + '...';
+                td.title = value;
+            } else if (typeof value === 'number') {
+                td.textContent = value.toLocaleString();
+                td.style.textAlign = 'right';
+            } else {
+                td.textContent = value;
+            }
+            
+            tr.appendChild(td);
+        });
+
+        
+        tbody.appendChild(tr);
+    });
+    
+    table.appendChild(tbody);
+    
+    // Calculate and add aggregates footer
+    const aggregates = config.aggregates || [];
+    if (aggregates.length > 0) {
+        const tfoot = document.createElement('tfoot');
+        tfoot.className = 'table-secondary fw-bold';
+        
+        aggregates.forEach(agg => {
+            const footerRow = document.createElement('tr');
+            
+            // Label cell (spans to the aggregate field column)
+            const labelCell = document.createElement('td');
+            const fieldIndex = visibleColumns.indexOf(agg.field);
+            
+            if (fieldIndex > 0) {
+                labelCell.colSpan = fieldIndex;
+            }
+            
+            labelCell.textContent = agg.label || `${agg.function} of ${agg.field}`;
+            labelCell.style.textAlign = 'right';
+            footerRow.appendChild(labelCell);
+            
+            // Value cell
+            const valueCell = document.createElement('td');
+            valueCell.style.textAlign = 'right';
+            
+            // Calculate aggregate
+            const values = rows
+                .map(r => parseFloat(r[agg.field]))
+                .filter(v => !isNaN(v));
+            
+            let result = 0;
+            
+            switch (agg.function.toLowerCase()) {
+                case 'sum':
+                    result = values.reduce((a, b) => a + b, 0);
+                    break;
+                case 'average':
+                case 'avg':
+                    result = values.length > 0 ? values.reduce((a, b) => a + b, 0) / values.length : 0;
+                    break;
+                case 'count':
+                    result = values.length;
+                    break;
+                case 'min':
+                    result = values.length > 0 ? Math.min(...values) : 0;
+                    break;
+                case 'max':
+                    result = values.length > 0 ? Math.max(...values) : 0;
+                    break;
+                default:
+                    result = 0;
+            }
+            
+            valueCell.textContent = result.toLocaleString(undefined, {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+            });
+            
+            footerRow.appendChild(valueCell);
+            
+            // Fill remaining columns
+            const remainingCols = visibleColumns.length - fieldIndex - 1;
+            if (remainingCols > 0) {
+                const emptyCell = document.createElement('td');
+                emptyCell.colSpan = remainingCols;
+                footerRow.appendChild(emptyCell);
+            }
+            
+            tfoot.appendChild(footerRow);
+        });
+        
+        table.appendChild(tfoot);
+    }
+    
+    tableContainer.appendChild(table);
+    return tableContainer;
+}
+
+
+
+
+
+
+
 
 
 
@@ -3432,6 +3834,76 @@ async function openGlobalReportConfigModal(reportName) {
       <strong>⚠️ Required Fields:</strong> DocType, Title Field, and Primary Grouping Field are mandatory to run the report.
     </div>
 
+
+
+      
+      <!-- SORT TYPE SECTION -->
+      <div class="mb-3">
+        <label class="form-label">Sort Type</label>
+        <select class="form-select" id="configSortType">
+          <option value="manual">Manual (Drag & Drop)</option>
+          <option value="automatic">Automatic (Alphabetical/Date)</option>
+        </select>
+        <small class="text-muted">Choose how groups should be sorted</small>
+      </div>
+      
+      <div id="autoSortSection" style="display: none;">
+        <div class="mb-3">
+          <label class="form-label">Primary Group Sort Order</label>
+          <select class="form-select" id="configPrimarySortOrder">
+            <option value="asc">Ascending (A-Z or Oldest First)</option>
+            <option value="desc">Descending (Z-A or Newest First)</option>
+          </select>
+        </div>
+        
+        <div class="mb-3">
+          <label class="form-label">Secondary Group Sort Order</label>
+          <select class="form-select" id="configSecondarySortOrder">
+            <option value="asc">Ascending (A-Z or Oldest First)</option>
+            <option value="desc">Descending (Z-A or Newest First)</option>
+          </select>
+        </div>
+      </div>
+
+
+
+
+
+
+
+      
+      <!-- VIEW TYPE SECTION -->
+      <div class="mb-3">
+        <label class="form-label">View Type</label>
+        <select class="form-select" id="configViewType">
+          <option value="cards">Cards View</option>
+          <option value="table">Table View</option>
+        </select>
+        <small class="text-muted">Choose how data should be displayed</small>
+      </div>
+      
+      <div id="tableViewSection" style="display: none;">
+        <div class="alert alert-info small">
+          <strong>Note:</strong> Table columns are controlled by user-level "Hidden Fields" configuration.
+          Configure which fields each user can see in the User Permissions section below.
+        </div>
+        
+        <div class="mb-3">
+          <label class="form-label fw-bold">Aggregate Functions</label>
+          <small class="text-muted d-block mb-2">Select fields to show aggregates (sum, average, etc.) below each table</small>
+          <div id="aggregateFieldsList" class="border rounded p-3" style="max-height: 300px; overflow-y: auto; background: #f8f9fa;">
+            <small class="text-muted">Loading fields...</small>
+          </div>
+        </div>
+      </div>
+
+
+
+
+
+
+    
+
     <!-- BASIC SETTINGS -->
     <div class="card mb-3">
       <div class="card-header bg-primary text-white">
@@ -3929,6 +4401,240 @@ return `
   setupDragDrop("group1SortList");
   setupDragDrop("group2SortList");
 
+
+
+
+
+    // Initialize sort type configuration
+    const sortTypeSelect = document.getElementById('configSortType');
+    if (sortTypeSelect) {
+        sortTypeSelect.value = config.sort_type || 'manual';
+   
+        
+        // Show/hide relevant sections based on sort type
+        const manualSortSection = document.querySelector('.card-header:has(.bg-warning)');
+        const autoSortSection = document.getElementById('autoSortSection');
+        
+        function updateSortSections() {
+            const sortType = sortTypeSelect.value;
+            const groupSortCards = document.querySelectorAll('.card-header .bg-warning');
+            
+            if (sortType === 'manual') {
+                groupSortCards.forEach(card => card.closest('.card').style.display = 'block');
+                if (autoSortSection) autoSortSection.style.display = 'none';
+            } else {
+                groupSortCards.forEach(card => card.closest('.card').style.display = 'none');
+                if (autoSortSection) autoSortSection.style.display = 'block';
+            }
+        }
+        
+        updateSortSections();
+        
+        sortTypeSelect.addEventListener('change', updateSortSections);
+    }
+    
+    // Auto sort order configuration
+    const primarySortOrderSelect = document.getElementById('configPrimarySortOrder');
+    const secondarySortOrderSelect = document.getElementById('configSecondarySortOrder');
+    
+    if (primarySortOrderSelect) {
+        primarySortOrderSelect.value = config.primary_sort_order || 'asc';
+    }
+    
+    if (secondarySortOrderSelect) {
+        secondarySortOrderSelect.value = config.secondary_sort_order || 'asc';
+    }
+
+
+
+
+
+
+
+
+
+      
+    // Initialize view type configuration
+    const viewTypeSelect = document.getElementById('configViewType');
+    const tableViewSection = document.getElementById('tableViewSection');
+    
+    if (viewTypeSelect) {
+        viewTypeSelect.value = config.view_type || 'cards';
+        
+        function updateViewTypeSections() {
+            const viewType = viewTypeSelect.value;
+            if (viewType === 'table') {
+                if (tableViewSection) {
+                    tableViewSection.style.display = 'block';
+                    renderAggregateFieldsCheckboxes();
+                }
+            } else {
+                if (tableViewSection) tableViewSection.style.display = 'none';
+            }
+        }
+        
+        updateViewTypeSections();
+        viewTypeSelect.addEventListener('change', updateViewTypeSections);
+    }
+    
+    // Render aggregate fields with checkboxes
+    function renderAggregateFieldsCheckboxes() {
+        const aggregatesList = document.getElementById('aggregateFieldsList');
+        if (!aggregatesList) return;
+        
+        // Get all report columns
+        const reportColumns = currentReportColumns || [];
+        
+        if (reportColumns.length === 0) {
+            aggregatesList.innerHTML = '<small class="text-muted">Please load the report first to see available fields</small>';
+            return;
+        }
+        
+        // Get existing aggregates
+        const existingAggregates = config.aggregates || [];
+        
+        aggregatesList.innerHTML = '';
+        
+        // Filter numeric/date fields (suitable for aggregation)
+        const aggregatableFields = reportColumns.filter(col => {
+            const fieldType = col.fieldtype || '';
+            return ['Int', 'Float', 'Currency', 'Percent', 'Data', 'Date', 'Datetime'].includes(fieldType) ||
+                   col.fieldname.toLowerCase().includes('qty') ||
+                   col.fieldname.toLowerCase().includes('amount') ||
+                   col.fieldname.toLowerCase().includes('total') ||
+                   col.fieldname.toLowerCase().includes('count') ||
+                   col.fieldname.toLowerCase().includes('time');
+        });
+        
+        if (aggregatableFields.length === 0) {
+            aggregatesList.innerHTML = '<small class="text-muted">No numeric fields available for aggregation</small>';
+            return;
+        }
+        
+        aggregatableFields.forEach(col => {
+            const fieldname = col.fieldname;
+            const label = fieldLabels?.[fieldname] || col.label || fieldname;
+            
+            // Find if this field has an existing aggregate
+            const existingAgg = existingAggregates.find(a => a.field === fieldname);
+            
+            const fieldDiv = document.createElement('div');
+            fieldDiv.className = 'mb-3 p-2 border rounded bg-white';
+            
+            // Checkbox to enable/disable aggregate for this field
+            const checkboxDiv = document.createElement('div');
+            checkboxDiv.className = 'form-check mb-2';
+            
+// Sanitize fieldname for use in IDs (remove special characters)
+const safeFieldname = fieldname.replace(/[^a-zA-Z0-9_]/g, '_');
+
+const checkbox = document.createElement('input');
+checkbox.type = 'checkbox';
+checkbox.className = 'form-check-input';
+checkbox.id = `agg_enable_${safeFieldname}`;
+checkbox.dataset.fieldname = fieldname; // Store original fieldname in data attribute
+checkbox.checked = !!existingAgg;
+
+            
+const checkboxLabel = document.createElement('label');
+checkboxLabel.className = 'form-check-label fw-bold';
+checkboxLabel.htmlFor = `agg_enable_${safeFieldname}`;
+checkboxLabel.textContent = label;
+
+            
+            checkboxDiv.appendChild(checkbox);
+            checkboxDiv.appendChild(checkboxLabel);
+            fieldDiv.appendChild(checkboxDiv);
+            
+            // Options div (function and custom label)
+            const optionsDiv = document.createElement('div');
+            optionsDiv.className = 'ms-4';
+            optionsDiv.style.display = existingAgg ? 'block' : 'none';
+            
+            // Function selector
+            const funcDiv = document.createElement('div');
+            funcDiv.className = 'mb-2';
+            funcDiv.innerHTML = `
+                <label class="form-label small mb-1">Function:</label>
+                <select class="form-select form-select-sm" id="agg_func_${safeFieldname}" data-fieldname="${fieldname}">
+
+                    <option value="sum">Sum</option>
+                    <option value="average">Average</option>
+                    <option value="count">Count</option>
+                    <option value="min">Minimum</option>
+                    <option value="max">Maximum</option>
+                </select>
+            `;
+            
+            // Custom label input
+            const labelDiv = document.createElement('div');
+            labelDiv.innerHTML = `
+                <label class="form-label small mb-1">Custom Label (optional):</label>
+                <input type="text" class="form-control form-control-sm" id="agg_label_${safeFieldname}" 
+                       data-fieldname="${fieldname}" placeholder="e.g., Total Amount">
+            `;
+
+            
+            optionsDiv.appendChild(funcDiv);
+            optionsDiv.appendChild(labelDiv);
+            fieldDiv.appendChild(optionsDiv);
+            
+            // Set existing values
+            if (existingAgg) {
+                const funcSelect = optionsDiv.querySelector(`#agg_func_${safeFieldname}`);
+                const labelInput = optionsDiv.querySelector(`#agg_label_${safeFieldname}`);
+                if (funcSelect) funcSelect.value = existingAgg.function || 'sum';
+                if (labelInput) labelInput.value = existingAgg.label || '';
+            }
+
+            
+            // Toggle options visibility on checkbox change
+            checkbox.addEventListener('change', function() {
+                optionsDiv.style.display = this.checked ? 'block' : 'none';
+                updateAggregatesConfig();
+            });
+            
+            // Update config on any change
+            optionsDiv.addEventListener('change', updateAggregatesConfig);
+            
+            aggregatesList.appendChild(fieldDiv);
+        });
+        
+        // Function to update config.aggregates based on UI
+        function updateAggregatesConfig() {
+            const newAggregates = [];
+            
+            aggregatableFields.forEach(col => {
+                const fieldname = col.fieldname;
+                const safeFieldname = fieldname.replace(/[^a-zA-Z0-9_]/g, '_');
+                const checkbox = document.getElementById(`agg_enable_${safeFieldname}`);
+                
+                if (checkbox && checkbox.checked) {
+                    const funcSelect = document.getElementById(`agg_func_${safeFieldname}`);
+                    const labelInput = document.getElementById(`agg_label_${safeFieldname}`);
+                    
+                    newAggregates.push({
+                        field: fieldname, // Use original fieldname, not sanitized
+                        function: funcSelect ? funcSelect.value : 'sum',
+                        label: labelInput && labelInput.value ? labelInput.value : null
+                    });
+                }
+            });
+            
+            config.aggregates = newAggregates;
+            console.log('Updated aggregates:', config.aggregates);
+        }
+
+    }
+
+
+
+
+
+
+
+
+  
   // Toggle Time Logs permissions section
   document.getElementById("configShowTimeLogs").addEventListener("change", (e) => {
     document.getElementById("timeLogsPermissionsSection").style.display = e.target.checked ? "block" : "none";
@@ -3964,6 +4670,31 @@ document.getElementById("saveGlobalConfigBtn").onclick = async () => {
     // Grouping
     reportConfig[reportName].group_by = [group1, group2].filter((g) => g && g !== "-- None --");
 
+
+            // Save sort type and order
+        const sortTypeSelect = document.getElementById('configSortType');
+        if (sortTypeSelect) {
+            reportConfig[reportName].sort_type = sortTypeSelect.value;
+        }
+        
+        const primarySortOrderSelect = document.getElementById('configPrimarySortOrder');
+        const secondarySortOrderSelect = document.getElementById('configSecondarySortOrder');
+        
+        if (reportConfig[reportName].sort_type === 'automatic') {
+            reportConfig[reportName].primary_sort_order = primarySortOrderSelect ? primarySortOrderSelect.value : 'asc';
+            reportConfig[reportName].secondary_sort_order = secondarySortOrderSelect ? secondarySortOrderSelect.value : 'asc';
+        } else {
+            // Remove automatic sort settings if switching to manual
+            delete reportConfig[reportName].primary_sort_order;
+            delete reportConfig[reportName].secondary_sort_order;
+        }
+
+
+    
+
+
+    
+
     // Sorting
     reportConfig[reportName].sort_by = document.getElementById("configsortby")?.value || "";
     reportConfig[reportName].sort_order = document.getElementById("configsortorder")?.value || "asc";
@@ -3989,6 +4720,38 @@ document.getElementById("saveGlobalConfigBtn").onclick = async () => {
       );
     }
 
+
+
+
+
+
+
+
+
+
+
+        
+        // Save view type
+        const viewTypeSelect = document.getElementById('configViewType');
+        if (viewTypeSelect) {
+            reportConfig[reportName].view_type = viewTypeSelect.value;
+        }
+        
+        // Aggregates are already saved in config.aggregates from the UI (no additional save needed)
+
+
+
+
+    
+
+
+
+
+
+
+
+
+    
     // Time Logs
     reportConfig[reportName].show_time_logs_button = document.getElementById("configShowTimeLogs")?.checked || false;
     if (reportConfig[reportName].show_time_logs_button) {
